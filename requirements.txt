@@ -1,0 +1,40 @@
+# Gym Bot - Anytime Fitness Automation System
+# Python 3.8+ compatible requirements
+
+# Core dependencies
+requests>=2.31.0
+python-dotenv>=1.0.0
+typing-extensions>=4.8.0
+
+# Data handling
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0
+
+# Web automation
+selenium>=4.15.0
+webdriver-manager>=4.0.0
+beautifulsoup4>=4.12.0
+
+# Google APIs (for ClubHub integration and AI)
+google-api-python-client>=2.100.0
+google-auth-httplib2>=0.1.1
+google-auth-oauthlib>=1.1.0
+google-cloud-secret-manager>=2.16.0
+google-cloud-firestore>=2.12.0
+google-generativeai>=0.8.0
+
+# Square API (for payment processing)
+squareup>=30.0.0
+
+# Web framework (for future web interface)
+Flask>=2.3.0
+gunicorn>=21.2.0
+
+# Development and testing
+pytest>=7.4.0
+black>=23.0.0
+flake8>=6.0.0
+
+# Logging and monitoring
+python-json-logger>=2.0.7
