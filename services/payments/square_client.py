@@ -13,7 +13,14 @@ from square import Square
 from square.environment import SquareEnvironment
 from square.core.api_error import ApiError
 
-from ...config.constants import SQUARE_ENVIRONMENT, SQUARE_ACCESS_TOKEN_SECRET, YELLOW_RED_MESSAGE_TEMPLATE, LATE_FEE_AMOUNT
+try:
+    from ...config.constants import SQUARE_ENVIRONMENT, SQUARE_ACCESS_TOKEN_SECRET, YELLOW_RED_MESSAGE_TEMPLATE, LATE_FEE_AMOUNT
+except ImportError:
+    # Fallback for direct imports
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    from config.constants import SQUARE_ENVIRONMENT, SQUARE_ACCESS_TOKEN_SECRET, YELLOW_RED_MESSAGE_TEMPLATE, LATE_FEE_AMOUNT
 
 
 class EnhancedSquareClient:

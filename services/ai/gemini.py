@@ -6,7 +6,14 @@ Contains the EXACT working AI initialization and client functions from Anytime_B
 import google.generativeai as genai
 from google.cloud import firestore
 
-from ...config.secrets import get_secret
+try:
+    from ...config.secrets import get_secret
+except ImportError:
+    # Fallback for direct imports
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    from config.secrets import get_secret
 
 
 # Global variables to match original script

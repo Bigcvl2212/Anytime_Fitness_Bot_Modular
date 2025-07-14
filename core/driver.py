@@ -12,8 +12,16 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 
-from ..config.constants import CLUBOS_LOGIN_URL, CLUBOS_USERNAME_SECRET, CLUBOS_PASSWORD_SECRET
-from ..config.secrets import get_secret
+try:
+    from ..config.constants import CLUBOS_LOGIN_URL, CLUBOS_USERNAME_SECRET, CLUBOS_PASSWORD_SECRET
+    from ..config.secrets import get_secret
+except ImportError:
+    # Fallback for direct imports
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from config.constants import CLUBOS_LOGIN_URL, CLUBOS_USERNAME_SECRET, CLUBOS_PASSWORD_SECRET
+    from config.secrets import get_secret
 
 
 def setup_chrome_driver():
