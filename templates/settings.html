@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Gym Bot{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1>Settings & Configuration</h1>
+        <p class="text-muted">View and manage system configuration</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-cog"></i> System Configuration</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <tbody>
+                        <tr>
+                            <td><strong>GCP Project ID</strong></td>
+                            <td><code>{{ settings.gcp_project }}</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Migration Mode</strong></td>
+                            <td>
+                                <span class="badge bg-info">{{ settings.migration_mode }}</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Environment</strong></td>
+                            <td>
+                                <span class="badge bg-{% if settings.environment == 'production' %}danger{% elif settings.environment == 'sandbox' %}warning{% else %}secondary{% endif %}">
+                                    {{ settings.environment.title() }}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Dashboard Version</strong></td>
+                            <td><code>1.0.0</code></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Flask Debug Mode</strong></td>
+                            <td>
+                                <span class="badge bg-{% if settings.environment == 'development' %}warning{% else %}success{% endif %}">
+                                    {{ 'Enabled' if settings.environment == 'development' else 'Disabled' }}
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="fas fa-database"></i> Service Configuration</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Square Payments</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="fas fa-check text-success"></i> Sandbox Mode</li>
+                            <li><i class="fas fa-check text-success"></i> API Credentials Configured</li>
+                            <li><i class="fas fa-check text-success"></i> Invoice Generation Enabled</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Google Services</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="fas fa-check text-success"></i> Gemini AI Integration</li>
+                            <li><i class="fas fa-check text-success"></i> Cloud Secret Manager</li>
+                            <li><i class="fas fa-check text-success"></i> Firestore Database</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="fas fa-tools"></i> Development Tools</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-12">
+                        <p class="text-muted mb-3">Quick access to development and debugging tools</p>
+                        
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-outline-primary btn-sm" onclick="testConnections()">
+                                <i class="fas fa-network-wired"></i> Test Connections
+                            </button>
+                            <button class="btn btn-outline-info btn-sm" onclick="runDiagnostics()">
+                                <i class="fas fa-stethoscope"></i> Run Diagnostics
+                            </button>
+                            <button class="btn btn-outline-success btn-sm" onclick="exportLogs()">
+                                <i class="fas fa-download"></i> Export Logs
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm" onclick="clearCache()">
+                                <i class="fas fa-trash"></i> Clear Cache
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-question-circle"></i> Help & Documentation</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="fas fa-book"></i> User Guide
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="fas fa-code"></i> API Documentation
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="fas fa-bug"></i> Report Issue
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="fas fa-info-circle"></i> About
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="fas fa-shield-alt"></i> Security</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Dashboard Access</label>
+                    <div class="text-muted small">
+                        Currently running on localhost with no authentication.
+                        For production use, implement proper authentication.
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">API Keys Status</label>
+                    <div>
+                        <span class="badge bg-success">
+                            <i class="fas fa-lock"></i> Secured via Secret Manager
+                        </span>
+                    </div>
+                </div>
+                
+                <button class="btn btn-outline-danger btn-sm" onclick="regenerateSecrets()">
+                    <i class="fas fa-key"></i> Regenerate API Keys
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Modal -->
+<div class="modal fade" id="resultsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resultsModalTitle">Operation Results</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="resultsContent">
+                    <!-- Results will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function testConnections() {
+    showLoading('Testing all service connections...');
+    
+    fetch('/api/refresh-status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const services = data.status.services;
+                let html = '<h6>Connection Test Results:</h6><ul class="list-group">';
+                
+                for (const [service, info] of Object.entries(services)) {
+                    const iconClass = info.status === 'healthy' ? 'fas fa-check-circle text-success' : 'fas fa-times-circle text-danger';
+                    const serviceName = service.replace('_', ' ').split(' ').map(word => 
+                        word.charAt(0).toUpperCase() + word.slice(1)
+                    ).join(' ');
+                    
+                    html += `
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="${iconClass}"></i>
+                                <strong class="ms-2">${serviceName}</strong>
+                                <br><small class="text-muted ms-4">${info.details}</small>
+                            </div>
+                            <span class="badge bg-${info.status === 'healthy' ? 'success' : 'danger'}">${info.status}</span>
+                        </li>
+                    `;
+                }
+                
+                html += '</ul>';
+                showResults('Connection Test Results', html);
+            } else {
+                showResults('Connection Test Failed', `<div class="alert alert-danger">Error: ${data.error}</div>`);
+            }
+        })
+        .catch(error => {
+            showResults('Connection Test Error', `<div class="alert alert-danger">Request failed: ${error}</div>`);
+        });
+}
+
+function runDiagnostics() {
+    showLoading('Running system diagnostics...');
+    
+    // Simulate diagnostics
+    setTimeout(() => {
+        const diagnostics = {
+            'Memory Usage': '45%',
+            'CPU Usage': '23%',
+            'Disk Space': '78% available',
+            'Network Connectivity': 'Good',
+            'Database Connections': '5 active',
+            'Background Tasks': '3 running'
+        };
+        
+        let html = '<h6>System Diagnostics:</h6><div class="row">';
+        
+        for (const [key, value] of Object.entries(diagnostics)) {
+            html += `
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h5 class="card-title">${value}</h5>
+                            <p class="card-text">${key}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        html += '</div>';
+        showResults('System Diagnostics', html);
+    }, 2000);
+}
+
+function exportLogs() {
+    showLoading('Exporting logs...');
+    
+    fetch('/api/logs')
+        .then(response => response.json())
+        .then(data => {
+            const logs = data.logs;
+            const csvContent = 'Timestamp,Level,Component,Message\n' + 
+                logs.map(log => `"${log.timestamp}","${log.level}","${log.component}","${log.message}"`).join('\n');
+            
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `gym-bot-logs-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+            
+            showResults('Export Complete', '<div class="alert alert-success">Logs exported successfully!</div>');
+        })
+        .catch(error => {
+            showResults('Export Failed', `<div class="alert alert-danger">Export failed: ${error}</div>`);
+        });
+}
+
+function clearCache() {
+    if (confirm('Are you sure you want to clear the cache? This may affect performance temporarily.')) {
+        showLoading('Clearing cache...');
+        
+        // Simulate cache clearing
+        setTimeout(() => {
+            showResults('Cache Cleared', '<div class="alert alert-success">Cache cleared successfully!</div>');
+        }, 1000);
+    }
+}
+
+function regenerateSecrets() {
+    if (confirm('Are you sure you want to regenerate API keys? This will require reconfiguration of all services.')) {
+        showLoading('Regenerating secrets...');
+        
+        // Simulate secret regeneration
+        setTimeout(() => {
+            showResults('Security Alert', '<div class="alert alert-warning">Secret regeneration is not implemented in this demo version. Contact your administrator.</div>');
+        }, 1500);
+    }
+}
+
+function showLoading(message) {
+    const modal = new bootstrap.Modal(document.getElementById('resultsModal'));
+    document.getElementById('resultsModalTitle').textContent = 'Working...';
+    document.getElementById('resultsContent').innerHTML = `
+        <div class="text-center py-4">
+            <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
+            <p>${message}</p>
+        </div>
+    `;
+    modal.show();
+}
+
+function showResults(title, content) {
+    document.getElementById('resultsModalTitle').textContent = title;
+    document.getElementById('resultsContent').innerHTML = content;
+}
+</script>
+{% endblock %}

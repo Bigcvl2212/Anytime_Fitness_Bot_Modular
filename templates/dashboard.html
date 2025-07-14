@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Gym Bot{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1>Gym Bot System Dashboard</h1>
+        <p class="text-muted">Monitor and control your gym automation system</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle"></i> System Information</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>GCP Project:</strong> {{ project_id }}</p>
+                <p><strong>Last Update:</strong> {{ status.last_update or 'Never' }}</p>
+                <button class="btn btn-primary btn-sm" onclick="refreshStatus()">
+                    <i class="fas fa-refresh"></i> Refresh Status
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar"></i> Quick Stats</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6">
+                        <div class="text-center">
+                            <h3 class="text-success">{{ status.services|length }}</h3>
+                            <small class="text-muted">Services</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-center">
+                            <h3 class="text-info">{{ status.logs|length }}</h3>
+                            <small class="text-muted">Log Entries</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-heartbeat"></i> Service Status</h5>
+            </div>
+            <div class="card-body">
+                {% if status.services %}
+                    <div class="row">
+                        {% for service, info in status.services.items() %}
+                        <div class="col-md-6 mb-3">
+                            <div class="d-flex align-items-center">
+                                {% if info.status == 'healthy' %}
+                                    <i class="fas fa-check-circle text-success me-2"></i>
+                                {% elif info.status == 'error' %}
+                                    <i class="fas fa-times-circle text-danger me-2"></i>
+                                {% else %}
+                                    <i class="fas fa-question-circle text-warning me-2"></i>
+                                {% endif %}
+                                <div>
+                                    <strong>{{ service.replace('_', ' ').title() }}</strong><br>
+                                    <small class="text-muted">{{ info.details }}</small>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">No service status available. Click refresh to check services.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-clock"></i> Recent Logs</h5>
+            </div>
+            <div class="card-body">
+                {% if status.logs %}
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Level</th>
+                                    <th>Component</th>
+                                    <th>Message</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in status.logs[:10] %}
+                                <tr>
+                                    <td>{{ log.timestamp }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if log.level == 'ERROR' %}danger{% elif log.level == 'WARNING' %}warning{% else %}info{% endif %}">
+                                            {{ log.level }}
+                                        </span>
+                                    </td>
+                                    <td>{{ log.component }}</td>
+                                    <td>{{ log.message }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    <a href="{{ url_for('logs_page') }}" class="btn btn-outline-primary btn-sm">View All Logs</a>
+                {% else %}
+                    <p class="text-muted">No logs available.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function refreshStatus() {
+    fetch('/api/refresh-status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Failed to refresh status: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error refreshing status: ' + error);
+        });
+}
+
+// Auto-refresh every 60 seconds
+setInterval(() => {
+    refreshStatus();
+}, 60000);
+</script>
+{% endblock %}
