@@ -8,26 +8,32 @@ import sys
 import traceback
 from typing import Optional
 
-from gym_bot.core import get_driver, login_to_clubos, close_driver
-from gym_bot.services import (
-    get_gemini_client,
-    get_messaging_service,
-    get_square_client,
-    test_square_connection
+from gym_bot_backend import (
+    get_driver, login_to_clubos, close_driver,
+    get_gemini_client, get_messaging_service, get_square_client, test_square_connection,
+    GCP_PROJECT_ID
 )
-from gym_bot.config import GCP_PROJECT_ID
-from gym_bot.config.migration_config import (
-    get_migration_mode, 
-    MIGRATION_CONFIG,
-    WORKFLOW_MIGRATION_CONFIG
-)
-
-# Import enhanced API-based workflows
-from gym_bot.workflows.overdue_payments_enhanced import (
-    process_overdue_payments_api,
-    compare_api_vs_selenium_payments
-)
-from gym_bot.services.api.migration_service import get_migration_service
+try:
+    from config.migration_config import (
+        get_migration_mode, 
+        MIGRATION_CONFIG,
+        WORKFLOW_MIGRATION_CONFIG
+    )
+    # Import enhanced API-based workflows
+    from workflows.overdue_payments_enhanced import (
+        process_overdue_payments_api,
+        compare_api_vs_selenium_payments
+    )
+    from services.api.migration_service import get_migration_service
+except ImportError as e:
+    print(f"Warning: Some enhanced features not available: {e}")
+    # Define stub functions
+    def get_migration_mode(): return "selenium"
+    MIGRATION_CONFIG = {}
+    WORKFLOW_MIGRATION_CONFIG = {}
+    def process_overdue_payments_api(): return False
+    def compare_api_vs_selenium_payments(): return False
+    def get_migration_service(): return None
 
 
 def initialize_services() -> bool:

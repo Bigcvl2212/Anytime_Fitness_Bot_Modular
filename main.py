@@ -8,14 +8,11 @@ import sys
 import traceback
 from typing import Optional
 
-from gym_bot.core import get_driver, login_to_clubos, close_driver
-from gym_bot.services import (
-    get_gemini_client,
-    get_messaging_service,
-    get_square_client,
-    test_square_connection
+from gym_bot_backend import (
+    get_driver, login_to_clubos, close_driver,
+    get_gemini_client, get_messaging_service, get_square_client, test_square_connection,
+    GCP_PROJECT_ID
 )
-from gym_bot.config import GCP_PROJECT_ID
 
 def initialize_services() -> bool:
     """
@@ -32,22 +29,28 @@ def initialize_services() -> bool:
     # Initialize Gemini AI
     try:
         ai_client = get_gemini_client()
-        print("✅ Gemini AI service initialized")
+        if ai_client:
+            print("✅ Gemini AI service initialized")
+        else:
+            print("⚠️ Gemini AI service not available (missing API key)")
     except Exception as e:
-        print(f"❌ Failed to initialize Gemini AI: {e}")
-        success = False
+        print(f"⚠️ Gemini AI not available: {e}")
+        # Don't fail completely for missing credentials
     
     # Initialize Square payments
     try:
         square_client = get_square_client()
-        if square_client.test_connection():
-            print("✅ Square payment service initialized")
+        if square_client and hasattr(square_client, 'test_connection'):
+            if square_client.test_connection():
+                print("✅ Square payment service initialized")
+            else:
+                print("❌ Square payment service connection failed")
+                success = False
         else:
-            print("❌ Square payment service connection failed")
-            success = False
+            print("⚠️ Square payment service not available (missing credentials)")
     except Exception as e:
-        print(f"❌ Failed to initialize Square payments: {e}")
-        success = False
+        print(f"⚠️ Square payments not available: {e}")
+        # Don't fail completely for missing credentials
     
     print(f"{'✅ Services initialized successfully' if success else '❌ Some services failed to initialize'}")
     return success

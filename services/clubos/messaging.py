@@ -10,15 +10,30 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
-from ...config.constants import (
-    CLUBOS_DASHBOARD_URL,
-    CLUBOS_MESSAGES_URL,
-    CLUBOS_TEXT_TAB_ID,
-    CLUBOS_EMAIL_TAB_ID,
-    TEXT_MESSAGE_CHARACTER_LIMIT,
-    NOTE_AUTHOR_NAME,
-    STAFF_NAMES
-)
+try:
+    from ...config.constants import (
+        CLUBOS_DASHBOARD_URL,
+        CLUBOS_MESSAGES_URL,
+        CLUBOS_TEXT_TAB_ID,
+        CLUBOS_EMAIL_TAB_ID,
+        TEXT_MESSAGE_CHARACTER_LIMIT,
+        NOTE_AUTHOR_NAME,
+        STAFF_NAMES
+    )
+except ImportError:
+    # Fallback for direct imports
+    import sys
+    import os
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    from config.constants import (
+        CLUBOS_DASHBOARD_URL,
+        CLUBOS_MESSAGES_URL,
+        CLUBOS_TEXT_TAB_ID,
+        CLUBOS_EMAIL_TAB_ID,
+        TEXT_MESSAGE_CHARACTER_LIMIT,
+        NOTE_AUTHOR_NAME,
+        STAFF_NAMES
+    )
 
 
 def send_clubos_message(driver, member_name, subject, body):
