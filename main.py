@@ -134,7 +134,80 @@ def run_message_processing():
     finally:
         close_driver()
 
-def run_payment_workflow():
+def run_social_media_management():
+    """Run the social media management workflow."""
+    print("📱 SOCIAL MEDIA MANAGEMENT")
+    print("="*40)
+    
+    try:
+        from services.social_media.social_media_manager import SocialMediaManager
+        
+        # Initialize social media manager
+        ai_client = get_gemini_client()
+        social_manager = SocialMediaManager(ai_client=ai_client, use_mock_api=True)
+        
+        print("✅ Social Media Manager initialized")
+        
+        # Start autonomous operation
+        print("🚀 Starting autonomous social media operation...")
+        start_result = social_manager.start_autonomous_operation()
+        
+        if start_result.get("success"):
+            operation_summary = start_result.get("operation_summary", {})
+            print(f"✅ Autonomous operation started successfully!")
+            print(f"   📅 Posts scheduled: {operation_summary.get('posts_scheduled', 0)}")
+            print(f"   🤖 Auto-posting enabled: {operation_summary.get('auto_posting_enabled', False)}")
+            print(f"   💬 Engagement items processed: {operation_summary.get('engagement_items_processed', 0)}")
+            
+            # Simulate some engagement for demo
+            print("\n🧪 Simulating engagement for demonstration...")
+            sim_result = social_manager.simulate_engagement_for_testing(num_comments=3, num_messages=2)
+            if sim_result.get("success"):
+                print("✅ Test engagement simulated")
+                
+                # Process the simulated engagement
+                print("🔄 Processing simulated engagement...")
+                engagement_result = social_manager.monitor_and_respond_to_engagement()
+                if engagement_result.get("success"):
+                    responses = engagement_result.get("responses", {})
+                    print(f"✅ Engagement processed:")
+                    print(f"   💬 Comments responded to: {responses.get('comments', 0)}")
+                    print(f"   📧 Messages responded to: {responses.get('messages', 0)}")
+            
+            # Generate performance report
+            print("\n📊 Generating performance report...")
+            report_result = social_manager.generate_performance_report()
+            if report_result.get("success"):
+                report = report_result.get("report", {})
+                analytics = report.get("analytics", {})
+                summary = analytics.get("summary_metrics", {})
+                
+                print("✅ Performance report generated:")
+                print(f"   📈 Total posts this week: {summary.get('total_posts', 0)}")
+                print(f"   👍 Average engagement rate: {summary.get('average_engagement_rate', 0):.3f}")
+                print(f"   📱 Posts per day: {summary.get('posts_per_day', 0)}")
+                
+                upcoming = report.get("upcoming_content", {})
+                if upcoming.get("posts_scheduled", 0) > 0:
+                    next_post = upcoming.get("next_post", {})
+                    if next_post:
+                        print(f"   ⏰ Next post: {next_post.get('content_preview', 'N/A')}")
+                        print(f"   📅 Scheduled for: {next_post.get('time_until_post', 'N/A')}")
+            
+            print("\n🎯 SOCIAL MEDIA MANAGEMENT SUCCESSFULLY RUNNING")
+            print("   The bot will continue to operate autonomously:")
+            print("   • Posting scheduled content automatically")
+            print("   • Monitoring and responding to engagement")
+            print("   • Analyzing performance and optimizing strategy")
+            print("\n   Use 'stop-social-media' to halt autonomous operation")
+            
+        else:
+            print(f"❌ Failed to start autonomous operation: {start_result.get('error')}")
+            
+    except Exception as e:
+        print(f"❌ Error in social media management: {e}")
+        import traceback
+        traceback.print_exc()
     """Run the payment processing workflow."""
     print("💳 PROCESSING PAYMENTS")
     print("="*30)
@@ -225,7 +298,8 @@ def main():
             "process-messages", 
             "process-payments",
             "run-campaigns",
-            "training-workflow"
+            "training-workflow",
+            "social-media"
         ],
         help="Action to perform"
     )
@@ -273,6 +347,9 @@ def main():
             
         elif args.action == "training-workflow":
             print("🏋️ Training workflow not yet implemented")
+            
+        elif args.action == "social-media":
+            run_social_media_management()
         
         print("\n✅ WORKFLOW COMPLETED SUCCESSFULLY")
         
