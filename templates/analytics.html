@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - Gym Bot Pro{% endblock %}
+{% block page_title %}Analytics & Business Insights{% endblock %}
+
+{% block content %}
+<!-- KPI Overview -->
+<div class="row mb-4">
+    {% for kpi in kpis[:6] %}
+    <div class="col-md-2">
+        <div class="card metric-card">
+            <div class="metric-value {% if kpi.trend == 'up' %}text-success{% elif kpi.trend == 'down' %}text-danger{% else %}text-info{% endif %}">
+                {% if kpi.unit == 'USD' %}${% endif %}{{ "{:,.0f}".format(kpi.current_value) }}{% if kpi.unit == '%' %}%{% elif kpi.unit != 'USD' %} {{ kpi.unit.split('/')[0] if '/' in kpi.unit else kpi.unit }}{% endif %}
+            </div>
+            <div class="metric-label">{{ kpi.name }}</div>
+            <small class="{% if kpi.trend == 'up' %}text-success{% elif kpi.trend == 'down' %}text-danger{% else %}text-muted{% endif %}">
+                <i class="fas fa-arrow-{% if kpi.trend == 'up' %}up{% elif kpi.trend == 'down' %}down{% else %}right{% endif %} me-1"></i>
+                {{ kpi.trend.title() }}
+            </small>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Revenue & Membership Analytics -->
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-line me-2"></i>Revenue Trends</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="revenueChart" class="chart-container"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-pie-chart me-2"></i>Revenue Breakdown</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="revenueBreakdownChart" style="height: 250px;"></canvas>
+                <div class="mt-3">
+                    {% for source, data in revenue_analytics.revenue_breakdown.items() %}
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>{{ source.replace('_', ' ').title() }}</span>
+                        <span class="fw-bold">${{ "{:,.0f}".format(data.amount) }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Membership Analytics -->
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-users me-2"></i>Membership Growth</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="membershipChart" style="height: 250px;"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-clock me-2"></i>Peak Hours Analysis</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="peakHoursChart" style="height: 250px;"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AI Insights -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-brain me-2"></i>AI-Powered Business Insights</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for insight in insights %}
+                    <div class="col-lg-4 mb-3">
+                        <div class="border rounded p-3 h-100">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="mb-0">{{ insight.title }}</h6>
+                                <span class="badge bg-{% if insight.priority == 'high' %}danger{% elif insight.priority == 'medium' %}warning{% else %}info{% endif %}">
+                                    {{ insight.priority.title() }}
+                                </span>
+                            </div>
+                            <p class="small text-muted mb-2">{{ insight.description }}</p>
+                            <p class="small mb-2"><strong>Recommendation:</strong> {{ insight.recommendation }}</p>
+                            <p class="small text-success mb-0"><strong>Impact:</strong> {{ insight.impact }}</p>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Revenue Trend Chart
+const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+new Chart(revenueCtx, {
+    type: 'line',
+    data: {
+        labels: {{ revenue_analytics.monthly_trend | map(attribute='month') | list | tojson }},
+        datasets: [{
+            label: 'Revenue',
+            data: {{ revenue_analytics.monthly_trend | map(attribute='revenue') | list | tojson }},
+            borderColor: 'rgb(99, 102, 241)',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            tension: 0.4
+        }, {
+            label: 'Target',
+            data: {{ revenue_analytics.monthly_trend | map(attribute='target') | list | tojson }},
+            borderColor: 'rgb(16, 185, 129)',
+            borderDash: [5, 5],
+            fill: false
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    callback: function(value) {
+                        return '$' + value.toLocaleString();
+                    }
+                }
+            }
+        }
+    }
+});
+
+// Revenue Breakdown Chart
+const breakdownCtx = document.getElementById('revenueBreakdownChart').getContext('2d');
+new Chart(breakdownCtx, {
+    type: 'doughnut',
+    data: {
+        labels: {{ revenue_analytics.revenue_breakdown.keys() | list | map('replace', '_', ' ') | map('title') | list | tojson }},
+        datasets: [{
+            data: {{ revenue_analytics.revenue_breakdown.values() | map(attribute='amount') | list | tojson }},
+            backgroundColor: [
+                'rgb(99, 102, 241)',
+                'rgb(16, 185, 129)',
+                'rgb(245, 158, 11)',
+                'rgb(239, 68, 68)'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false
+    }
+});
+
+// Membership Chart
+const membershipCtx = document.getElementById('membershipChart').getContext('2d');
+new Chart(membershipCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ membership_analytics.membership_trends | map(attribute='month') | list | tojson }},
+        datasets: [{
+            label: 'New Members',
+            data: {{ membership_analytics.membership_trends | map(attribute='new') | list | tojson }},
+            backgroundColor: 'rgba(16, 185, 129, 0.8)'
+        }, {
+            label: 'Cancelled',
+            data: {{ membership_analytics.membership_trends | map(attribute='cancelled') | list | tojson }},
+            backgroundColor: 'rgba(239, 68, 68, 0.8)'
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// Peak Hours Chart
+const peakHoursCtx = document.getElementById('peakHoursChart').getContext('2d');
+new Chart(peakHoursCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ operational_analytics.peak_hours | map(attribute='hour') | list | tojson }},
+        datasets: [{
+            label: 'Utilization %',
+            data: {{ operational_analytics.peak_hours | map(attribute='utilization') | list | tojson }},
+            backgroundColor: 'rgba(99, 102, 241, 0.8)'
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true,
+                max: 100,
+                ticks: {
+                    callback: function(value) {
+                        return value + '%';
+                    }
+                }
+            }
+        }
+    }
+});
+</script>
+{% endblock %}
