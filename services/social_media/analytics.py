@@ -430,10 +430,25 @@ class SocialMediaAnalytics:
             posts = posts_response.get("posts", [])
             
             # Filter posts within date range
-            period_posts = [
-                post for post in posts
-                if start_date <= datetime.fromisoformat(post["timestamp"].replace('Z', '+00:00')) <= end_date
-            ]
+            from datetime import timezone
+            period_posts = []
+            
+            for post in posts:
+                try:
+                    post_time = datetime.fromisoformat(post["timestamp"].replace('Z', '+00:00'))
+                    # If the post_time is naive, assume it's UTC
+                    if post_time.tzinfo is None:
+                        post_time = post_time.replace(tzinfo=timezone.utc)
+                    
+                    start_time_aware = start_date.replace(tzinfo=timezone.utc)
+                    end_time_aware = end_date.replace(tzinfo=timezone.utc)
+                    
+                    if start_time_aware <= post_time <= end_time_aware:
+                        period_posts.append(post)
+                except Exception as e:
+                    logger.warning(f"Could not parse timestamp for post analysis: {e}")
+                    # Include the post anyway if we can't parse the timestamp
+                    period_posts.append(post)
             
             # Calculate aggregate metrics
             total_posts = len(period_posts)

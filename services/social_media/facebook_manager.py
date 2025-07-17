@@ -156,11 +156,23 @@ class FacebookManager:
             posts = posts_response.get("posts", [])
             
             # Filter posts from the specified time period
-            cutoff_time = datetime.now() - timedelta(hours=hours_back)
-            recent_posts = [
-                post for post in posts
-                if datetime.fromisoformat(post["timestamp"].replace('Z', '+00:00')) > cutoff_time
-            ]
+            from datetime import timezone
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours_back)
+            recent_posts = []
+            
+            for post in posts:
+                try:
+                    post_time = datetime.fromisoformat(post["timestamp"].replace('Z', '+00:00'))
+                    # If the post_time is naive, assume it's UTC
+                    if post_time.tzinfo is None:
+                        post_time = post_time.replace(tzinfo=timezone.utc)
+                    
+                    if post_time > cutoff_time:
+                        recent_posts.append(post)
+                except Exception as e:
+                    logger.warning(f"Could not parse timestamp for post {post.get('id', 'unknown')}: {e}")
+                    # Include the post anyway if we can't parse the timestamp
+                    recent_posts.append(post)
             
             engagement_summary = {
                 "new_comments": [],

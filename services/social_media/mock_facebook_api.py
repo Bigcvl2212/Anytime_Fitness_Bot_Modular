@@ -7,7 +7,7 @@ import json
 import logging
 import random
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 
@@ -82,12 +82,13 @@ class MockFacebookAPI:
     def _initialize_mock_data(self):
         """Initialize with some existing posts and comments for testing."""
         # Add some existing posts
+        current_time = datetime.now()
         sample_posts = [
             {
                 "id": "mock_post_1",
                 "content": "Welcome to Anytime Fitness! Your journey starts here! 💪 #AnytimeFitness",
                 "post_type": "text",
-                "timestamp": "2024-01-15T09:00:00Z",
+                "timestamp": (current_time - timedelta(hours=2)).isoformat() + "Z",
                 "likes": 45,
                 "comments": 8,
                 "shares": 3,
@@ -97,7 +98,7 @@ class MockFacebookAPI:
                 "id": "mock_post_2", 
                 "content": "Workout tip: Focus on form over speed! Quality reps build quality results! 🏋️‍♂️",
                 "post_type": "text",
-                "timestamp": "2024-01-15T14:30:00Z",
+                "timestamp": (current_time - timedelta(hours=5)).isoformat() + "Z",
                 "likes": 32,
                 "comments": 5,
                 "shares": 7,
@@ -117,7 +118,7 @@ class MockFacebookAPI:
                 "post_id": "mock_post_1",
                 "author": "John Doe",
                 "content": "Great motivation! Just signed up!",
-                "timestamp": "2024-01-15T09:30:00Z",
+                "timestamp": (current_time - timedelta(minutes=30)).isoformat() + "Z",
                 "sentiment": "positive"
             },
             {
@@ -125,7 +126,7 @@ class MockFacebookAPI:
                 "post_id": "mock_post_1", 
                 "author": "Jane Smith",
                 "content": "What are your membership rates?",
-                "timestamp": "2024-01-15T10:15:00Z",
+                "timestamp": (current_time - timedelta(minutes=15)).isoformat() + "Z",
                 "sentiment": "neutral"
             }
         ]
@@ -140,7 +141,7 @@ class MockFacebookAPI:
                 "id": "msg_1",
                 "sender": "Mike Johnson",
                 "content": "Hi, I'm interested in personal training sessions. What are your rates?",
-                "timestamp": "2024-01-15T11:00:00Z",
+                "timestamp": (current_time - timedelta(hours=1)).isoformat() + "Z",
                 "is_read": False
             }
         ]
