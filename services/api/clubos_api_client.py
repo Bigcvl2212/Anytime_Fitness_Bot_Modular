@@ -11,8 +11,16 @@ from datetime import datetime, timedelta
 import re
 from urllib.parse import urljoin, urlparse
 
-from ...config.constants import CLUBOS_LOGIN_URL, CLUBOS_CALENDAR_URL
-from ...utils.debug_helpers import debug_page_state
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from config.constants import CLUBOS_LOGIN_URL, CLUBOS_CALENDAR_URL
+
+# Simple debug function to avoid import issues
+def debug_page_state(*args, **kwargs):
+    """Simple debug function placeholder"""
+    pass
 
 
 class ClubOSAPIAuthentication:
