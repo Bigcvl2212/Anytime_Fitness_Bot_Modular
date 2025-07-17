@@ -1,0 +1,115 @@
+{
+  "discovery_timestamp": "2025-07-14T16:11:29.978689",
+  "network_analysis": {},
+  "endpoint_tests": {
+    "tested_count": 8,
+    "successful_count": 1,
+    "failed_count": 7,
+    "endpoint_results": {
+      "/action/UserSearch/": {
+        "endpoint": "/action/UserSearch/",
+        "status": "success",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": "HTML table rows found: 11",
+        "error": null
+      },
+      "/api/messages": {
+        "endpoint": "/api/messages",
+        "status": "not_found",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/api/members": {
+        "endpoint": "/api/members",
+        "status": "not_found",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/api/calendar": {
+        "endpoint": "/api/calendar",
+        "status": "not_found",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/api/training": {
+        "endpoint": "/api/training",
+        "status": "not_found",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/ajax/messages": {
+        "endpoint": "/ajax/messages",
+        "status": "not_found",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/ajax/members/search": {
+        "endpoint": "/ajax/members/search",
+        "status": "not_found",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/ajax/calendar/sessions": {
+        "endpoint": "/ajax/calendar/sessions",
+        "status": "not_found",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      }
+    }
+  },
+  "api_client_analysis": {
+    "status": "success",
+    "authentication": "successful",
+    "discovered_endpoints": {},
+    "available_methods": [
+      {
+        "method": "get_calendar_sessions",
+        "status": "success",
+        "result": true
+      },
+      {
+        "method": "search_members",
+        "status": "success",
+        "result": true
+      },
+      {
+        "method": "send_message",
+        "status": "success",
+        "result": true
+      }
+    ]
+  },
+  "recommendations": [
+    "Use existing session-based authentication for API calls",
+    "Investigate ClubOS messaging API - may require form submission fallback",
+    "Implement API caching and rate limiting for optimal performance",
+    "Add comprehensive error handling and retry logic",
+    "Current API success rate: 12.5% - focus on improving failed endpoints",
+    "Implement hybrid approach: API-first with Selenium fallback",
+    "Create comprehensive test suite for API vs Selenium comparison",
+    "Gradual migration: start with read-only operations, then write operations"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "discovery_date": "2025-07-14T16:15:22.964355",
+  "total_endpoints": 0,
+  "endpoints": {},
+  "recommendations": [
+    "Use existing session-based authentication for API calls",
+    "Investigate ClubOS messaging API - may require form submission fallback",
+    "Implement API caching and rate limiting for optimal performance",
+    "Add comprehensive error handling and retry logic",
+    "Current API success rate: 22.2% - focus on improving failed endpoints",
+    "Implement hybrid approach: API-first with Selenium fallback",
+    "Create comprehensive test suite for API vs Selenium comparison",
+    "Gradual migration: start with read-only operations, then write operations"
+  ]
+}

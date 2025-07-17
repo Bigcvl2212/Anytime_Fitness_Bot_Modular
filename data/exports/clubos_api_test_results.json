@@ -1,0 +1,10 @@
+{
+  "authentication": true,
+  "member_search": false,
+  "messaging": false,
+  "calendar": true,
+  "agreements": true,
+  "staff_leads": true,
+  "payment_profiles": true,
+  "token_refresh": true
+}

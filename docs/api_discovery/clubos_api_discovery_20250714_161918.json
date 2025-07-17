@@ -1,0 +1,421 @@
+{
+  "discovery_timestamp": "2025-07-14T16:18:25.422282",
+  "network_analysis": {},
+  "endpoint_tests": {
+    "tested_count": 43,
+    "successful_count": 10,
+    "failed_count": 33,
+    "endpoint_results": {
+      "/action/UserSearch/ [POST]": {
+        "endpoint": "/action/UserSearch/",
+        "status": "auth_required",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/Dashboard/messages [GET]": {
+        "endpoint": "/action/Dashboard/messages",
+        "status": "success",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": "HTML message divs found: 2132",
+        "error": null
+      },
+      "/action/Dashboard/PersonalTraining [GET]": {
+        "endpoint": "/action/Dashboard/PersonalTraining",
+        "status": "success",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": "\n\n\n\n\n\n\n\n\n\n \n\n<!doctype html>\n<html lang=\"en\">\n<head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"robots\" content=\"noindex, nofollow\">\n\n    <!-- Google Tag Manager -->\n    \n<script type=\"text/javascript\">(window.NREUM||(NREUM={})).init={privacy:{cookies_enabled:true},ajax:{deny_list:[\"bam.nr-data.net\"]},distributed_tracing:{enabled:true}};(window.NREUM||(NREUM={})).loader_config={agentID:\"1103255579\",accountID:\"2069141\",trustKey:\"2069141\",xpid:\"VgYBWFdX",
+        "error": null
+      },
+      "/action/Dashboard/PersonalTraining [POST]": {
+        "endpoint": "/action/Dashboard/PersonalTraining",
+        "status": "success",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": "\n\n\n\n\n\n\n\n\n\n \n\n<!doctype html>\n<html lang=\"en\">\n<head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n    <meta name=\"robots\" content=\"noindex, nofollow\">\n\n    <!-- Google Tag Manager -->\n    \n<script type=\"text/javascript\">(window.NREUM||(NREUM={})).init={privacy:{cookies_enabled:true},ajax:{deny_list:[\"bam.nr-data.net\"]},distributed_tracing:{enabled:true}};(window.NREUM||(NREUM={})).loader_config={agentID:\"1103255579\",accountID:\"2069141\",trustKey:\"2069141\",xpid:\"VgYBWFdX",
+        "error": null
+      },
+      "/action/Graphs [GET]": {
+        "endpoint": "/action/Graphs",
+        "status": "success",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": "HTML table rows found: 3",
+        "error": null
+      },
+      "/action/Graphs [POST]": {
+        "endpoint": "/action/Graphs",
+        "status": "success",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": "HTML table rows found: 3",
+        "error": null
+      },
+      "/action/Logout [GET]": {
+        "endpoint": "/action/Logout",
+        "status": "success",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": "\n\n\n<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"en\">\n<head>\n  <meta name=\"robots\" content=\"noindex, nofollow\">\n  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1\">\n\n  <!-- Google Tag Manager -->\n  \n<script type=\"text/javascript\">(window.NREUM||(NREUM={})).init={privacy:{cookies_",
+        "error": null
+      },
+      "/action/Logout [POST]": {
+        "endpoint": "/action/Logout",
+        "status": "success",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": "\n\n\n<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">\n<html xmlns=\"http://www.w3.org/1999/xhtml\" lang=\"en\">\n<head>\n  <meta name=\"robots\" content=\"noindex, nofollow\">\n  <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1\">\n\n  <!-- Google Tag Manager -->\n  \n<script type=\"text/javascript\">(window.NREUM||(NREUM={})).init={privacy:{cookies_",
+        "error": null
+      },
+      "/action/Assignees [GET]": {
+        "endpoint": "/action/Assignees",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/Assignees [POST]": {
+        "endpoint": "/action/Assignees",
+        "status": "auth_required",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/Legal/privacy [GET]": {
+        "endpoint": "/action/Legal/privacy",
+        "status": "success",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": "\u0003\ufffd;D\u0014\ufffd!\ufffd\b\u0019\ufffd\ufffd3S\ufffd\ufffd\ufffd\ufffd\u967dP\ufffd\u0010\u0014HJ\ufffdBI\u065d\ufffdm\ufffd\ufffd\ufffd-\ufffdR\ufffd\ufffd#\t\u0007\u0004\u0018\u0000\ufffd\ufffd8\ufffd\ufffd\ufffd4\ufffd\ufffd.3\ufffd\uf9db\ufffd\u007f\ufffd~\ufffdM\ufffd<\ufffd\ufffd\ufffd'\ufffdw\u001e\ufffdg\ufffd\ufffds\ufffd\u001a\ufffd\u000b\ufffdl\u0003\ufffd_\ufffd\ufffd6\ufffd\ufffdV\ufffd\ufffd\ufffd\ufffd]\u0015\ufffd_\ufffd~\ufcb7\u00169\ufffd\u0014\ufffd\ufffd\u0010\ufffd\ufffd\ufffd$(\bJ\ufffdR:\u000b`\ufffd\u000b\ufffda\ufffd\ufffd<\ufffd3\ufffd\ufffd\u0014\ufffd\u0012k\ufffd\u01d8\ufffd?[\ufffd\u0005\u0004RH\ufffd+\ufffd\ufffd\t!\u001fD\u0005\ufffd\ufffd\ufffd\ufffd0\ufffd\ufffd\u00baq\ufffd\u072b\ufffdJ\ufffd[\u000b\ufffd\u0011\ufffd\ufffd\ufffd\u000f.\ufffd9gV\ufffd\u0287-L9#\ufffd\ufffdm\ufffd\u0000\ufffd\u0015x\ufffd\ufffd\ufffd\ufffd,\ufffd\u000f\ufffd\ufffda\ufffdv\ufffdX\ufffd\u0010\ufffd}\ufffd0!\ufffdD\ufffd\ufffdA\u01b7\u001eN\ufffd-\ufffd\ufffd\u0013\ufffd\ufffdXt\u001b\ufffdw\u0015Y\ufffd\ufffd\ufffd\ufffd\u01b9\ufffd\ufffd^\ufffd7>{\ufffdf\ufffd\ufffdm\ufffd7/7\ufffdk\f\ufffd\ufffd\ufffd\u001671\ufffd\u001a\ufffdZ\ufffd\ufffdbd\ufffd\u0765\ufffd/\ufffd/C{\ufffd\ufffdY\ufffdj\u0010\ufffd\u02fe\ufffd\ufffdK\u0018\u001a\ufffdO\ufffd\ufffdz\ufffd\u0002\u000b;\ufffd\u06dd\ufffdP`[\ufffd\ufffd\ufd6f\ufffd\ufffd\ufffd.\u01a5\ufffdp\u0012[\u000bp\r\ufffd\ufffd\ufffdMWW\ufffdK\ufffd\ufffd\ufffd\ufffdp8D\ufffd\ufffd\u000b\ufffd\ufffd\ufffd5\ufffd\ufffd\ufffd\ufffd\ufffd\uc914}\ufffd-\ufffd\ufffd\ufffd,\u0012G\ufffd\ufffd\ufffdJKBF\ufffdi\ufffd\ufffdM\u001b\ufffd\ufffd!\ufffd\u001d\u0010L\u0011[2Iu\ufffd7\ufffdO\ue539\ufffd?i\uc931\ufffd\ufffd\u07f2\u001cM3\ufffdHQ\ufffd\ufffd\ufffd\t\u0012G\ufffd*\nq\ufffd8\ufffdG\ufffd:'\u001e\ufffd\ufffd\ufffd6\ufffd\ufffd\ufffd\u001e\ufffd0og\ufffdC\ufffd\ufffd-\ufffd\ufffdc0\ufffdV\ufffd\ufffd\u0018+\ufffd\u0003\ufffdt)\ufffd\\\u0002\ufffd_\ufffd\u001d\ufffdshV\ufffdF\t\ufffd\ufffd\f\ufffd$.}\ufffd\ufffdu\ufffd\u012d\u01e2\u04b1\u074e\u001a\ufffd\ufffd\u001di\ufffdgR\ufffd#\ufffd",
+        "error": null
+      },
+      "/action/Legal/privacy [POST]": {
+        "endpoint": "/action/Legal/privacy",
+        "status": "success",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": "c\u0000p\u0000\u0000@\u0002 \ufffd\ufffd)\f\ufffdw\u0000@\ufffdt\ufffd\ufffd\ufffdT\ufffd{\ufffdNf>\u00b0\ufffd\ufffd\ufffd\r)x\u0018F\ufffd\u0007\ufffd+\ufffdI\ufffd\ufffd0sm}]y\u02ef\ufffdB\ufffd\u0006B\ufffdZ\ufffd\ufffd0\ufffd\ufffd\ufffd\ufffd\ufffd\u0134iR\ufffd\ufffd\ufffd\ufffdh\ufffdj\ufffd!N\ufffd\ufffdF(^&\u0019i\u007f\ufffd\ufffd\u0005\ufffd;U\ufffd&x\ufffd\f\ufffd[\ufffd\ufffd\ufffd\ufffdY\r\ufffdm;\ufffd\ufffd\ufffd\ufffd+\ufffd\ufffdjw\ufffd\ufffdd\ufffd\ufffd\ufffd\n\ufffd0\ufffdL\ufffdU/\ufffd\u00038\u001a\ufffdS?\ufffd\ufffd9\ufffd|\ufffd\ufffd\u0012\ufffd\u0002*z\u001d\ufffd\ufffd\ufffd\ufffd#\ufffd\t\ufffd8jyj\u0014r\ufffd\ufffd\u0536A\u069f\u00007\ufffdH\ufffdj\ufffd\ufffd\ufffd[U\ufffdiM\ufffds\ufffdgPc\ufffd\u0012\ufffd\u000f\u0013\ufffd\ufffd\ufffd^=KPV\ufffd\u0015\ufffd\ufffd\u001aLB0\ufffdZ\ufffd`\ufffdR#\ufffd~3z\ufffd\ufffd\ufffd\u00d7\ufffd&\ufffd}'_k\ufffd'z\ufffd\ufffd\ufffd\u0017\ufffdj0\ufffdh\ufffdLE\ufffdB2\ufffd\u01ac\ufffd\u0002\ufffd5z\ufffdZ\ufffd\ufffd\u007f\ufffd;\ufffd1\u0012)\ufffdxn\u0001\ufffd L3\ufffd)]T\ufffd\u001c\u001bm6\ufffd4\ufffd\ufffd\u001er\ufffd\ufffd\ufffd5p\ufffdz\ufffdK\ufffd)\ufffd\ufffdw\ufffdg\ufffd,\ufffdC_\u0015\u001d\ufffd\u0713h'f_\u07fa\u007f\ufffd\ufffd$\ufffdx\ufffd\ufffd \ufffd\ufffdBh\ufffd#\ufffd\ufffd?\ufffd\ufffdy\ufffd\u0566\ufffd\ufffd\ufffdn\ufffd\u007f\ufffd\u0175i\ufffdq\ufffdr\ufffd)N\ufffd\u001fV\ufffd\u0016\u00c4\ufffd]?4g\u000f\u0007\ufffdb\ufffd\ufffd\ufffd?\rh\ufffdq;\ufffd;V\u0606\ufffdq\u000f\ufffd>\ufffdkXI\ufffd\u001c>\b\ufffdj\ufffd\u00014I!\ufffd=\ufffd\u0014\u0011\ufffdH\ufffd\ufffd\u0002\ufffd\ufffd\u0019\ufffd\ufffd\ufffd\ufffd\ufffd\ufffd\u04a2q\ufffd\b\ufffd \ufffd%j\ufffd\ufffd\u021b\ufffd\ufffd\ufffdn\ufffdV\u001dT[E\ufffdv\ufffdy7\ufffd\u02b9\ufffd\u0013\ufffd\u007f\u0014\ufffd.f+\u00f8[\ufffd\ufffd\u001ct\ufffdk\ufffd=\ufffdZ\ufffd\ufffdv8je\ufffdc>\ufffd\ufffd\ufffd\ufffd\ufffd?\ufffd\ufffdt`",
+        "error": null
+      },
+      "/action/UserSearch/ [GET]": {
+        "endpoint": "/action/UserSearch/",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/Email [GET]": {
+        "endpoint": "/action/Email",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/Email [POST]": {
+        "endpoint": "/action/Email",
+        "status": "auth_required",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/AccountSettings/general [GET]": {
+        "endpoint": "/action/AccountSettings/general",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/AccountSettings/general [POST]": {
+        "endpoint": "/action/AccountSettings/general",
+        "status": "auth_required",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/KPI [GET]": {
+        "endpoint": "/action/KPI",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/KPI [POST]": {
+        "endpoint": "/action/KPI",
+        "status": "auth_required",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/NewLead [GET]": {
+        "endpoint": "/action/NewLead",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/NewLead [POST]": {
+        "endpoint": "/action/NewLead",
+        "status": "auth_required",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/Dashboard [GET]": {
+        "endpoint": "/action/Dashboard",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/Dashboard [POST]": {
+        "endpoint": "/action/Dashboard",
+        "status": "auth_required",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/UserSearch [GET]": {
+        "endpoint": "/action/UserSearch",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/UserSearch [POST]": {
+        "endpoint": "/action/UserSearch",
+        "status": "auth_required",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/History [GET]": {
+        "endpoint": "/action/History",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/History [POST]": {
+        "endpoint": "/action/History",
+        "status": "auth_required",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/Hours [GET]": {
+        "endpoint": "/action/Hours",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/Hours [POST]": {
+        "endpoint": "/action/Hours",
+        "status": "auth_required",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/Health [GET]": {
+        "endpoint": "/action/Health",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/Health [POST]": {
+        "endpoint": "/action/Health",
+        "status": "auth_required",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/Goals [GET]": {
+        "endpoint": "/action/Goals",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/Goals [POST]": {
+        "endpoint": "/action/Goals",
+        "status": "auth_required",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/Calendar [GET]": {
+        "endpoint": "/action/Calendar",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/action/Calendar [POST]": {
+        "endpoint": "/action/Calendar",
+        "status": "auth_required",
+        "methods_tested": [
+          "POST"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/api/messages": {
+        "endpoint": "/api/messages",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/api/members": {
+        "endpoint": "/api/members",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/api/calendar": {
+        "endpoint": "/api/calendar",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/api/training": {
+        "endpoint": "/api/training",
+        "status": "auth_required",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/ajax/messages": {
+        "endpoint": "/ajax/messages",
+        "status": "not_found",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/ajax/members/search": {
+        "endpoint": "/ajax/members/search",
+        "status": "not_found",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      },
+      "/ajax/calendar/sessions": {
+        "endpoint": "/ajax/calendar/sessions",
+        "status": "not_found",
+        "methods_tested": [
+          "GET"
+        ],
+        "response_data": null,
+        "error": null
+      }
+    }
+  },
+  "api_client_analysis": {
+    "status": "success",
+    "authentication": "successful",
+    "discovered_endpoints": {},
+    "available_methods": [
+      {
+        "method": "get_calendar_sessions",
+        "status": "success",
+        "result": true
+      },
+      {
+        "method": "search_members",
+        "status": "success",
+        "result": true
+      },
+      {
+        "method": "send_message",
+        "status": "success",
+        "result": true
+      }
+    ]
+  },
+  "recommendations": [
+    "Use existing session-based authentication for API calls",
+    "Investigate ClubOS messaging API - may require form submission fallback",
+    "Implement API caching and rate limiting for optimal performance",
+    "Add comprehensive error handling and retry logic",
+    "Current API success rate: 23.3% - focus on improving failed endpoints",
+    "Implement hybrid approach: API-first with Selenium fallback",
+    "Create comprehensive test suite for API vs Selenium comparison",
+    "Gradual migration: start with read-only operations, then write operations"
+  ]
+}
