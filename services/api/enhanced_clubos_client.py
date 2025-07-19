@@ -151,23 +151,44 @@ class EnhancedClubOSAPIClient(ClubOSAPIClient):
         return results
     
     def _send_text_message(self, member_id: str, message: str) -> Dict[str, Any]:
-        """Send text message via ClubOS API"""
+        """Send text message via ClubOS form submission to working endpoint"""
         try:
-            endpoint = self.api_endpoints["messaging"]["send_text"]
+            # Use working /action/FollowUp/save endpoint instead of failing API
+            endpoint = "/action/FollowUp/save"
             url = f"{self.base_url}{endpoint}"
             
-            data = {
-                "memberId": member_id,
-                "message": message,
-                "messageType": "text"
+            # Form data structure based on working scripts
+            form_data = {
+                "followUpStatus": "1",
+                "followUpType": "3",
+                "memberSalesFollowUpStatus": "6",
+                "followUpLog.tfoUserId": member_id,
+                "followUpLog.outcome": "3",  # 3 for SMS
+                "textMessage": message,
+                "event.createdFor.tfoUserId": member_id,
+                "event.eventType": "ORIENTATION",
+                "duration": "2",
+                "event.remindAttendeesMins": "120",
+                "followUpUser.tfoUserId": member_id,
+                "followUpUser.role.id": "7",
+                "followUpUser.clubId": "291",
+                "followUpUser.clubLocationId": "3586",
+                "followUpLog.followUpAction": "3",  # 3 for SMS
+                "memberStudioSalesDefaultAccount": member_id,
+                "memberStudioSupportDefaultAccount": member_id,
+                "ptSalesDefaultAccount": member_id,
+                "ptSupportDefaultAccount": member_id
             }
             
-            response = self.session.post(
-                url,
-                data=data,
-                headers=self.auth.get_headers(),
-                timeout=30
-            )
+            # Prepare headers for form submission
+            headers = self.auth.get_headers()
+            headers.update({
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+                "Referer": f"{self.base_url}/action/Dashboard/view"
+            })
+            
+            response = self.session.post(url, data=form_data, headers=headers, timeout=30)
             
             if response.status_code == 200:
                 return {"success": True, "response": response.text}
@@ -178,24 +199,45 @@ class EnhancedClubOSAPIClient(ClubOSAPIClient):
             return {"success": False, "error": str(e)}
     
     def _send_email_message(self, member_id: str, message: str, subject: str) -> Dict[str, Any]:
-        """Send email message via ClubOS API"""
+        """Send email message via ClubOS form submission to working endpoint"""
         try:
-            endpoint = self.api_endpoints["messaging"]["send_email"]
+            # Use working /action/FollowUp/save endpoint instead of failing API
+            endpoint = "/action/FollowUp/save"
             url = f"{self.base_url}{endpoint}"
             
-            data = {
-                "memberId": member_id,
-                "subject": subject,
-                "message": message,
-                "messageType": "email"
+            # Form data structure based on working scripts
+            form_data = {
+                "followUpStatus": "1",
+                "followUpType": "3",
+                "memberSalesFollowUpStatus": "6",
+                "followUpLog.tfoUserId": member_id,
+                "followUpLog.outcome": "2",  # 2 for Email
+                "emailSubject": subject,
+                "emailMessage": f"<p>{message}</p>",  # Wrap in HTML
+                "event.createdFor.tfoUserId": member_id,
+                "event.eventType": "ORIENTATION",
+                "duration": "2",
+                "event.remindAttendeesMins": "120",
+                "followUpUser.tfoUserId": member_id,
+                "followUpUser.role.id": "7",
+                "followUpUser.clubId": "291",
+                "followUpUser.clubLocationId": "3586",
+                "followUpLog.followUpAction": "2",  # 2 for Email
+                "memberStudioSalesDefaultAccount": member_id,
+                "memberStudioSupportDefaultAccount": member_id,
+                "ptSalesDefaultAccount": member_id,
+                "ptSupportDefaultAccount": member_id
             }
             
-            response = self.session.post(
-                url,
-                data=data,
-                headers=self.auth.get_headers(),
-                timeout=30
-            )
+            # Prepare headers for form submission
+            headers = self.auth.get_headers()
+            headers.update({
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+                "Referer": f"{self.base_url}/action/Dashboard/view"
+            })
+            
+            response = self.session.post(url, data=form_data, headers=headers, timeout=30)
             
             if response.status_code == 200:
                 return {"success": True, "response": response.text}
