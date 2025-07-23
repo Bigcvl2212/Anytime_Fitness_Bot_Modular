@@ -12,10 +12,10 @@ from datetime import datetime
 from pathlib import Path
 import logging
 
-from .enhanced_clubos_service import ClubOSAPIService
-from ..authentication.clubhub_token_capture import get_valid_clubhub_tokens
-from ...config.constants import CLUBOS_USERNAME_SECRET, CLUBOS_PASSWORD_SECRET
-from ...config.secrets import get_secret
+from services.api.enhanced_clubos_service import ClubOSAPIService
+from services.authentication.clubhub_token_capture import get_valid_clubhub_tokens
+from config.constants import CLUBOS_USERNAME_SECRET, CLUBOS_PASSWORD_SECRET
+from config.secrets import get_secret
 
 
 class SeleniumToAPIMigrationService:
@@ -344,6 +344,112 @@ class SeleniumToAPIMigrationService:
             self.logger.error(f"Selenium get_member_conversation error for {member_name}: {e}")
             return []
     
+    def calendar_operations(self, operation: str, **kwargs) -> Union[bool, Dict[str, Any], List[str]]:
+        """
+        Handle calendar operations using API or Selenium fallback.
+        
+        Args:
+            operation: Calendar operation to perform
+            **kwargs: Operation-specific parameters
+            
+        Returns:
+            Operation result
+        """
+        self.stats["total_operations"] += 1      
+        try:
+            # API-first approach
+            if self.migration_mode in ["api_only", "hybrid", "testing"]:
+                result = self._calendar_operation_api(operation, **kwargs)
+                
+                if result is not None:
+                    self.logger.info(f"API calendar operation '{operation}' successful")
+                    return result
+                
+                # Selenium fallback
+                if self.selenium_fallback_enabled:
+                    self.logger.warning(f"API calendar operation '{operation}' failed, trying Selenium fallback")
+                    return self._calendar_operation_selenium(operation, **kwargs)
+                else:
+                    return None
+            
+            # Selenium-only mode
+            elif self.migration_mode == "selenium_only":
+                return self._calendar_operation_selenium(operation, **kwargs)
+            
+            else:
+                raise ValueError(f"Unknown migration mode: {self.migration_mode}")
+                
+        except Exception as e:
+            self.logger.error(f"Error in calendar operation '{operation}': {e}")
+            return None
+    
+    def _calendar_operation_api(self, operation: str, **kwargs):
+        """Calendar operation using API"""
+        try:
+            from .calendar_api_service import ClubOSCalendarAPIService
+            
+            username = get_secret(CLUBOS_USERNAME_SECRET)
+            password = get_secret(CLUBOS_PASSWORD_SECRET)
+            
+            if not username or not password:
+                raise Exception("ClubOS credentials not available")
+            
+            calendar_service = ClubOSCalendarAPIService(username, password)
+            
+            if operation == "navigate_calendar_week":
+                return calendar_service.navigate_calendar_week(kwargs.get('direction', 'next'))
+            elif operation == "get_calendar_view_details":
+                return calendar_service.get_calendar_view_details(kwargs.get('schedule_name', 'My schedule'))
+            elif operation == "book_appointment":
+                return calendar_service.book_appointment(kwargs)
+            elif operation == "add_to_group_session":
+                return calendar_service.add_to_group_session(kwargs)
+            elif operation == "get_available_slots":
+                return calendar_service.get_available_slots(kwargs.get('schedule_name', 'My schedule'))
+            else:
+                raise ValueError(f"Unknown calendar operation: {operation}")
+                
+        except Exception as e:
+            self.logger.error(f"API calendar operation error: {e}")
+            return None
+    
+    def _calendar_operation_selenium(self, operation: str, **kwargs):
+        """Calendar operation using Selenium fallback"""
+        try:
+            self.stats["selenium_fallbacks"] += 1
+            
+            # Import here to avoid circular imports
+            from ...core.driver import setup_driver_and_login
+            from ...workflows.calendar_workflow import (
+                navigate_calendar_week, get_calendar_view_details,
+                book_appointment, add_to_group_session, get_available_slots
+            )
+            
+            # Setup driver
+            driver = setup_driver_and_login()
+            if not driver:
+                raise Exception("Failed to setup Selenium driver")
+            
+            try:
+                if operation == "navigate_calendar_week":
+                    return navigate_calendar_week(driver, kwargs.get('direction', 'next'))
+                elif operation == "get_calendar_view_details":
+                    return get_calendar_view_details(driver, kwargs.get('schedule_name', 'My schedule'))
+                elif operation == "book_appointment":
+                    return book_appointment(driver, kwargs)
+                elif operation == "add_to_group_session":
+                    return add_to_group_session(driver, kwargs)
+                elif operation == "get_available_slots":
+                    return get_available_slots(driver, kwargs.get('schedule_name', 'My schedule'))
+                else:
+                    raise ValueError(f"Unknown calendar operation: {operation}")
+            finally:
+                driver.quit()
+                
+        except Exception as e:
+            self.logger.error(f"Selenium calendar operation error: {e}")
+            return None
+    
     def compare_api_vs_selenium(self, operation: str, *args, **kwargs) -> Dict[str, Any]:
         """
         Run the same operation with both API and Selenium and compare results
@@ -522,3 +628,34 @@ def get_member_conversation_migrated(member_name: str) -> List[Dict[str, Any]]:
     """Drop-in replacement for member conversation retrieval with migration support"""
     service = get_migration_service()
     return service.get_member_conversation(member_name)
+
+
+# Calendar API migration functions
+def navigate_calendar_week_migrated(direction: str = "next") -> bool:
+    """Drop-in replacement for calendar navigation with migration support"""
+    service = get_migration_service()
+    return service.calendar_operations("navigate_calendar_week", direction=direction)
+
+
+def get_calendar_view_details_migrated(schedule_name: str = "My schedule") -> Dict[str, List[Dict]]:
+    """Drop-in replacement for calendar view details with migration support"""
+    service = get_migration_service()
+    return service.calendar_operations("get_calendar_view_details", schedule_name=schedule_name)
+
+
+def book_appointment_migrated(details: Dict[str, Any]) -> bool:
+    """Drop-in replacement for appointment booking with migration support"""
+    service = get_migration_service()
+    return service.calendar_operations("book_appointment", **details)
+
+
+def add_to_group_session_migrated(details: Dict[str, Any]) -> bool:
+    """Drop-in replacement for adding to group session with migration support"""
+    service = get_migration_service()
+    return service.calendar_operations("add_to_group_session", **details)
+
+
+def get_available_slots_migrated(schedule_name: str = "My schedule") -> List[str]:
+    """Drop-in replacement for getting available slots with migration support"""
+    service = get_migration_service()
+    return service.calendar_operations("get_available_slots", schedule_name=schedule_name)

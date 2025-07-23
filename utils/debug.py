@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 from selenium.webdriver.common.by import By
 
-from ..config.constants import DEBUG_FOLDER
+from config.constants import DEBUG_FOLDER
 
 class DebugManager:
     """Manages debug operations and state capture."""

@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 """
-Send SMS and Email to Jeremy Mayo via ClubOS API
+Send a message and email to Jeremy Mayo via ClubOS API, printing full API responses.
 """
 
 import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
-from services.api.clubos_api_client import create_clubos_api_client, ClubOSAPIAuthentication, ClubOSAPIClient
+from services.api.clubos_api_client import ClubOSAPIClient, ClubOSAPIAuthentication
 from config.secrets_local import get_secret
 import re
 from bs4 import BeautifulSoup
 
 TARGET_NAME = "Jeremy Mayo"
-MEMBER_ID = "187032782"  # Known Jeremy Mayo member ID
-SMS_MESSAGE = "This is a test SMS sent via the ClubOS API."
-EMAIL_MESSAGE = "This is a test EMAIL sent via the ClubOS API."
+MEMBER_ID = "187032782"  # Jeremy Mayo's member ID
+SMS_MESSAGE = "This is a test SMS sent via ClubOS API - it should work this time!"
+EMAIL_MESSAGE = "This is a test EMAIL sent via ClubOS API - it should work this time!"
 
 def extract_csrf_token(html_content):
     """Extract CSRF token from HTML content"""
@@ -39,23 +39,23 @@ def extract_csrf_token(html_content):
         print(f"   ⚠️ Error extracting CSRF token: {e}")
         return None
 
-def main():
+def send_message_and_email():
     username = get_secret('clubos-username')
     password = get_secret('clubos-password')
+    
     if not username or not password:
         print("❌ ClubOS credentials not set in secrets_local.py.")
         return
 
-    # Create auth service and client properly
     auth_service = ClubOSAPIAuthentication()
     if not auth_service.login(username, password):
         print("❌ ClubOS authentication failed")
         return
-
+    
     client = ClubOSAPIClient(auth_service)
     print("✅ ClubOS authentication successful!")
 
-    # Step 1: Navigate to messages page to get CSRF token
+    # Step 1: Navigate to messages page to get proper form structure
     print("\n📄 Navigating to messages page...")
     messages_url = f"{client.base_url}/action/Dashboard/messages"
     headers = client.auth.get_headers()
@@ -96,6 +96,12 @@ def main():
             print(f"   SMS Status: {response.status_code}")
             print(f"   SMS Response: {response.text[:500]}")
             
+            # Check if SMS was actually sent
+            if "success" in response.text.lower() or "sent" in response.text.lower():
+                print("   ✅ SMS appears to have been sent successfully!")
+            else:
+                print("   ⚠️ SMS may not have been delivered")
+            
             # Step 3: Send Email
             print(f"\n📤 Sending EMAIL to {TARGET_NAME}...")
             message_data = {
@@ -120,11 +126,15 @@ def main():
             print(f"   Email Status: {response.status_code}")
             print(f"   Email Response: {response.text[:500]}")
             
-            # Check if messages were actually sent
+            # Check if email was actually sent
             if "success" in response.text.lower() or "sent" in response.text.lower():
-                print("\n✅ Messages appear to have been sent successfully!")
+                print("   ✅ Email appears to have been sent successfully!")
             else:
-                print("\n⚠️ Messages may not have been delivered. Check your phone/email.")
+                print("   ⚠️ Email may not have been delivered")
+            
+            print("\n📊 Summary:")
+            print("   If you received the messages, the API is working!")
+            print("   If not, we may need to try a different approach.")
                 
         else:
             print(f"   ❌ Failed to load messages page: {response.status_code}")
@@ -133,4 +143,4 @@ def main():
         print(f"   ❌ Error: {e}")
 
 if __name__ == "__main__":
-    main() 
+    send_message_and_email() 

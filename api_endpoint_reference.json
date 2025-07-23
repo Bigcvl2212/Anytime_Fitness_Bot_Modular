@@ -1,0 +1,2909 @@
+{
+  "GET /api/members/{id}/agreement": {
+    "method": "GET",
+    "path": "/api/members/{id}/agreement",
+    "example_request": {
+      "url": "https://clubhub-ios-api.anytimefitness.com/api/members/66735385/agreement",
+      "headers": [
+        {
+          "name": "Host",
+          "value": "clubhub-ios-api.anytimefitness.com"
+        },
+        {
+          "name": "Cookie",
+          "value": "incap_ses_69_434694=PB7ofImPOV4fxkOXhiP1AK2vdWgAAAAA6qalvZK55+cxkp/wQB0/TA==; incap_ses_132_434694=01WsXJh4439fIQlVVvXUAYKLdWgAAAAAxGD+IS00tgrkyjzDyD/Jkw==; incap_ses_1167_434694=vKiNItPkVTAUCS2jqQQyEI/5c2gAAAAABzfSywXPNWp/SWhLoMWTDw==; dtCookie=v_4_srv_8_sn_6ABE292FDA902A0B9479140B93E10F7B_perc_100000_ol_0_mul_1_app-3Aea7c4b59f27d43eb_1_app-3A4b32026d63ce75ab_0_rcs-3Acss_0; visid_incap_434694=RnkdTm5oTZGIHQp7qeKPZANjSGgAAAAAQUIPAAAAAADfxJ4/rmakILSU3890u2w3; _ga_E3V4XR2W24=GS2.1.s1748029777$o2$g1$t1748029958$j0$l0$h0; rl_anonymous_id=RS_ENC_v3_IjQ4N2UyYTBkLTQ3NjItNDRhYy04ZDVkLTQ5ZWJjM2M1MWMyYSI%3D; rl_page_init_referrer=RS_ENC_v3_Imh0dHBzOi8vcmVzb3VyY2VjZW50ZXIuc2VicmFuZHMuY29tLyI%3D; rl_page_init_referring_domain=RS_ENC_v3_InJlc291cmNlY2VudGVyLnNlYnJhbmRzLmNvbSI%3D; rl_session=RS_ENC_v3_eyJpZCI6MTc0ODAyOTc3ODU1MiwiZXhwaXJlc0F0IjoxNzQ4MDMxNTc4NTYxLCJ0aW1lb3V0IjoxODAwMDAwLCJhdXRvVHJhY2siOnRydWUsInNlc3Npb25TdGFydCI6dHJ1ZX0%3D; _ga=GA1.1.2023145946.1747779026; visid_incap_498134=n71aHYAISneGZ49qOGxwdM39LGgAAAAAQUIPAAAAAABKTx/MOoTZK3A95JgTilNy"
+        },
+        {
+          "name": "Connection",
+          "value": "keep-alive"
+        },
+        {
+          "name": "API-version",
+          "value": "1"
+        },
+        {
+          "name": "Accept",
+          "value": "application/json"
+        },
+        {
+          "name": "User-Agent",
+          "value": "ClubHub Store/2.15.1 (com.anytimefitness.Club-Hub; build:1007; iOS 18.5.0) Alamofire/5.6.4"
+        },
+        {
+          "name": "Accept-Language",
+          "value": "en-US"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMDgyMDQ0OSIsImVtYWlsIjoibWF5by5qZXJlbXkyMjEyQGdtYWlsLmNvbSIsImdpdmVuX25hbWUiOiJKZXJlbXkiLCJhZl9hcGlfdG9rZW4iOiJUNlZXS3FnRzNIUEpXdmpETXRKQjdkdmJmZGVacGJKMjZvRGdsRzFwdWRGUFN0c2RWQnZaVHZQc0R1LUJ2aFl1X2JiWkVkSkxRRDhDd0dCTFRsMkhPMEJKc0RUN0p6dHg5aEZnU0dDR2hqMlZCc0Q4a3Z6Rm1SUWU2UDFNVmJhOUhKRU0tWlNTcTZfVVRFRDJwd3h5S3lzbEN2LVRwR3ZEcEQybWk1SW01VnNHZ1Z3THVHZ183R0Qwcm5RVUg3eG1qWDM5SU50NklZV0xJeEY2MEtaN2ZEbHlSWjVRZVdPdnd2MzVSNTlhQkw0dW4zOFlPd1NGYjltREVpcGlkZWJmWG5wR1JwZGhRbWtNd2o5X25kc2RfRjNtWFo3Rm5OZm0wRG5IVmRMOHNCOFdVTjd0Mko0SXFHWk5YbENlemY1UWR6Q3huUSIsInBob3RvX3VybCI6IiIsInVzZXJfdHlwZSI6IlRyYWluZXIiLCJjbHViX2lkcyI6WyIxMTU2IiwiMTY1NyJdLCJyb2xlIjoiVHJhaW5lciIsImFwcGxpY2F0aW9uX2lkcyI6WyIxIiwiMyIsIjgiLCIxMiJdLCJuYmYiOjE3NTI1MDA2MDEsImV4cCI6MTc1MjU4NzAwMSwiaWF0IjoxNzUyNTAwNjAxLCJpc3MiOiJodHRwczovL2NsdWJodWItaW9zLWFwaS5hbnl0aW1lZml0bmVzcy5jb20vIiwiYXVkIjoiQ2x1Ykh1Yklvc0FwaSJ9.c802Z5b6GlmPvqi-wONJB0PUsJLc606w90sCKk_C2I8"
+        },
+        {
+          "name": "Accept-Encoding",
+          "value": "br;q=1.0, gzip;q=0.9, deflate;q=0.8"
+        }
+      ],
+      "queryString": [],
+      "postData": {}
+    },
+    "example_response": null,
+    "keyword_fields": []
+  },
+  "GET /api/members/{id}/agreementHistory": {
+    "method": "GET",
+    "path": "/api/members/{id}/agreementHistory",
+    "example_request": {
+      "url": "https://clubhub-ios-api.anytimefitness.com/api/members/66735385/agreementHistory",
+      "headers": [
+        {
+          "name": "Host",
+          "value": "clubhub-ios-api.anytimefitness.com"
+        },
+        {
+          "name": "Cookie",
+          "value": "dtCookie=v_4_srv_9_sn_6ABE292FDA902A0B9479140B93E10F7B_perc_100000_ol_0_mul_1_app-3Aea7c4b59f27d43eb_1_app-3A4b32026d63ce75ab_0_rcs-3Acss_0; incap_ses_69_434694=PB7ofImPOV4fxkOXhiP1AK2vdWgAAAAA6qalvZK55+cxkp/wQB0/TA==; incap_ses_132_434694=01WsXJh4439fIQlVVvXUAYKLdWgAAAAAxGD+IS00tgrkyjzDyD/Jkw==; incap_ses_1167_434694=vKiNItPkVTAUCS2jqQQyEI/5c2gAAAAABzfSywXPNWp/SWhLoMWTDw==; visid_incap_434694=RnkdTm5oTZGIHQp7qeKPZANjSGgAAAAAQUIPAAAAAADfxJ4/rmakILSU3890u2w3; _ga_E3V4XR2W24=GS2.1.s1748029777$o2$g1$t1748029958$j0$l0$h0; rl_anonymous_id=RS_ENC_v3_IjQ4N2UyYTBkLTQ3NjItNDRhYy04ZDVkLTQ5ZWJjM2M1MWMyYSI%3D; rl_page_init_referrer=RS_ENC_v3_Imh0dHBzOi8vcmVzb3VyY2VjZW50ZXIuc2VicmFuZHMuY29tLyI%3D; rl_page_init_referring_domain=RS_ENC_v3_InJlc291cmNlY2VudGVyLnNlYnJhbmRzLmNvbSI%3D; rl_session=RS_ENC_v3_eyJpZCI6MTc0ODAyOTc3ODU1MiwiZXhwaXJlc0F0IjoxNzQ4MDMxNTc4NTYxLCJ0aW1lb3V0IjoxODAwMDAwLCJhdXRvVHJhY2siOnRydWUsInNlc3Npb25TdGFydCI6dHJ1ZX0%3D; _ga=GA1.1.2023145946.1747779026; visid_incap_498134=n71aHYAISneGZ49qOGxwdM39LGgAAAAAQUIPAAAAAABKTx/MOoTZK3A95JgTilNy"
+        },
+        {
+          "name": "Connection",
+          "value": "keep-alive"
+        },
+        {
+          "name": "API-version",
+          "value": "1"
+        },
+        {
+          "name": "Accept",
+          "value": "application/json"
+        },
+        {
+          "name": "User-Agent",
+          "value": "ClubHub Store/2.15.1 (com.anytimefitness.Club-Hub; build:1007; iOS 18.5.0) Alamofire/5.6.4"
+        },
+        {
+          "name": "Accept-Language",
+          "value": "en-US"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMDgyMDQ0OSIsImVtYWlsIjoibWF5by5qZXJlbXkyMjEyQGdtYWlsLmNvbSIsImdpdmVuX25hbWUiOiJKZXJlbXkiLCJhZl9hcGlfdG9rZW4iOiJUNlZXS3FnRzNIUEpXdmpETXRKQjdkdmJmZGVacGJKMjZvRGdsRzFwdWRGUFN0c2RWQnZaVHZQc0R1LUJ2aFl1X2JiWkVkSkxRRDhDd0dCTFRsMkhPMEJKc0RUN0p6dHg5aEZnU0dDR2hqMlZCc0Q4a3Z6Rm1SUWU2UDFNVmJhOUhKRU0tWlNTcTZfVVRFRDJwd3h5S3lzbEN2LVRwR3ZEcEQybWk1SW01VnNHZ1Z3THVHZ183R0Qwcm5RVUg3eG1qWDM5SU50NklZV0xJeEY2MEtaN2ZEbHlSWjVRZVdPdnd2MzVSNTlhQkw0dW4zOFlPd1NGYjltREVpcGlkZWJmWG5wR1JwZGhRbWtNd2o5X25kc2RfRjNtWFo3Rm5OZm0wRG5IVmRMOHNCOFdVTjd0Mko0SXFHWk5YbENlemY1UWR6Q3huUSIsInBob3RvX3VybCI6IiIsInVzZXJfdHlwZSI6IlRyYWluZXIiLCJjbHViX2lkcyI6WyIxMTU2IiwiMTY1NyJdLCJyb2xlIjoiVHJhaW5lciIsImFwcGxpY2F0aW9uX2lkcyI6WyIxIiwiMyIsIjgiLCIxMiJdLCJuYmYiOjE3NTI1MDA2MDEsImV4cCI6MTc1MjU4NzAwMSwiaWF0IjoxNzUyNTAwNjAxLCJpc3MiOiJodHRwczovL2NsdWJodWItaW9zLWFwaS5hbnl0aW1lZml0bmVzcy5jb20vIiwiYXVkIjoiQ2x1Ykh1Yklvc0FwaSJ9.c802Z5b6GlmPvqi-wONJB0PUsJLc606w90sCKk_C2I8"
+        },
+        {
+          "name": "Accept-Encoding",
+          "value": "br;q=1.0, gzip;q=0.9, deflate;q=0.8"
+        }
+      ],
+      "queryString": [],
+      "postData": {}
+    },
+    "example_response": null,
+    "keyword_fields": []
+  },
+  "GET /api/members/{id}/agreementTokenQuery": {
+    "method": "GET",
+    "path": "/api/members/{id}/agreementTokenQuery",
+    "example_request": {
+      "url": "https://clubhub-ios-api.anytimefitness.com/api/members/66735385/agreementTokenQuery",
+      "headers": [
+        {
+          "name": "Host",
+          "value": "clubhub-ios-api.anytimefitness.com"
+        },
+        {
+          "name": "Cookie",
+          "value": "dtCookie=v_4_srv_9_sn_6ABE292FDA902A0B9479140B93E10F7B_perc_100000_ol_0_mul_1_app-3Aea7c4b59f27d43eb_1_app-3A4b32026d63ce75ab_0_rcs-3Acss_0; incap_ses_69_434694=PB7ofImPOV4fxkOXhiP1AK2vdWgAAAAA6qalvZK55+cxkp/wQB0/TA==; incap_ses_132_434694=01WsXJh4439fIQlVVvXUAYKLdWgAAAAAxGD+IS00tgrkyjzDyD/Jkw==; incap_ses_1167_434694=vKiNItPkVTAUCS2jqQQyEI/5c2gAAAAABzfSywXPNWp/SWhLoMWTDw==; visid_incap_434694=RnkdTm5oTZGIHQp7qeKPZANjSGgAAAAAQUIPAAAAAADfxJ4/rmakILSU3890u2w3; _ga_E3V4XR2W24=GS2.1.s1748029777$o2$g1$t1748029958$j0$l0$h0; rl_anonymous_id=RS_ENC_v3_IjQ4N2UyYTBkLTQ3NjItNDRhYy04ZDVkLTQ5ZWJjM2M1MWMyYSI%3D; rl_page_init_referrer=RS_ENC_v3_Imh0dHBzOi8vcmVzb3VyY2VjZW50ZXIuc2VicmFuZHMuY29tLyI%3D; rl_page_init_referring_domain=RS_ENC_v3_InJlc291cmNlY2VudGVyLnNlYnJhbmRzLmNvbSI%3D; rl_session=RS_ENC_v3_eyJpZCI6MTc0ODAyOTc3ODU1MiwiZXhwaXJlc0F0IjoxNzQ4MDMxNTc4NTYxLCJ0aW1lb3V0IjoxODAwMDAwLCJhdXRvVHJhY2siOnRydWUsInNlc3Npb25TdGFydCI6dHJ1ZX0%3D; _ga=GA1.1.2023145946.1747779026; visid_incap_498134=n71aHYAISneGZ49qOGxwdM39LGgAAAAAQUIPAAAAAABKTx/MOoTZK3A95JgTilNy"
+        },
+        {
+          "name": "Connection",
+          "value": "keep-alive"
+        },
+        {
+          "name": "API-version",
+          "value": "1"
+        },
+        {
+          "name": "Accept",
+          "value": "application/json"
+        },
+        {
+          "name": "User-Agent",
+          "value": "ClubHub Store/2.15.1 (com.anytimefitness.Club-Hub; build:1007; iOS 18.5.0) Alamofire/5.6.4"
+        },
+        {
+          "name": "Accept-Language",
+          "value": "en-US"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMDgyMDQ0OSIsImVtYWlsIjoibWF5by5qZXJlbXkyMjEyQGdtYWlsLmNvbSIsImdpdmVuX25hbWUiOiJKZXJlbXkiLCJhZl9hcGlfdG9rZW4iOiJUNlZXS3FnRzNIUEpXdmpETXRKQjdkdmJmZGVacGJKMjZvRGdsRzFwdWRGUFN0c2RWQnZaVHZQc0R1LUJ2aFl1X2JiWkVkSkxRRDhDd0dCTFRsMkhPMEJKc0RUN0p6dHg5aEZnU0dDR2hqMlZCc0Q4a3Z6Rm1SUWU2UDFNVmJhOUhKRU0tWlNTcTZfVVRFRDJwd3h5S3lzbEN2LVRwR3ZEcEQybWk1SW01VnNHZ1Z3THVHZ183R0Qwcm5RVUg3eG1qWDM5SU50NklZV0xJeEY2MEtaN2ZEbHlSWjVRZVdPdnd2MzVSNTlhQkw0dW4zOFlPd1NGYjltREVpcGlkZWJmWG5wR1JwZGhRbWtNd2o5X25kc2RfRjNtWFo3Rm5OZm0wRG5IVmRMOHNCOFdVTjd0Mko0SXFHWk5YbENlemY1UWR6Q3huUSIsInBob3RvX3VybCI6IiIsInVzZXJfdHlwZSI6IlRyYWluZXIiLCJjbHViX2lkcyI6WyIxMTU2IiwiMTY1NyJdLCJyb2xlIjoiVHJhaW5lciIsImFwcGxpY2F0aW9uX2lkcyI6WyIxIiwiMyIsIjgiLCIxMiJdLCJuYmYiOjE3NTI1MDA2MDEsImV4cCI6MTc1MjU4NzAwMSwiaWF0IjoxNzUyNTAwNjAxLCJpc3MiOiJodHRwczovL2NsdWJodWItaW9zLWFwaS5hbnl0aW1lZml0bmVzcy5jb20vIiwiYXVkIjoiQ2x1Ykh1Yklvc0FwaSJ9.c802Z5b6GlmPvqi-wONJB0PUsJLc606w90sCKk_C2I8"
+        },
+        {
+          "name": "Accept-Encoding",
+          "value": "br;q=1.0, gzip;q=0.9, deflate;q=0.8"
+        }
+      ],
+      "queryString": [],
+      "postData": {}
+    },
+    "example_response": null,
+    "keyword_fields": []
+  },
+  "GET /api/agreements/package_agreements/list": {
+    "method": "GET",
+    "path": "/api/agreements/package_agreements/list",
+    "example_request": {
+      "url": "https://anytime.club-os.com/api/agreements/package_agreements/list",
+      "headers": [
+        {
+          "name": ":method",
+          "value": "GET"
+        },
+        {
+          "name": ":authority",
+          "value": "anytime.club-os.com"
+        },
+        {
+          "name": ":scheme",
+          "value": "https"
+        },
+        {
+          "name": ":path",
+          "value": "/api/agreements/package_agreements/list"
+        },
+        {
+          "name": "x-newrelic-id",
+          "value": "VgYBWFdXCRABVVFTBgUBVVQJ"
+        },
+        {
+          "name": "sec-ch-ua-platform",
+          "value": "\"Windows\""
+        },
+        {
+          "name": "authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJkZWxlZ2F0ZVVzZXJJZCI6MTg0MDI3ODQxLCJsb2dnZWRJblVzZXJJZCI6MTg3MDMyNzgyLCJzZXNzaW9uSWQiOiJCMzQ2N0E0MTYyRjNGQjMxMjZGQTZDMkU0NTU4RkNCOSJ9.wuudSAy8nsktoRgclpijPjEbTQHRUBuf2VVOkhyGIGI"
+        },
+        {
+          "name": "sec-ch-ua",
+          "value": "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Microsoft Edge\";v=\"138\""
+        },
+        {
+          "name": "sec-ch-ua-mobile",
+          "value": "?0"
+        },
+        {
+          "name": "newrelic",
+          "value": "eyJ2IjpbMCwxXSwiZCI6eyJ0eSI6IkJyb3dzZXIiLCJhYyI6IjIwNjkxNDEiLCJhcCI6IjExMDMyNTU1NzkiLCJpZCI6IjFlNzUzNDEzZGI0NDU4ZWQiLCJ0ciI6IjdkZjI0Njk4YTk1NjYxNzc1ZjgwZGY4MzNiNGFkZTkzIiwidGkiOjE3NTI1NDEyNTU3MTl9fQ=="
+        },
+        {
+          "name": "traceparent",
+          "value": "00-7df24698a95661775f80df833b4ade93-1e753413db4458ed-01"
+        },
+        {
+          "name": "user-agent",
+          "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
+        },
+        {
+          "name": "accept",
+          "value": "application/json, text/plain, */*"
+        },
+        {
+          "name": "tracestate",
+          "value": "2069141@nr=0-1-2069141-1103255579-1e753413db4458ed----1752541255719"
+        },
+        {
+          "name": "sec-fetch-site",
+          "value": "same-origin"
+        },
+        {
+          "name": "sec-fetch-mode",
+          "value": "cors"
+        },
+        {
+          "name": "sec-fetch-dest",
+          "value": "empty"
+        },
+        {
+          "name": "referer",
+          "value": "https://anytime.club-os.com/action/ClubServicesNew"
+        },
+        {
+          "name": "accept-encoding",
+          "value": "gzip, deflate, br, zstd"
+        },
+        {
+          "name": "accept-language",
+          "value": "en-US,en;q=0.9"
+        },
+        {
+          "name": "cookie",
+          "value": "_fbp=fb.1.1750181614288.28580080925040380"
+        },
+        {
+          "name": "cookie",
+          "value": "__ecatft={\"utm_campaign\":\"\",\"utm_source\":\"\",\"utm_medium\":\"\",\"utm_content\":\"\",\"utm_term\":\"\",\"utm_device\":\"\",\"referrer\":\"https://www.bing.com/\",\"gclid\":\"\",\"lp\":\"www.club-os.com/\"}"
+        },
+        {
+          "name": "cookie",
+          "value": "_gcl_au=1.1.1983975127.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager_uuid=87bca4d8-cdaa-4638-9c0a-e6e1bc9a4c28"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager=pUQdj9lXwNz8G0r5wg8XEpcNpzH-L1ou8e0iwwSBlyChK-6AZCLQmpYmFjG69PvKoD3k_33vDX274aQLwD6OFYigCckQYlqdOy6WZfsR41ygA1SiH0fF5nPbmvjgp6btck0GxLageQFhsKYXm58G4yL-C4YXEVBoOoTn_NxeoVk8vus5y8LMJ_yXrgtAqh7yq01FJ7GlBuRETYKtnj9BU6JnfRLJke553R9xj7NBM23IrjNFA4c6NWp-o-7zX-LiSnJWZGR41LgLBJTgjivcnlp3pjSf9Dv3R8zsXw=="
+        },
+        {
+          "name": "cookie",
+          "value": "_clck=47khr4%7C2%7Cfwu%7C0%7C1994"
+        },
+        {
+          "name": "cookie",
+          "value": "messagesUtk=45ced08d977d42f1b5360b0701dcdadc"
+        },
+        {
+          "name": "cookie",
+          "value": "__hstc=130365392.da9547cf2e866b0ea5a811ae2d00f8e3.1750195292681.1750195292681.1750195292681.1"
+        },
+        {
+          "name": "cookie",
+          "value": "hubspotutk=da9547cf2e866b0ea5a811ae2d00f8e3"
+        },
+        {
+          "name": "cookie",
+          "value": "_hp2_id.2794995124=%7B%22userId%22%3A%2254936772480015%22%2C%22pageviewId%22%3A%223416648379715226%22%2C%22sessionId%22%3A%228662001472485713%22%2C%22identity%22%3Anull%2C%22trackerVersion%22%3A%224.0%22%7D"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_KNW7VZ6GNY=GS2.1.s1750198517$o3$g0$t1750198517$j60$l0$h1657069555"
+        },
+        {
+          "name": "cookie",
+          "value": "_uetvid=31d786004ba111f0b8df757d82f1b34b"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_0NH3ZBDBNZ=GS2.1.s1752337346$o1$g1$t1752337499$j6$l0$h0"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga=GA1.2.1684127573.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "_gid=GA1.2.75957065.1752508973"
+        },
+        {
+          "name": "cookie",
+          "value": "JSESSIONID=B3467A4162F3FB3126FA6C2E4558FCB9"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3RefreshToken=eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiUlNBLU9BRVAifQ.TONPFo86Kk2nPWzZHh_JIoMA_pAl1BHTUd7aQObyGUND2jrhtwqr9GJBRpM2o1J8_lu_bPH_Ogm8IES5igrw5JFArD2ueLYS2AH8a8LMgo_SXCY98kIGbugK-RrPt1oOl3yezCNYwPQr--REYdeSthbdXzVYU4-lxdx1XyeLHo7VZMZgZWFY4DMfNJgVGxqVbvrJv04MWKhLgEim1b7UgiHBrZfoc64Cdh_n6WNqnShH1WG4BzxbiIV7eA93jen7D43MVHEFrBSGSY_GBqAoSMjYHFwhT2Xaa_LO57vk3jdOb9Dex_hRYTkCl3IMLCV0YxlVlf7cuQLBJkDnuHgWIg.hAVUzIdDUJ6KbAZh.DgBCa_Hrwn5PcKD3mNeQuIOUMB1W3_6alu-7vFYw-PDBOCossK3CIS_Ld6so-_Bk-O9RZwPF0W90BcwrAhxarZjUFBKIqCPzfDEtRDae_VOiDjslkW-RegDV02pxqU4LbVGze1UajddQQHSi3z0cYCBvVL0f-JB2nzxmfGRZqqjJKfxEwCkc_jHggPuodNIKdoSADejRFVGdBQ2bFTolCRRmrJLsElVcyLsILRWpeRAUow0caGPJHMLDTktrztH46Pf-zCNB3vS2uWeHIn0paK074wNY4FeRUiqdpnZ8ygbdqLeV4EtJ2VPFbkPtnihdnaYuh-EhWkvy3Vtg0MGCxm0DKVRD6soUattRvHZSUDb5UveCmEvf6UAq6v0_xGCyddxt0n1lVnRWNYMSCj2LVPcQThwHSqcNIbRIcYQEtMaI-30znbXkHMBRLdiLAR4rQnoiq2kpI0wtb48qk6_EQGFwtJ7a1_J2tCqpYcwi7jiIQ92i5NdWO-onpWEPYh2mE0xZRbJ9YQ_ROvwit2DiCT_VGQuM2ZM-tMfJpis5kaQmVTa8KFe4-KnaS6e62hYsy7pr7lVacvAxtxaU5S0yCT1X-jpABFpISCzdkXMnIpbAcv4S_XX3fPPlOvi3ZkN4j0xYFIbyTxXs7m1KgG04v0H1MYiZMXXNtDe8lylKyPWc4w9t-Jz7hxd2FDTZVhe7QqVHO7QQzmGwPZ40XF0nSRK8koNejGTs6fSTGiLArSU9XCkeuPxHDpEx1Jb_w9u9HxkJZClrdCK7hFRpCllIROkYrBEAxOZ0vW_8r8N1mlSBr9QlBfMKD-cdknmYYN2o5DzyhgdPY3suwFamGbvXbk2N9mCsjMTsMel0nojaV4Uq2eZUCTXyuTxJ8lVNhRx5JX6FBzYa37EmgfeapcXRr96NGLznsADgvcYF8fE8HAg2gWUaIGf5zOrq5uI7W4pqy1suXyqh0DHX4aQmVzmDSfQKV_ErW0y8qjBusYaIqZSwKr-C2ENGsMJTERE6FnmN1XE-kZr18L9GKNDoPXal9aV7ESEMfbQoD2bXHCRQ5SWLFzTBqUH2RuJcd8weDiKNGEkIIT1noZZPJieRepk84oKBayWJYsmwaEvNOnw2CPv7dWWwl8hWdRC6emTtIkodXaMAJ9CedgQhJ0x2bjFf5GdNs95gyXOCSOkTUYk0G1kk9KMsVaa-9myhjekG33mcaOywYaJL2Y0C75jHwrCkrEVWy0zwIpzysUK9lwuWZ5cYXT2RQGEYuVsyn987lPdYdB6rWmQDpJE.OFOi8I2jSl1zVjwFahqJJQ"
+        },
+        {
+          "name": "cookie",
+          "value": "loggedInUserId=187032782"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3AccessToken=eyJraWQiOiIzWlwvN3R1TEYrZzBVMEdQSW10QjhCZHY3Q3RWWlwvek1HekxnKzc4SGZNbVk9IiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJldmVudF9pZCI6ImNlZWQ1NmRiLWM0NWQtNGVlZS05YjI2LWE0OThmZjRjY2ViYSIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiYXdzLmNvZ25pdG8uc2lnbmluLnVzZXIuYWRtaW4iLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImV4cCI6MTc1MjU0NDYzMiwiaWF0IjoxNzUyNTQxMDMyLCJqdGkiOiJkODc5NDM4Zi1mNjY0LTQ1OWEtYTU4Ni01NjgxY2RjNTI4YTgiLCJjbGllbnRfaWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsInVzZXJuYW1lIjoiMTg3MDMyNzgyIn0.XUIVp5nBJpXpBoQ4j2OFzUdf-2CT-1WPKNktoXjrUl_p7U8KJixO_jtE2e5fjXlYZyhCzaAriU7ujCTuG3Cc2C8Zkow953MCSgnKvDaXJcCt47bs4hsHQLMrlCyu0vWSbb8xmLZtjcrJY6skTAFpw9PJjofRyhoLI5zG4ns6QrBxqt-2T_N3DDGr68S0k8VqbOPsEZRH0oY886CQYK2sLsNwjriF8lPsO2OX5X0uV-L_Wrf6DOmzYvFv41TWJE70t8TCvRPyqBtjSvAQ8dUZtQAWeOmuHTeqONdE_CLV7F_DmbYYVmRJBJB_-40812KvxzqyXEo-lPRiXkZZbooA5g"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3IdToken=eyJraWQiOiJibWtxY1lkWGVqT25LUkQ1T2VxcW1sdFlORnA0cVVzV3FNN3dCSDg2WE9VPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJhdWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsImV2ZW50X2lkIjoiY2VlZDU2ZGItYzQ1ZC00ZWVlLTliMjYtYTQ5OGZmNGNjZWJhIiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImNvZ25pdG86dXNlcm5hbWUiOiIxODcwMzI3ODIiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqLm1heW8iLCJleHAiOjE3NTI1NDQ2MzIsImlhdCI6MTc1MjU0MTAzMn0.zIB7WHtddYZgVLHnnyoR6M_mW2Sm-pxhuF2OkOE6hPDxDfPI30XHwXrZ9rvXbLyr5m7rJ2mvFFhHsrPy4kH70UAGRVA5KoLRRSUOr_IFj52Uvwcve3K83nTFJozP8dZ9H84PytVpK2tjdNPc7YCZ3xbvIr0Qbng9o1_iTMdBx8LlxM2wv_5r43YYtYnL_pqE7dkGRcDaz0mDni_BvUVcuuLzv7AWyYfKZg378-kWLof4UeihGQvqREsp9NVRN5EITRyn_6K6yecon6vLyEgDUxcGUN1kaE0W7y-EMqYdb-Esd4rwp7Vr-euckH6xAGWPDZ0B7ZIUmfdzbuWBEQgn9Q"
+        },
+        {
+          "name": "cookie",
+          "value": "delegatedUserId=184027841"
+        },
+        {
+          "name": "cookie",
+          "value": "staffDelegatedUserId="
+        },
+        {
+          "name": "priority",
+          "value": "u=1, i"
+        }
+      ],
+      "queryString": [],
+      "postData": {}
+    },
+    "example_response": null,
+    "keyword_fields": []
+  },
+  "POST /api/agreements/package_agreements/invoices": {
+    "method": "POST",
+    "path": "/api/agreements/package_agreements/invoices",
+    "example_request": {
+      "url": "https://anytime.club-os.com/api/agreements/package_agreements/invoices",
+      "headers": [
+        {
+          "name": ":method",
+          "value": "POST"
+        },
+        {
+          "name": ":authority",
+          "value": "anytime.club-os.com"
+        },
+        {
+          "name": ":scheme",
+          "value": "https"
+        },
+        {
+          "name": ":path",
+          "value": "/api/agreements/package_agreements/invoices"
+        },
+        {
+          "name": "content-length",
+          "value": "1157"
+        },
+        {
+          "name": "x-newrelic-id",
+          "value": "VgYBWFdXCRABVVFTBgUBVVQJ"
+        },
+        {
+          "name": "sec-ch-ua-platform",
+          "value": "\"Windows\""
+        },
+        {
+          "name": "authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJkZWxlZ2F0ZVVzZXJJZCI6MTg0MDI3ODQxLCJsb2dnZWRJblVzZXJJZCI6MTg3MDMyNzgyLCJzZXNzaW9uSWQiOiJCMzQ2N0E0MTYyRjNGQjMxMjZGQTZDMkU0NTU4RkNCOSJ9.wuudSAy8nsktoRgclpijPjEbTQHRUBuf2VVOkhyGIGI"
+        },
+        {
+          "name": "sec-ch-ua",
+          "value": "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Microsoft Edge\";v=\"138\""
+        },
+        {
+          "name": "newrelic",
+          "value": "eyJ2IjpbMCwxXSwiZCI6eyJ0eSI6IkJyb3dzZXIiLCJhYyI6IjIwNjkxNDEiLCJhcCI6IjExMDMyNTU1NzkiLCJpZCI6IjJmYTI1ZDhjNDRiZTBlNjYiLCJ0ciI6ImNhZmM4OTM4OTY3NTQ4OGJjNWU3NDdkY2JmY2I4OGRlIiwidGkiOjE3NTI1NDEyNjAwNzR9fQ=="
+        },
+        {
+          "name": "sec-ch-ua-mobile",
+          "value": "?0"
+        },
+        {
+          "name": "traceparent",
+          "value": "00-cafc89389675488bc5e747dcbfcb88de-2fa25d8c44be0e66-01"
+        },
+        {
+          "name": "user-agent",
+          "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
+        },
+        {
+          "name": "accept",
+          "value": "application/json, text/plain, */*"
+        },
+        {
+          "name": "content-type",
+          "value": "application/json;charset=UTF-8"
+        },
+        {
+          "name": "tracestate",
+          "value": "2069141@nr=0-1-2069141-1103255579-2fa25d8c44be0e66----1752541260074"
+        },
+        {
+          "name": "origin",
+          "value": "https://anytime.club-os.com"
+        },
+        {
+          "name": "sec-fetch-site",
+          "value": "same-origin"
+        },
+        {
+          "name": "sec-fetch-mode",
+          "value": "cors"
+        },
+        {
+          "name": "sec-fetch-dest",
+          "value": "empty"
+        },
+        {
+          "name": "referer",
+          "value": "https://anytime.club-os.com/action/PackageAgreementUpdated/"
+        },
+        {
+          "name": "accept-encoding",
+          "value": "gzip, deflate, br, zstd"
+        },
+        {
+          "name": "accept-language",
+          "value": "en-US,en;q=0.9"
+        },
+        {
+          "name": "cookie",
+          "value": "_fbp=fb.1.1750181614288.28580080925040380"
+        },
+        {
+          "name": "cookie",
+          "value": "__ecatft={\"utm_campaign\":\"\",\"utm_source\":\"\",\"utm_medium\":\"\",\"utm_content\":\"\",\"utm_term\":\"\",\"utm_device\":\"\",\"referrer\":\"https://www.bing.com/\",\"gclid\":\"\",\"lp\":\"www.club-os.com/\"}"
+        },
+        {
+          "name": "cookie",
+          "value": "_gcl_au=1.1.1983975127.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager_uuid=87bca4d8-cdaa-4638-9c0a-e6e1bc9a4c28"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager=pUQdj9lXwNz8G0r5wg8XEpcNpzH-L1ou8e0iwwSBlyChK-6AZCLQmpYmFjG69PvKoD3k_33vDX274aQLwD6OFYigCckQYlqdOy6WZfsR41ygA1SiH0fF5nPbmvjgp6btck0GxLageQFhsKYXm58G4yL-C4YXEVBoOoTn_NxeoVk8vus5y8LMJ_yXrgtAqh7yq01FJ7GlBuRETYKtnj9BU6JnfRLJke553R9xj7NBM23IrjNFA4c6NWp-o-7zX-LiSnJWZGR41LgLBJTgjivcnlp3pjSf9Dv3R8zsXw=="
+        },
+        {
+          "name": "cookie",
+          "value": "_clck=47khr4%7C2%7Cfwu%7C0%7C1994"
+        },
+        {
+          "name": "cookie",
+          "value": "messagesUtk=45ced08d977d42f1b5360b0701dcdadc"
+        },
+        {
+          "name": "cookie",
+          "value": "__hstc=130365392.da9547cf2e866b0ea5a811ae2d00f8e3.1750195292681.1750195292681.1750195292681.1"
+        },
+        {
+          "name": "cookie",
+          "value": "hubspotutk=da9547cf2e866b0ea5a811ae2d00f8e3"
+        },
+        {
+          "name": "cookie",
+          "value": "_hp2_id.2794995124=%7B%22userId%22%3A%2254936772480015%22%2C%22pageviewId%22%3A%223416648379715226%22%2C%22sessionId%22%3A%228662001472485713%22%2C%22identity%22%3Anull%2C%22trackerVersion%22%3A%224.0%22%7D"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_KNW7VZ6GNY=GS2.1.s1750198517$o3$g0$t1750198517$j60$l0$h1657069555"
+        },
+        {
+          "name": "cookie",
+          "value": "_uetvid=31d786004ba111f0b8df757d82f1b34b"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_0NH3ZBDBNZ=GS2.1.s1752337346$o1$g1$t1752337499$j6$l0$h0"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga=GA1.2.1684127573.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "_gid=GA1.2.75957065.1752508973"
+        },
+        {
+          "name": "cookie",
+          "value": "JSESSIONID=B3467A4162F3FB3126FA6C2E4558FCB9"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3RefreshToken=eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiUlNBLU9BRVAifQ.TONPFo86Kk2nPWzZHh_JIoMA_pAl1BHTUd7aQObyGUND2jrhtwqr9GJBRpM2o1J8_lu_bPH_Ogm8IES5igrw5JFArD2ueLYS2AH8a8LMgo_SXCY98kIGbugK-RrPt1oOl3yezCNYwPQr--REYdeSthbdXzVYU4-lxdx1XyeLHo7VZMZgZWFY4DMfNJgVGxqVbvrJv04MWKhLgEim1b7UgiHBrZfoc64Cdh_n6WNqnShH1WG4BzxbiIV7eA93jen7D43MVHEFrBSGSY_GBqAoSMjYHFwhT2Xaa_LO57vk3jdOb9Dex_hRYTkCl3IMLCV0YxlVlf7cuQLBJkDnuHgWIg.hAVUzIdDUJ6KbAZh.DgBCa_Hrwn5PcKD3mNeQuIOUMB1W3_6alu-7vFYw-PDBOCossK3CIS_Ld6so-_Bk-O9RZwPF0W90BcwrAhxarZjUFBKIqCPzfDEtRDae_VOiDjslkW-RegDV02pxqU4LbVGze1UajddQQHSi3z0cYCBvVL0f-JB2nzxmfGRZqqjJKfxEwCkc_jHggPuodNIKdoSADejRFVGdBQ2bFTolCRRmrJLsElVcyLsILRWpeRAUow0caGPJHMLDTktrztH46Pf-zCNB3vS2uWeHIn0paK074wNY4FeRUiqdpnZ8ygbdqLeV4EtJ2VPFbkPtnihdnaYuh-EhWkvy3Vtg0MGCxm0DKVRD6soUattRvHZSUDb5UveCmEvf6UAq6v0_xGCyddxt0n1lVnRWNYMSCj2LVPcQThwHSqcNIbRIcYQEtMaI-30znbXkHMBRLdiLAR4rQnoiq2kpI0wtb48qk6_EQGFwtJ7a1_J2tCqpYcwi7jiIQ92i5NdWO-onpWEPYh2mE0xZRbJ9YQ_ROvwit2DiCT_VGQuM2ZM-tMfJpis5kaQmVTa8KFe4-KnaS6e62hYsy7pr7lVacvAxtxaU5S0yCT1X-jpABFpISCzdkXMnIpbAcv4S_XX3fPPlOvi3ZkN4j0xYFIbyTxXs7m1KgG04v0H1MYiZMXXNtDe8lylKyPWc4w9t-Jz7hxd2FDTZVhe7QqVHO7QQzmGwPZ40XF0nSRK8koNejGTs6fSTGiLArSU9XCkeuPxHDpEx1Jb_w9u9HxkJZClrdCK7hFRpCllIROkYrBEAxOZ0vW_8r8N1mlSBr9QlBfMKD-cdknmYYN2o5DzyhgdPY3suwFamGbvXbk2N9mCsjMTsMel0nojaV4Uq2eZUCTXyuTxJ8lVNhRx5JX6FBzYa37EmgfeapcXRr96NGLznsADgvcYF8fE8HAg2gWUaIGf5zOrq5uI7W4pqy1suXyqh0DHX4aQmVzmDSfQKV_ErW0y8qjBusYaIqZSwKr-C2ENGsMJTERE6FnmN1XE-kZr18L9GKNDoPXal9aV7ESEMfbQoD2bXHCRQ5SWLFzTBqUH2RuJcd8weDiKNGEkIIT1noZZPJieRepk84oKBayWJYsmwaEvNOnw2CPv7dWWwl8hWdRC6emTtIkodXaMAJ9CedgQhJ0x2bjFf5GdNs95gyXOCSOkTUYk0G1kk9KMsVaa-9myhjekG33mcaOywYaJL2Y0C75jHwrCkrEVWy0zwIpzysUK9lwuWZ5cYXT2RQGEYuVsyn987lPdYdB6rWmQDpJE.OFOi8I2jSl1zVjwFahqJJQ"
+        },
+        {
+          "name": "cookie",
+          "value": "loggedInUserId=187032782"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3AccessToken=eyJraWQiOiIzWlwvN3R1TEYrZzBVMEdQSW10QjhCZHY3Q3RWWlwvek1HekxnKzc4SGZNbVk9IiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJldmVudF9pZCI6ImNlZWQ1NmRiLWM0NWQtNGVlZS05YjI2LWE0OThmZjRjY2ViYSIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiYXdzLmNvZ25pdG8uc2lnbmluLnVzZXIuYWRtaW4iLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImV4cCI6MTc1MjU0NDYzMiwiaWF0IjoxNzUyNTQxMDMyLCJqdGkiOiJkODc5NDM4Zi1mNjY0LTQ1OWEtYTU4Ni01NjgxY2RjNTI4YTgiLCJjbGllbnRfaWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsInVzZXJuYW1lIjoiMTg3MDMyNzgyIn0.XUIVp5nBJpXpBoQ4j2OFzUdf-2CT-1WPKNktoXjrUl_p7U8KJixO_jtE2e5fjXlYZyhCzaAriU7ujCTuG3Cc2C8Zkow953MCSgnKvDaXJcCt47bs4hsHQLMrlCyu0vWSbb8xmLZtjcrJY6skTAFpw9PJjofRyhoLI5zG4ns6QrBxqt-2T_N3DDGr68S0k8VqbOPsEZRH0oY886CQYK2sLsNwjriF8lPsO2OX5X0uV-L_Wrf6DOmzYvFv41TWJE70t8TCvRPyqBtjSvAQ8dUZtQAWeOmuHTeqONdE_CLV7F_DmbYYVmRJBJB_-40812KvxzqyXEo-lPRiXkZZbooA5g"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3IdToken=eyJraWQiOiJibWtxY1lkWGVqT25LUkQ1T2VxcW1sdFlORnA0cVVzV3FNN3dCSDg2WE9VPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJhdWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsImV2ZW50X2lkIjoiY2VlZDU2ZGItYzQ1ZC00ZWVlLTliMjYtYTQ5OGZmNGNjZWJhIiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImNvZ25pdG86dXNlcm5hbWUiOiIxODcwMzI3ODIiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqLm1heW8iLCJleHAiOjE3NTI1NDQ2MzIsImlhdCI6MTc1MjU0MTAzMn0.zIB7WHtddYZgVLHnnyoR6M_mW2Sm-pxhuF2OkOE6hPDxDfPI30XHwXrZ9rvXbLyr5m7rJ2mvFFhHsrPy4kH70UAGRVA5KoLRRSUOr_IFj52Uvwcve3K83nTFJozP8dZ9H84PytVpK2tjdNPc7YCZ3xbvIr0Qbng9o1_iTMdBx8LlxM2wv_5r43YYtYnL_pqE7dkGRcDaz0mDni_BvUVcuuLzv7AWyYfKZg378-kWLof4UeihGQvqREsp9NVRN5EITRyn_6K6yecon6vLyEgDUxcGUN1kaE0W7y-EMqYdb-Esd4rwp7Vr-euckH6xAGWPDZ0B7ZIUmfdzbuWBEQgn9Q"
+        },
+        {
+          "name": "cookie",
+          "value": "delegatedUserId=184027841"
+        },
+        {
+          "name": "cookie",
+          "value": "staffDelegatedUserId="
+        },
+        {
+          "name": "priority",
+          "value": "u=1, i"
+        }
+      ],
+      "queryString": [],
+      "postData": {
+        "mimeType": "application/json;charset=UTF-8",
+        "text": "{\"packageId\":74379,\"locationId\":3586,\"name\":\"6 Week Challenge Payments\",\"description\":\"Weekly Payments\",\"agreementStatus\":1,\"duration\":6,\"durationType\":6,\"billingDuration\":1,\"billingDurationType\":6,\"renewType\":0,\"defaultRenewType\":0,\"packageAgreementFees\":[{\"packageFeeId\":110396,\"description\":\"6 Week Challenge Weekly  Payments\",\"unitPrice\":99.99,\"billingDuration\":1,\"billingDurationType\":6,\"feeType\":2,\"salesTaxTypes\":[]}],\"packageAgreementCancellationFees\":[],\"packageAgreementMemberServices\":[{\"packageMemberServiceId\":97012,\"regions\":[3880],\"name\":\"Small Group Training\",\"description\":\"Small Group Training\",\"calendarEventType\":{\"name\":\"Small Group Training\",\"id\":8,\"icon\":\"icon_smallgrouptraining.png\",\"consumable\":true,\"privateOnly\":false,\"meeting\":false,\"groupClass\":false,\"ptEventType\":true},\"salesTaxTypes\":[],\"unitPrice\":0,\"expirationDuration\":31,\"expirationDurationType\":7,\"billingDuration\":1,\"billingDurationType\":6,\"isActiveInPackage\":null,\"parentIds\":null,\"unitsPerBillingDuration\":3}],\"memberId\":184027841,\"downPaymentBillingDurations\":1,\"startDate\":\"2025-07-14\",\"agreementBillingStatusChanges\":[{\"eventDate\":\"2025-07-14\",\"billingState\":1}]}"
+      }
+    },
+    "example_response": null,
+    "keyword_fields": []
+  },
+  "GET /api/agreements/package_agreements/undefined": {
+    "method": "GET",
+    "path": "/api/agreements/package_agreements/undefined",
+    "example_request": {
+      "url": "https://anytime.club-os.com/api/agreements/package_agreements/undefined",
+      "headers": [
+        {
+          "name": ":method",
+          "value": "GET"
+        },
+        {
+          "name": ":authority",
+          "value": "anytime.club-os.com"
+        },
+        {
+          "name": ":scheme",
+          "value": "https"
+        },
+        {
+          "name": ":path",
+          "value": "/api/agreements/package_agreements/undefined"
+        },
+        {
+          "name": "x-newrelic-id",
+          "value": "VgYBWFdXCRABVVFTBgUBVVQJ"
+        },
+        {
+          "name": "sec-ch-ua-platform",
+          "value": "\"Windows\""
+        },
+        {
+          "name": "authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJkZWxlZ2F0ZVVzZXJJZCI6MTg0MDI3ODQxLCJsb2dnZWRJblVzZXJJZCI6MTg3MDMyNzgyLCJzZXNzaW9uSWQiOiJCMzQ2N0E0MTYyRjNGQjMxMjZGQTZDMkU0NTU4RkNCOSJ9.wuudSAy8nsktoRgclpijPjEbTQHRUBuf2VVOkhyGIGI"
+        },
+        {
+          "name": "sec-ch-ua",
+          "value": "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Microsoft Edge\";v=\"138\""
+        },
+        {
+          "name": "sec-ch-ua-mobile",
+          "value": "?0"
+        },
+        {
+          "name": "newrelic",
+          "value": "eyJ2IjpbMCwxXSwiZCI6eyJ0eSI6IkJyb3dzZXIiLCJhYyI6IjIwNjkxNDEiLCJhcCI6IjExMDMyNTU1NzkiLCJpZCI6ImYyYzgzMDEzZTFiMzRlMWMiLCJ0ciI6ImEzZGE2YTMwMTUzY2Y5NWZlN2VjODIzYWJiM2I0ODVlIiwidGkiOjE3NTI1NDEyNjc1NjF9fQ=="
+        },
+        {
+          "name": "traceparent",
+          "value": "00-a3da6a30153cf95fe7ec823abb3b485e-f2c83013e1b34e1c-01"
+        },
+        {
+          "name": "user-agent",
+          "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
+        },
+        {
+          "name": "accept",
+          "value": "application/json, text/plain, */*"
+        },
+        {
+          "name": "tracestate",
+          "value": "2069141@nr=0-1-2069141-1103255579-f2c83013e1b34e1c----1752541267561"
+        },
+        {
+          "name": "sec-fetch-site",
+          "value": "same-origin"
+        },
+        {
+          "name": "sec-fetch-mode",
+          "value": "cors"
+        },
+        {
+          "name": "sec-fetch-dest",
+          "value": "empty"
+        },
+        {
+          "name": "referer",
+          "value": "https://anytime.club-os.com/action/PackageAgreementUpdated/"
+        },
+        {
+          "name": "accept-encoding",
+          "value": "gzip, deflate, br, zstd"
+        },
+        {
+          "name": "accept-language",
+          "value": "en-US,en;q=0.9"
+        },
+        {
+          "name": "cookie",
+          "value": "_fbp=fb.1.1750181614288.28580080925040380"
+        },
+        {
+          "name": "cookie",
+          "value": "__ecatft={\"utm_campaign\":\"\",\"utm_source\":\"\",\"utm_medium\":\"\",\"utm_content\":\"\",\"utm_term\":\"\",\"utm_device\":\"\",\"referrer\":\"https://www.bing.com/\",\"gclid\":\"\",\"lp\":\"www.club-os.com/\"}"
+        },
+        {
+          "name": "cookie",
+          "value": "_gcl_au=1.1.1983975127.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager_uuid=87bca4d8-cdaa-4638-9c0a-e6e1bc9a4c28"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager=pUQdj9lXwNz8G0r5wg8XEpcNpzH-L1ou8e0iwwSBlyChK-6AZCLQmpYmFjG69PvKoD3k_33vDX274aQLwD6OFYigCckQYlqdOy6WZfsR41ygA1SiH0fF5nPbmvjgp6btck0GxLageQFhsKYXm58G4yL-C4YXEVBoOoTn_NxeoVk8vus5y8LMJ_yXrgtAqh7yq01FJ7GlBuRETYKtnj9BU6JnfRLJke553R9xj7NBM23IrjNFA4c6NWp-o-7zX-LiSnJWZGR41LgLBJTgjivcnlp3pjSf9Dv3R8zsXw=="
+        },
+        {
+          "name": "cookie",
+          "value": "_clck=47khr4%7C2%7Cfwu%7C0%7C1994"
+        },
+        {
+          "name": "cookie",
+          "value": "messagesUtk=45ced08d977d42f1b5360b0701dcdadc"
+        },
+        {
+          "name": "cookie",
+          "value": "__hstc=130365392.da9547cf2e866b0ea5a811ae2d00f8e3.1750195292681.1750195292681.1750195292681.1"
+        },
+        {
+          "name": "cookie",
+          "value": "hubspotutk=da9547cf2e866b0ea5a811ae2d00f8e3"
+        },
+        {
+          "name": "cookie",
+          "value": "_hp2_id.2794995124=%7B%22userId%22%3A%2254936772480015%22%2C%22pageviewId%22%3A%223416648379715226%22%2C%22sessionId%22%3A%228662001472485713%22%2C%22identity%22%3Anull%2C%22trackerVersion%22%3A%224.0%22%7D"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_KNW7VZ6GNY=GS2.1.s1750198517$o3$g0$t1750198517$j60$l0$h1657069555"
+        },
+        {
+          "name": "cookie",
+          "value": "_uetvid=31d786004ba111f0b8df757d82f1b34b"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_0NH3ZBDBNZ=GS2.1.s1752337346$o1$g1$t1752337499$j6$l0$h0"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga=GA1.2.1684127573.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "_gid=GA1.2.75957065.1752508973"
+        },
+        {
+          "name": "cookie",
+          "value": "JSESSIONID=B3467A4162F3FB3126FA6C2E4558FCB9"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3RefreshToken=eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiUlNBLU9BRVAifQ.TONPFo86Kk2nPWzZHh_JIoMA_pAl1BHTUd7aQObyGUND2jrhtwqr9GJBRpM2o1J8_lu_bPH_Ogm8IES5igrw5JFArD2ueLYS2AH8a8LMgo_SXCY98kIGbugK-RrPt1oOl3yezCNYwPQr--REYdeSthbdXzVYU4-lxdx1XyeLHo7VZMZgZWFY4DMfNJgVGxqVbvrJv04MWKhLgEim1b7UgiHBrZfoc64Cdh_n6WNqnShH1WG4BzxbiIV7eA93jen7D43MVHEFrBSGSY_GBqAoSMjYHFwhT2Xaa_LO57vk3jdOb9Dex_hRYTkCl3IMLCV0YxlVlf7cuQLBJkDnuHgWIg.hAVUzIdDUJ6KbAZh.DgBCa_Hrwn5PcKD3mNeQuIOUMB1W3_6alu-7vFYw-PDBOCossK3CIS_Ld6so-_Bk-O9RZwPF0W90BcwrAhxarZjUFBKIqCPzfDEtRDae_VOiDjslkW-RegDV02pxqU4LbVGze1UajddQQHSi3z0cYCBvVL0f-JB2nzxmfGRZqqjJKfxEwCkc_jHggPuodNIKdoSADejRFVGdBQ2bFTolCRRmrJLsElVcyLsILRWpeRAUow0caGPJHMLDTktrztH46Pf-zCNB3vS2uWeHIn0paK074wNY4FeRUiqdpnZ8ygbdqLeV4EtJ2VPFbkPtnihdnaYuh-EhWkvy3Vtg0MGCxm0DKVRD6soUattRvHZSUDb5UveCmEvf6UAq6v0_xGCyddxt0n1lVnRWNYMSCj2LVPcQThwHSqcNIbRIcYQEtMaI-30znbXkHMBRLdiLAR4rQnoiq2kpI0wtb48qk6_EQGFwtJ7a1_J2tCqpYcwi7jiIQ92i5NdWO-onpWEPYh2mE0xZRbJ9YQ_ROvwit2DiCT_VGQuM2ZM-tMfJpis5kaQmVTa8KFe4-KnaS6e62hYsy7pr7lVacvAxtxaU5S0yCT1X-jpABFpISCzdkXMnIpbAcv4S_XX3fPPlOvi3ZkN4j0xYFIbyTxXs7m1KgG04v0H1MYiZMXXNtDe8lylKyPWc4w9t-Jz7hxd2FDTZVhe7QqVHO7QQzmGwPZ40XF0nSRK8koNejGTs6fSTGiLArSU9XCkeuPxHDpEx1Jb_w9u9HxkJZClrdCK7hFRpCllIROkYrBEAxOZ0vW_8r8N1mlSBr9QlBfMKD-cdknmYYN2o5DzyhgdPY3suwFamGbvXbk2N9mCsjMTsMel0nojaV4Uq2eZUCTXyuTxJ8lVNhRx5JX6FBzYa37EmgfeapcXRr96NGLznsADgvcYF8fE8HAg2gWUaIGf5zOrq5uI7W4pqy1suXyqh0DHX4aQmVzmDSfQKV_ErW0y8qjBusYaIqZSwKr-C2ENGsMJTERE6FnmN1XE-kZr18L9GKNDoPXal9aV7ESEMfbQoD2bXHCRQ5SWLFzTBqUH2RuJcd8weDiKNGEkIIT1noZZPJieRepk84oKBayWJYsmwaEvNOnw2CPv7dWWwl8hWdRC6emTtIkodXaMAJ9CedgQhJ0x2bjFf5GdNs95gyXOCSOkTUYk0G1kk9KMsVaa-9myhjekG33mcaOywYaJL2Y0C75jHwrCkrEVWy0zwIpzysUK9lwuWZ5cYXT2RQGEYuVsyn987lPdYdB6rWmQDpJE.OFOi8I2jSl1zVjwFahqJJQ"
+        },
+        {
+          "name": "cookie",
+          "value": "loggedInUserId=187032782"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3AccessToken=eyJraWQiOiIzWlwvN3R1TEYrZzBVMEdQSW10QjhCZHY3Q3RWWlwvek1HekxnKzc4SGZNbVk9IiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJldmVudF9pZCI6ImNlZWQ1NmRiLWM0NWQtNGVlZS05YjI2LWE0OThmZjRjY2ViYSIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiYXdzLmNvZ25pdG8uc2lnbmluLnVzZXIuYWRtaW4iLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImV4cCI6MTc1MjU0NDYzMiwiaWF0IjoxNzUyNTQxMDMyLCJqdGkiOiJkODc5NDM4Zi1mNjY0LTQ1OWEtYTU4Ni01NjgxY2RjNTI4YTgiLCJjbGllbnRfaWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsInVzZXJuYW1lIjoiMTg3MDMyNzgyIn0.XUIVp5nBJpXpBoQ4j2OFzUdf-2CT-1WPKNktoXjrUl_p7U8KJixO_jtE2e5fjXlYZyhCzaAriU7ujCTuG3Cc2C8Zkow953MCSgnKvDaXJcCt47bs4hsHQLMrlCyu0vWSbb8xmLZtjcrJY6skTAFpw9PJjofRyhoLI5zG4ns6QrBxqt-2T_N3DDGr68S0k8VqbOPsEZRH0oY886CQYK2sLsNwjriF8lPsO2OX5X0uV-L_Wrf6DOmzYvFv41TWJE70t8TCvRPyqBtjSvAQ8dUZtQAWeOmuHTeqONdE_CLV7F_DmbYYVmRJBJB_-40812KvxzqyXEo-lPRiXkZZbooA5g"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3IdToken=eyJraWQiOiJibWtxY1lkWGVqT25LUkQ1T2VxcW1sdFlORnA0cVVzV3FNN3dCSDg2WE9VPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJhdWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsImV2ZW50X2lkIjoiY2VlZDU2ZGItYzQ1ZC00ZWVlLTliMjYtYTQ5OGZmNGNjZWJhIiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImNvZ25pdG86dXNlcm5hbWUiOiIxODcwMzI3ODIiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqLm1heW8iLCJleHAiOjE3NTI1NDQ2MzIsImlhdCI6MTc1MjU0MTAzMn0.zIB7WHtddYZgVLHnnyoR6M_mW2Sm-pxhuF2OkOE6hPDxDfPI30XHwXrZ9rvXbLyr5m7rJ2mvFFhHsrPy4kH70UAGRVA5KoLRRSUOr_IFj52Uvwcve3K83nTFJozP8dZ9H84PytVpK2tjdNPc7YCZ3xbvIr0Qbng9o1_iTMdBx8LlxM2wv_5r43YYtYnL_pqE7dkGRcDaz0mDni_BvUVcuuLzv7AWyYfKZg378-kWLof4UeihGQvqREsp9NVRN5EITRyn_6K6yecon6vLyEgDUxcGUN1kaE0W7y-EMqYdb-Esd4rwp7Vr-euckH6xAGWPDZ0B7ZIUmfdzbuWBEQgn9Q"
+        },
+        {
+          "name": "cookie",
+          "value": "delegatedUserId=184027841"
+        },
+        {
+          "name": "cookie",
+          "value": "staffDelegatedUserId="
+        },
+        {
+          "name": "priority",
+          "value": "u=1, i"
+        }
+      ],
+      "queryString": [],
+      "postData": {}
+    },
+    "example_response": null,
+    "keyword_fields": []
+  },
+  "GET /api/agreements/package_agreements/undefined/billing_status": {
+    "method": "GET",
+    "path": "/api/agreements/package_agreements/undefined/billing_status",
+    "example_request": {
+      "url": "https://anytime.club-os.com/api/agreements/package_agreements/undefined/billing_status",
+      "headers": [
+        {
+          "name": ":method",
+          "value": "GET"
+        },
+        {
+          "name": ":authority",
+          "value": "anytime.club-os.com"
+        },
+        {
+          "name": ":scheme",
+          "value": "https"
+        },
+        {
+          "name": ":path",
+          "value": "/api/agreements/package_agreements/undefined/billing_status"
+        },
+        {
+          "name": "x-newrelic-id",
+          "value": "VgYBWFdXCRABVVFTBgUBVVQJ"
+        },
+        {
+          "name": "sec-ch-ua-platform",
+          "value": "\"Windows\""
+        },
+        {
+          "name": "authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJkZWxlZ2F0ZVVzZXJJZCI6MTg0MDI3ODQxLCJsb2dnZWRJblVzZXJJZCI6MTg3MDMyNzgyLCJzZXNzaW9uSWQiOiJCMzQ2N0E0MTYyRjNGQjMxMjZGQTZDMkU0NTU4RkNCOSJ9.wuudSAy8nsktoRgclpijPjEbTQHRUBuf2VVOkhyGIGI"
+        },
+        {
+          "name": "sec-ch-ua",
+          "value": "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Microsoft Edge\";v=\"138\""
+        },
+        {
+          "name": "sec-ch-ua-mobile",
+          "value": "?0"
+        },
+        {
+          "name": "newrelic",
+          "value": "eyJ2IjpbMCwxXSwiZCI6eyJ0eSI6IkJyb3dzZXIiLCJhYyI6IjIwNjkxNDEiLCJhcCI6IjExMDMyNTU1NzkiLCJpZCI6IjcwZWZhMzQ1NTZkM2Q2NzQiLCJ0ciI6IjMwNjM2ZmQ1ODcxNmM4Y2I3M2Q2MzIzZDFhOTNiN2FlIiwidGkiOjE3NTI1NDEyNjc1NjZ9fQ=="
+        },
+        {
+          "name": "traceparent",
+          "value": "00-30636fd58716c8cb73d6323d1a93b7ae-70efa34556d3d674-01"
+        },
+        {
+          "name": "user-agent",
+          "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
+        },
+        {
+          "name": "accept",
+          "value": "application/json, text/plain, */*"
+        },
+        {
+          "name": "tracestate",
+          "value": "2069141@nr=0-1-2069141-1103255579-70efa34556d3d674----1752541267566"
+        },
+        {
+          "name": "sec-fetch-site",
+          "value": "same-origin"
+        },
+        {
+          "name": "sec-fetch-mode",
+          "value": "cors"
+        },
+        {
+          "name": "sec-fetch-dest",
+          "value": "empty"
+        },
+        {
+          "name": "referer",
+          "value": "https://anytime.club-os.com/action/PackageAgreementUpdated/"
+        },
+        {
+          "name": "accept-encoding",
+          "value": "gzip, deflate, br, zstd"
+        },
+        {
+          "name": "accept-language",
+          "value": "en-US,en;q=0.9"
+        },
+        {
+          "name": "cookie",
+          "value": "_fbp=fb.1.1750181614288.28580080925040380"
+        },
+        {
+          "name": "cookie",
+          "value": "__ecatft={\"utm_campaign\":\"\",\"utm_source\":\"\",\"utm_medium\":\"\",\"utm_content\":\"\",\"utm_term\":\"\",\"utm_device\":\"\",\"referrer\":\"https://www.bing.com/\",\"gclid\":\"\",\"lp\":\"www.club-os.com/\"}"
+        },
+        {
+          "name": "cookie",
+          "value": "_gcl_au=1.1.1983975127.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager_uuid=87bca4d8-cdaa-4638-9c0a-e6e1bc9a4c28"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager=pUQdj9lXwNz8G0r5wg8XEpcNpzH-L1ou8e0iwwSBlyChK-6AZCLQmpYmFjG69PvKoD3k_33vDX274aQLwD6OFYigCckQYlqdOy6WZfsR41ygA1SiH0fF5nPbmvjgp6btck0GxLageQFhsKYXm58G4yL-C4YXEVBoOoTn_NxeoVk8vus5y8LMJ_yXrgtAqh7yq01FJ7GlBuRETYKtnj9BU6JnfRLJke553R9xj7NBM23IrjNFA4c6NWp-o-7zX-LiSnJWZGR41LgLBJTgjivcnlp3pjSf9Dv3R8zsXw=="
+        },
+        {
+          "name": "cookie",
+          "value": "_clck=47khr4%7C2%7Cfwu%7C0%7C1994"
+        },
+        {
+          "name": "cookie",
+          "value": "messagesUtk=45ced08d977d42f1b5360b0701dcdadc"
+        },
+        {
+          "name": "cookie",
+          "value": "__hstc=130365392.da9547cf2e866b0ea5a811ae2d00f8e3.1750195292681.1750195292681.1750195292681.1"
+        },
+        {
+          "name": "cookie",
+          "value": "hubspotutk=da9547cf2e866b0ea5a811ae2d00f8e3"
+        },
+        {
+          "name": "cookie",
+          "value": "_hp2_id.2794995124=%7B%22userId%22%3A%2254936772480015%22%2C%22pageviewId%22%3A%223416648379715226%22%2C%22sessionId%22%3A%228662001472485713%22%2C%22identity%22%3Anull%2C%22trackerVersion%22%3A%224.0%22%7D"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_KNW7VZ6GNY=GS2.1.s1750198517$o3$g0$t1750198517$j60$l0$h1657069555"
+        },
+        {
+          "name": "cookie",
+          "value": "_uetvid=31d786004ba111f0b8df757d82f1b34b"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_0NH3ZBDBNZ=GS2.1.s1752337346$o1$g1$t1752337499$j6$l0$h0"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga=GA1.2.1684127573.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "_gid=GA1.2.75957065.1752508973"
+        },
+        {
+          "name": "cookie",
+          "value": "JSESSIONID=B3467A4162F3FB3126FA6C2E4558FCB9"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3RefreshToken=eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiUlNBLU9BRVAifQ.TONPFo86Kk2nPWzZHh_JIoMA_pAl1BHTUd7aQObyGUND2jrhtwqr9GJBRpM2o1J8_lu_bPH_Ogm8IES5igrw5JFArD2ueLYS2AH8a8LMgo_SXCY98kIGbugK-RrPt1oOl3yezCNYwPQr--REYdeSthbdXzVYU4-lxdx1XyeLHo7VZMZgZWFY4DMfNJgVGxqVbvrJv04MWKhLgEim1b7UgiHBrZfoc64Cdh_n6WNqnShH1WG4BzxbiIV7eA93jen7D43MVHEFrBSGSY_GBqAoSMjYHFwhT2Xaa_LO57vk3jdOb9Dex_hRYTkCl3IMLCV0YxlVlf7cuQLBJkDnuHgWIg.hAVUzIdDUJ6KbAZh.DgBCa_Hrwn5PcKD3mNeQuIOUMB1W3_6alu-7vFYw-PDBOCossK3CIS_Ld6so-_Bk-O9RZwPF0W90BcwrAhxarZjUFBKIqCPzfDEtRDae_VOiDjslkW-RegDV02pxqU4LbVGze1UajddQQHSi3z0cYCBvVL0f-JB2nzxmfGRZqqjJKfxEwCkc_jHggPuodNIKdoSADejRFVGdBQ2bFTolCRRmrJLsElVcyLsILRWpeRAUow0caGPJHMLDTktrztH46Pf-zCNB3vS2uWeHIn0paK074wNY4FeRUiqdpnZ8ygbdqLeV4EtJ2VPFbkPtnihdnaYuh-EhWkvy3Vtg0MGCxm0DKVRD6soUattRvHZSUDb5UveCmEvf6UAq6v0_xGCyddxt0n1lVnRWNYMSCj2LVPcQThwHSqcNIbRIcYQEtMaI-30znbXkHMBRLdiLAR4rQnoiq2kpI0wtb48qk6_EQGFwtJ7a1_J2tCqpYcwi7jiIQ92i5NdWO-onpWEPYh2mE0xZRbJ9YQ_ROvwit2DiCT_VGQuM2ZM-tMfJpis5kaQmVTa8KFe4-KnaS6e62hYsy7pr7lVacvAxtxaU5S0yCT1X-jpABFpISCzdkXMnIpbAcv4S_XX3fPPlOvi3ZkN4j0xYFIbyTxXs7m1KgG04v0H1MYiZMXXNtDe8lylKyPWc4w9t-Jz7hxd2FDTZVhe7QqVHO7QQzmGwPZ40XF0nSRK8koNejGTs6fSTGiLArSU9XCkeuPxHDpEx1Jb_w9u9HxkJZClrdCK7hFRpCllIROkYrBEAxOZ0vW_8r8N1mlSBr9QlBfMKD-cdknmYYN2o5DzyhgdPY3suwFamGbvXbk2N9mCsjMTsMel0nojaV4Uq2eZUCTXyuTxJ8lVNhRx5JX6FBzYa37EmgfeapcXRr96NGLznsADgvcYF8fE8HAg2gWUaIGf5zOrq5uI7W4pqy1suXyqh0DHX4aQmVzmDSfQKV_ErW0y8qjBusYaIqZSwKr-C2ENGsMJTERE6FnmN1XE-kZr18L9GKNDoPXal9aV7ESEMfbQoD2bXHCRQ5SWLFzTBqUH2RuJcd8weDiKNGEkIIT1noZZPJieRepk84oKBayWJYsmwaEvNOnw2CPv7dWWwl8hWdRC6emTtIkodXaMAJ9CedgQhJ0x2bjFf5GdNs95gyXOCSOkTUYk0G1kk9KMsVaa-9myhjekG33mcaOywYaJL2Y0C75jHwrCkrEVWy0zwIpzysUK9lwuWZ5cYXT2RQGEYuVsyn987lPdYdB6rWmQDpJE.OFOi8I2jSl1zVjwFahqJJQ"
+        },
+        {
+          "name": "cookie",
+          "value": "loggedInUserId=187032782"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3AccessToken=eyJraWQiOiIzWlwvN3R1TEYrZzBVMEdQSW10QjhCZHY3Q3RWWlwvek1HekxnKzc4SGZNbVk9IiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJldmVudF9pZCI6ImNlZWQ1NmRiLWM0NWQtNGVlZS05YjI2LWE0OThmZjRjY2ViYSIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiYXdzLmNvZ25pdG8uc2lnbmluLnVzZXIuYWRtaW4iLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImV4cCI6MTc1MjU0NDYzMiwiaWF0IjoxNzUyNTQxMDMyLCJqdGkiOiJkODc5NDM4Zi1mNjY0LTQ1OWEtYTU4Ni01NjgxY2RjNTI4YTgiLCJjbGllbnRfaWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsInVzZXJuYW1lIjoiMTg3MDMyNzgyIn0.XUIVp5nBJpXpBoQ4j2OFzUdf-2CT-1WPKNktoXjrUl_p7U8KJixO_jtE2e5fjXlYZyhCzaAriU7ujCTuG3Cc2C8Zkow953MCSgnKvDaXJcCt47bs4hsHQLMrlCyu0vWSbb8xmLZtjcrJY6skTAFpw9PJjofRyhoLI5zG4ns6QrBxqt-2T_N3DDGr68S0k8VqbOPsEZRH0oY886CQYK2sLsNwjriF8lPsO2OX5X0uV-L_Wrf6DOmzYvFv41TWJE70t8TCvRPyqBtjSvAQ8dUZtQAWeOmuHTeqONdE_CLV7F_DmbYYVmRJBJB_-40812KvxzqyXEo-lPRiXkZZbooA5g"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3IdToken=eyJraWQiOiJibWtxY1lkWGVqT25LUkQ1T2VxcW1sdFlORnA0cVVzV3FNN3dCSDg2WE9VPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJhdWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsImV2ZW50X2lkIjoiY2VlZDU2ZGItYzQ1ZC00ZWVlLTliMjYtYTQ5OGZmNGNjZWJhIiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImNvZ25pdG86dXNlcm5hbWUiOiIxODcwMzI3ODIiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqLm1heW8iLCJleHAiOjE3NTI1NDQ2MzIsImlhdCI6MTc1MjU0MTAzMn0.zIB7WHtddYZgVLHnnyoR6M_mW2Sm-pxhuF2OkOE6hPDxDfPI30XHwXrZ9rvXbLyr5m7rJ2mvFFhHsrPy4kH70UAGRVA5KoLRRSUOr_IFj52Uvwcve3K83nTFJozP8dZ9H84PytVpK2tjdNPc7YCZ3xbvIr0Qbng9o1_iTMdBx8LlxM2wv_5r43YYtYnL_pqE7dkGRcDaz0mDni_BvUVcuuLzv7AWyYfKZg378-kWLof4UeihGQvqREsp9NVRN5EITRyn_6K6yecon6vLyEgDUxcGUN1kaE0W7y-EMqYdb-Esd4rwp7Vr-euckH6xAGWPDZ0B7ZIUmfdzbuWBEQgn9Q"
+        },
+        {
+          "name": "cookie",
+          "value": "delegatedUserId=184027841"
+        },
+        {
+          "name": "cookie",
+          "value": "staffDelegatedUserId="
+        },
+        {
+          "name": "priority",
+          "value": "u=1, i"
+        }
+      ],
+      "queryString": [],
+      "postData": {}
+    },
+    "example_response": null,
+    "keyword_fields": []
+  },
+  "GET /api/member_payment_profiles": {
+    "method": "GET",
+    "path": "/api/member_payment_profiles",
+    "example_request": {
+      "url": "https://anytime.club-os.com/api/member_payment_profiles",
+      "headers": [
+        {
+          "name": ":method",
+          "value": "GET"
+        },
+        {
+          "name": ":authority",
+          "value": "anytime.club-os.com"
+        },
+        {
+          "name": ":scheme",
+          "value": "https"
+        },
+        {
+          "name": ":path",
+          "value": "/api/member_payment_profiles"
+        },
+        {
+          "name": "x-newrelic-id",
+          "value": "VgYBWFdXCRABVVFTBgUBVVQJ"
+        },
+        {
+          "name": "sec-ch-ua-platform",
+          "value": "\"Windows\""
+        },
+        {
+          "name": "authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJkZWxlZ2F0ZVVzZXJJZCI6MTg0MDI3ODQxLCJsb2dnZWRJblVzZXJJZCI6MTg3MDMyNzgyLCJzZXNzaW9uSWQiOiJCMzQ2N0E0MTYyRjNGQjMxMjZGQTZDMkU0NTU4RkNCOSJ9.wuudSAy8nsktoRgclpijPjEbTQHRUBuf2VVOkhyGIGI"
+        },
+        {
+          "name": "sec-ch-ua",
+          "value": "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Microsoft Edge\";v=\"138\""
+        },
+        {
+          "name": "sec-ch-ua-mobile",
+          "value": "?0"
+        },
+        {
+          "name": "newrelic",
+          "value": "eyJ2IjpbMCwxXSwiZCI6eyJ0eSI6IkJyb3dzZXIiLCJhYyI6IjIwNjkxNDEiLCJhcCI6IjExMDMyNTU1NzkiLCJpZCI6ImZiZTdiODUwYmJjYzgwOTQiLCJ0ciI6ImUyNDg2NjIyZmIxYTc0NTk0ZWRlMWZjOGRlYTg0ZWQ2IiwidGkiOjE3NTI1NDEyNjc1NzB9fQ=="
+        },
+        {
+          "name": "traceparent",
+          "value": "00-e2486622fb1a74594ede1fc8dea84ed6-fbe7b850bbcc8094-01"
+        },
+        {
+          "name": "user-agent",
+          "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
+        },
+        {
+          "name": "accept",
+          "value": "application/json, text/plain, */*"
+        },
+        {
+          "name": "tracestate",
+          "value": "2069141@nr=0-1-2069141-1103255579-fbe7b850bbcc8094----1752541267570"
+        },
+        {
+          "name": "sec-fetch-site",
+          "value": "same-origin"
+        },
+        {
+          "name": "sec-fetch-mode",
+          "value": "cors"
+        },
+        {
+          "name": "sec-fetch-dest",
+          "value": "empty"
+        },
+        {
+          "name": "referer",
+          "value": "https://anytime.club-os.com/action/PackageAgreementUpdated/"
+        },
+        {
+          "name": "accept-encoding",
+          "value": "gzip, deflate, br, zstd"
+        },
+        {
+          "name": "accept-language",
+          "value": "en-US,en;q=0.9"
+        },
+        {
+          "name": "cookie",
+          "value": "_fbp=fb.1.1750181614288.28580080925040380"
+        },
+        {
+          "name": "cookie",
+          "value": "__ecatft={\"utm_campaign\":\"\",\"utm_source\":\"\",\"utm_medium\":\"\",\"utm_content\":\"\",\"utm_term\":\"\",\"utm_device\":\"\",\"referrer\":\"https://www.bing.com/\",\"gclid\":\"\",\"lp\":\"www.club-os.com/\"}"
+        },
+        {
+          "name": "cookie",
+          "value": "_gcl_au=1.1.1983975127.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager_uuid=87bca4d8-cdaa-4638-9c0a-e6e1bc9a4c28"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager=pUQdj9lXwNz8G0r5wg8XEpcNpzH-L1ou8e0iwwSBlyChK-6AZCLQmpYmFjG69PvKoD3k_33vDX274aQLwD6OFYigCckQYlqdOy6WZfsR41ygA1SiH0fF5nPbmvjgp6btck0GxLageQFhsKYXm58G4yL-C4YXEVBoOoTn_NxeoVk8vus5y8LMJ_yXrgtAqh7yq01FJ7GlBuRETYKtnj9BU6JnfRLJke553R9xj7NBM23IrjNFA4c6NWp-o-7zX-LiSnJWZGR41LgLBJTgjivcnlp3pjSf9Dv3R8zsXw=="
+        },
+        {
+          "name": "cookie",
+          "value": "_clck=47khr4%7C2%7Cfwu%7C0%7C1994"
+        },
+        {
+          "name": "cookie",
+          "value": "messagesUtk=45ced08d977d42f1b5360b0701dcdadc"
+        },
+        {
+          "name": "cookie",
+          "value": "__hstc=130365392.da9547cf2e866b0ea5a811ae2d00f8e3.1750195292681.1750195292681.1750195292681.1"
+        },
+        {
+          "name": "cookie",
+          "value": "hubspotutk=da9547cf2e866b0ea5a811ae2d00f8e3"
+        },
+        {
+          "name": "cookie",
+          "value": "_hp2_id.2794995124=%7B%22userId%22%3A%2254936772480015%22%2C%22pageviewId%22%3A%223416648379715226%22%2C%22sessionId%22%3A%228662001472485713%22%2C%22identity%22%3Anull%2C%22trackerVersion%22%3A%224.0%22%7D"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_KNW7VZ6GNY=GS2.1.s1750198517$o3$g0$t1750198517$j60$l0$h1657069555"
+        },
+        {
+          "name": "cookie",
+          "value": "_uetvid=31d786004ba111f0b8df757d82f1b34b"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_0NH3ZBDBNZ=GS2.1.s1752337346$o1$g1$t1752337499$j6$l0$h0"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga=GA1.2.1684127573.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "_gid=GA1.2.75957065.1752508973"
+        },
+        {
+          "name": "cookie",
+          "value": "JSESSIONID=B3467A4162F3FB3126FA6C2E4558FCB9"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3RefreshToken=eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiUlNBLU9BRVAifQ.TONPFo86Kk2nPWzZHh_JIoMA_pAl1BHTUd7aQObyGUND2jrhtwqr9GJBRpM2o1J8_lu_bPH_Ogm8IES5igrw5JFArD2ueLYS2AH8a8LMgo_SXCY98kIGbugK-RrPt1oOl3yezCNYwPQr--REYdeSthbdXzVYU4-lxdx1XyeLHo7VZMZgZWFY4DMfNJgVGxqVbvrJv04MWKhLgEim1b7UgiHBrZfoc64Cdh_n6WNqnShH1WG4BzxbiIV7eA93jen7D43MVHEFrBSGSY_GBqAoSMjYHFwhT2Xaa_LO57vk3jdOb9Dex_hRYTkCl3IMLCV0YxlVlf7cuQLBJkDnuHgWIg.hAVUzIdDUJ6KbAZh.DgBCa_Hrwn5PcKD3mNeQuIOUMB1W3_6alu-7vFYw-PDBOCossK3CIS_Ld6so-_Bk-O9RZwPF0W90BcwrAhxarZjUFBKIqCPzfDEtRDae_VOiDjslkW-RegDV02pxqU4LbVGze1UajddQQHSi3z0cYCBvVL0f-JB2nzxmfGRZqqjJKfxEwCkc_jHggPuodNIKdoSADejRFVGdBQ2bFTolCRRmrJLsElVcyLsILRWpeRAUow0caGPJHMLDTktrztH46Pf-zCNB3vS2uWeHIn0paK074wNY4FeRUiqdpnZ8ygbdqLeV4EtJ2VPFbkPtnihdnaYuh-EhWkvy3Vtg0MGCxm0DKVRD6soUattRvHZSUDb5UveCmEvf6UAq6v0_xGCyddxt0n1lVnRWNYMSCj2LVPcQThwHSqcNIbRIcYQEtMaI-30znbXkHMBRLdiLAR4rQnoiq2kpI0wtb48qk6_EQGFwtJ7a1_J2tCqpYcwi7jiIQ92i5NdWO-onpWEPYh2mE0xZRbJ9YQ_ROvwit2DiCT_VGQuM2ZM-tMfJpis5kaQmVTa8KFe4-KnaS6e62hYsy7pr7lVacvAxtxaU5S0yCT1X-jpABFpISCzdkXMnIpbAcv4S_XX3fPPlOvi3ZkN4j0xYFIbyTxXs7m1KgG04v0H1MYiZMXXNtDe8lylKyPWc4w9t-Jz7hxd2FDTZVhe7QqVHO7QQzmGwPZ40XF0nSRK8koNejGTs6fSTGiLArSU9XCkeuPxHDpEx1Jb_w9u9HxkJZClrdCK7hFRpCllIROkYrBEAxOZ0vW_8r8N1mlSBr9QlBfMKD-cdknmYYN2o5DzyhgdPY3suwFamGbvXbk2N9mCsjMTsMel0nojaV4Uq2eZUCTXyuTxJ8lVNhRx5JX6FBzYa37EmgfeapcXRr96NGLznsADgvcYF8fE8HAg2gWUaIGf5zOrq5uI7W4pqy1suXyqh0DHX4aQmVzmDSfQKV_ErW0y8qjBusYaIqZSwKr-C2ENGsMJTERE6FnmN1XE-kZr18L9GKNDoPXal9aV7ESEMfbQoD2bXHCRQ5SWLFzTBqUH2RuJcd8weDiKNGEkIIT1noZZPJieRepk84oKBayWJYsmwaEvNOnw2CPv7dWWwl8hWdRC6emTtIkodXaMAJ9CedgQhJ0x2bjFf5GdNs95gyXOCSOkTUYk0G1kk9KMsVaa-9myhjekG33mcaOywYaJL2Y0C75jHwrCkrEVWy0zwIpzysUK9lwuWZ5cYXT2RQGEYuVsyn987lPdYdB6rWmQDpJE.OFOi8I2jSl1zVjwFahqJJQ"
+        },
+        {
+          "name": "cookie",
+          "value": "loggedInUserId=187032782"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3AccessToken=eyJraWQiOiIzWlwvN3R1TEYrZzBVMEdQSW10QjhCZHY3Q3RWWlwvek1HekxnKzc4SGZNbVk9IiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJldmVudF9pZCI6ImNlZWQ1NmRiLWM0NWQtNGVlZS05YjI2LWE0OThmZjRjY2ViYSIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiYXdzLmNvZ25pdG8uc2lnbmluLnVzZXIuYWRtaW4iLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImV4cCI6MTc1MjU0NDYzMiwiaWF0IjoxNzUyNTQxMDMyLCJqdGkiOiJkODc5NDM4Zi1mNjY0LTQ1OWEtYTU4Ni01NjgxY2RjNTI4YTgiLCJjbGllbnRfaWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsInVzZXJuYW1lIjoiMTg3MDMyNzgyIn0.XUIVp5nBJpXpBoQ4j2OFzUdf-2CT-1WPKNktoXjrUl_p7U8KJixO_jtE2e5fjXlYZyhCzaAriU7ujCTuG3Cc2C8Zkow953MCSgnKvDaXJcCt47bs4hsHQLMrlCyu0vWSbb8xmLZtjcrJY6skTAFpw9PJjofRyhoLI5zG4ns6QrBxqt-2T_N3DDGr68S0k8VqbOPsEZRH0oY886CQYK2sLsNwjriF8lPsO2OX5X0uV-L_Wrf6DOmzYvFv41TWJE70t8TCvRPyqBtjSvAQ8dUZtQAWeOmuHTeqONdE_CLV7F_DmbYYVmRJBJB_-40812KvxzqyXEo-lPRiXkZZbooA5g"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3IdToken=eyJraWQiOiJibWtxY1lkWGVqT25LUkQ1T2VxcW1sdFlORnA0cVVzV3FNN3dCSDg2WE9VPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJhdWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsImV2ZW50X2lkIjoiY2VlZDU2ZGItYzQ1ZC00ZWVlLTliMjYtYTQ5OGZmNGNjZWJhIiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImNvZ25pdG86dXNlcm5hbWUiOiIxODcwMzI3ODIiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqLm1heW8iLCJleHAiOjE3NTI1NDQ2MzIsImlhdCI6MTc1MjU0MTAzMn0.zIB7WHtddYZgVLHnnyoR6M_mW2Sm-pxhuF2OkOE6hPDxDfPI30XHwXrZ9rvXbLyr5m7rJ2mvFFhHsrPy4kH70UAGRVA5KoLRRSUOr_IFj52Uvwcve3K83nTFJozP8dZ9H84PytVpK2tjdNPc7YCZ3xbvIr0Qbng9o1_iTMdBx8LlxM2wv_5r43YYtYnL_pqE7dkGRcDaz0mDni_BvUVcuuLzv7AWyYfKZg378-kWLof4UeihGQvqREsp9NVRN5EITRyn_6K6yecon6vLyEgDUxcGUN1kaE0W7y-EMqYdb-Esd4rwp7Vr-euckH6xAGWPDZ0B7ZIUmfdzbuWBEQgn9Q"
+        },
+        {
+          "name": "cookie",
+          "value": "delegatedUserId=184027841"
+        },
+        {
+          "name": "cookie",
+          "value": "staffDelegatedUserId="
+        },
+        {
+          "name": "priority",
+          "value": "u=1, i"
+        }
+      ],
+      "queryString": [],
+      "postData": {}
+    },
+    "example_response": null,
+    "keyword_fields": []
+  },
+  "GET /api/package-agreement-proposals": {
+    "method": "GET",
+    "path": "/api/package-agreement-proposals",
+    "example_request": {
+      "url": "https://anytime.club-os.com/api/package-agreement-proposals?locationId=3586&packageId=98255&rewriteDraft=false&_=1752541267960",
+      "headers": [
+        {
+          "name": ":method",
+          "value": "GET"
+        },
+        {
+          "name": ":authority",
+          "value": "anytime.club-os.com"
+        },
+        {
+          "name": ":scheme",
+          "value": "https"
+        },
+        {
+          "name": ":path",
+          "value": "/api/package-agreement-proposals?locationId=3586&packageId=98255&rewriteDraft=false&_=1752541267960"
+        },
+        {
+          "name": "x-newrelic-id",
+          "value": "VgYBWFdXCRABVVFTBgUBVVQJ"
+        },
+        {
+          "name": "sec-ch-ua-platform",
+          "value": "\"Windows\""
+        },
+        {
+          "name": "authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJkZWxlZ2F0ZVVzZXJJZCI6MTg0MDI3ODQxLCJsb2dnZWRJblVzZXJJZCI6MTg3MDMyNzgyLCJzZXNzaW9uSWQiOiJCMzQ2N0E0MTYyRjNGQjMxMjZGQTZDMkU0NTU4RkNCOSJ9.wuudSAy8nsktoRgclpijPjEbTQHRUBuf2VVOkhyGIGI"
+        },
+        {
+          "name": "sec-ch-ua",
+          "value": "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Microsoft Edge\";v=\"138\""
+        },
+        {
+          "name": "newrelic",
+          "value": "eyJ2IjpbMCwxXSwiZCI6eyJ0eSI6IkJyb3dzZXIiLCJhYyI6IjIwNjkxNDEiLCJhcCI6IjExMDMyNTU1NzkiLCJpZCI6ImExNjBmODA5NDYwNjczOGQiLCJ0ciI6IjcxODFjZTJjZjgwMGE4ZDMyYzQxMGUxYzg0MTdiNTYwIiwidGkiOjE3NTI1NDEyNjc5NjB9fQ=="
+        },
+        {
+          "name": "sec-ch-ua-mobile",
+          "value": "?0"
+        },
+        {
+          "name": "traceparent",
+          "value": "00-7181ce2cf800a8d32c410e1c8417b560-a160f8094606738d-01"
+        },
+        {
+          "name": "x-requested-with",
+          "value": "XMLHttpRequest"
+        },
+        {
+          "name": "user-agent",
+          "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
+        },
+        {
+          "name": "accept",
+          "value": "*/*"
+        },
+        {
+          "name": "tracestate",
+          "value": "2069141@nr=0-1-2069141-1103255579-a160f8094606738d----1752541267960"
+        },
+        {
+          "name": "sec-fetch-site",
+          "value": "same-origin"
+        },
+        {
+          "name": "sec-fetch-mode",
+          "value": "cors"
+        },
+        {
+          "name": "sec-fetch-dest",
+          "value": "empty"
+        },
+        {
+          "name": "referer",
+          "value": "https://anytime.club-os.com/action/PackageAgreementUpdated/spa/"
+        },
+        {
+          "name": "accept-encoding",
+          "value": "gzip, deflate, br, zstd"
+        },
+        {
+          "name": "accept-language",
+          "value": "en-US,en;q=0.9"
+        },
+        {
+          "name": "cookie",
+          "value": "_fbp=fb.1.1750181614288.28580080925040380"
+        },
+        {
+          "name": "cookie",
+          "value": "__ecatft={\"utm_campaign\":\"\",\"utm_source\":\"\",\"utm_medium\":\"\",\"utm_content\":\"\",\"utm_term\":\"\",\"utm_device\":\"\",\"referrer\":\"https://www.bing.com/\",\"gclid\":\"\",\"lp\":\"www.club-os.com/\"}"
+        },
+        {
+          "name": "cookie",
+          "value": "_gcl_au=1.1.1983975127.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager_uuid=87bca4d8-cdaa-4638-9c0a-e6e1bc9a4c28"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager=pUQdj9lXwNz8G0r5wg8XEpcNpzH-L1ou8e0iwwSBlyChK-6AZCLQmpYmFjG69PvKoD3k_33vDX274aQLwD6OFYigCckQYlqdOy6WZfsR41ygA1SiH0fF5nPbmvjgp6btck0GxLageQFhsKYXm58G4yL-C4YXEVBoOoTn_NxeoVk8vus5y8LMJ_yXrgtAqh7yq01FJ7GlBuRETYKtnj9BU6JnfRLJke553R9xj7NBM23IrjNFA4c6NWp-o-7zX-LiSnJWZGR41LgLBJTgjivcnlp3pjSf9Dv3R8zsXw=="
+        },
+        {
+          "name": "cookie",
+          "value": "_clck=47khr4%7C2%7Cfwu%7C0%7C1994"
+        },
+        {
+          "name": "cookie",
+          "value": "messagesUtk=45ced08d977d42f1b5360b0701dcdadc"
+        },
+        {
+          "name": "cookie",
+          "value": "__hstc=130365392.da9547cf2e866b0ea5a811ae2d00f8e3.1750195292681.1750195292681.1750195292681.1"
+        },
+        {
+          "name": "cookie",
+          "value": "hubspotutk=da9547cf2e866b0ea5a811ae2d00f8e3"
+        },
+        {
+          "name": "cookie",
+          "value": "_hp2_id.2794995124=%7B%22userId%22%3A%2254936772480015%22%2C%22pageviewId%22%3A%223416648379715226%22%2C%22sessionId%22%3A%228662001472485713%22%2C%22identity%22%3Anull%2C%22trackerVersion%22%3A%224.0%22%7D"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_KNW7VZ6GNY=GS2.1.s1750198517$o3$g0$t1750198517$j60$l0$h1657069555"
+        },
+        {
+          "name": "cookie",
+          "value": "_uetvid=31d786004ba111f0b8df757d82f1b34b"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_0NH3ZBDBNZ=GS2.1.s1752337346$o1$g1$t1752337499$j6$l0$h0"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga=GA1.2.1684127573.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "_gid=GA1.2.75957065.1752508973"
+        },
+        {
+          "name": "cookie",
+          "value": "JSESSIONID=B3467A4162F3FB3126FA6C2E4558FCB9"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3RefreshToken=eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiUlNBLU9BRVAifQ.TONPFo86Kk2nPWzZHh_JIoMA_pAl1BHTUd7aQObyGUND2jrhtwqr9GJBRpM2o1J8_lu_bPH_Ogm8IES5igrw5JFArD2ueLYS2AH8a8LMgo_SXCY98kIGbugK-RrPt1oOl3yezCNYwPQr--REYdeSthbdXzVYU4-lxdx1XyeLHo7VZMZgZWFY4DMfNJgVGxqVbvrJv04MWKhLgEim1b7UgiHBrZfoc64Cdh_n6WNqnShH1WG4BzxbiIV7eA93jen7D43MVHEFrBSGSY_GBqAoSMjYHFwhT2Xaa_LO57vk3jdOb9Dex_hRYTkCl3IMLCV0YxlVlf7cuQLBJkDnuHgWIg.hAVUzIdDUJ6KbAZh.DgBCa_Hrwn5PcKD3mNeQuIOUMB1W3_6alu-7vFYw-PDBOCossK3CIS_Ld6so-_Bk-O9RZwPF0W90BcwrAhxarZjUFBKIqCPzfDEtRDae_VOiDjslkW-RegDV02pxqU4LbVGze1UajddQQHSi3z0cYCBvVL0f-JB2nzxmfGRZqqjJKfxEwCkc_jHggPuodNIKdoSADejRFVGdBQ2bFTolCRRmrJLsElVcyLsILRWpeRAUow0caGPJHMLDTktrztH46Pf-zCNB3vS2uWeHIn0paK074wNY4FeRUiqdpnZ8ygbdqLeV4EtJ2VPFbkPtnihdnaYuh-EhWkvy3Vtg0MGCxm0DKVRD6soUattRvHZSUDb5UveCmEvf6UAq6v0_xGCyddxt0n1lVnRWNYMSCj2LVPcQThwHSqcNIbRIcYQEtMaI-30znbXkHMBRLdiLAR4rQnoiq2kpI0wtb48qk6_EQGFwtJ7a1_J2tCqpYcwi7jiIQ92i5NdWO-onpWEPYh2mE0xZRbJ9YQ_ROvwit2DiCT_VGQuM2ZM-tMfJpis5kaQmVTa8KFe4-KnaS6e62hYsy7pr7lVacvAxtxaU5S0yCT1X-jpABFpISCzdkXMnIpbAcv4S_XX3fPPlOvi3ZkN4j0xYFIbyTxXs7m1KgG04v0H1MYiZMXXNtDe8lylKyPWc4w9t-Jz7hxd2FDTZVhe7QqVHO7QQzmGwPZ40XF0nSRK8koNejGTs6fSTGiLArSU9XCkeuPxHDpEx1Jb_w9u9HxkJZClrdCK7hFRpCllIROkYrBEAxOZ0vW_8r8N1mlSBr9QlBfMKD-cdknmYYN2o5DzyhgdPY3suwFamGbvXbk2N9mCsjMTsMel0nojaV4Uq2eZUCTXyuTxJ8lVNhRx5JX6FBzYa37EmgfeapcXRr96NGLznsADgvcYF8fE8HAg2gWUaIGf5zOrq5uI7W4pqy1suXyqh0DHX4aQmVzmDSfQKV_ErW0y8qjBusYaIqZSwKr-C2ENGsMJTERE6FnmN1XE-kZr18L9GKNDoPXal9aV7ESEMfbQoD2bXHCRQ5SWLFzTBqUH2RuJcd8weDiKNGEkIIT1noZZPJieRepk84oKBayWJYsmwaEvNOnw2CPv7dWWwl8hWdRC6emTtIkodXaMAJ9CedgQhJ0x2bjFf5GdNs95gyXOCSOkTUYk0G1kk9KMsVaa-9myhjekG33mcaOywYaJL2Y0C75jHwrCkrEVWy0zwIpzysUK9lwuWZ5cYXT2RQGEYuVsyn987lPdYdB6rWmQDpJE.OFOi8I2jSl1zVjwFahqJJQ"
+        },
+        {
+          "name": "cookie",
+          "value": "loggedInUserId=187032782"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3AccessToken=eyJraWQiOiIzWlwvN3R1TEYrZzBVMEdQSW10QjhCZHY3Q3RWWlwvek1HekxnKzc4SGZNbVk9IiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJldmVudF9pZCI6ImNlZWQ1NmRiLWM0NWQtNGVlZS05YjI2LWE0OThmZjRjY2ViYSIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiYXdzLmNvZ25pdG8uc2lnbmluLnVzZXIuYWRtaW4iLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImV4cCI6MTc1MjU0NDYzMiwiaWF0IjoxNzUyNTQxMDMyLCJqdGkiOiJkODc5NDM4Zi1mNjY0LTQ1OWEtYTU4Ni01NjgxY2RjNTI4YTgiLCJjbGllbnRfaWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsInVzZXJuYW1lIjoiMTg3MDMyNzgyIn0.XUIVp5nBJpXpBoQ4j2OFzUdf-2CT-1WPKNktoXjrUl_p7U8KJixO_jtE2e5fjXlYZyhCzaAriU7ujCTuG3Cc2C8Zkow953MCSgnKvDaXJcCt47bs4hsHQLMrlCyu0vWSbb8xmLZtjcrJY6skTAFpw9PJjofRyhoLI5zG4ns6QrBxqt-2T_N3DDGr68S0k8VqbOPsEZRH0oY886CQYK2sLsNwjriF8lPsO2OX5X0uV-L_Wrf6DOmzYvFv41TWJE70t8TCvRPyqBtjSvAQ8dUZtQAWeOmuHTeqONdE_CLV7F_DmbYYVmRJBJB_-40812KvxzqyXEo-lPRiXkZZbooA5g"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3IdToken=eyJraWQiOiJibWtxY1lkWGVqT25LUkQ1T2VxcW1sdFlORnA0cVVzV3FNN3dCSDg2WE9VPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJhdWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsImV2ZW50X2lkIjoiY2VlZDU2ZGItYzQ1ZC00ZWVlLTliMjYtYTQ5OGZmNGNjZWJhIiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImNvZ25pdG86dXNlcm5hbWUiOiIxODcwMzI3ODIiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqLm1heW8iLCJleHAiOjE3NTI1NDQ2MzIsImlhdCI6MTc1MjU0MTAzMn0.zIB7WHtddYZgVLHnnyoR6M_mW2Sm-pxhuF2OkOE6hPDxDfPI30XHwXrZ9rvXbLyr5m7rJ2mvFFhHsrPy4kH70UAGRVA5KoLRRSUOr_IFj52Uvwcve3K83nTFJozP8dZ9H84PytVpK2tjdNPc7YCZ3xbvIr0Qbng9o1_iTMdBx8LlxM2wv_5r43YYtYnL_pqE7dkGRcDaz0mDni_BvUVcuuLzv7AWyYfKZg378-kWLof4UeihGQvqREsp9NVRN5EITRyn_6K6yecon6vLyEgDUxcGUN1kaE0W7y-EMqYdb-Esd4rwp7Vr-euckH6xAGWPDZ0B7ZIUmfdzbuWBEQgn9Q"
+        },
+        {
+          "name": "cookie",
+          "value": "delegatedUserId=184027841"
+        },
+        {
+          "name": "cookie",
+          "value": "staffDelegatedUserId="
+        },
+        {
+          "name": "priority",
+          "value": "u=1, i"
+        }
+      ],
+      "queryString": [
+        {
+          "name": "locationId",
+          "value": "3586"
+        },
+        {
+          "name": "packageId",
+          "value": "98255"
+        },
+        {
+          "name": "rewriteDraft",
+          "value": "false"
+        },
+        {
+          "name": "_",
+          "value": "1752541267960"
+        }
+      ],
+      "postData": {}
+    },
+    "example_response": null,
+    "keyword_fields": []
+  },
+  "GET /api/package-agreement-proposals/proposal-discount": {
+    "method": "GET",
+    "path": "/api/package-agreement-proposals/proposal-discount",
+    "example_request": {
+      "url": "https://anytime.club-os.com/api/package-agreement-proposals/proposal-discount?packageId=98255&_=1752541268128",
+      "headers": [
+        {
+          "name": ":method",
+          "value": "GET"
+        },
+        {
+          "name": ":authority",
+          "value": "anytime.club-os.com"
+        },
+        {
+          "name": ":scheme",
+          "value": "https"
+        },
+        {
+          "name": ":path",
+          "value": "/api/package-agreement-proposals/proposal-discount?packageId=98255&_=1752541268128"
+        },
+        {
+          "name": "x-newrelic-id",
+          "value": "VgYBWFdXCRABVVFTBgUBVVQJ"
+        },
+        {
+          "name": "sec-ch-ua-platform",
+          "value": "\"Windows\""
+        },
+        {
+          "name": "authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJkZWxlZ2F0ZVVzZXJJZCI6MTg0MDI3ODQxLCJsb2dnZWRJblVzZXJJZCI6MTg3MDMyNzgyLCJzZXNzaW9uSWQiOiJCMzQ2N0E0MTYyRjNGQjMxMjZGQTZDMkU0NTU4RkNCOSJ9.wuudSAy8nsktoRgclpijPjEbTQHRUBuf2VVOkhyGIGI"
+        },
+        {
+          "name": "sec-ch-ua",
+          "value": "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Microsoft Edge\";v=\"138\""
+        },
+        {
+          "name": "newrelic",
+          "value": "eyJ2IjpbMCwxXSwiZCI6eyJ0eSI6IkJyb3dzZXIiLCJhYyI6IjIwNjkxNDEiLCJhcCI6IjExMDMyNTU1NzkiLCJpZCI6IjY1Y2M3NTg1MDFlMzdhMDciLCJ0ciI6IjMzMzQyNDQ0MDUyNDA4MmNiODlmNDM0ODRkYjNjMDNkIiwidGkiOjE3NTI1NDEyNjgxMjh9fQ=="
+        },
+        {
+          "name": "sec-ch-ua-mobile",
+          "value": "?0"
+        },
+        {
+          "name": "traceparent",
+          "value": "00-333424440524082cb89f43484db3c03d-65cc758501e37a07-01"
+        },
+        {
+          "name": "x-requested-with",
+          "value": "XMLHttpRequest"
+        },
+        {
+          "name": "user-agent",
+          "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
+        },
+        {
+          "name": "accept",
+          "value": "*/*"
+        },
+        {
+          "name": "tracestate",
+          "value": "2069141@nr=0-1-2069141-1103255579-65cc758501e37a07----1752541268128"
+        },
+        {
+          "name": "sec-fetch-site",
+          "value": "same-origin"
+        },
+        {
+          "name": "sec-fetch-mode",
+          "value": "cors"
+        },
+        {
+          "name": "sec-fetch-dest",
+          "value": "empty"
+        },
+        {
+          "name": "referer",
+          "value": "https://anytime.club-os.com/action/PackageAgreementUpdated/spa/"
+        },
+        {
+          "name": "accept-encoding",
+          "value": "gzip, deflate, br, zstd"
+        },
+        {
+          "name": "accept-language",
+          "value": "en-US,en;q=0.9"
+        },
+        {
+          "name": "cookie",
+          "value": "_fbp=fb.1.1750181614288.28580080925040380"
+        },
+        {
+          "name": "cookie",
+          "value": "__ecatft={\"utm_campaign\":\"\",\"utm_source\":\"\",\"utm_medium\":\"\",\"utm_content\":\"\",\"utm_term\":\"\",\"utm_device\":\"\",\"referrer\":\"https://www.bing.com/\",\"gclid\":\"\",\"lp\":\"www.club-os.com/\"}"
+        },
+        {
+          "name": "cookie",
+          "value": "_gcl_au=1.1.1983975127.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager_uuid=87bca4d8-cdaa-4638-9c0a-e6e1bc9a4c28"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager=pUQdj9lXwNz8G0r5wg8XEpcNpzH-L1ou8e0iwwSBlyChK-6AZCLQmpYmFjG69PvKoD3k_33vDX274aQLwD6OFYigCckQYlqdOy6WZfsR41ygA1SiH0fF5nPbmvjgp6btck0GxLageQFhsKYXm58G4yL-C4YXEVBoOoTn_NxeoVk8vus5y8LMJ_yXrgtAqh7yq01FJ7GlBuRETYKtnj9BU6JnfRLJke553R9xj7NBM23IrjNFA4c6NWp-o-7zX-LiSnJWZGR41LgLBJTgjivcnlp3pjSf9Dv3R8zsXw=="
+        },
+        {
+          "name": "cookie",
+          "value": "_clck=47khr4%7C2%7Cfwu%7C0%7C1994"
+        },
+        {
+          "name": "cookie",
+          "value": "messagesUtk=45ced08d977d42f1b5360b0701dcdadc"
+        },
+        {
+          "name": "cookie",
+          "value": "__hstc=130365392.da9547cf2e866b0ea5a811ae2d00f8e3.1750195292681.1750195292681.1750195292681.1"
+        },
+        {
+          "name": "cookie",
+          "value": "hubspotutk=da9547cf2e866b0ea5a811ae2d00f8e3"
+        },
+        {
+          "name": "cookie",
+          "value": "_hp2_id.2794995124=%7B%22userId%22%3A%2254936772480015%22%2C%22pageviewId%22%3A%223416648379715226%22%2C%22sessionId%22%3A%228662001472485713%22%2C%22identity%22%3Anull%2C%22trackerVersion%22%3A%224.0%22%7D"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_KNW7VZ6GNY=GS2.1.s1750198517$o3$g0$t1750198517$j60$l0$h1657069555"
+        },
+        {
+          "name": "cookie",
+          "value": "_uetvid=31d786004ba111f0b8df757d82f1b34b"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_0NH3ZBDBNZ=GS2.1.s1752337346$o1$g1$t1752337499$j6$l0$h0"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga=GA1.2.1684127573.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "_gid=GA1.2.75957065.1752508973"
+        },
+        {
+          "name": "cookie",
+          "value": "JSESSIONID=B3467A4162F3FB3126FA6C2E4558FCB9"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3RefreshToken=eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiUlNBLU9BRVAifQ.TONPFo86Kk2nPWzZHh_JIoMA_pAl1BHTUd7aQObyGUND2jrhtwqr9GJBRpM2o1J8_lu_bPH_Ogm8IES5igrw5JFArD2ueLYS2AH8a8LMgo_SXCY98kIGbugK-RrPt1oOl3yezCNYwPQr--REYdeSthbdXzVYU4-lxdx1XyeLHo7VZMZgZWFY4DMfNJgVGxqVbvrJv04MWKhLgEim1b7UgiHBrZfoc64Cdh_n6WNqnShH1WG4BzxbiIV7eA93jen7D43MVHEFrBSGSY_GBqAoSMjYHFwhT2Xaa_LO57vk3jdOb9Dex_hRYTkCl3IMLCV0YxlVlf7cuQLBJkDnuHgWIg.hAVUzIdDUJ6KbAZh.DgBCa_Hrwn5PcKD3mNeQuIOUMB1W3_6alu-7vFYw-PDBOCossK3CIS_Ld6so-_Bk-O9RZwPF0W90BcwrAhxarZjUFBKIqCPzfDEtRDae_VOiDjslkW-RegDV02pxqU4LbVGze1UajddQQHSi3z0cYCBvVL0f-JB2nzxmfGRZqqjJKfxEwCkc_jHggPuodNIKdoSADejRFVGdBQ2bFTolCRRmrJLsElVcyLsILRWpeRAUow0caGPJHMLDTktrztH46Pf-zCNB3vS2uWeHIn0paK074wNY4FeRUiqdpnZ8ygbdqLeV4EtJ2VPFbkPtnihdnaYuh-EhWkvy3Vtg0MGCxm0DKVRD6soUattRvHZSUDb5UveCmEvf6UAq6v0_xGCyddxt0n1lVnRWNYMSCj2LVPcQThwHSqcNIbRIcYQEtMaI-30znbXkHMBRLdiLAR4rQnoiq2kpI0wtb48qk6_EQGFwtJ7a1_J2tCqpYcwi7jiIQ92i5NdWO-onpWEPYh2mE0xZRbJ9YQ_ROvwit2DiCT_VGQuM2ZM-tMfJpis5kaQmVTa8KFe4-KnaS6e62hYsy7pr7lVacvAxtxaU5S0yCT1X-jpABFpISCzdkXMnIpbAcv4S_XX3fPPlOvi3ZkN4j0xYFIbyTxXs7m1KgG04v0H1MYiZMXXNtDe8lylKyPWc4w9t-Jz7hxd2FDTZVhe7QqVHO7QQzmGwPZ40XF0nSRK8koNejGTs6fSTGiLArSU9XCkeuPxHDpEx1Jb_w9u9HxkJZClrdCK7hFRpCllIROkYrBEAxOZ0vW_8r8N1mlSBr9QlBfMKD-cdknmYYN2o5DzyhgdPY3suwFamGbvXbk2N9mCsjMTsMel0nojaV4Uq2eZUCTXyuTxJ8lVNhRx5JX6FBzYa37EmgfeapcXRr96NGLznsADgvcYF8fE8HAg2gWUaIGf5zOrq5uI7W4pqy1suXyqh0DHX4aQmVzmDSfQKV_ErW0y8qjBusYaIqZSwKr-C2ENGsMJTERE6FnmN1XE-kZr18L9GKNDoPXal9aV7ESEMfbQoD2bXHCRQ5SWLFzTBqUH2RuJcd8weDiKNGEkIIT1noZZPJieRepk84oKBayWJYsmwaEvNOnw2CPv7dWWwl8hWdRC6emTtIkodXaMAJ9CedgQhJ0x2bjFf5GdNs95gyXOCSOkTUYk0G1kk9KMsVaa-9myhjekG33mcaOywYaJL2Y0C75jHwrCkrEVWy0zwIpzysUK9lwuWZ5cYXT2RQGEYuVsyn987lPdYdB6rWmQDpJE.OFOi8I2jSl1zVjwFahqJJQ"
+        },
+        {
+          "name": "cookie",
+          "value": "loggedInUserId=187032782"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3AccessToken=eyJraWQiOiIzWlwvN3R1TEYrZzBVMEdQSW10QjhCZHY3Q3RWWlwvek1HekxnKzc4SGZNbVk9IiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJldmVudF9pZCI6ImNlZWQ1NmRiLWM0NWQtNGVlZS05YjI2LWE0OThmZjRjY2ViYSIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiYXdzLmNvZ25pdG8uc2lnbmluLnVzZXIuYWRtaW4iLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImV4cCI6MTc1MjU0NDYzMiwiaWF0IjoxNzUyNTQxMDMyLCJqdGkiOiJkODc5NDM4Zi1mNjY0LTQ1OWEtYTU4Ni01NjgxY2RjNTI4YTgiLCJjbGllbnRfaWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsInVzZXJuYW1lIjoiMTg3MDMyNzgyIn0.XUIVp5nBJpXpBoQ4j2OFzUdf-2CT-1WPKNktoXjrUl_p7U8KJixO_jtE2e5fjXlYZyhCzaAriU7ujCTuG3Cc2C8Zkow953MCSgnKvDaXJcCt47bs4hsHQLMrlCyu0vWSbb8xmLZtjcrJY6skTAFpw9PJjofRyhoLI5zG4ns6QrBxqt-2T_N3DDGr68S0k8VqbOPsEZRH0oY886CQYK2sLsNwjriF8lPsO2OX5X0uV-L_Wrf6DOmzYvFv41TWJE70t8TCvRPyqBtjSvAQ8dUZtQAWeOmuHTeqONdE_CLV7F_DmbYYVmRJBJB_-40812KvxzqyXEo-lPRiXkZZbooA5g"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3IdToken=eyJraWQiOiJibWtxY1lkWGVqT25LUkQ1T2VxcW1sdFlORnA0cVVzV3FNN3dCSDg2WE9VPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJhdWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsImV2ZW50X2lkIjoiY2VlZDU2ZGItYzQ1ZC00ZWVlLTliMjYtYTQ5OGZmNGNjZWJhIiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImNvZ25pdG86dXNlcm5hbWUiOiIxODcwMzI3ODIiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqLm1heW8iLCJleHAiOjE3NTI1NDQ2MzIsImlhdCI6MTc1MjU0MTAzMn0.zIB7WHtddYZgVLHnnyoR6M_mW2Sm-pxhuF2OkOE6hPDxDfPI30XHwXrZ9rvXbLyr5m7rJ2mvFFhHsrPy4kH70UAGRVA5KoLRRSUOr_IFj52Uvwcve3K83nTFJozP8dZ9H84PytVpK2tjdNPc7YCZ3xbvIr0Qbng9o1_iTMdBx8LlxM2wv_5r43YYtYnL_pqE7dkGRcDaz0mDni_BvUVcuuLzv7AWyYfKZg378-kWLof4UeihGQvqREsp9NVRN5EITRyn_6K6yecon6vLyEgDUxcGUN1kaE0W7y-EMqYdb-Esd4rwp7Vr-euckH6xAGWPDZ0B7ZIUmfdzbuWBEQgn9Q"
+        },
+        {
+          "name": "cookie",
+          "value": "delegatedUserId=184027841"
+        },
+        {
+          "name": "cookie",
+          "value": "staffDelegatedUserId="
+        },
+        {
+          "name": "priority",
+          "value": "u=1, i"
+        }
+      ],
+      "queryString": [
+        {
+          "name": "packageId",
+          "value": "98255"
+        },
+        {
+          "name": "_",
+          "value": "1752541268128"
+        }
+      ],
+      "postData": {}
+    },
+    "example_response": null,
+    "keyword_fields": []
+  },
+  "POST /api/package-agreement-proposals/calculate": {
+    "method": "POST",
+    "path": "/api/package-agreement-proposals/calculate",
+    "example_request": {
+      "url": "https://anytime.club-os.com/api/package-agreement-proposals/calculate",
+      "headers": [
+        {
+          "name": ":method",
+          "value": "POST"
+        },
+        {
+          "name": ":authority",
+          "value": "anytime.club-os.com"
+        },
+        {
+          "name": ":scheme",
+          "value": "https"
+        },
+        {
+          "name": ":path",
+          "value": "/api/package-agreement-proposals/calculate"
+        },
+        {
+          "name": "content-length",
+          "value": "800"
+        },
+        {
+          "name": "x-newrelic-id",
+          "value": "VgYBWFdXCRABVVFTBgUBVVQJ"
+        },
+        {
+          "name": "sec-ch-ua-platform",
+          "value": "\"Windows\""
+        },
+        {
+          "name": "authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJkZWxlZ2F0ZVVzZXJJZCI6MTg0MDI3ODQxLCJsb2dnZWRJblVzZXJJZCI6MTg3MDMyNzgyLCJzZXNzaW9uSWQiOiJCMzQ2N0E0MTYyRjNGQjMxMjZGQTZDMkU0NTU4RkNCOSJ9.wuudSAy8nsktoRgclpijPjEbTQHRUBuf2VVOkhyGIGI"
+        },
+        {
+          "name": "sec-ch-ua",
+          "value": "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Microsoft Edge\";v=\"138\""
+        },
+        {
+          "name": "newrelic",
+          "value": "eyJ2IjpbMCwxXSwiZCI6eyJ0eSI6IkJyb3dzZXIiLCJhYyI6IjIwNjkxNDEiLCJhcCI6IjExMDMyNTU1NzkiLCJpZCI6ImRhMzIxYzY0YTlmOWUxNzEiLCJ0ciI6ImRiYWVlYjMxMTJjOWI1YjAxM2NkOTk3OWI1ZmJkYzQ0IiwidGkiOjE3NTI1NDEyNjkyNjN9fQ=="
+        },
+        {
+          "name": "sec-ch-ua-mobile",
+          "value": "?0"
+        },
+        {
+          "name": "traceparent",
+          "value": "00-dbaeeb3112c9b5b013cd9979b5fbdc44-da321c64a9f9e171-01"
+        },
+        {
+          "name": "x-requested-with",
+          "value": "XMLHttpRequest"
+        },
+        {
+          "name": "user-agent",
+          "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
+        },
+        {
+          "name": "accept",
+          "value": "*/*"
+        },
+        {
+          "name": "content-type",
+          "value": "application/json"
+        },
+        {
+          "name": "tracestate",
+          "value": "2069141@nr=0-1-2069141-1103255579-da321c64a9f9e171----1752541269263"
+        },
+        {
+          "name": "origin",
+          "value": "https://anytime.club-os.com"
+        },
+        {
+          "name": "sec-fetch-site",
+          "value": "same-origin"
+        },
+        {
+          "name": "sec-fetch-mode",
+          "value": "cors"
+        },
+        {
+          "name": "sec-fetch-dest",
+          "value": "empty"
+        },
+        {
+          "name": "referer",
+          "value": "https://anytime.club-os.com/action/PackageAgreementUpdated/spa/"
+        },
+        {
+          "name": "accept-encoding",
+          "value": "gzip, deflate, br, zstd"
+        },
+        {
+          "name": "accept-language",
+          "value": "en-US,en;q=0.9"
+        },
+        {
+          "name": "cookie",
+          "value": "_fbp=fb.1.1750181614288.28580080925040380"
+        },
+        {
+          "name": "cookie",
+          "value": "__ecatft={\"utm_campaign\":\"\",\"utm_source\":\"\",\"utm_medium\":\"\",\"utm_content\":\"\",\"utm_term\":\"\",\"utm_device\":\"\",\"referrer\":\"https://www.bing.com/\",\"gclid\":\"\",\"lp\":\"www.club-os.com/\"}"
+        },
+        {
+          "name": "cookie",
+          "value": "_gcl_au=1.1.1983975127.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager_uuid=87bca4d8-cdaa-4638-9c0a-e6e1bc9a4c28"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager=pUQdj9lXwNz8G0r5wg8XEpcNpzH-L1ou8e0iwwSBlyChK-6AZCLQmpYmFjG69PvKoD3k_33vDX274aQLwD6OFYigCckQYlqdOy6WZfsR41ygA1SiH0fF5nPbmvjgp6btck0GxLageQFhsKYXm58G4yL-C4YXEVBoOoTn_NxeoVk8vus5y8LMJ_yXrgtAqh7yq01FJ7GlBuRETYKtnj9BU6JnfRLJke553R9xj7NBM23IrjNFA4c6NWp-o-7zX-LiSnJWZGR41LgLBJTgjivcnlp3pjSf9Dv3R8zsXw=="
+        },
+        {
+          "name": "cookie",
+          "value": "_clck=47khr4%7C2%7Cfwu%7C0%7C1994"
+        },
+        {
+          "name": "cookie",
+          "value": "messagesUtk=45ced08d977d42f1b5360b0701dcdadc"
+        },
+        {
+          "name": "cookie",
+          "value": "__hstc=130365392.da9547cf2e866b0ea5a811ae2d00f8e3.1750195292681.1750195292681.1750195292681.1"
+        },
+        {
+          "name": "cookie",
+          "value": "hubspotutk=da9547cf2e866b0ea5a811ae2d00f8e3"
+        },
+        {
+          "name": "cookie",
+          "value": "_hp2_id.2794995124=%7B%22userId%22%3A%2254936772480015%22%2C%22pageviewId%22%3A%223416648379715226%22%2C%22sessionId%22%3A%228662001472485713%22%2C%22identity%22%3Anull%2C%22trackerVersion%22%3A%224.0%22%7D"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_KNW7VZ6GNY=GS2.1.s1750198517$o3$g0$t1750198517$j60$l0$h1657069555"
+        },
+        {
+          "name": "cookie",
+          "value": "_uetvid=31d786004ba111f0b8df757d82f1b34b"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_0NH3ZBDBNZ=GS2.1.s1752337346$o1$g1$t1752337499$j6$l0$h0"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga=GA1.2.1684127573.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "_gid=GA1.2.75957065.1752508973"
+        },
+        {
+          "name": "cookie",
+          "value": "JSESSIONID=B3467A4162F3FB3126FA6C2E4558FCB9"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3RefreshToken=eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiUlNBLU9BRVAifQ.TONPFo86Kk2nPWzZHh_JIoMA_pAl1BHTUd7aQObyGUND2jrhtwqr9GJBRpM2o1J8_lu_bPH_Ogm8IES5igrw5JFArD2ueLYS2AH8a8LMgo_SXCY98kIGbugK-RrPt1oOl3yezCNYwPQr--REYdeSthbdXzVYU4-lxdx1XyeLHo7VZMZgZWFY4DMfNJgVGxqVbvrJv04MWKhLgEim1b7UgiHBrZfoc64Cdh_n6WNqnShH1WG4BzxbiIV7eA93jen7D43MVHEFrBSGSY_GBqAoSMjYHFwhT2Xaa_LO57vk3jdOb9Dex_hRYTkCl3IMLCV0YxlVlf7cuQLBJkDnuHgWIg.hAVUzIdDUJ6KbAZh.DgBCa_Hrwn5PcKD3mNeQuIOUMB1W3_6alu-7vFYw-PDBOCossK3CIS_Ld6so-_Bk-O9RZwPF0W90BcwrAhxarZjUFBKIqCPzfDEtRDae_VOiDjslkW-RegDV02pxqU4LbVGze1UajddQQHSi3z0cYCBvVL0f-JB2nzxmfGRZqqjJKfxEwCkc_jHggPuodNIKdoSADejRFVGdBQ2bFTolCRRmrJLsElVcyLsILRWpeRAUow0caGPJHMLDTktrztH46Pf-zCNB3vS2uWeHIn0paK074wNY4FeRUiqdpnZ8ygbdqLeV4EtJ2VPFbkPtnihdnaYuh-EhWkvy3Vtg0MGCxm0DKVRD6soUattRvHZSUDb5UveCmEvf6UAq6v0_xGCyddxt0n1lVnRWNYMSCj2LVPcQThwHSqcNIbRIcYQEtMaI-30znbXkHMBRLdiLAR4rQnoiq2kpI0wtb48qk6_EQGFwtJ7a1_J2tCqpYcwi7jiIQ92i5NdWO-onpWEPYh2mE0xZRbJ9YQ_ROvwit2DiCT_VGQuM2ZM-tMfJpis5kaQmVTa8KFe4-KnaS6e62hYsy7pr7lVacvAxtxaU5S0yCT1X-jpABFpISCzdkXMnIpbAcv4S_XX3fPPlOvi3ZkN4j0xYFIbyTxXs7m1KgG04v0H1MYiZMXXNtDe8lylKyPWc4w9t-Jz7hxd2FDTZVhe7QqVHO7QQzmGwPZ40XF0nSRK8koNejGTs6fSTGiLArSU9XCkeuPxHDpEx1Jb_w9u9HxkJZClrdCK7hFRpCllIROkYrBEAxOZ0vW_8r8N1mlSBr9QlBfMKD-cdknmYYN2o5DzyhgdPY3suwFamGbvXbk2N9mCsjMTsMel0nojaV4Uq2eZUCTXyuTxJ8lVNhRx5JX6FBzYa37EmgfeapcXRr96NGLznsADgvcYF8fE8HAg2gWUaIGf5zOrq5uI7W4pqy1suXyqh0DHX4aQmVzmDSfQKV_ErW0y8qjBusYaIqZSwKr-C2ENGsMJTERE6FnmN1XE-kZr18L9GKNDoPXal9aV7ESEMfbQoD2bXHCRQ5SWLFzTBqUH2RuJcd8weDiKNGEkIIT1noZZPJieRepk84oKBayWJYsmwaEvNOnw2CPv7dWWwl8hWdRC6emTtIkodXaMAJ9CedgQhJ0x2bjFf5GdNs95gyXOCSOkTUYk0G1kk9KMsVaa-9myhjekG33mcaOywYaJL2Y0C75jHwrCkrEVWy0zwIpzysUK9lwuWZ5cYXT2RQGEYuVsyn987lPdYdB6rWmQDpJE.OFOi8I2jSl1zVjwFahqJJQ"
+        },
+        {
+          "name": "cookie",
+          "value": "loggedInUserId=187032782"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3AccessToken=eyJraWQiOiIzWlwvN3R1TEYrZzBVMEdQSW10QjhCZHY3Q3RWWlwvek1HekxnKzc4SGZNbVk9IiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJldmVudF9pZCI6ImNlZWQ1NmRiLWM0NWQtNGVlZS05YjI2LWE0OThmZjRjY2ViYSIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiYXdzLmNvZ25pdG8uc2lnbmluLnVzZXIuYWRtaW4iLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImV4cCI6MTc1MjU0NDYzMiwiaWF0IjoxNzUyNTQxMDMyLCJqdGkiOiJkODc5NDM4Zi1mNjY0LTQ1OWEtYTU4Ni01NjgxY2RjNTI4YTgiLCJjbGllbnRfaWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsInVzZXJuYW1lIjoiMTg3MDMyNzgyIn0.XUIVp5nBJpXpBoQ4j2OFzUdf-2CT-1WPKNktoXjrUl_p7U8KJixO_jtE2e5fjXlYZyhCzaAriU7ujCTuG3Cc2C8Zkow953MCSgnKvDaXJcCt47bs4hsHQLMrlCyu0vWSbb8xmLZtjcrJY6skTAFpw9PJjofRyhoLI5zG4ns6QrBxqt-2T_N3DDGr68S0k8VqbOPsEZRH0oY886CQYK2sLsNwjriF8lPsO2OX5X0uV-L_Wrf6DOmzYvFv41TWJE70t8TCvRPyqBtjSvAQ8dUZtQAWeOmuHTeqONdE_CLV7F_DmbYYVmRJBJB_-40812KvxzqyXEo-lPRiXkZZbooA5g"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3IdToken=eyJraWQiOiJibWtxY1lkWGVqT25LUkQ1T2VxcW1sdFlORnA0cVVzV3FNN3dCSDg2WE9VPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJhdWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsImV2ZW50X2lkIjoiY2VlZDU2ZGItYzQ1ZC00ZWVlLTliMjYtYTQ5OGZmNGNjZWJhIiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImNvZ25pdG86dXNlcm5hbWUiOiIxODcwMzI3ODIiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqLm1heW8iLCJleHAiOjE3NTI1NDQ2MzIsImlhdCI6MTc1MjU0MTAzMn0.zIB7WHtddYZgVLHnnyoR6M_mW2Sm-pxhuF2OkOE6hPDxDfPI30XHwXrZ9rvXbLyr5m7rJ2mvFFhHsrPy4kH70UAGRVA5KoLRRSUOr_IFj52Uvwcve3K83nTFJozP8dZ9H84PytVpK2tjdNPc7YCZ3xbvIr0Qbng9o1_iTMdBx8LlxM2wv_5r43YYtYnL_pqE7dkGRcDaz0mDni_BvUVcuuLzv7AWyYfKZg378-kWLof4UeihGQvqREsp9NVRN5EITRyn_6K6yecon6vLyEgDUxcGUN1kaE0W7y-EMqYdb-Esd4rwp7Vr-euckH6xAGWPDZ0B7ZIUmfdzbuWBEQgn9Q"
+        },
+        {
+          "name": "cookie",
+          "value": "delegatedUserId=184027841"
+        },
+        {
+          "name": "cookie",
+          "value": "staffDelegatedUserId="
+        },
+        {
+          "name": "priority",
+          "value": "u=1, i"
+        }
+      ],
+      "queryString": [],
+      "postData": {
+        "mimeType": "application/json",
+        "text": "{\"billingDuration\":2,\"billingDurationType\":6,\"downPaymentBillingDurations\":1,\"duration\":12,\"durationType\":5,\"locationId\":3586,\"memberServices\":[{\"packageAgreementId\":null,\"packageAgreementMemberServiceId\":null,\"packageMemberServiceId\":127862,\"name\":\"PT-30\",\"description\":null,\"calendarEventType\":{\"name\":\"Personal Training\",\"id\":2,\"icon\":\"icon_trainer.png\",\"consumable\":true,\"privateOnly\":false,\"meeting\":false,\"groupClass\":false,\"ptEventType\":true},\"salesTaxTypes\":[],\"unitPrice\":25,\"unitPriceMin\":25,\"expirationDuration\":30,\"expirationDurationType\":7,\"billingDuration\":2,\"billingDurationType\":6,\"unitsPerDuration\":4,\"unitsPerDurationMin\":4,\"unitsPerDurationMax\":4,\"unitDuration\":30,\"unitDurationType\":10,\"activeInPackage\":null}],\"packageAgreementFees\":[],\"startDate\":\"2025-07-14\",\"discountId\":null}"
+      }
+    },
+    "example_response": null,
+    "keyword_fields": []
+  },
+  "GET /api/agreements/package_agreements/{id}/billing_status": {
+    "method": "GET",
+    "path": "/api/agreements/package_agreements/{id}/billing_status",
+    "example_request": {
+      "url": "https://anytime.club-os.com/api/agreements/package_agreements/1522516/billing_status?_=1752529076326",
+      "headers": [
+        {
+          "name": ":method",
+          "value": "GET"
+        },
+        {
+          "name": ":authority",
+          "value": "anytime.club-os.com"
+        },
+        {
+          "name": ":scheme",
+          "value": "https"
+        },
+        {
+          "name": ":path",
+          "value": "/api/agreements/package_agreements/1522516/billing_status?_=1752529076326"
+        },
+        {
+          "name": "x-newrelic-id",
+          "value": "VgYBWFdXCRABVVFTBgUBVVQJ"
+        },
+        {
+          "name": "sec-ch-ua-platform",
+          "value": "\"Windows\""
+        },
+        {
+          "name": "authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJkZWxlZ2F0ZVVzZXJJZCI6MTg1Nzc3Mjc2LCJsb2dnZWRJblVzZXJJZCI6MTg3MDMyNzgyLCJzZXNzaW9uSWQiOiJCMzQ2N0E0MTYyRjNGQjMxMjZGQTZDMkU0NTU4RkNCOSJ9.sU4bUawattyhlVuz17wlUsZ-pAldfmfBEm8kGw4U64A"
+        },
+        {
+          "name": "sec-ch-ua",
+          "value": "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Microsoft Edge\";v=\"138\""
+        },
+        {
+          "name": "newrelic",
+          "value": "eyJ2IjpbMCwxXSwiZCI6eyJ0eSI6IkJyb3dzZXIiLCJhYyI6IjIwNjkxNDEiLCJhcCI6IjExMDMyNTU1NzkiLCJpZCI6ImY4YWU0MjRhNjdiMDdhMDIiLCJ0ciI6ImYxOTBmMDJjZGRmZGVlMzdhZWM0MzY2NWEzYzAwNDUzIiwidGkiOjE3NTI1MjkwNzYzMjZ9fQ=="
+        },
+        {
+          "name": "sec-ch-ua-mobile",
+          "value": "?0"
+        },
+        {
+          "name": "traceparent",
+          "value": "00-f190f02cddfdee37aec43665a3c00453-f8ae424a67b07a02-01"
+        },
+        {
+          "name": "x-requested-with",
+          "value": "XMLHttpRequest"
+        },
+        {
+          "name": "user-agent",
+          "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
+        },
+        {
+          "name": "accept",
+          "value": "*/*"
+        },
+        {
+          "name": "tracestate",
+          "value": "2069141@nr=0-1-2069141-1103255579-f8ae424a67b07a02----1752529076326"
+        },
+        {
+          "name": "sec-fetch-site",
+          "value": "same-origin"
+        },
+        {
+          "name": "sec-fetch-mode",
+          "value": "cors"
+        },
+        {
+          "name": "sec-fetch-dest",
+          "value": "empty"
+        },
+        {
+          "name": "referer",
+          "value": "https://anytime.club-os.com/action/PackageAgreementUpdated/spa/"
+        },
+        {
+          "name": "accept-encoding",
+          "value": "gzip, deflate, br, zstd"
+        },
+        {
+          "name": "accept-language",
+          "value": "en-US,en;q=0.9"
+        },
+        {
+          "name": "cookie",
+          "value": "_fbp=fb.1.1750181614288.28580080925040380"
+        },
+        {
+          "name": "cookie",
+          "value": "__ecatft={\"utm_campaign\":\"\",\"utm_source\":\"\",\"utm_medium\":\"\",\"utm_content\":\"\",\"utm_term\":\"\",\"utm_device\":\"\",\"referrer\":\"https://www.bing.com/\",\"gclid\":\"\",\"lp\":\"www.club-os.com/\"}"
+        },
+        {
+          "name": "cookie",
+          "value": "_gcl_au=1.1.1983975127.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager_uuid=87bca4d8-cdaa-4638-9c0a-e6e1bc9a4c28"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager=pUQdj9lXwNz8G0r5wg8XEpcNpzH-L1ou8e0iwwSBlyChK-6AZCLQmpYmFjG69PvKoD3k_33vDX274aQLwD6OFYigCckQYlqdOy6WZfsR41ygA1SiH0fF5nPbmvjgp6btck0GxLageQFhsKYXm58G4yL-C4YXEVBoOoTn_NxeoVk8vus5y8LMJ_yXrgtAqh7yq01FJ7GlBuRETYKtnj9BU6JnfRLJke553R9xj7NBM23IrjNFA4c6NWp-o-7zX-LiSnJWZGR41LgLBJTgjivcnlp3pjSf9Dv3R8zsXw=="
+        },
+        {
+          "name": "cookie",
+          "value": "_clck=47khr4%7C2%7Cfwu%7C0%7C1994"
+        },
+        {
+          "name": "cookie",
+          "value": "messagesUtk=45ced08d977d42f1b5360b0701dcdadc"
+        },
+        {
+          "name": "cookie",
+          "value": "__hstc=130365392.da9547cf2e866b0ea5a811ae2d00f8e3.1750195292681.1750195292681.1750195292681.1"
+        },
+        {
+          "name": "cookie",
+          "value": "hubspotutk=da9547cf2e866b0ea5a811ae2d00f8e3"
+        },
+        {
+          "name": "cookie",
+          "value": "_hp2_id.2794995124=%7B%22userId%22%3A%2254936772480015%22%2C%22pageviewId%22%3A%223416648379715226%22%2C%22sessionId%22%3A%228662001472485713%22%2C%22identity%22%3Anull%2C%22trackerVersion%22%3A%224.0%22%7D"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_KNW7VZ6GNY=GS2.1.s1750198517$o3$g0$t1750198517$j60$l0$h1657069555"
+        },
+        {
+          "name": "cookie",
+          "value": "_uetvid=31d786004ba111f0b8df757d82f1b34b"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_0NH3ZBDBNZ=GS2.1.s1752337346$o1$g1$t1752337499$j6$l0$h0"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga=GA1.2.1684127573.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "_gid=GA1.2.75957065.1752508973"
+        },
+        {
+          "name": "cookie",
+          "value": "JSESSIONID=B3467A4162F3FB3126FA6C2E4558FCB9"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3AccessToken=eyJraWQiOiIzWlwvN3R1TEYrZzBVMEdQSW10QjhCZHY3Q3RWWlwvek1HekxnKzc4SGZNbVk9IiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJldmVudF9pZCI6ImNlZWQ1NmRiLWM0NWQtNGVlZS05YjI2LWE0OThmZjRjY2ViYSIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiYXdzLmNvZ25pdG8uc2lnbmluLnVzZXIuYWRtaW4iLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImV4cCI6MTc1MjUzMDU5NCwiaWF0IjoxNzUyNTI2OTk0LCJqdGkiOiJmZDRmZjJiNy0yMTM3LTQzOTMtYWJkNS1jNDM3M2FjNTliMDUiLCJjbGllbnRfaWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsInVzZXJuYW1lIjoiMTg3MDMyNzgyIn0.ONntA6_kUMSjhPX2nCQhgVorCKS0Bwq68Z_d5tqaushpvRcPQNbiPIP5toDx8CVaNq8l0dI9wBKttINT8YlK6s603XZRpH_oPwKGTFt6qCbazG4d3hlEX-S0W8OGbCHki76rCuTMeeMSjqQm6CrR7i9vEV4uO1SRUlD6XNxtB4aLvyv5Em17SyrBrKc4sogZWXerrC79Xz3wCKWYVXbRUVmtRRwEJgfa-_nbDrr0Z9mbzX_Wthj0q3psqotB3GN0CGlUhVSs2BDOcRYmj3G-eXERhvjMYcxyxyu2oVy36blOuZy8oD0cC18Q8gS_rXTxnRRGa9XRPmz1-wHVbFHUsA"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3IdToken=eyJraWQiOiJibWtxY1lkWGVqT25LUkQ1T2VxcW1sdFlORnA0cVVzV3FNN3dCSDg2WE9VPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJhdWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsImV2ZW50X2lkIjoiY2VlZDU2ZGItYzQ1ZC00ZWVlLTliMjYtYTQ5OGZmNGNjZWJhIiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImNvZ25pdG86dXNlcm5hbWUiOiIxODcwMzI3ODIiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqLm1heW8iLCJleHAiOjE3NTI1MzA1OTQsImlhdCI6MTc1MjUyNjk5NH0.RLbygRMiEl__BgDUfC-e8czoM3fML7wjZkMnIu8DP2c0GAhrEhFAjBpz1RppXRTAxuBxmr0eb2u0uAtVepcUBtT-N2b2d1Kj9YwT_981bOMyU00Rq2ygOeFCCp4m0FurJYsAT6FcgFOiAIlmNiZvbPO6Jp0X1lEMBEiwvp1ARuKwApMBzWbogxYyScxxyzz_tMISyoMHGozIe7Zj7aM-H8SGsesaFO5sIrNoJen976SyhC8v5rfjLfBGWl2hhH39unVQ8IJQuEsWeTAbYVzVFM1o0xvTWsHCKNz00Hq0JtEKLwF8-eriYkUeuSuh9s4jKgpuK271L_PvwF78-qTtfA"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3RefreshToken=eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiUlNBLU9BRVAifQ.TONPFo86Kk2nPWzZHh_JIoMA_pAl1BHTUd7aQObyGUND2jrhtwqr9GJBRpM2o1J8_lu_bPH_Ogm8IES5igrw5JFArD2ueLYS2AH8a8LMgo_SXCY98kIGbugK-RrPt1oOl3yezCNYwPQr--REYdeSthbdXzVYU4-lxdx1XyeLHo7VZMZgZWFY4DMfNJgVGxqVbvrJv04MWKhLgEim1b7UgiHBrZfoc64Cdh_n6WNqnShH1WG4BzxbiIV7eA93jen7D43MVHEFrBSGSY_GBqAoSMjYHFwhT2Xaa_LO57vk3jdOb9Dex_hRYTkCl3IMLCV0YxlVlf7cuQLBJkDnuHgWIg.hAVUzIdDUJ6KbAZh.DgBCa_Hrwn5PcKD3mNeQuIOUMB1W3_6alu-7vFYw-PDBOCossK3CIS_Ld6so-_Bk-O9RZwPF0W90BcwrAhxarZjUFBKIqCPzfDEtRDae_VOiDjslkW-RegDV02pxqU4LbVGze1UajddQQHSi3z0cYCBvVL0f-JB2nzxmfGRZqqjJKfxEwCkc_jHggPuodNIKdoSADejRFVGdBQ2bFTolCRRmrJLsElVcyLsILRWpeRAUow0caGPJHMLDTktrztH46Pf-zCNB3vS2uWeHIn0paK074wNY4FeRUiqdpnZ8ygbdqLeV4EtJ2VPFbkPtnihdnaYuh-EhWkvy3Vtg0MGCxm0DKVRD6soUattRvHZSUDb5UveCmEvf6UAq6v0_xGCyddxt0n1lVnRWNYMSCj2LVPcQThwHSqcNIbRIcYQEtMaI-30znbXkHMBRLdiLAR4rQnoiq2kpI0wtb48qk6_EQGFwtJ7a1_J2tCqpYcwi7jiIQ92i5NdWO-onpWEPYh2mE0xZRbJ9YQ_ROvwit2DiCT_VGQuM2ZM-tMfJpis5kaQmVTa8KFe4-KnaS6e62hYsy7pr7lVacvAxtxaU5S0yCT1X-jpABFpISCzdkXMnIpbAcv4S_XX3fPPlOvi3ZkN4j0xYFIbyTxXs7m1KgG04v0H1MYiZMXXNtDe8lylKyPWc4w9t-Jz7hxd2FDTZVhe7QqVHO7QQzmGwPZ40XF0nSRK8koNejGTs6fSTGiLArSU9XCkeuPxHDpEx1Jb_w9u9HxkJZClrdCK7hFRpCllIROkYrBEAxOZ0vW_8r8N1mlSBr9QlBfMKD-cdknmYYN2o5DzyhgdPY3suwFamGbvXbk2N9mCsjMTsMel0nojaV4Uq2eZUCTXyuTxJ8lVNhRx5JX6FBzYa37EmgfeapcXRr96NGLznsADgvcYF8fE8HAg2gWUaIGf5zOrq5uI7W4pqy1suXyqh0DHX4aQmVzmDSfQKV_ErW0y8qjBusYaIqZSwKr-C2ENGsMJTERE6FnmN1XE-kZr18L9GKNDoPXal9aV7ESEMfbQoD2bXHCRQ5SWLFzTBqUH2RuJcd8weDiKNGEkIIT1noZZPJieRepk84oKBayWJYsmwaEvNOnw2CPv7dWWwl8hWdRC6emTtIkodXaMAJ9CedgQhJ0x2bjFf5GdNs95gyXOCSOkTUYk0G1kk9KMsVaa-9myhjekG33mcaOywYaJL2Y0C75jHwrCkrEVWy0zwIpzysUK9lwuWZ5cYXT2RQGEYuVsyn987lPdYdB6rWmQDpJE.OFOi8I2jSl1zVjwFahqJJQ"
+        },
+        {
+          "name": "cookie",
+          "value": "loggedInUserId=187032782"
+        },
+        {
+          "name": "cookie",
+          "value": "staffDelegatedUserId="
+        },
+        {
+          "name": "cookie",
+          "value": "delegatedUserId=185777276"
+        },
+        {
+          "name": "priority",
+          "value": "u=1, i"
+        }
+      ],
+      "queryString": [
+        {
+          "name": "_",
+          "value": "1752529076326"
+        }
+      ],
+      "postData": {}
+    },
+    "example_response": null,
+    "keyword_fields": []
+  },
+  "GET /api/agreements/package_agreements/V2/1522516": {
+    "method": "GET",
+    "path": "/api/agreements/package_agreements/V2/1522516",
+    "example_request": {
+      "url": "https://anytime.club-os.com/api/agreements/package_agreements/V2/1522516?include=invoices&include=scheduledPayments&include=prohibitChangeTypes&_=1752529076328",
+      "headers": [
+        {
+          "name": ":method",
+          "value": "GET"
+        },
+        {
+          "name": ":authority",
+          "value": "anytime.club-os.com"
+        },
+        {
+          "name": ":scheme",
+          "value": "https"
+        },
+        {
+          "name": ":path",
+          "value": "/api/agreements/package_agreements/V2/1522516?include=invoices&include=scheduledPayments&include=prohibitChangeTypes&_=1752529076328"
+        },
+        {
+          "name": "x-newrelic-id",
+          "value": "VgYBWFdXCRABVVFTBgUBVVQJ"
+        },
+        {
+          "name": "sec-ch-ua-platform",
+          "value": "\"Windows\""
+        },
+        {
+          "name": "authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJkZWxlZ2F0ZVVzZXJJZCI6MTg1Nzc3Mjc2LCJsb2dnZWRJblVzZXJJZCI6MTg3MDMyNzgyLCJzZXNzaW9uSWQiOiJCMzQ2N0E0MTYyRjNGQjMxMjZGQTZDMkU0NTU4RkNCOSJ9.sU4bUawattyhlVuz17wlUsZ-pAldfmfBEm8kGw4U64A"
+        },
+        {
+          "name": "sec-ch-ua",
+          "value": "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Microsoft Edge\";v=\"138\""
+        },
+        {
+          "name": "newrelic",
+          "value": "eyJ2IjpbMCwxXSwiZCI6eyJ0eSI6IkJyb3dzZXIiLCJhYyI6IjIwNjkxNDEiLCJhcCI6IjExMDMyNTU1NzkiLCJpZCI6IjllZjFhZDcyYmU3OGIxYWYiLCJ0ciI6ImJlMDRhYzRhYWU0NGM3NjM5MzczYTM2NTZiNTE4NTlhIiwidGkiOjE3NTI1MjkwNzYzMjl9fQ=="
+        },
+        {
+          "name": "sec-ch-ua-mobile",
+          "value": "?0"
+        },
+        {
+          "name": "traceparent",
+          "value": "00-be04ac4aae44c7639373a3656b51859a-9ef1ad72be78b1af-01"
+        },
+        {
+          "name": "x-requested-with",
+          "value": "XMLHttpRequest"
+        },
+        {
+          "name": "user-agent",
+          "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
+        },
+        {
+          "name": "accept",
+          "value": "*/*"
+        },
+        {
+          "name": "tracestate",
+          "value": "2069141@nr=0-1-2069141-1103255579-9ef1ad72be78b1af----1752529076329"
+        },
+        {
+          "name": "sec-fetch-site",
+          "value": "same-origin"
+        },
+        {
+          "name": "sec-fetch-mode",
+          "value": "cors"
+        },
+        {
+          "name": "sec-fetch-dest",
+          "value": "empty"
+        },
+        {
+          "name": "referer",
+          "value": "https://anytime.club-os.com/action/PackageAgreementUpdated/spa/"
+        },
+        {
+          "name": "accept-encoding",
+          "value": "gzip, deflate, br, zstd"
+        },
+        {
+          "name": "accept-language",
+          "value": "en-US,en;q=0.9"
+        },
+        {
+          "name": "cookie",
+          "value": "_fbp=fb.1.1750181614288.28580080925040380"
+        },
+        {
+          "name": "cookie",
+          "value": "__ecatft={\"utm_campaign\":\"\",\"utm_source\":\"\",\"utm_medium\":\"\",\"utm_content\":\"\",\"utm_term\":\"\",\"utm_device\":\"\",\"referrer\":\"https://www.bing.com/\",\"gclid\":\"\",\"lp\":\"www.club-os.com/\"}"
+        },
+        {
+          "name": "cookie",
+          "value": "_gcl_au=1.1.1983975127.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager_uuid=87bca4d8-cdaa-4638-9c0a-e6e1bc9a4c28"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager=pUQdj9lXwNz8G0r5wg8XEpcNpzH-L1ou8e0iwwSBlyChK-6AZCLQmpYmFjG69PvKoD3k_33vDX274aQLwD6OFYigCckQYlqdOy6WZfsR41ygA1SiH0fF5nPbmvjgp6btck0GxLageQFhsKYXm58G4yL-C4YXEVBoOoTn_NxeoVk8vus5y8LMJ_yXrgtAqh7yq01FJ7GlBuRETYKtnj9BU6JnfRLJke553R9xj7NBM23IrjNFA4c6NWp-o-7zX-LiSnJWZGR41LgLBJTgjivcnlp3pjSf9Dv3R8zsXw=="
+        },
+        {
+          "name": "cookie",
+          "value": "_clck=47khr4%7C2%7Cfwu%7C0%7C1994"
+        },
+        {
+          "name": "cookie",
+          "value": "messagesUtk=45ced08d977d42f1b5360b0701dcdadc"
+        },
+        {
+          "name": "cookie",
+          "value": "__hstc=130365392.da9547cf2e866b0ea5a811ae2d00f8e3.1750195292681.1750195292681.1750195292681.1"
+        },
+        {
+          "name": "cookie",
+          "value": "hubspotutk=da9547cf2e866b0ea5a811ae2d00f8e3"
+        },
+        {
+          "name": "cookie",
+          "value": "_hp2_id.2794995124=%7B%22userId%22%3A%2254936772480015%22%2C%22pageviewId%22%3A%223416648379715226%22%2C%22sessionId%22%3A%228662001472485713%22%2C%22identity%22%3Anull%2C%22trackerVersion%22%3A%224.0%22%7D"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_KNW7VZ6GNY=GS2.1.s1750198517$o3$g0$t1750198517$j60$l0$h1657069555"
+        },
+        {
+          "name": "cookie",
+          "value": "_uetvid=31d786004ba111f0b8df757d82f1b34b"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_0NH3ZBDBNZ=GS2.1.s1752337346$o1$g1$t1752337499$j6$l0$h0"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga=GA1.2.1684127573.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "_gid=GA1.2.75957065.1752508973"
+        },
+        {
+          "name": "cookie",
+          "value": "JSESSIONID=B3467A4162F3FB3126FA6C2E4558FCB9"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3AccessToken=eyJraWQiOiIzWlwvN3R1TEYrZzBVMEdQSW10QjhCZHY3Q3RWWlwvek1HekxnKzc4SGZNbVk9IiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJldmVudF9pZCI6ImNlZWQ1NmRiLWM0NWQtNGVlZS05YjI2LWE0OThmZjRjY2ViYSIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiYXdzLmNvZ25pdG8uc2lnbmluLnVzZXIuYWRtaW4iLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImV4cCI6MTc1MjUzMDU5NCwiaWF0IjoxNzUyNTI2OTk0LCJqdGkiOiJmZDRmZjJiNy0yMTM3LTQzOTMtYWJkNS1jNDM3M2FjNTliMDUiLCJjbGllbnRfaWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsInVzZXJuYW1lIjoiMTg3MDMyNzgyIn0.ONntA6_kUMSjhPX2nCQhgVorCKS0Bwq68Z_d5tqaushpvRcPQNbiPIP5toDx8CVaNq8l0dI9wBKttINT8YlK6s603XZRpH_oPwKGTFt6qCbazG4d3hlEX-S0W8OGbCHki76rCuTMeeMSjqQm6CrR7i9vEV4uO1SRUlD6XNxtB4aLvyv5Em17SyrBrKc4sogZWXerrC79Xz3wCKWYVXbRUVmtRRwEJgfa-_nbDrr0Z9mbzX_Wthj0q3psqotB3GN0CGlUhVSs2BDOcRYmj3G-eXERhvjMYcxyxyu2oVy36blOuZy8oD0cC18Q8gS_rXTxnRRGa9XRPmz1-wHVbFHUsA"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3IdToken=eyJraWQiOiJibWtxY1lkWGVqT25LUkQ1T2VxcW1sdFlORnA0cVVzV3FNN3dCSDg2WE9VPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJhdWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsImV2ZW50X2lkIjoiY2VlZDU2ZGItYzQ1ZC00ZWVlLTliMjYtYTQ5OGZmNGNjZWJhIiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImNvZ25pdG86dXNlcm5hbWUiOiIxODcwMzI3ODIiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqLm1heW8iLCJleHAiOjE3NTI1MzA1OTQsImlhdCI6MTc1MjUyNjk5NH0.RLbygRMiEl__BgDUfC-e8czoM3fML7wjZkMnIu8DP2c0GAhrEhFAjBpz1RppXRTAxuBxmr0eb2u0uAtVepcUBtT-N2b2d1Kj9YwT_981bOMyU00Rq2ygOeFCCp4m0FurJYsAT6FcgFOiAIlmNiZvbPO6Jp0X1lEMBEiwvp1ARuKwApMBzWbogxYyScxxyzz_tMISyoMHGozIe7Zj7aM-H8SGsesaFO5sIrNoJen976SyhC8v5rfjLfBGWl2hhH39unVQ8IJQuEsWeTAbYVzVFM1o0xvTWsHCKNz00Hq0JtEKLwF8-eriYkUeuSuh9s4jKgpuK271L_PvwF78-qTtfA"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3RefreshToken=eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiUlNBLU9BRVAifQ.TONPFo86Kk2nPWzZHh_JIoMA_pAl1BHTUd7aQObyGUND2jrhtwqr9GJBRpM2o1J8_lu_bPH_Ogm8IES5igrw5JFArD2ueLYS2AH8a8LMgo_SXCY98kIGbugK-RrPt1oOl3yezCNYwPQr--REYdeSthbdXzVYU4-lxdx1XyeLHo7VZMZgZWFY4DMfNJgVGxqVbvrJv04MWKhLgEim1b7UgiHBrZfoc64Cdh_n6WNqnShH1WG4BzxbiIV7eA93jen7D43MVHEFrBSGSY_GBqAoSMjYHFwhT2Xaa_LO57vk3jdOb9Dex_hRYTkCl3IMLCV0YxlVlf7cuQLBJkDnuHgWIg.hAVUzIdDUJ6KbAZh.DgBCa_Hrwn5PcKD3mNeQuIOUMB1W3_6alu-7vFYw-PDBOCossK3CIS_Ld6so-_Bk-O9RZwPF0W90BcwrAhxarZjUFBKIqCPzfDEtRDae_VOiDjslkW-RegDV02pxqU4LbVGze1UajddQQHSi3z0cYCBvVL0f-JB2nzxmfGRZqqjJKfxEwCkc_jHggPuodNIKdoSADejRFVGdBQ2bFTolCRRmrJLsElVcyLsILRWpeRAUow0caGPJHMLDTktrztH46Pf-zCNB3vS2uWeHIn0paK074wNY4FeRUiqdpnZ8ygbdqLeV4EtJ2VPFbkPtnihdnaYuh-EhWkvy3Vtg0MGCxm0DKVRD6soUattRvHZSUDb5UveCmEvf6UAq6v0_xGCyddxt0n1lVnRWNYMSCj2LVPcQThwHSqcNIbRIcYQEtMaI-30znbXkHMBRLdiLAR4rQnoiq2kpI0wtb48qk6_EQGFwtJ7a1_J2tCqpYcwi7jiIQ92i5NdWO-onpWEPYh2mE0xZRbJ9YQ_ROvwit2DiCT_VGQuM2ZM-tMfJpis5kaQmVTa8KFe4-KnaS6e62hYsy7pr7lVacvAxtxaU5S0yCT1X-jpABFpISCzdkXMnIpbAcv4S_XX3fPPlOvi3ZkN4j0xYFIbyTxXs7m1KgG04v0H1MYiZMXXNtDe8lylKyPWc4w9t-Jz7hxd2FDTZVhe7QqVHO7QQzmGwPZ40XF0nSRK8koNejGTs6fSTGiLArSU9XCkeuPxHDpEx1Jb_w9u9HxkJZClrdCK7hFRpCllIROkYrBEAxOZ0vW_8r8N1mlSBr9QlBfMKD-cdknmYYN2o5DzyhgdPY3suwFamGbvXbk2N9mCsjMTsMel0nojaV4Uq2eZUCTXyuTxJ8lVNhRx5JX6FBzYa37EmgfeapcXRr96NGLznsADgvcYF8fE8HAg2gWUaIGf5zOrq5uI7W4pqy1suXyqh0DHX4aQmVzmDSfQKV_ErW0y8qjBusYaIqZSwKr-C2ENGsMJTERE6FnmN1XE-kZr18L9GKNDoPXal9aV7ESEMfbQoD2bXHCRQ5SWLFzTBqUH2RuJcd8weDiKNGEkIIT1noZZPJieRepk84oKBayWJYsmwaEvNOnw2CPv7dWWwl8hWdRC6emTtIkodXaMAJ9CedgQhJ0x2bjFf5GdNs95gyXOCSOkTUYk0G1kk9KMsVaa-9myhjekG33mcaOywYaJL2Y0C75jHwrCkrEVWy0zwIpzysUK9lwuWZ5cYXT2RQGEYuVsyn987lPdYdB6rWmQDpJE.OFOi8I2jSl1zVjwFahqJJQ"
+        },
+        {
+          "name": "cookie",
+          "value": "loggedInUserId=187032782"
+        },
+        {
+          "name": "cookie",
+          "value": "staffDelegatedUserId="
+        },
+        {
+          "name": "cookie",
+          "value": "delegatedUserId=185777276"
+        },
+        {
+          "name": "priority",
+          "value": "u=1, i"
+        }
+      ],
+      "queryString": [
+        {
+          "name": "include",
+          "value": "invoices"
+        },
+        {
+          "name": "include",
+          "value": "scheduledPayments"
+        },
+        {
+          "name": "include",
+          "value": "prohibitChangeTypes"
+        },
+        {
+          "name": "_",
+          "value": "1752529076328"
+        }
+      ],
+      "postData": {}
+    },
+    "example_response": null,
+    "keyword_fields": []
+  },
+  "GET /api/agreements/package_agreements/agreementTotalValue": {
+    "method": "GET",
+    "path": "/api/agreements/package_agreements/agreementTotalValue",
+    "example_request": {
+      "url": "https://anytime.club-os.com/api/agreements/package_agreements/agreementTotalValue?agreementId=1522516&_=1752529076330",
+      "headers": [
+        {
+          "name": ":method",
+          "value": "GET"
+        },
+        {
+          "name": ":authority",
+          "value": "anytime.club-os.com"
+        },
+        {
+          "name": ":scheme",
+          "value": "https"
+        },
+        {
+          "name": ":path",
+          "value": "/api/agreements/package_agreements/agreementTotalValue?agreementId=1522516&_=1752529076330"
+        },
+        {
+          "name": "x-newrelic-id",
+          "value": "VgYBWFdXCRABVVFTBgUBVVQJ"
+        },
+        {
+          "name": "sec-ch-ua-platform",
+          "value": "\"Windows\""
+        },
+        {
+          "name": "authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJkZWxlZ2F0ZVVzZXJJZCI6MTg1Nzc3Mjc2LCJsb2dnZWRJblVzZXJJZCI6MTg3MDMyNzgyLCJzZXNzaW9uSWQiOiJCMzQ2N0E0MTYyRjNGQjMxMjZGQTZDMkU0NTU4RkNCOSJ9.sU4bUawattyhlVuz17wlUsZ-pAldfmfBEm8kGw4U64A"
+        },
+        {
+          "name": "sec-ch-ua",
+          "value": "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Microsoft Edge\";v=\"138\""
+        },
+        {
+          "name": "newrelic",
+          "value": "eyJ2IjpbMCwxXSwiZCI6eyJ0eSI6IkJyb3dzZXIiLCJhYyI6IjIwNjkxNDEiLCJhcCI6IjExMDMyNTU1NzkiLCJpZCI6IjY0MjU5ZDYwNTA5MGI4NmUiLCJ0ciI6ImQ3NTVlZWNhYjdhZjcwZDA0ZDJhODY2ODdkNzc3YzEzIiwidGkiOjE3NTI1MjkwNzYzMzB9fQ=="
+        },
+        {
+          "name": "sec-ch-ua-mobile",
+          "value": "?0"
+        },
+        {
+          "name": "traceparent",
+          "value": "00-d755eecab7af70d04d2a86687d777c13-64259d605090b86e-01"
+        },
+        {
+          "name": "x-requested-with",
+          "value": "XMLHttpRequest"
+        },
+        {
+          "name": "user-agent",
+          "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
+        },
+        {
+          "name": "accept",
+          "value": "*/*"
+        },
+        {
+          "name": "tracestate",
+          "value": "2069141@nr=0-1-2069141-1103255579-64259d605090b86e----1752529076330"
+        },
+        {
+          "name": "sec-fetch-site",
+          "value": "same-origin"
+        },
+        {
+          "name": "sec-fetch-mode",
+          "value": "cors"
+        },
+        {
+          "name": "sec-fetch-dest",
+          "value": "empty"
+        },
+        {
+          "name": "referer",
+          "value": "https://anytime.club-os.com/action/PackageAgreementUpdated/spa/"
+        },
+        {
+          "name": "accept-encoding",
+          "value": "gzip, deflate, br, zstd"
+        },
+        {
+          "name": "accept-language",
+          "value": "en-US,en;q=0.9"
+        },
+        {
+          "name": "cookie",
+          "value": "_fbp=fb.1.1750181614288.28580080925040380"
+        },
+        {
+          "name": "cookie",
+          "value": "__ecatft={\"utm_campaign\":\"\",\"utm_source\":\"\",\"utm_medium\":\"\",\"utm_content\":\"\",\"utm_term\":\"\",\"utm_device\":\"\",\"referrer\":\"https://www.bing.com/\",\"gclid\":\"\",\"lp\":\"www.club-os.com/\"}"
+        },
+        {
+          "name": "cookie",
+          "value": "_gcl_au=1.1.1983975127.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager_uuid=87bca4d8-cdaa-4638-9c0a-e6e1bc9a4c28"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager=pUQdj9lXwNz8G0r5wg8XEpcNpzH-L1ou8e0iwwSBlyChK-6AZCLQmpYmFjG69PvKoD3k_33vDX274aQLwD6OFYigCckQYlqdOy6WZfsR41ygA1SiH0fF5nPbmvjgp6btck0GxLageQFhsKYXm58G4yL-C4YXEVBoOoTn_NxeoVk8vus5y8LMJ_yXrgtAqh7yq01FJ7GlBuRETYKtnj9BU6JnfRLJke553R9xj7NBM23IrjNFA4c6NWp-o-7zX-LiSnJWZGR41LgLBJTgjivcnlp3pjSf9Dv3R8zsXw=="
+        },
+        {
+          "name": "cookie",
+          "value": "_clck=47khr4%7C2%7Cfwu%7C0%7C1994"
+        },
+        {
+          "name": "cookie",
+          "value": "messagesUtk=45ced08d977d42f1b5360b0701dcdadc"
+        },
+        {
+          "name": "cookie",
+          "value": "__hstc=130365392.da9547cf2e866b0ea5a811ae2d00f8e3.1750195292681.1750195292681.1750195292681.1"
+        },
+        {
+          "name": "cookie",
+          "value": "hubspotutk=da9547cf2e866b0ea5a811ae2d00f8e3"
+        },
+        {
+          "name": "cookie",
+          "value": "_hp2_id.2794995124=%7B%22userId%22%3A%2254936772480015%22%2C%22pageviewId%22%3A%223416648379715226%22%2C%22sessionId%22%3A%228662001472485713%22%2C%22identity%22%3Anull%2C%22trackerVersion%22%3A%224.0%22%7D"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_KNW7VZ6GNY=GS2.1.s1750198517$o3$g0$t1750198517$j60$l0$h1657069555"
+        },
+        {
+          "name": "cookie",
+          "value": "_uetvid=31d786004ba111f0b8df757d82f1b34b"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_0NH3ZBDBNZ=GS2.1.s1752337346$o1$g1$t1752337499$j6$l0$h0"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga=GA1.2.1684127573.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "_gid=GA1.2.75957065.1752508973"
+        },
+        {
+          "name": "cookie",
+          "value": "JSESSIONID=B3467A4162F3FB3126FA6C2E4558FCB9"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3AccessToken=eyJraWQiOiIzWlwvN3R1TEYrZzBVMEdQSW10QjhCZHY3Q3RWWlwvek1HekxnKzc4SGZNbVk9IiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJldmVudF9pZCI6ImNlZWQ1NmRiLWM0NWQtNGVlZS05YjI2LWE0OThmZjRjY2ViYSIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiYXdzLmNvZ25pdG8uc2lnbmluLnVzZXIuYWRtaW4iLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImV4cCI6MTc1MjUzMDU5NCwiaWF0IjoxNzUyNTI2OTk0LCJqdGkiOiJmZDRmZjJiNy0yMTM3LTQzOTMtYWJkNS1jNDM3M2FjNTliMDUiLCJjbGllbnRfaWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsInVzZXJuYW1lIjoiMTg3MDMyNzgyIn0.ONntA6_kUMSjhPX2nCQhgVorCKS0Bwq68Z_d5tqaushpvRcPQNbiPIP5toDx8CVaNq8l0dI9wBKttINT8YlK6s603XZRpH_oPwKGTFt6qCbazG4d3hlEX-S0W8OGbCHki76rCuTMeeMSjqQm6CrR7i9vEV4uO1SRUlD6XNxtB4aLvyv5Em17SyrBrKc4sogZWXerrC79Xz3wCKWYVXbRUVmtRRwEJgfa-_nbDrr0Z9mbzX_Wthj0q3psqotB3GN0CGlUhVSs2BDOcRYmj3G-eXERhvjMYcxyxyu2oVy36blOuZy8oD0cC18Q8gS_rXTxnRRGa9XRPmz1-wHVbFHUsA"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3IdToken=eyJraWQiOiJibWtxY1lkWGVqT25LUkQ1T2VxcW1sdFlORnA0cVVzV3FNN3dCSDg2WE9VPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJhdWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsImV2ZW50X2lkIjoiY2VlZDU2ZGItYzQ1ZC00ZWVlLTliMjYtYTQ5OGZmNGNjZWJhIiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImNvZ25pdG86dXNlcm5hbWUiOiIxODcwMzI3ODIiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqLm1heW8iLCJleHAiOjE3NTI1MzA1OTQsImlhdCI6MTc1MjUyNjk5NH0.RLbygRMiEl__BgDUfC-e8czoM3fML7wjZkMnIu8DP2c0GAhrEhFAjBpz1RppXRTAxuBxmr0eb2u0uAtVepcUBtT-N2b2d1Kj9YwT_981bOMyU00Rq2ygOeFCCp4m0FurJYsAT6FcgFOiAIlmNiZvbPO6Jp0X1lEMBEiwvp1ARuKwApMBzWbogxYyScxxyzz_tMISyoMHGozIe7Zj7aM-H8SGsesaFO5sIrNoJen976SyhC8v5rfjLfBGWl2hhH39unVQ8IJQuEsWeTAbYVzVFM1o0xvTWsHCKNz00Hq0JtEKLwF8-eriYkUeuSuh9s4jKgpuK271L_PvwF78-qTtfA"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3RefreshToken=eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiUlNBLU9BRVAifQ.TONPFo86Kk2nPWzZHh_JIoMA_pAl1BHTUd7aQObyGUND2jrhtwqr9GJBRpM2o1J8_lu_bPH_Ogm8IES5igrw5JFArD2ueLYS2AH8a8LMgo_SXCY98kIGbugK-RrPt1oOl3yezCNYwPQr--REYdeSthbdXzVYU4-lxdx1XyeLHo7VZMZgZWFY4DMfNJgVGxqVbvrJv04MWKhLgEim1b7UgiHBrZfoc64Cdh_n6WNqnShH1WG4BzxbiIV7eA93jen7D43MVHEFrBSGSY_GBqAoSMjYHFwhT2Xaa_LO57vk3jdOb9Dex_hRYTkCl3IMLCV0YxlVlf7cuQLBJkDnuHgWIg.hAVUzIdDUJ6KbAZh.DgBCa_Hrwn5PcKD3mNeQuIOUMB1W3_6alu-7vFYw-PDBOCossK3CIS_Ld6so-_Bk-O9RZwPF0W90BcwrAhxarZjUFBKIqCPzfDEtRDae_VOiDjslkW-RegDV02pxqU4LbVGze1UajddQQHSi3z0cYCBvVL0f-JB2nzxmfGRZqqjJKfxEwCkc_jHggPuodNIKdoSADejRFVGdBQ2bFTolCRRmrJLsElVcyLsILRWpeRAUow0caGPJHMLDTktrztH46Pf-zCNB3vS2uWeHIn0paK074wNY4FeRUiqdpnZ8ygbdqLeV4EtJ2VPFbkPtnihdnaYuh-EhWkvy3Vtg0MGCxm0DKVRD6soUattRvHZSUDb5UveCmEvf6UAq6v0_xGCyddxt0n1lVnRWNYMSCj2LVPcQThwHSqcNIbRIcYQEtMaI-30znbXkHMBRLdiLAR4rQnoiq2kpI0wtb48qk6_EQGFwtJ7a1_J2tCqpYcwi7jiIQ92i5NdWO-onpWEPYh2mE0xZRbJ9YQ_ROvwit2DiCT_VGQuM2ZM-tMfJpis5kaQmVTa8KFe4-KnaS6e62hYsy7pr7lVacvAxtxaU5S0yCT1X-jpABFpISCzdkXMnIpbAcv4S_XX3fPPlOvi3ZkN4j0xYFIbyTxXs7m1KgG04v0H1MYiZMXXNtDe8lylKyPWc4w9t-Jz7hxd2FDTZVhe7QqVHO7QQzmGwPZ40XF0nSRK8koNejGTs6fSTGiLArSU9XCkeuPxHDpEx1Jb_w9u9HxkJZClrdCK7hFRpCllIROkYrBEAxOZ0vW_8r8N1mlSBr9QlBfMKD-cdknmYYN2o5DzyhgdPY3suwFamGbvXbk2N9mCsjMTsMel0nojaV4Uq2eZUCTXyuTxJ8lVNhRx5JX6FBzYa37EmgfeapcXRr96NGLznsADgvcYF8fE8HAg2gWUaIGf5zOrq5uI7W4pqy1suXyqh0DHX4aQmVzmDSfQKV_ErW0y8qjBusYaIqZSwKr-C2ENGsMJTERE6FnmN1XE-kZr18L9GKNDoPXal9aV7ESEMfbQoD2bXHCRQ5SWLFzTBqUH2RuJcd8weDiKNGEkIIT1noZZPJieRepk84oKBayWJYsmwaEvNOnw2CPv7dWWwl8hWdRC6emTtIkodXaMAJ9CedgQhJ0x2bjFf5GdNs95gyXOCSOkTUYk0G1kk9KMsVaa-9myhjekG33mcaOywYaJL2Y0C75jHwrCkrEVWy0zwIpzysUK9lwuWZ5cYXT2RQGEYuVsyn987lPdYdB6rWmQDpJE.OFOi8I2jSl1zVjwFahqJJQ"
+        },
+        {
+          "name": "cookie",
+          "value": "loggedInUserId=187032782"
+        },
+        {
+          "name": "cookie",
+          "value": "staffDelegatedUserId="
+        },
+        {
+          "name": "cookie",
+          "value": "delegatedUserId=185777276"
+        },
+        {
+          "name": "priority",
+          "value": "u=1, i"
+        }
+      ],
+      "queryString": [
+        {
+          "name": "agreementId",
+          "value": "1522516"
+        },
+        {
+          "name": "_",
+          "value": "1752529076330"
+        }
+      ],
+      "postData": {}
+    },
+    "example_response": null,
+    "keyword_fields": []
+  },
+  "GET /api/agreements/package_agreements/{id}/salespeople": {
+    "method": "GET",
+    "path": "/api/agreements/package_agreements/{id}/salespeople",
+    "example_request": {
+      "url": "https://anytime.club-os.com/api/agreements/package_agreements/1522516/salespeople?_=1752529076331",
+      "headers": [
+        {
+          "name": ":method",
+          "value": "GET"
+        },
+        {
+          "name": ":authority",
+          "value": "anytime.club-os.com"
+        },
+        {
+          "name": ":scheme",
+          "value": "https"
+        },
+        {
+          "name": ":path",
+          "value": "/api/agreements/package_agreements/1522516/salespeople?_=1752529076331"
+        },
+        {
+          "name": "x-newrelic-id",
+          "value": "VgYBWFdXCRABVVFTBgUBVVQJ"
+        },
+        {
+          "name": "sec-ch-ua-platform",
+          "value": "\"Windows\""
+        },
+        {
+          "name": "authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJkZWxlZ2F0ZVVzZXJJZCI6MTg1Nzc3Mjc2LCJsb2dnZWRJblVzZXJJZCI6MTg3MDMyNzgyLCJzZXNzaW9uSWQiOiJCMzQ2N0E0MTYyRjNGQjMxMjZGQTZDMkU0NTU4RkNCOSJ9.sU4bUawattyhlVuz17wlUsZ-pAldfmfBEm8kGw4U64A"
+        },
+        {
+          "name": "sec-ch-ua",
+          "value": "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Microsoft Edge\";v=\"138\""
+        },
+        {
+          "name": "newrelic",
+          "value": "eyJ2IjpbMCwxXSwiZCI6eyJ0eSI6IkJyb3dzZXIiLCJhYyI6IjIwNjkxNDEiLCJhcCI6IjExMDMyNTU1NzkiLCJpZCI6IjkwMmY0MDhkOGMzNDA4ZjMiLCJ0ciI6ImRlZGUzY2U4NGJlNDM3Mjk5Yzk1MWQ5OTJkYTNjYmNhIiwidGkiOjE3NTI1MjkwNzYzMzF9fQ=="
+        },
+        {
+          "name": "sec-ch-ua-mobile",
+          "value": "?0"
+        },
+        {
+          "name": "traceparent",
+          "value": "00-dede3ce84be437299c951d992da3cbca-902f408d8c3408f3-01"
+        },
+        {
+          "name": "x-requested-with",
+          "value": "XMLHttpRequest"
+        },
+        {
+          "name": "user-agent",
+          "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
+        },
+        {
+          "name": "accept",
+          "value": "*/*"
+        },
+        {
+          "name": "tracestate",
+          "value": "2069141@nr=0-1-2069141-1103255579-902f408d8c3408f3----1752529076331"
+        },
+        {
+          "name": "sec-fetch-site",
+          "value": "same-origin"
+        },
+        {
+          "name": "sec-fetch-mode",
+          "value": "cors"
+        },
+        {
+          "name": "sec-fetch-dest",
+          "value": "empty"
+        },
+        {
+          "name": "referer",
+          "value": "https://anytime.club-os.com/action/PackageAgreementUpdated/spa/"
+        },
+        {
+          "name": "accept-encoding",
+          "value": "gzip, deflate, br, zstd"
+        },
+        {
+          "name": "accept-language",
+          "value": "en-US,en;q=0.9"
+        },
+        {
+          "name": "cookie",
+          "value": "_fbp=fb.1.1750181614288.28580080925040380"
+        },
+        {
+          "name": "cookie",
+          "value": "__ecatft={\"utm_campaign\":\"\",\"utm_source\":\"\",\"utm_medium\":\"\",\"utm_content\":\"\",\"utm_term\":\"\",\"utm_device\":\"\",\"referrer\":\"https://www.bing.com/\",\"gclid\":\"\",\"lp\":\"www.club-os.com/\"}"
+        },
+        {
+          "name": "cookie",
+          "value": "_gcl_au=1.1.1983975127.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager_uuid=87bca4d8-cdaa-4638-9c0a-e6e1bc9a4c28"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager=pUQdj9lXwNz8G0r5wg8XEpcNpzH-L1ou8e0iwwSBlyChK-6AZCLQmpYmFjG69PvKoD3k_33vDX274aQLwD6OFYigCckQYlqdOy6WZfsR41ygA1SiH0fF5nPbmvjgp6btck0GxLageQFhsKYXm58G4yL-C4YXEVBoOoTn_NxeoVk8vus5y8LMJ_yXrgtAqh7yq01FJ7GlBuRETYKtnj9BU6JnfRLJke553R9xj7NBM23IrjNFA4c6NWp-o-7zX-LiSnJWZGR41LgLBJTgjivcnlp3pjSf9Dv3R8zsXw=="
+        },
+        {
+          "name": "cookie",
+          "value": "_clck=47khr4%7C2%7Cfwu%7C0%7C1994"
+        },
+        {
+          "name": "cookie",
+          "value": "messagesUtk=45ced08d977d42f1b5360b0701dcdadc"
+        },
+        {
+          "name": "cookie",
+          "value": "__hstc=130365392.da9547cf2e866b0ea5a811ae2d00f8e3.1750195292681.1750195292681.1750195292681.1"
+        },
+        {
+          "name": "cookie",
+          "value": "hubspotutk=da9547cf2e866b0ea5a811ae2d00f8e3"
+        },
+        {
+          "name": "cookie",
+          "value": "_hp2_id.2794995124=%7B%22userId%22%3A%2254936772480015%22%2C%22pageviewId%22%3A%223416648379715226%22%2C%22sessionId%22%3A%228662001472485713%22%2C%22identity%22%3Anull%2C%22trackerVersion%22%3A%224.0%22%7D"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_KNW7VZ6GNY=GS2.1.s1750198517$o3$g0$t1750198517$j60$l0$h1657069555"
+        },
+        {
+          "name": "cookie",
+          "value": "_uetvid=31d786004ba111f0b8df757d82f1b34b"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_0NH3ZBDBNZ=GS2.1.s1752337346$o1$g1$t1752337499$j6$l0$h0"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga=GA1.2.1684127573.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "_gid=GA1.2.75957065.1752508973"
+        },
+        {
+          "name": "cookie",
+          "value": "JSESSIONID=B3467A4162F3FB3126FA6C2E4558FCB9"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3AccessToken=eyJraWQiOiIzWlwvN3R1TEYrZzBVMEdQSW10QjhCZHY3Q3RWWlwvek1HekxnKzc4SGZNbVk9IiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJldmVudF9pZCI6ImNlZWQ1NmRiLWM0NWQtNGVlZS05YjI2LWE0OThmZjRjY2ViYSIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiYXdzLmNvZ25pdG8uc2lnbmluLnVzZXIuYWRtaW4iLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImV4cCI6MTc1MjUzMDU5NCwiaWF0IjoxNzUyNTI2OTk0LCJqdGkiOiJmZDRmZjJiNy0yMTM3LTQzOTMtYWJkNS1jNDM3M2FjNTliMDUiLCJjbGllbnRfaWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsInVzZXJuYW1lIjoiMTg3MDMyNzgyIn0.ONntA6_kUMSjhPX2nCQhgVorCKS0Bwq68Z_d5tqaushpvRcPQNbiPIP5toDx8CVaNq8l0dI9wBKttINT8YlK6s603XZRpH_oPwKGTFt6qCbazG4d3hlEX-S0W8OGbCHki76rCuTMeeMSjqQm6CrR7i9vEV4uO1SRUlD6XNxtB4aLvyv5Em17SyrBrKc4sogZWXerrC79Xz3wCKWYVXbRUVmtRRwEJgfa-_nbDrr0Z9mbzX_Wthj0q3psqotB3GN0CGlUhVSs2BDOcRYmj3G-eXERhvjMYcxyxyu2oVy36blOuZy8oD0cC18Q8gS_rXTxnRRGa9XRPmz1-wHVbFHUsA"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3IdToken=eyJraWQiOiJibWtxY1lkWGVqT25LUkQ1T2VxcW1sdFlORnA0cVVzV3FNN3dCSDg2WE9VPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJhdWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsImV2ZW50X2lkIjoiY2VlZDU2ZGItYzQ1ZC00ZWVlLTliMjYtYTQ5OGZmNGNjZWJhIiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImNvZ25pdG86dXNlcm5hbWUiOiIxODcwMzI3ODIiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqLm1heW8iLCJleHAiOjE3NTI1MzA1OTQsImlhdCI6MTc1MjUyNjk5NH0.RLbygRMiEl__BgDUfC-e8czoM3fML7wjZkMnIu8DP2c0GAhrEhFAjBpz1RppXRTAxuBxmr0eb2u0uAtVepcUBtT-N2b2d1Kj9YwT_981bOMyU00Rq2ygOeFCCp4m0FurJYsAT6FcgFOiAIlmNiZvbPO6Jp0X1lEMBEiwvp1ARuKwApMBzWbogxYyScxxyzz_tMISyoMHGozIe7Zj7aM-H8SGsesaFO5sIrNoJen976SyhC8v5rfjLfBGWl2hhH39unVQ8IJQuEsWeTAbYVzVFM1o0xvTWsHCKNz00Hq0JtEKLwF8-eriYkUeuSuh9s4jKgpuK271L_PvwF78-qTtfA"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3RefreshToken=eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiUlNBLU9BRVAifQ.TONPFo86Kk2nPWzZHh_JIoMA_pAl1BHTUd7aQObyGUND2jrhtwqr9GJBRpM2o1J8_lu_bPH_Ogm8IES5igrw5JFArD2ueLYS2AH8a8LMgo_SXCY98kIGbugK-RrPt1oOl3yezCNYwPQr--REYdeSthbdXzVYU4-lxdx1XyeLHo7VZMZgZWFY4DMfNJgVGxqVbvrJv04MWKhLgEim1b7UgiHBrZfoc64Cdh_n6WNqnShH1WG4BzxbiIV7eA93jen7D43MVHEFrBSGSY_GBqAoSMjYHFwhT2Xaa_LO57vk3jdOb9Dex_hRYTkCl3IMLCV0YxlVlf7cuQLBJkDnuHgWIg.hAVUzIdDUJ6KbAZh.DgBCa_Hrwn5PcKD3mNeQuIOUMB1W3_6alu-7vFYw-PDBOCossK3CIS_Ld6so-_Bk-O9RZwPF0W90BcwrAhxarZjUFBKIqCPzfDEtRDae_VOiDjslkW-RegDV02pxqU4LbVGze1UajddQQHSi3z0cYCBvVL0f-JB2nzxmfGRZqqjJKfxEwCkc_jHggPuodNIKdoSADejRFVGdBQ2bFTolCRRmrJLsElVcyLsILRWpeRAUow0caGPJHMLDTktrztH46Pf-zCNB3vS2uWeHIn0paK074wNY4FeRUiqdpnZ8ygbdqLeV4EtJ2VPFbkPtnihdnaYuh-EhWkvy3Vtg0MGCxm0DKVRD6soUattRvHZSUDb5UveCmEvf6UAq6v0_xGCyddxt0n1lVnRWNYMSCj2LVPcQThwHSqcNIbRIcYQEtMaI-30znbXkHMBRLdiLAR4rQnoiq2kpI0wtb48qk6_EQGFwtJ7a1_J2tCqpYcwi7jiIQ92i5NdWO-onpWEPYh2mE0xZRbJ9YQ_ROvwit2DiCT_VGQuM2ZM-tMfJpis5kaQmVTa8KFe4-KnaS6e62hYsy7pr7lVacvAxtxaU5S0yCT1X-jpABFpISCzdkXMnIpbAcv4S_XX3fPPlOvi3ZkN4j0xYFIbyTxXs7m1KgG04v0H1MYiZMXXNtDe8lylKyPWc4w9t-Jz7hxd2FDTZVhe7QqVHO7QQzmGwPZ40XF0nSRK8koNejGTs6fSTGiLArSU9XCkeuPxHDpEx1Jb_w9u9HxkJZClrdCK7hFRpCllIROkYrBEAxOZ0vW_8r8N1mlSBr9QlBfMKD-cdknmYYN2o5DzyhgdPY3suwFamGbvXbk2N9mCsjMTsMel0nojaV4Uq2eZUCTXyuTxJ8lVNhRx5JX6FBzYa37EmgfeapcXRr96NGLznsADgvcYF8fE8HAg2gWUaIGf5zOrq5uI7W4pqy1suXyqh0DHX4aQmVzmDSfQKV_ErW0y8qjBusYaIqZSwKr-C2ENGsMJTERE6FnmN1XE-kZr18L9GKNDoPXal9aV7ESEMfbQoD2bXHCRQ5SWLFzTBqUH2RuJcd8weDiKNGEkIIT1noZZPJieRepk84oKBayWJYsmwaEvNOnw2CPv7dWWwl8hWdRC6emTtIkodXaMAJ9CedgQhJ0x2bjFf5GdNs95gyXOCSOkTUYk0G1kk9KMsVaa-9myhjekG33mcaOywYaJL2Y0C75jHwrCkrEVWy0zwIpzysUK9lwuWZ5cYXT2RQGEYuVsyn987lPdYdB6rWmQDpJE.OFOi8I2jSl1zVjwFahqJJQ"
+        },
+        {
+          "name": "cookie",
+          "value": "loggedInUserId=187032782"
+        },
+        {
+          "name": "cookie",
+          "value": "staffDelegatedUserId="
+        },
+        {
+          "name": "cookie",
+          "value": "delegatedUserId=185777276"
+        },
+        {
+          "name": "priority",
+          "value": "u=1, i"
+        }
+      ],
+      "queryString": [
+        {
+          "name": "_",
+          "value": "1752529076331"
+        }
+      ],
+      "postData": {}
+    },
+    "example_response": null,
+    "keyword_fields": []
+  },
+  "GET /api/package-agreement-proposals/scheduled-payments-count": {
+    "method": "GET",
+    "path": "/api/package-agreement-proposals/scheduled-payments-count",
+    "example_request": {
+      "url": "https://anytime.club-os.com/api/package-agreement-proposals/scheduled-payments-count?duration=12&durationType=5&billingDuration=2&billingDurationType=6&startDate=2024-09-13&_=1752529077962",
+      "headers": [
+        {
+          "name": ":method",
+          "value": "GET"
+        },
+        {
+          "name": ":authority",
+          "value": "anytime.club-os.com"
+        },
+        {
+          "name": ":scheme",
+          "value": "https"
+        },
+        {
+          "name": ":path",
+          "value": "/api/package-agreement-proposals/scheduled-payments-count?duration=12&durationType=5&billingDuration=2&billingDurationType=6&startDate=2024-09-13&_=1752529077962"
+        },
+        {
+          "name": "x-newrelic-id",
+          "value": "VgYBWFdXCRABVVFTBgUBVVQJ"
+        },
+        {
+          "name": "sec-ch-ua-platform",
+          "value": "\"Windows\""
+        },
+        {
+          "name": "authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJkZWxlZ2F0ZVVzZXJJZCI6MTg1Nzc3Mjc2LCJsb2dnZWRJblVzZXJJZCI6MTg3MDMyNzgyLCJzZXNzaW9uSWQiOiJCMzQ2N0E0MTYyRjNGQjMxMjZGQTZDMkU0NTU4RkNCOSJ9.sU4bUawattyhlVuz17wlUsZ-pAldfmfBEm8kGw4U64A"
+        },
+        {
+          "name": "sec-ch-ua",
+          "value": "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Microsoft Edge\";v=\"138\""
+        },
+        {
+          "name": "newrelic",
+          "value": "eyJ2IjpbMCwxXSwiZCI6eyJ0eSI6IkJyb3dzZXIiLCJhYyI6IjIwNjkxNDEiLCJhcCI6IjExMDMyNTU1NzkiLCJpZCI6IjNmZTU3MTdmN2Y4MjE0OTciLCJ0ciI6IjY4OTg5NDAxN2MxYTUzNTE1NWZjYzAyNzU4YTYyYzU4IiwidGkiOjE3NTI1MjkwNzc5NjN9fQ=="
+        },
+        {
+          "name": "sec-ch-ua-mobile",
+          "value": "?0"
+        },
+        {
+          "name": "traceparent",
+          "value": "00-689894017c1a535155fcc02758a62c58-3fe5717f7f821497-01"
+        },
+        {
+          "name": "x-requested-with",
+          "value": "XMLHttpRequest"
+        },
+        {
+          "name": "user-agent",
+          "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
+        },
+        {
+          "name": "accept",
+          "value": "*/*"
+        },
+        {
+          "name": "tracestate",
+          "value": "2069141@nr=0-1-2069141-1103255579-3fe5717f7f821497----1752529077963"
+        },
+        {
+          "name": "sec-fetch-site",
+          "value": "same-origin"
+        },
+        {
+          "name": "sec-fetch-mode",
+          "value": "cors"
+        },
+        {
+          "name": "sec-fetch-dest",
+          "value": "empty"
+        },
+        {
+          "name": "referer",
+          "value": "https://anytime.club-os.com/action/PackageAgreementUpdated/spa/"
+        },
+        {
+          "name": "accept-encoding",
+          "value": "gzip, deflate, br, zstd"
+        },
+        {
+          "name": "accept-language",
+          "value": "en-US,en;q=0.9"
+        },
+        {
+          "name": "cookie",
+          "value": "_fbp=fb.1.1750181614288.28580080925040380"
+        },
+        {
+          "name": "cookie",
+          "value": "__ecatft={\"utm_campaign\":\"\",\"utm_source\":\"\",\"utm_medium\":\"\",\"utm_content\":\"\",\"utm_term\":\"\",\"utm_device\":\"\",\"referrer\":\"https://www.bing.com/\",\"gclid\":\"\",\"lp\":\"www.club-os.com/\"}"
+        },
+        {
+          "name": "cookie",
+          "value": "_gcl_au=1.1.1983975127.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager_uuid=87bca4d8-cdaa-4638-9c0a-e6e1bc9a4c28"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager=pUQdj9lXwNz8G0r5wg8XEpcNpzH-L1ou8e0iwwSBlyChK-6AZCLQmpYmFjG69PvKoD3k_33vDX274aQLwD6OFYigCckQYlqdOy6WZfsR41ygA1SiH0fF5nPbmvjgp6btck0GxLageQFhsKYXm58G4yL-C4YXEVBoOoTn_NxeoVk8vus5y8LMJ_yXrgtAqh7yq01FJ7GlBuRETYKtnj9BU6JnfRLJke553R9xj7NBM23IrjNFA4c6NWp-o-7zX-LiSnJWZGR41LgLBJTgjivcnlp3pjSf9Dv3R8zsXw=="
+        },
+        {
+          "name": "cookie",
+          "value": "_clck=47khr4%7C2%7Cfwu%7C0%7C1994"
+        },
+        {
+          "name": "cookie",
+          "value": "messagesUtk=45ced08d977d42f1b5360b0701dcdadc"
+        },
+        {
+          "name": "cookie",
+          "value": "__hstc=130365392.da9547cf2e866b0ea5a811ae2d00f8e3.1750195292681.1750195292681.1750195292681.1"
+        },
+        {
+          "name": "cookie",
+          "value": "hubspotutk=da9547cf2e866b0ea5a811ae2d00f8e3"
+        },
+        {
+          "name": "cookie",
+          "value": "_hp2_id.2794995124=%7B%22userId%22%3A%2254936772480015%22%2C%22pageviewId%22%3A%223416648379715226%22%2C%22sessionId%22%3A%228662001472485713%22%2C%22identity%22%3Anull%2C%22trackerVersion%22%3A%224.0%22%7D"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_KNW7VZ6GNY=GS2.1.s1750198517$o3$g0$t1750198517$j60$l0$h1657069555"
+        },
+        {
+          "name": "cookie",
+          "value": "_uetvid=31d786004ba111f0b8df757d82f1b34b"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_0NH3ZBDBNZ=GS2.1.s1752337346$o1$g1$t1752337499$j6$l0$h0"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga=GA1.2.1684127573.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "_gid=GA1.2.75957065.1752508973"
+        },
+        {
+          "name": "cookie",
+          "value": "JSESSIONID=B3467A4162F3FB3126FA6C2E4558FCB9"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3AccessToken=eyJraWQiOiIzWlwvN3R1TEYrZzBVMEdQSW10QjhCZHY3Q3RWWlwvek1HekxnKzc4SGZNbVk9IiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJldmVudF9pZCI6ImNlZWQ1NmRiLWM0NWQtNGVlZS05YjI2LWE0OThmZjRjY2ViYSIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiYXdzLmNvZ25pdG8uc2lnbmluLnVzZXIuYWRtaW4iLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImV4cCI6MTc1MjUzMDU5NCwiaWF0IjoxNzUyNTI2OTk0LCJqdGkiOiJmZDRmZjJiNy0yMTM3LTQzOTMtYWJkNS1jNDM3M2FjNTliMDUiLCJjbGllbnRfaWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsInVzZXJuYW1lIjoiMTg3MDMyNzgyIn0.ONntA6_kUMSjhPX2nCQhgVorCKS0Bwq68Z_d5tqaushpvRcPQNbiPIP5toDx8CVaNq8l0dI9wBKttINT8YlK6s603XZRpH_oPwKGTFt6qCbazG4d3hlEX-S0W8OGbCHki76rCuTMeeMSjqQm6CrR7i9vEV4uO1SRUlD6XNxtB4aLvyv5Em17SyrBrKc4sogZWXerrC79Xz3wCKWYVXbRUVmtRRwEJgfa-_nbDrr0Z9mbzX_Wthj0q3psqotB3GN0CGlUhVSs2BDOcRYmj3G-eXERhvjMYcxyxyu2oVy36blOuZy8oD0cC18Q8gS_rXTxnRRGa9XRPmz1-wHVbFHUsA"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3IdToken=eyJraWQiOiJibWtxY1lkWGVqT25LUkQ1T2VxcW1sdFlORnA0cVVzV3FNN3dCSDg2WE9VPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJhdWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsImV2ZW50X2lkIjoiY2VlZDU2ZGItYzQ1ZC00ZWVlLTliMjYtYTQ5OGZmNGNjZWJhIiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImNvZ25pdG86dXNlcm5hbWUiOiIxODcwMzI3ODIiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqLm1heW8iLCJleHAiOjE3NTI1MzA1OTQsImlhdCI6MTc1MjUyNjk5NH0.RLbygRMiEl__BgDUfC-e8czoM3fML7wjZkMnIu8DP2c0GAhrEhFAjBpz1RppXRTAxuBxmr0eb2u0uAtVepcUBtT-N2b2d1Kj9YwT_981bOMyU00Rq2ygOeFCCp4m0FurJYsAT6FcgFOiAIlmNiZvbPO6Jp0X1lEMBEiwvp1ARuKwApMBzWbogxYyScxxyzz_tMISyoMHGozIe7Zj7aM-H8SGsesaFO5sIrNoJen976SyhC8v5rfjLfBGWl2hhH39unVQ8IJQuEsWeTAbYVzVFM1o0xvTWsHCKNz00Hq0JtEKLwF8-eriYkUeuSuh9s4jKgpuK271L_PvwF78-qTtfA"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3RefreshToken=eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiUlNBLU9BRVAifQ.TONPFo86Kk2nPWzZHh_JIoMA_pAl1BHTUd7aQObyGUND2jrhtwqr9GJBRpM2o1J8_lu_bPH_Ogm8IES5igrw5JFArD2ueLYS2AH8a8LMgo_SXCY98kIGbugK-RrPt1oOl3yezCNYwPQr--REYdeSthbdXzVYU4-lxdx1XyeLHo7VZMZgZWFY4DMfNJgVGxqVbvrJv04MWKhLgEim1b7UgiHBrZfoc64Cdh_n6WNqnShH1WG4BzxbiIV7eA93jen7D43MVHEFrBSGSY_GBqAoSMjYHFwhT2Xaa_LO57vk3jdOb9Dex_hRYTkCl3IMLCV0YxlVlf7cuQLBJkDnuHgWIg.hAVUzIdDUJ6KbAZh.DgBCa_Hrwn5PcKD3mNeQuIOUMB1W3_6alu-7vFYw-PDBOCossK3CIS_Ld6so-_Bk-O9RZwPF0W90BcwrAhxarZjUFBKIqCPzfDEtRDae_VOiDjslkW-RegDV02pxqU4LbVGze1UajddQQHSi3z0cYCBvVL0f-JB2nzxmfGRZqqjJKfxEwCkc_jHggPuodNIKdoSADejRFVGdBQ2bFTolCRRmrJLsElVcyLsILRWpeRAUow0caGPJHMLDTktrztH46Pf-zCNB3vS2uWeHIn0paK074wNY4FeRUiqdpnZ8ygbdqLeV4EtJ2VPFbkPtnihdnaYuh-EhWkvy3Vtg0MGCxm0DKVRD6soUattRvHZSUDb5UveCmEvf6UAq6v0_xGCyddxt0n1lVnRWNYMSCj2LVPcQThwHSqcNIbRIcYQEtMaI-30znbXkHMBRLdiLAR4rQnoiq2kpI0wtb48qk6_EQGFwtJ7a1_J2tCqpYcwi7jiIQ92i5NdWO-onpWEPYh2mE0xZRbJ9YQ_ROvwit2DiCT_VGQuM2ZM-tMfJpis5kaQmVTa8KFe4-KnaS6e62hYsy7pr7lVacvAxtxaU5S0yCT1X-jpABFpISCzdkXMnIpbAcv4S_XX3fPPlOvi3ZkN4j0xYFIbyTxXs7m1KgG04v0H1MYiZMXXNtDe8lylKyPWc4w9t-Jz7hxd2FDTZVhe7QqVHO7QQzmGwPZ40XF0nSRK8koNejGTs6fSTGiLArSU9XCkeuPxHDpEx1Jb_w9u9HxkJZClrdCK7hFRpCllIROkYrBEAxOZ0vW_8r8N1mlSBr9QlBfMKD-cdknmYYN2o5DzyhgdPY3suwFamGbvXbk2N9mCsjMTsMel0nojaV4Uq2eZUCTXyuTxJ8lVNhRx5JX6FBzYa37EmgfeapcXRr96NGLznsADgvcYF8fE8HAg2gWUaIGf5zOrq5uI7W4pqy1suXyqh0DHX4aQmVzmDSfQKV_ErW0y8qjBusYaIqZSwKr-C2ENGsMJTERE6FnmN1XE-kZr18L9GKNDoPXal9aV7ESEMfbQoD2bXHCRQ5SWLFzTBqUH2RuJcd8weDiKNGEkIIT1noZZPJieRepk84oKBayWJYsmwaEvNOnw2CPv7dWWwl8hWdRC6emTtIkodXaMAJ9CedgQhJ0x2bjFf5GdNs95gyXOCSOkTUYk0G1kk9KMsVaa-9myhjekG33mcaOywYaJL2Y0C75jHwrCkrEVWy0zwIpzysUK9lwuWZ5cYXT2RQGEYuVsyn987lPdYdB6rWmQDpJE.OFOi8I2jSl1zVjwFahqJJQ"
+        },
+        {
+          "name": "cookie",
+          "value": "loggedInUserId=187032782"
+        },
+        {
+          "name": "cookie",
+          "value": "staffDelegatedUserId="
+        },
+        {
+          "name": "cookie",
+          "value": "delegatedUserId=185777276"
+        },
+        {
+          "name": "priority",
+          "value": "u=1, i"
+        }
+      ],
+      "queryString": [
+        {
+          "name": "duration",
+          "value": "12"
+        },
+        {
+          "name": "durationType",
+          "value": "5"
+        },
+        {
+          "name": "billingDuration",
+          "value": "2"
+        },
+        {
+          "name": "billingDurationType",
+          "value": "6"
+        },
+        {
+          "name": "startDate",
+          "value": "2024-09-13"
+        },
+        {
+          "name": "_",
+          "value": "1752529077962"
+        }
+      ],
+      "postData": {}
+    },
+    "example_response": null,
+    "keyword_fields": []
+  },
+  "GET /api/agreements/package_agreements/V2/1617934": {
+    "method": "GET",
+    "path": "/api/agreements/package_agreements/V2/1617934",
+    "example_request": {
+      "url": "https://anytime.club-os.com/api/agreements/package_agreements/V2/1617934?include=invoices&include=scheduledPayments&include=prohibitChangeTypes&_=1752529095047",
+      "headers": [
+        {
+          "name": ":method",
+          "value": "GET"
+        },
+        {
+          "name": ":authority",
+          "value": "anytime.club-os.com"
+        },
+        {
+          "name": ":scheme",
+          "value": "https"
+        },
+        {
+          "name": ":path",
+          "value": "/api/agreements/package_agreements/V2/1617934?include=invoices&include=scheduledPayments&include=prohibitChangeTypes&_=1752529095047"
+        },
+        {
+          "name": "x-newrelic-id",
+          "value": "VgYBWFdXCRABVVFTBgUBVVQJ"
+        },
+        {
+          "name": "sec-ch-ua-platform",
+          "value": "\"Windows\""
+        },
+        {
+          "name": "authorization",
+          "value": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJkZWxlZ2F0ZVVzZXJJZCI6MTg1Nzc3Mjc2LCJsb2dnZWRJblVzZXJJZCI6MTg3MDMyNzgyLCJzZXNzaW9uSWQiOiJCMzQ2N0E0MTYyRjNGQjMxMjZGQTZDMkU0NTU4RkNCOSJ9.sU4bUawattyhlVuz17wlUsZ-pAldfmfBEm8kGw4U64A"
+        },
+        {
+          "name": "sec-ch-ua",
+          "value": "\"Not)A;Brand\";v=\"8\", \"Chromium\";v=\"138\", \"Microsoft Edge\";v=\"138\""
+        },
+        {
+          "name": "newrelic",
+          "value": "eyJ2IjpbMCwxXSwiZCI6eyJ0eSI6IkJyb3dzZXIiLCJhYyI6IjIwNjkxNDEiLCJhcCI6IjExMDMyNTU1NzkiLCJpZCI6IjQ1YjA2MmY3YmIzYTFjZWQiLCJ0ciI6IjZiZjlhMjA2MDA3YjRkYzEwYTJkNDQ1YjcwMjJkODdkIiwidGkiOjE3NTI1MjkwOTUwNDh9fQ=="
+        },
+        {
+          "name": "sec-ch-ua-mobile",
+          "value": "?0"
+        },
+        {
+          "name": "traceparent",
+          "value": "00-6bf9a206007b4dc10a2d445b7022d87d-45b062f7bb3a1ced-01"
+        },
+        {
+          "name": "x-requested-with",
+          "value": "XMLHttpRequest"
+        },
+        {
+          "name": "user-agent",
+          "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
+        },
+        {
+          "name": "accept",
+          "value": "*/*"
+        },
+        {
+          "name": "tracestate",
+          "value": "2069141@nr=0-1-2069141-1103255579-45b062f7bb3a1ced----1752529095048"
+        },
+        {
+          "name": "sec-fetch-site",
+          "value": "same-origin"
+        },
+        {
+          "name": "sec-fetch-mode",
+          "value": "cors"
+        },
+        {
+          "name": "sec-fetch-dest",
+          "value": "empty"
+        },
+        {
+          "name": "referer",
+          "value": "https://anytime.club-os.com/action/PackageAgreementUpdated/spa/"
+        },
+        {
+          "name": "accept-encoding",
+          "value": "gzip, deflate, br, zstd"
+        },
+        {
+          "name": "accept-language",
+          "value": "en-US,en;q=0.9"
+        },
+        {
+          "name": "cookie",
+          "value": "_fbp=fb.1.1750181614288.28580080925040380"
+        },
+        {
+          "name": "cookie",
+          "value": "__ecatft={\"utm_campaign\":\"\",\"utm_source\":\"\",\"utm_medium\":\"\",\"utm_content\":\"\",\"utm_term\":\"\",\"utm_device\":\"\",\"referrer\":\"https://www.bing.com/\",\"gclid\":\"\",\"lp\":\"www.club-os.com/\"}"
+        },
+        {
+          "name": "cookie",
+          "value": "_gcl_au=1.1.1983975127.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager_uuid=87bca4d8-cdaa-4638-9c0a-e6e1bc9a4c28"
+        },
+        {
+          "name": "cookie",
+          "value": "osano_consentmanager=pUQdj9lXwNz8G0r5wg8XEpcNpzH-L1ou8e0iwwSBlyChK-6AZCLQmpYmFjG69PvKoD3k_33vDX274aQLwD6OFYigCckQYlqdOy6WZfsR41ygA1SiH0fF5nPbmvjgp6btck0GxLageQFhsKYXm58G4yL-C4YXEVBoOoTn_NxeoVk8vus5y8LMJ_yXrgtAqh7yq01FJ7GlBuRETYKtnj9BU6JnfRLJke553R9xj7NBM23IrjNFA4c6NWp-o-7zX-LiSnJWZGR41LgLBJTgjivcnlp3pjSf9Dv3R8zsXw=="
+        },
+        {
+          "name": "cookie",
+          "value": "_clck=47khr4%7C2%7Cfwu%7C0%7C1994"
+        },
+        {
+          "name": "cookie",
+          "value": "messagesUtk=45ced08d977d42f1b5360b0701dcdadc"
+        },
+        {
+          "name": "cookie",
+          "value": "__hstc=130365392.da9547cf2e866b0ea5a811ae2d00f8e3.1750195292681.1750195292681.1750195292681.1"
+        },
+        {
+          "name": "cookie",
+          "value": "hubspotutk=da9547cf2e866b0ea5a811ae2d00f8e3"
+        },
+        {
+          "name": "cookie",
+          "value": "_hp2_id.2794995124=%7B%22userId%22%3A%2254936772480015%22%2C%22pageviewId%22%3A%223416648379715226%22%2C%22sessionId%22%3A%228662001472485713%22%2C%22identity%22%3Anull%2C%22trackerVersion%22%3A%224.0%22%7D"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_KNW7VZ6GNY=GS2.1.s1750198517$o3$g0$t1750198517$j60$l0$h1657069555"
+        },
+        {
+          "name": "cookie",
+          "value": "_uetvid=31d786004ba111f0b8df757d82f1b34b"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga_0NH3ZBDBNZ=GS2.1.s1752337346$o1$g1$t1752337499$j6$l0$h0"
+        },
+        {
+          "name": "cookie",
+          "value": "_ga=GA1.2.1684127573.1750181615"
+        },
+        {
+          "name": "cookie",
+          "value": "_gid=GA1.2.75957065.1752508973"
+        },
+        {
+          "name": "cookie",
+          "value": "JSESSIONID=B3467A4162F3FB3126FA6C2E4558FCB9"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3AccessToken=eyJraWQiOiIzWlwvN3R1TEYrZzBVMEdQSW10QjhCZHY3Q3RWWlwvek1HekxnKzc4SGZNbVk9IiwiYWxnIjoiUlMyNTYifQ.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJldmVudF9pZCI6ImNlZWQ1NmRiLWM0NWQtNGVlZS05YjI2LWE0OThmZjRjY2ViYSIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiYXdzLmNvZ25pdG8uc2lnbmluLnVzZXIuYWRtaW4iLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImV4cCI6MTc1MjUzMDU5NCwiaWF0IjoxNzUyNTI2OTk0LCJqdGkiOiJmZDRmZjJiNy0yMTM3LTQzOTMtYWJkNS1jNDM3M2FjNTliMDUiLCJjbGllbnRfaWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsInVzZXJuYW1lIjoiMTg3MDMyNzgyIn0.ONntA6_kUMSjhPX2nCQhgVorCKS0Bwq68Z_d5tqaushpvRcPQNbiPIP5toDx8CVaNq8l0dI9wBKttINT8YlK6s603XZRpH_oPwKGTFt6qCbazG4d3hlEX-S0W8OGbCHki76rCuTMeeMSjqQm6CrR7i9vEV4uO1SRUlD6XNxtB4aLvyv5Em17SyrBrKc4sogZWXerrC79Xz3wCKWYVXbRUVmtRRwEJgfa-_nbDrr0Z9mbzX_Wthj0q3psqotB3GN0CGlUhVSs2BDOcRYmj3G-eXERhvjMYcxyxyu2oVy36blOuZy8oD0cC18Q8gS_rXTxnRRGa9XRPmz1-wHVbFHUsA"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3IdToken=eyJraWQiOiJibWtxY1lkWGVqT25LUkQ1T2VxcW1sdFlORnA0cVVzV3FNN3dCSDg2WE9VPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiIzMDhiMWExMi00YzkzLTRhYjctYThlNC0yNGZlZDY2YzUyNzUiLCJhdWQiOiI2cTdzNGFsZ3R0NzJvbWlvdmJqOW1hcmloayIsImV2ZW50X2lkIjoiY2VlZDU2ZGItYzQ1ZC00ZWVlLTliMjYtYTQ5OGZmNGNjZWJhIiwidG9rZW5fdXNlIjoiaWQiLCJhdXRoX3RpbWUiOjE3NTI1MjY5OTQsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX2hDWElUdVNpZCIsImNvZ25pdG86dXNlcm5hbWUiOiIxODcwMzI3ODIiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqLm1heW8iLCJleHAiOjE3NTI1MzA1OTQsImlhdCI6MTc1MjUyNjk5NH0.RLbygRMiEl__BgDUfC-e8czoM3fML7wjZkMnIu8DP2c0GAhrEhFAjBpz1RppXRTAxuBxmr0eb2u0uAtVepcUBtT-N2b2d1Kj9YwT_981bOMyU00Rq2ygOeFCCp4m0FurJYsAT6FcgFOiAIlmNiZvbPO6Jp0X1lEMBEiwvp1ARuKwApMBzWbogxYyScxxyzz_tMISyoMHGozIe7Zj7aM-H8SGsesaFO5sIrNoJen976SyhC8v5rfjLfBGWl2hhH39unVQ8IJQuEsWeTAbYVzVFM1o0xvTWsHCKNz00Hq0JtEKLwF8-eriYkUeuSuh9s4jKgpuK271L_PvwF78-qTtfA"
+        },
+        {
+          "name": "cookie",
+          "value": "apiV3RefreshToken=eyJjdHkiOiJKV1QiLCJlbmMiOiJBMjU2R0NNIiwiYWxnIjoiUlNBLU9BRVAifQ.TONPFo86Kk2nPWzZHh_JIoMA_pAl1BHTUd7aQObyGUND2jrhtwqr9GJBRpM2o1J8_lu_bPH_Ogm8IES5igrw5JFArD2ueLYS2AH8a8LMgo_SXCY98kIGbugK-RrPt1oOl3yezCNYwPQr--REYdeSthbdXzVYU4-lxdx1XyeLHo7VZMZgZWFY4DMfNJgVGxqVbvrJv04MWKhLgEim1b7UgiHBrZfoc64Cdh_n6WNqnShH1WG4BzxbiIV7eA93jen7D43MVHEFrBSGSY_GBqAoSMjYHFwhT2Xaa_LO57vk3jdOb9Dex_hRYTkCl3IMLCV0YxlVlf7cuQLBJkDnuHgWIg.hAVUzIdDUJ6KbAZh.DgBCa_Hrwn5PcKD3mNeQuIOUMB1W3_6alu-7vFYw-PDBOCossK3CIS_Ld6so-_Bk-O9RZwPF0W90BcwrAhxarZjUFBKIqCPzfDEtRDae_VOiDjslkW-RegDV02pxqU4LbVGze1UajddQQHSi3z0cYCBvVL0f-JB2nzxmfGRZqqjJKfxEwCkc_jHggPuodNIKdoSADejRFVGdBQ2bFTolCRRmrJLsElVcyLsILRWpeRAUow0caGPJHMLDTktrztH46Pf-zCNB3vS2uWeHIn0paK074wNY4FeRUiqdpnZ8ygbdqLeV4EtJ2VPFbkPtnihdnaYuh-EhWkvy3Vtg0MGCxm0DKVRD6soUattRvHZSUDb5UveCmEvf6UAq6v0_xGCyddxt0n1lVnRWNYMSCj2LVPcQThwHSqcNIbRIcYQEtMaI-30znbXkHMBRLdiLAR4rQnoiq2kpI0wtb48qk6_EQGFwtJ7a1_J2tCqpYcwi7jiIQ92i5NdWO-onpWEPYh2mE0xZRbJ9YQ_ROvwit2DiCT_VGQuM2ZM-tMfJpis5kaQmVTa8KFe4-KnaS6e62hYsy7pr7lVacvAxtxaU5S0yCT1X-jpABFpISCzdkXMnIpbAcv4S_XX3fPPlOvi3ZkN4j0xYFIbyTxXs7m1KgG04v0H1MYiZMXXNtDe8lylKyPWc4w9t-Jz7hxd2FDTZVhe7QqVHO7QQzmGwPZ40XF0nSRK8koNejGTs6fSTGiLArSU9XCkeuPxHDpEx1Jb_w9u9HxkJZClrdCK7hFRpCllIROkYrBEAxOZ0vW_8r8N1mlSBr9QlBfMKD-cdknmYYN2o5DzyhgdPY3suwFamGbvXbk2N9mCsjMTsMel0nojaV4Uq2eZUCTXyuTxJ8lVNhRx5JX6FBzYa37EmgfeapcXRr96NGLznsADgvcYF8fE8HAg2gWUaIGf5zOrq5uI7W4pqy1suXyqh0DHX4aQmVzmDSfQKV_ErW0y8qjBusYaIqZSwKr-C2ENGsMJTERE6FnmN1XE-kZr18L9GKNDoPXal9aV7ESEMfbQoD2bXHCRQ5SWLFzTBqUH2RuJcd8weDiKNGEkIIT1noZZPJieRepk84oKBayWJYsmwaEvNOnw2CPv7dWWwl8hWdRC6emTtIkodXaMAJ9CedgQhJ0x2bjFf5GdNs95gyXOCSOkTUYk0G1kk9KMsVaa-9myhjekG33mcaOywYaJL2Y0C75jHwrCkrEVWy0zwIpzysUK9lwuWZ5cYXT2RQGEYuVsyn987lPdYdB6rWmQDpJE.OFOi8I2jSl1zVjwFahqJJQ"
+        },
+        {
+          "name": "cookie",
+          "value": "loggedInUserId=187032782"
+        },
+        {
+          "name": "cookie",
+          "value": "staffDelegatedUserId="
+        },
+        {
+          "name": "cookie",
+          "value": "delegatedUserId=185777276"
+        },
+        {
+          "name": "priority",
+          "value": "u=1, i"
+        }
+      ],
+      "queryString": [
+        {
+          "name": "include",
+          "value": "invoices"
+        },
+        {
+          "name": "include",
+          "value": "scheduledPayments"
+        },
+        {
+          "name": "include",
+          "value": "prohibitChangeTypes"
+        },
+        {
+          "name": "_",
+          "value": "1752529095047"
+        }
+      ],
+      "postData": {}
+    },
+    "example_response": null,
+    "keyword_fields": []
+  }
+}

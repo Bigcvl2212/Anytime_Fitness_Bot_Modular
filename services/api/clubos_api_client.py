@@ -11,16 +11,8 @@ from datetime import datetime, timedelta
 import re
 from urllib.parse import urljoin, urlparse
 
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
 from config.constants import CLUBOS_LOGIN_URL, CLUBOS_CALENDAR_URL
-
-# Simple debug function to avoid import issues
-def debug_page_state(*args, **kwargs):
-    """Simple debug function placeholder"""
-    pass
+from utils.debug_helpers import debug_page_state
 
 
 class ClubOSAPIAuthentication:
@@ -97,7 +89,45 @@ class ClubOSAPIAuthentication:
             # Step 3: Check if login was successful
             if self._is_login_successful(login_response):
                 self.is_authenticated = True
-                self.access_token = self._extract_access_token(login_response.text)
+                # Print all cookies after login
+                print("   [DEBUG] Cookies after login:")
+                for cookie in self.session.cookies:
+                    print(f"      {cookie.name}={cookie.value}")
+                # Extract Bearer token from cookies if present
+                for cookie in self.session.cookies:
+                    if cookie.name == 'apiV3AccessToken':
+                        self.access_token = cookie.value
+                        print(f"   ✅ Extracted apiV3AccessToken from cookies: {self.access_token[:20]}...")
+                        break
+                if not self.access_token:
+                    print("   [DEBUG] apiV3AccessToken not found after login. Visiting /action/Calendar...")
+                    calendar_url = urljoin(self.base_url, "/action/Calendar")
+                    resp = self.session.get(calendar_url)
+                    print(f"   [DEBUG] Visited /action/Calendar, status: {resp.status_code}")
+                    print("   [DEBUG] Cookies after visiting /action/Calendar:")
+                    for cookie in self.session.cookies:
+                        print(f"      {cookie.name}={cookie.value}")
+                    for cookie in self.session.cookies:
+                        if cookie.name == 'apiV3AccessToken':
+                            self.access_token = cookie.value
+                            print(f"   ✅ Extracted apiV3AccessToken from cookies: {self.access_token[:20]}...")
+                            break
+                if not self.access_token:
+                    print("   [DEBUG] apiV3AccessToken still not found. Trying /action/Login/refresh-api-v3-access-token...")
+                    refresh_url = urljoin(self.base_url, "/action/Login/refresh-api-v3-access-token")
+                    resp = self.session.get(refresh_url)
+                    print(f"   [DEBUG] Visited /action/Login/refresh-api-v3-access-token, status: {resp.status_code}")
+                    print("   [DEBUG] Cookies after visiting refresh-api-v3-access-token:")
+                    for cookie in self.session.cookies:
+                        print(f"      {cookie.name}={cookie.value}")
+                    for cookie in self.session.cookies:
+                        if cookie.name == 'apiV3AccessToken':
+                            self.access_token = cookie.value
+                            print(f"   ✅ Extracted apiV3AccessToken from cookies: {self.access_token[:20]}...")
+                            break
+                if not self.access_token:
+                    # Fallback: Try to extract from HTML
+                    self.access_token = self._extract_access_token(login_response.text)
                 print("   ✅ ClubOS authentication successful!")
                 return True
             else:
@@ -198,13 +228,11 @@ class ClubOSAPIAuthentication:
             "Referer": self.base_url,
             "Origin": self.base_url
         }
-        
+        # Always use apiV3AccessToken as Bearer token if present
         if self.access_token:
             headers["Authorization"] = f"Bearer {self.access_token}"
-        
         if self.csrf_token:
             headers["X-CSRF-Token"] = self.csrf_token
-        
         return headers
     
     def is_authenticated(self) -> bool:
@@ -474,7 +502,7 @@ class ClubOSAPIClient:
     
     def send_message(self, member_id: str, message: str, message_type: str = "text") -> bool:
         """
-        Send message to member using working ClubOS form submission
+        Send message to member
         
         Args:
             member_id: Member ID
@@ -487,9 +515,27 @@ class ClubOSAPIClient:
         print(f"💬 Sending {message_type} message to member {member_id}")
         
         try:
-            # Skip failing API endpoints and use working form submission directly
-            # The /action/Api/* endpoints consistently return "Something isn't right" 
-            # But /action/FollowUp/save works with proper form data
+            # Try discovered API endpoint first
+            if "messages" in self.endpoints:
+                api_url = urljoin(self.base_url, self.endpoints["messages"]["send"])
+                
+                message_data = {
+                    "member_id": member_id,
+                    "message": message,
+                    "type": message_type
+                }
+                
+                response = self.session.post(
+                    api_url,
+                    json=message_data,
+                    headers=self.auth.get_headers()
+                )
+                
+                if response.ok:
+                    print("   ✅ Message sent successfully via API")
+                    return True
+            
+            # Fallback: Use form submission
             return self._send_message_via_form(member_id, message, message_type)
             
         except Exception as e:
@@ -497,241 +543,34 @@ class ClubOSAPIClient:
             return False
     
     def _send_message_via_form(self, member_id: str, message: str, message_type: str) -> bool:
-        """Send message using form submission to working ClubOS endpoints"""
+        """Send message using form submission (working implementation)"""
         try:
-            print(f"   📝 Using form submission for {message_type} message to member {member_id}")
+            endpoint = "/action/Dashboard/messages"
+            headers = self.auth.get_headers()
+            message_data = {
+                "memberId": member_id,
+                "messageType": message_type,
+                "messageText": message,
+                "sendMethod": "sms" if message_type == "text" else "email"
+            }
             
-            if message_type.lower() == "text":
-                return self._send_text_via_form(member_id, message)
-            elif message_type.lower() == "email":
-                return self._send_email_via_form(member_id, message)
+            response = self.auth.session.post(
+                f"{self.base_url}{endpoint}",
+                data=message_data,
+                headers=headers,
+                timeout=30,
+                verify=False
+            )
+            
+            if response.ok:
+                print("   ✅ Message sent successfully via form submission")
+                return True
             else:
-                print(f"   ❌ Unsupported message type: {message_type}")
+                print(f"   ❌ Message send failed: {response.status_code}")
                 return False
-                
+            
         except Exception as e:
             print(f"   ❌ Error in form submission: {e}")
-            return False
-    
-    def _send_text_via_form(self, member_id: str, message: str) -> bool:
-        """Send SMS using ClubOS form submission to working endpoint"""
-        try:
-            # Use the working /action/FollowUp/save endpoint for SMS
-            endpoint = "/action/FollowUp/save"
-            url = f"{self.base_url}{endpoint}"
-            
-            # Prepare form data based on working script pattern
-            form_data = {
-                "followUpStatus": "1",
-                "followUpType": "3", 
-                "memberSalesFollowUpStatus": "6",
-                "followUpLog.tfoUserId": member_id,  # Use member_id as sender for now
-                "followUpLog.outcome": "3",  # 3 for SMS action
-                "textMessage": message,
-                "event.createdFor.tfoUserId": member_id,
-                "event.eventType": "ORIENTATION",
-                "duration": "2",
-                "event.remindAttendeesMins": "120", 
-                "followUpUser.tfoUserId": member_id,
-                "followUpUser.role.id": "7",
-                "followUpUser.clubId": "291",  # Default club ID
-                "followUpUser.clubLocationId": "3586",  # Default location ID
-                "followUpLog.followUpAction": "3",  # 3 for SMS
-                "memberStudioSalesDefaultAccount": member_id,
-                "memberStudioSupportDefaultAccount": member_id,
-                "ptSalesDefaultAccount": member_id,
-                "ptSupportDefaultAccount": member_id
-            }
-            
-            # Prepare headers for form submission
-            headers = self.auth.get_headers()
-            headers.update({
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-                "Referer": f"{self.base_url}/action/Dashboard/view"
-            })
-            
-            response = self.session.post(url, data=form_data, headers=headers, timeout=30)
-            
-            if response.status_code == 200:
-                print("   ✅ SMS sent successfully via form submission")
-                return True
-            else:
-                print(f"   ❌ SMS form submission failed: {response.status_code}")
-                print(f"   Response: {response.text[:200]}")
-                return False
-                
-        except Exception as e:
-            print(f"   ❌ Error in SMS form submission: {e}")
-            return False
-    
-    def _send_email_via_form(self, member_id: str, message: str, subject: str = "Message from ClubOS") -> bool:
-        """Send Email using ClubOS form submission to working endpoint"""
-        try:
-            # Use the working /action/FollowUp/save endpoint for Email
-            endpoint = "/action/FollowUp/save"
-            url = f"{self.base_url}{endpoint}"
-            
-            # Prepare form data based on working script pattern
-            form_data = {
-                "followUpStatus": "1",
-                "followUpType": "3",
-                "memberSalesFollowUpStatus": "6", 
-                "followUpLog.tfoUserId": member_id,  # Use member_id as sender for now
-                "followUpLog.outcome": "2",  # 2 for Email action
-                "emailSubject": subject,
-                "emailMessage": f"<p>{message}</p>",  # Wrap in HTML paragraph
-                "event.createdFor.tfoUserId": member_id,
-                "event.eventType": "ORIENTATION",
-                "duration": "2",
-                "event.remindAttendeesMins": "120",
-                "followUpUser.tfoUserId": member_id, 
-                "followUpUser.role.id": "7",
-                "followUpUser.clubId": "291",  # Default club ID
-                "followUpUser.clubLocationId": "3586",  # Default location ID
-                "followUpLog.followUpAction": "2",  # 2 for Email
-                "memberStudioSalesDefaultAccount": member_id,
-                "memberStudioSupportDefaultAccount": member_id,
-                "ptSalesDefaultAccount": member_id,
-                "ptSupportDefaultAccount": member_id
-            }
-            
-            # Prepare headers for form submission
-            headers = self.auth.get_headers()
-            headers.update({
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-                "Referer": f"{self.base_url}/action/Dashboard/view"
-            })
-            
-            response = self.session.post(url, data=form_data, headers=headers, timeout=30)
-            
-            if response.status_code == 200:
-                print("   ✅ Email sent successfully via form submission")
-                return True
-            else:
-                print(f"   ❌ Email form submission failed: {response.status_code}")
-                print(f"   Response: {response.text[:200]}")
-                return False
-                
-        except Exception as e:
-            print(f"   ❌ Error in Email form submission: {e}")
-            return False
-
-
-    def send_message_to_member_profile(self, member_id: str, message: str, message_type: str = "text") -> bool:
-        """
-        Send message by submitting directly to member profile page (alternative working approach)
-        
-        Args:
-            member_id: Member ID
-            message: Message content  
-            message_type: Type of message (text, email, etc.)
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        print(f"👤 Sending {message_type} message to member {member_id} via profile page")
-        
-        try:
-            # Navigate to member profile page first 
-            profile_url = f"{self.base_url}/action/Dashboard/member/{member_id}"
-            
-            # Get the member profile page to establish context
-            headers = self.auth.get_headers()
-            headers.update({
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-                "Referer": f"{self.base_url}/action/Dashboard/view"
-            })
-            
-            profile_response = self.session.get(profile_url, headers=headers, timeout=30)
-            
-            if profile_response.status_code != 200:
-                print(f"   ❌ Could not access member profile: {profile_response.status_code}")
-                return False
-            
-            print(f"   ✅ Accessed member profile page")
-            
-            # Submit message form directly to profile page with browser headers
-            if message_type.lower() == "text":
-                return self._submit_text_to_profile(member_id, message, profile_url)
-            elif message_type.lower() == "email": 
-                return self._submit_email_to_profile(member_id, message, profile_url)
-            else:
-                print(f"   ❌ Unsupported message type: {message_type}")
-                return False
-                
-        except Exception as e:
-            print(f"   ❌ Error in member profile submission: {e}")
-            return False
-    
-    def _submit_text_to_profile(self, member_id: str, message: str, profile_url: str) -> bool:
-        """Submit SMS directly to member profile page"""
-        try:
-            # Use form submission to member profile with SMS data
-            form_data = {
-                "memberId": member_id,
-                "message": message,
-                "messageType": "text",
-                "sendMethod": "sms",
-                "action": "send_message"
-            }
-            
-            headers = self.auth.get_headers()
-            headers.update({
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-                "Referer": profile_url,
-                "Origin": self.base_url
-            })
-            
-            response = self.session.post(profile_url, data=form_data, headers=headers, timeout=30)
-            
-            if response.status_code == 200 and "success" in response.text.lower():
-                print("   ✅ SMS sent successfully via member profile")
-                return True
-            else:
-                print(f"   ⚠️ Profile SMS response: {response.status_code}")
-                # Even if not explicitly successful, try the working FollowUp approach as backup
-                return self._send_text_via_form(member_id, message)
-                
-        except Exception as e:
-            print(f"   ❌ Error in profile SMS submission: {e}")
-            return False
-    
-    def _submit_email_to_profile(self, member_id: str, message: str, profile_url: str, subject: str = "Message from ClubOS") -> bool:
-        """Submit Email directly to member profile page"""
-        try:
-            # Use form submission to member profile with Email data
-            form_data = {
-                "memberId": member_id,
-                "subject": subject,
-                "message": message,
-                "messageType": "email",
-                "sendMethod": "email",
-                "action": "send_message"
-            }
-            
-            headers = self.auth.get_headers()
-            headers.update({
-                "Content-Type": "application/x-www-form-urlencoded",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-                "Referer": profile_url,
-                "Origin": self.base_url
-            })
-            
-            response = self.session.post(profile_url, data=form_data, headers=headers, timeout=30)
-            
-            if response.status_code == 200 and "success" in response.text.lower():
-                print("   ✅ Email sent successfully via member profile")
-                return True
-            else:
-                print(f"   ⚠️ Profile Email response: {response.status_code}")
-                # Even if not explicitly successful, try the working FollowUp approach as backup
-                return self._send_email_via_form(member_id, message, subject)
-                
-        except Exception as e:
-            print(f"   ❌ Error in profile Email submission: {e}")
             return False
 
 

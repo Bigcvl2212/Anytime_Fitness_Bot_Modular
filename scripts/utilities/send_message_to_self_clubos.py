@@ -3,7 +3,11 @@
 Send a message and email to Jeremy Mayo via ClubOS API, printing full API responses.
 """
 
-from services.api.clubos_api_client import ClubOSAPIClient
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
+
+from services.api.clubos_api_client import ClubOSAPIClient, ClubOSAPIAuthentication
 from config.secrets_local import get_secret
 
 
@@ -12,10 +16,19 @@ def send_message_and_email():
     message = "Fucking perfect. now send me that message and email via api on clubos"
     email_message = "Fucking perfect. This is your ClubOS API email notification."
 
-    client = ClubOSAPIClient()
-    if not client.authenticate():
+    username = get_secret('clubos-username')
+    password = get_secret('clubos-password')
+    
+    if not username or not password:
+        print("❌ ClubOS credentials not set in secrets_local.py.")
+        return
+
+    auth_service = ClubOSAPIAuthentication()
+    if not auth_service.login(username, password):
         print("❌ ClubOS authentication failed")
         return
+
+    client = ClubOSAPIClient(auth_service)
 
     # Patch the send_message method to print the full response
     def send_message_verbose(self, member_id, message, message_type="text"):
