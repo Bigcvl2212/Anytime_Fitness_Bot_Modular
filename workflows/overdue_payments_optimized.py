@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Dict, List, Tuple, Optional
 
 from ..services.data.member_data import get_yellow_red_members, get_member_balance_from_contact_data
-from ..services.payments.square_client import create_square_invoice
+from ..services.payments.square_client_fixed import create_square_invoice
 from ..services.clubos.messaging import send_clubos_message
 from ..core.driver import login_to_clubos
 from ..config.constants import LATE_FEE_AMOUNT
@@ -39,6 +39,12 @@ def get_members_with_balances() -> List[Dict]:
     
     for i, member in enumerate(members, 1):
         member_name = member['name']
+        
+        # EXCLUDE Connor Ratzke (already paid)
+        if 'connor' in member_name.lower() and 'ratzke' in member_name.lower():
+            print(f"\n[{i}/{len(members)}] ⏭️  Skipping {member_name} (already paid)")
+            continue
+            
         print(f"\n[{i}/{len(members)}] Fetching balance for {member_name}...")
         
         try:
@@ -116,6 +122,11 @@ def create_invoice_batch(members: List[Dict]) -> Dict[str, Dict]:
         member_name = member['full_name']
         past_due_amount = member['past_due_amount']
         member_type = member['type']  # 'yellow' or 'red'
+        
+        # EXCLUDE Connor Ratzke (already paid) 
+        if 'connor' in member_name.lower() and 'ratzke' in member_name.lower():
+            print(f"\n[{i}/{len(members)}] ⏭️  Skipping {member_name} (already paid)")
+            continue
         
         print(f"\n[{i}/{len(members)}] Creating invoice for {member_name} (${past_due_amount:.2f})...")
         

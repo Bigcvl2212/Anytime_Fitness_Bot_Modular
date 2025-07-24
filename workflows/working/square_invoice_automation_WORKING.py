@@ -12,10 +12,11 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Import credentials function
-from config.secrets_local import get_secret
+from config.secrets import get_secret
 
-# Import Square client directly
-import requests
+# Square API imports
+from square.client import Square as SquareClient
+from square.environment import SquareEnvironment
 import json
 
 CONTACT_LIST_CSV = "master_contact_list_with_agreements_20250722_180712.csv"
@@ -43,129 +44,170 @@ LOGIN_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
 }
 
-def create_square_invoice(member_name, amount, description, email=None, phone=None):
-    """Create Square invoice using direct API calls"""
+def get_square_client():
+    """Get configured Square client instance - from working script"""
     try:
-        print(f"Creating Square invoice for {member_name}: ${amount:.2f}")
-        
-        # Get credentials - use production for live invoices
+        # Use PRODUCTION credentials - LIVE INVOICES
         access_token = get_secret("square-production-access-token")
+        
+        if not access_token:
+            print("ERROR: Missing Square access token")
+            return None
+            
+        return SquareClient(
+            token=access_token,
+            environment=SquareEnvironment.PRODUCTION
+        )
+    except Exception as e:
+        print(f"ERROR: Failed to create Square client: {e}")
+        return None
+
+def create_square_invoice(member_name, amount, description="Overdue Payment", email=None, phone=None):
+    """Create a Square invoice for a member with overdue payments - FIXED WITH CORRECT API STRUCTURE"""
+    try:
+        print(f"INFO: Creating Square invoice for {member_name}, amount: ${amount:.2f}")
+        
+        # Initialize Square client
+        client = get_square_client()
+        if not client:
+            print("ERROR: Could not initialize Square client")
+            return None
+        
+        # Get location ID - PRODUCTION
         location_id = get_secret("square-production-location-id")
-        
-        if not access_token or not location_id:
-            print("Missing Square credentials")
+        if not location_id:
+            print("ERROR: Could not retrieve Square location ID")
             return None
         
-        print(f"Debug: Access token starts with: {access_token[:15]}...")
-        print(f"Debug: Location ID: {location_id}")
+        # Step 1: Create customer first (required for invoice)
+        if not member_name or member_name.strip() == "":
+            member_name = "Unknown Member"
+            
+        name_parts = member_name.split()
+        first_name = name_parts[0] if name_parts else "Customer"
+        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
         
-        # Headers for Square API
-        headers = {
-            "Square-Version": "2023-12-13",
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json"
+        customer_data = {
+            "given_name": first_name,
+            "family_name": last_name,
         }
         
-        # Create order first
+        # Only add phone for SMS delivery - don't add email
+        if phone:
+            customer_data["phone_number"] = phone
+            
+        customers_api = client.customers
+        customer_result = customers_api.create(**customer_data)
+        
+        if customer_result.errors:
+            print(f"ERROR: Failed to create customer: {customer_result.errors}")
+            return None
+            
+        customer = customer_result.customer
+        customer_id = customer.id if customer else None
+        
+        if not customer_id:
+            print("ERROR: No customer ID returned")
+            return None
+            
+        print(f"SUCCESS: Created customer {customer_id} for {member_name}")
+        
+        # Step 2: Create order
         order_data = {
-            "order": {
-                "location_id": location_id,
-                "line_items": [
-                    {
-                        "name": description,
-                        "base_price_money": {
-                            "amount": int(amount * 100),  # Convert to cents
-                            "currency": "USD"
-                        },
-                        "quantity": "1"
+            "location_id": location_id,
+            "line_items": [
+                {
+                    "name": description[:100],  # Truncate description for line item name
+                    "quantity": "1", 
+                    "item_type": "ITEM",
+                    "base_price_money": {
+                        "amount": int(amount * 100),  # Convert to cents
+                        "currency": "USD"
                     }
-                ]
-            }
+                }
+            ]
         }
         
-        # Create order
-        order_resp = requests.post("https://connect.squareup.com/v2/orders", headers=headers, json=order_data)
+        orders_api = client.orders
+        order_result = orders_api.create(order=order_data)
         
-        if order_resp.status_code != 200:
-            print(f"Failed to create order: {order_resp.text}")
+        if order_result.errors:
+            print(f"ERROR: Failed to create order: {order_result.errors}")
             return None
         
-        order = order_resp.json().get('order', {})
-        order_id = order.get('id')
+        order = order_result.order
+        order_id = order.id if order else None
         
         if not order_id:
-            print("No order ID returned")
+            print("ERROR: No order ID returned")
             return None
+            
+        print(f"SUCCESS: Created order {order_id}")
         
-        # Create invoice
+        # Step 3: Create invoice with correct structure
         invoice_data = {
-            "invoice": {
-                "location_id": location_id,
-                "order_id": order_id,
-                "primary_recipient": {
-                    "name": member_name
-                },
-                "payment_requests": [
-                    {
-                        "request_method": "EMAIL",
-                        "request_type": "BALANCE",
-                        "due_date": (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
-                    }
-                ],
-                "delivery_method": "EMAIL",
-                "invoice_number": f"AF-{datetime.now().strftime('%Y%m%d')}-{member_name.replace(' ', '')[:10]}",
-                "title": "Anytime Fitness - Overdue Account Balance",
-                "description": f"{description} for {member_name}"
-            }
+            "location_id": location_id,
+            "order_id": order_id,
+            "primary_recipient": {
+                "customer_id": customer_id  # CORRECT: Use customer_id, not name
+            },
+            "payment_requests": [
+                {
+                    "request_type": "BALANCE",
+                    "due_date": (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
+                }
+            ],
+            "accepted_payment_methods": {
+                "card": True,
+                "square_gift_card": False,
+                "bank_account": True,
+                "buy_now_pay_later": False
+            },
+            "invoice_number": f"AF-{datetime.now().strftime('%Y%m%d')}-{member_name.replace(' ', '')[:10]}",
+            "title": "Anytime Fitness - Overdue Account Balance",
+            "description": f"{description}"
         }
         
-        # Add recipient details if available
-        if email:
-            invoice_data["invoice"]["primary_recipient"]["email_address"] = email
-        if phone:
-            invoice_data["invoice"]["primary_recipient"]["phone_number"] = phone
+        # Create the invoice
+        invoices_api = client.invoices
+        result = invoices_api.create(invoice=invoice_data)
         
-        # Create invoice
-        invoice_resp = requests.post("https://connect.squareup.com/v2/invoices", headers=headers, json=invoice_data)
-        
-        if invoice_resp.status_code != 200:
-            print(f"Failed to create invoice: {invoice_resp.text}")
+        if result.errors:
+            print(f"ERROR: Failed to create invoice: {result.errors}")
             return None
-        
-        invoice = invoice_resp.json().get('invoice', {})
-        invoice_id = invoice.get('id')
+            
+        invoice = result.invoice
+        invoice_id = invoice.id if invoice else None
+        invoice_version = invoice.version if invoice else None
         
         if not invoice_id:
-            print("No invoice ID returned")
+            print("ERROR: No invoice ID returned")
             return None
+            
+        print(f"SUCCESS: Created invoice {invoice_id} for {member_name}")
         
-        # Publish invoice
-        publish_data = {
-            "request_method": "EMAIL"
-        }
-        
-        publish_resp = requests.post(
-            f"https://connect.squareup.com/v2/invoices/{invoice_id}/publish", 
-            headers=headers, 
-            json=publish_data
-        )
-        
-        if publish_resp.status_code != 200:
-            print(f"Failed to publish invoice: {publish_resp.text}")
-            return None
-        
-        published_invoice = publish_resp.json().get('invoice', {})
-        public_url = published_invoice.get('public_url', '')
-        
-        if public_url:
-            print(f"Invoice published: {public_url}")
-            return public_url
-        else:
-            print("No public URL returned")
+        # Step 4: Publish the invoice to make it active
+        try:
+            publish_result = invoices_api.publish(
+                invoice_id=invoice_id,
+                version=invoice_version
+            )
+            
+            if publish_result.errors:
+                print(f"ERROR: Failed to publish invoice: {publish_result.errors}")
+                return None
+                
+            published_invoice = publish_result.invoice
+            invoice_url = published_invoice.public_url if published_invoice else None
+            print(f"SUCCESS: Published invoice with URL: {invoice_url}")
+            return invoice_url
+                
+        except Exception as publish_error:
+            print(f"ERROR: Failed to publish invoice: {publish_error}")
             return None
             
     except Exception as e:
-        print(f"Error creating invoice: {e}")
+        print(f"ERROR: Exception during invoice creation: {e}")
         return None
 
 def login_and_get_session():
@@ -284,17 +326,22 @@ def main():
         if amount_due <= 0:
             continue
             
-        name = row.get('Name') or f"{row.get('FirstName','')} {row.get('LastName','')}"
+        name = row.get('Name') or f"{row.get('firstName','')} {row.get('lastName','')}"
+        name = name.strip()
+        
+        if not name:
+            print(f"[SKIP] Row {idx}: No valid name found.")
+            continue
         
         if should_exclude_member(name):
             print(f"[SKIP] {name}: Excluded (Connor Ratzke)")
             continue
             
         email = row.get('Email') or row.get('email')
-        phone = row.get('Phone') or row.get('phone')
+        phone = row.get('mobilePhone')  # Only use mobile phone numbers
         
-        if not email or not isinstance(email, str) or '@' not in email:
-            print(f"[SKIP] {name}: No valid email, cannot send invoice.")
+        if not phone or not isinstance(phone, str) or len(phone.strip()) < 10:
+            print(f"[SKIP] {name}: No valid mobile phone number, cannot send SMS invoice.")
             continue
             
         recurring = parse_recurring_cost(row.get('agreement_recurringCost'))

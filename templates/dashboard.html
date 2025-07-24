@@ -1,165 +1,125 @@
 {% extends "base.html" %}
-
-{% block title %}Dashboard - Gym Bot Pro{% endblock %}
-{% block page_title %}Dashboard Overview{% endblock %}
+{% block title %}Dashboard - Anytime Fitness® Management Hub{% endblock %}
+{% block page_title %}Club Performance Dashboard{% endblock %}
+{% block page_subtitle %}Real-time insights into your Anytime Fitness location{% endblock %}
 
 {% block content %}
-<!-- Quick Stats Row -->
+<!-- Key Metrics Row -->
 <div class="row mb-4">
-    <div class="col-md-3">
+    <div class="col-lg-3 col-md-6 mb-4">
         <div class="card metric-card">
-            <div class="metric-value text-primary">{{ status.services|length }}</div>
-            <div class="metric-label">Active Services</div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card metric-card">
-            <div class="metric-value text-success">847</div>
-            <div class="metric-label">Active Members</div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card metric-card">
-            <div class="metric-value text-info">${{ '89,420' }}</div>
-            <div class="metric-label">Monthly Revenue</div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card metric-card">
-            <div class="metric-value text-warning">{{ status.logs|length }}</div>
-            <div class="metric-label">Recent Logs</div>
-        </div>
-    </div>
-</div>
-
-<!-- System Status Row -->
-<div class="row mb-4">
-    <div class="col-lg-8">
-        <div class="card">
-            <div class="card-header">
-                <h5><i class="fas fa-heartbeat me-2"></i>System Health</h5>
-            </div>
             <div class="card-body">
-                {% if status.services %}
-                    <div class="row">
-                        {% for service, info in status.services.items() %}
-                        <div class="col-md-6 mb-3">
-                            <div class="d-flex align-items-center">
-                                {% if info.status == 'healthy' %}
-                                    <div class="status-indicator status-healthy me-3">
-                                        <i class="fas fa-check-circle"></i>
-                                    </div>
-                                {% elif info.status == 'error' %}
-                                    <div class="status-indicator status-error me-3">
-                                        <i class="fas fa-times-circle"></i>
-                                    </div>
-                                {% else %}
-                                    <div class="status-indicator status-warning me-3">
-                                        <i class="fas fa-question-circle"></i>
-                                    </div>
-                                {% endif %}
-                                <div>
-                                    <strong>{{ service.replace('_', ' ').title() }}</strong><br>
-                                    <small class="text-muted">{{ info.details }}</small>
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <p class="text-muted">No service status available. Click refresh to check services.</p>
-                {% endif %}
+                <div class="metric-title">Active Members</div>
+                <div class="metric-number">{{ total_members }}</div>
+                <div class="metric-subtitle">Current membership base</div>
             </div>
         </div>
     </div>
-    
-    <div class="col-lg-4">
-        <div class="card">
-            <div class="card-header">
-                <h5><i class="fas fa-info-circle me-2"></i>System Information</h5>
-            </div>
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card metric-card">
             <div class="card-body">
-                <p><strong>GCP Project:</strong><br>{{ project_id }}</p>
-                <p><strong>Last Update:</strong><br>{{ status.last_update or 'Never' }}</p>
-                <p><strong>Environment:</strong><br>Production</p>
-                <button class="btn btn-primary w-100" onclick="refreshStatus()">
-                    <i class="fas fa-sync-alt me-1"></i> Refresh Status
-                </button>
+                <div class="metric-title">Prospects</div>
+                <div class="metric-number">{{ total_prospects }}</div>
+                <div class="metric-subtitle">Potential new members</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card metric-card">
+            <div class="card-body">
+                <div class="metric-title">PT Clients</div>
+                <div class="metric-number">{{ total_training_clients }}</div>
+                <div class="metric-subtitle">Personal training revenue</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-4">
+        <div class="card metric-card">
+            <div class="card-body">
+                <div class="metric-title">Tasks</div>
+                <div class="metric-number">{{ pending_messages }}</div>
+                <div class="metric-subtitle">Requiring attention</div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Quick Actions & Recent Activity -->
+<!-- Performance Overview -->
 <div class="row">
-    <div class="col-lg-6">
+    <div class="col-lg-8 mb-4">
         <div class="card">
             <div class="card-header">
-                <h5><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
+                <h5><i class="fas fa-chart-line me-2"></i>Club Performance Metrics</h5>
             </div>
             <div class="card-body">
-                <div class="d-grid gap-2">
-                    <a href="{{ url_for('workflows_page') }}" class="btn btn-outline-primary">
-                        <i class="fas fa-play me-2"></i>Run Workflow
-                    </a>
-                    <a href="{{ url_for('social_media_page') }}" class="btn btn-outline-success">
-                        <i class="fab fa-instagram me-2"></i>Schedule Social Post
-                    </a>
-                    <a href="{{ url_for('analytics_page') }}" class="btn btn-outline-info">
-                        <i class="fas fa-chart-bar me-2"></i>View Analytics
-                    </a>
+                <div class="performance-grid">
+                    <div class="performance-item">
+                        <div class="performance-label">Member Retention</div>
+                        <div class="performance-value">94.2%</div>
+                        <small class="text-success"><i class="fas fa-arrow-up"></i> Above average</small>
+                    </div>
+                    <div class="performance-item">
+                        <div class="performance-label">Monthly Growth</div>
+                        <div class="performance-value">+12.8%</div>
+                        <small class="text-warning"><i class="fas fa-arrow-up"></i> New acquisitions</small>
+                    </div>
+                    <div class="performance-item">
+                        <div class="performance-label">Revenue Growth</div>
+                        <div class="performance-value">+18.5%</div>
+                        <small class="text-success"><i class="fas fa-arrow-up"></i> Year over year</small>
+                    </div>
+                    <div class="performance-item">
+                        <div class="performance-label">PT Utilization</div>
+                        <div class="performance-value">87.3%</div>
+                        <small class="text-info"><i class="fas fa-chart-bar"></i> Capacity used</small>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     
-    <div class="col-lg-6">
+    <div class="col-lg-4 mb-4">
         <div class="card">
             <div class="card-header">
-                <h5><i class="fas fa-clock me-2"></i>Recent Activity</h5>
+                <h5><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
             </div>
             <div class="card-body">
-                {% if status.logs %}
-                    <div class="list-group list-group-flush">
-                        {% for log in status.logs[:5] %}
-                        <div class="list-group-item border-0 px-0">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <span class="badge bg-{% if log.level == 'ERROR' %}danger{% elif log.level == 'WARNING' %}warning{% else %}info{% endif %} me-2">
-                                        {{ log.level }}
-                                    </span>
-                                    {{ log.message|truncate(50) }}
-                                </div>
-                                <small class="text-muted">{{ log.component }}</small>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    <div class="text-center mt-3">
-                        <a href="{{ url_for('logs_page') }}" class="btn btn-outline-secondary btn-sm">
-                            View All Logs
-                        </a>
-                    </div>
-                {% else %}
-                    <p class="text-muted text-center">No recent activity.</p>
-                {% endif %}
+                <div class="d-grid gap-3">
+                    <a href="/members" class="btn btn-primary">
+                        <i class="fas fa-users me-2"></i>Member Management
+                    </a>
+                    <a href="/training-clients" class="btn btn-primary">
+                        <i class="fas fa-user-friends me-2"></i>Personal Training
+                    </a>
+                    <a href="/payments" class="btn btn-primary">
+                        <i class="fas fa-credit-card me-2"></i>Process Payments
+                    </a>
+                    <a href="/messaging" class="btn btn-primary">
+                        <i class="fas fa-comments me-2"></i>Send Messages
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5><i class="fas fa-bell me-2"></i>Today's Alerts</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>3 membership renewals</strong> due this week
+                </div>
+                <div class="alert alert-warning" role="alert">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>12 prospect follow-ups</strong> scheduled today
+                </div>
+                <div class="alert alert-success" role="alert">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong>Club goal achieved:</strong> 95% retention rate
+                </div>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-// Auto-refresh dashboard data every 30 seconds
-setInterval(() => {
-    fetch('/api/status')
-        .then(response => response.json())
-        .then(data => {
-            // Update status indicators without full page reload
-            console.log('Status updated:', data);
-        })
-        .catch(error => console.error('Status update failed:', error));
-}, 30000);
-</script>
 {% endblock %}

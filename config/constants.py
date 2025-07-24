@@ -60,16 +60,37 @@ GMAIL_TOKEN_SECRET = "bot-gmail-token"
 SQUARE_ENVIRONMENT = os.getenv("SQUARE_ENVIRONMENT", "sandbox")  # 'sandbox' or 'production'
 
 # Square Secret Names (stored in Google Secret Manager)
-SQUARE_ACCESS_TOKEN_SECRET = "square-sandbox-access-token"  # Default to sandbox
+# Dynamic secret selection based on environment
+def get_square_access_token_secret():
+    """Get the appropriate Square access token secret based on environment"""
+    env = os.getenv("SQUARE_ENVIRONMENT", "sandbox").lower()
+    if env == "production":
+        return "square-production-access-token"
+    else:
+        return "square-sandbox-access-token"
+
+def get_square_location_id_secret():
+    """Get the appropriate Square location ID secret based on environment"""
+    env = os.getenv("SQUARE_ENVIRONMENT", "sandbox").lower()
+    if env == "production":
+        return "square-production-location-id"
+    else:
+        return "square-sandbox-location-id"
+
+# Individual secret names for each environment
 SQUARE_SANDBOX_ACCESS_TOKEN_SECRET = "square-sandbox-access-token"
 SQUARE_SANDBOX_APPLICATION_ID_SECRET = "square-sandbox-application-id"
 SQUARE_SANDBOX_APPLICATION_SECRET_SECRET = "square-sandbox-application-secret"
+SQUARE_SANDBOX_LOCATION_ID_SECRET = "square-sandbox-location-id"
 
 SQUARE_PRODUCTION_ACCESS_TOKEN_SECRET = "square-production-access-token"
 SQUARE_PRODUCTION_APPLICATION_ID_SECRET = "square-production-application-id"
 SQUARE_PRODUCTION_APPLICATION_SECRET_SECRET = "square-production-application-secret"
+SQUARE_PRODUCTION_LOCATION_ID_SECRET = "square-production-location-id"
 
-SQUARE_LOCATION_ID_SECRET = "square-location-id"
+# Legacy constants for backward compatibility
+SQUARE_ACCESS_TOKEN_SECRET = get_square_access_token_secret()
+SQUARE_LOCATION_ID_SECRET = get_square_location_id_secret()
 
 # Payment Configuration
 LATE_FEE_AMOUNT = 25.00

@@ -185,36 +185,54 @@ class ClubOSAPIAuthentication:
     def _is_login_successful(self, response: requests.Response) -> bool:
         """Check if login was successful"""
         try:
-            # Check for redirect to dashboard
-            if "Dashboard" in response.url or "dashboard" in response.url.lower():
+            # Check for redirect to dashboard or calendar
+            success_urls = ["dashboard", "calendar", "action/dashboard", "action/calendar"]
+            for url_part in success_urls:
+                if url_part.lower() in response.url.lower():
+                    return True
+            
+            # Check for authentication cookies
+            has_session = any(cookie.name == 'JSESSIONID' for cookie in self.session.cookies)
+            has_api_token = any(cookie.name == 'apiV3AccessToken' for cookie in self.session.cookies)
+            
+            if has_session or has_api_token:
                 return True
             
             # Check for authentication indicators in response
             success_indicators = [
-                "Dashboard",
-                "Welcome",
-                "Logout",
+                "dashboard",
+                "calendar", 
+                "logout",
                 "user_id",
-                "session_id"
+                "session_id",
+                "welcome",
+                "apiV3AccessToken"
             ]
             
+            response_text_lower = response.text.lower()
             for indicator in success_indicators:
-                if indicator.lower() in response.text.lower():
+                if indicator.lower() in response_text_lower:
                     return True
             
-            # Check for error indicators
+            # Check for login failure indicators
             error_indicators = [
-                "Invalid credentials",
-                "Login failed",
-                "Authentication error",
-                "Invalid username or password"
+                "invalid credentials",
+                "login failed",
+                "authentication error",
+                "invalid username or password",
+                "incorrect username",
+                "incorrect password"
             ]
             
             for error in error_indicators:
-                if error.lower() in response.text.lower():
+                if error.lower() in response_text_lower:
                     return False
             
-            # If no clear indicators, assume success if we got a 200 response
+            # If response is large (>50KB) and we have a session cookie, assume success
+            if len(response.text) > 50000 and has_session:
+                return True
+            
+            # If no clear indicators, check status code
             return response.status_code == 200
             
         except Exception as e:

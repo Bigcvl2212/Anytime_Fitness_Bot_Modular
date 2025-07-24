@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Calendar{% endblock %}
+{% block page_title %}ClubOS Calendar Integration{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h5>Upcoming Events</h5>
+        <span class="badge bg-secondary">{{ clubos_status }}</span>
+    </div>
+    <div class="card-body">
+        {% if calendar_data %}
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr><th>Title</th><th>Time</th><th>Instructor</th><th>Spots Available</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for event in calendar_data %}
+                        <tr>
+                            <td>{{ event.title }}</td>
+                            <td>{{ event.time }}</td>
+                            <td>{{ event.instructor }}</td>
+                            <td>{{ event.spots }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-muted">No upcoming events found.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

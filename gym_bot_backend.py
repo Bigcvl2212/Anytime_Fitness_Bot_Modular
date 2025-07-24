@@ -83,7 +83,7 @@ class GymBotServices:
         """Get Square payment client."""
         try:
             if 'square' not in self._services:
-                from services.payments.square_client import get_square_client
+                from services.payments.square_client_fixed import get_square_client
                 client = get_square_client()
                 if client is not None:
                     self._services['square'] = client
@@ -109,7 +109,7 @@ class GymBotServices:
     def test_square_connection(self) -> bool:
         """Test Square API connection."""
         try:
-            from services.payments.square_client import test_square_connection
+            from services.payments.square_client_fixed import test_square_connection
             return test_square_connection()
         except Exception as e:
             logger.error(f"Square connection test failed: {e}")
@@ -201,7 +201,7 @@ class GymBotBackend:
             # Test services (without creating instances)
             try:
                 import services.ai.gemini
-                import services.payments.square_client
+                import services.payments.square_client_fixed
                 logger.info("✅ Services modules loaded")
             except Exception as e:
                 logger.error(f"❌ Services modules failed: {e}")

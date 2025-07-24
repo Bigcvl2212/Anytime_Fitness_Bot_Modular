@@ -14,13 +14,27 @@ from square.environment import SquareEnvironment
 from square.core.api_error import ApiError
 
 try:
-    from ...config.constants import SQUARE_ENVIRONMENT, SQUARE_ACCESS_TOKEN_SECRET, YELLOW_RED_MESSAGE_TEMPLATE, LATE_FEE_AMOUNT
+    from ...config.constants import (
+        SQUARE_ENVIRONMENT, 
+        get_square_access_token_secret, 
+        get_square_location_id_secret,
+        YELLOW_RED_MESSAGE_TEMPLATE, 
+        LATE_FEE_AMOUNT,
+        GCP_PROJECT_ID
+    )
 except ImportError:
     # Fallback for direct imports
     import sys
     import os
     sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-    from config.constants import SQUARE_ENVIRONMENT, SQUARE_ACCESS_TOKEN_SECRET, YELLOW_RED_MESSAGE_TEMPLATE, LATE_FEE_AMOUNT
+    from config.constants import (
+        SQUARE_ENVIRONMENT, 
+        get_square_access_token_secret, 
+        get_square_location_id_secret,
+        YELLOW_RED_MESSAGE_TEMPLATE, 
+        LATE_FEE_AMOUNT,
+        GCP_PROJECT_ID
+    )
 
 
 class EnhancedSquareClient:
@@ -36,16 +50,44 @@ class EnhancedSquareClient:
         self.client = self._initialize_client()
         
     def _get_access_token(self) -> str:
-        """Get Square access token from secret manager"""
+        """Get Square access token from secret manager based on environment"""
         try:
             from google.cloud import secretmanager
-            client = secretmanager.SecretManagerServiceClient()
-            name = f"{SQUARE_ACCESS_TOKEN_SECRET}/versions/latest"
-            response = client.access_secret_version(request={"name": name})
-            return response.payload.data.decode("UTF-8")
+            
+            # Get the appropriate secret name based on environment
+            access_token_secret = get_square_access_token_secret()
+            env = os.getenv("SQUARE_ENVIRONMENT", SQUARE_ENVIRONMENT).lower()
+            
+            print(f"🔑 Getting Square {env} access token from secret: {access_token_secret}")
+            
+            # Try Google Secret Manager first
+            try:
+                client = secretmanager.SecretManagerServiceClient()
+                name = f"projects/{GCP_PROJECT_ID}/secrets/{access_token_secret}/versions/latest"
+                response = client.access_secret_version(request={"name": name})
+                token = response.payload.data.decode("UTF-8")
+                print(f"✅ Successfully retrieved {env} access token from Google Secret Manager")
+                return token
+            except Exception as gsm_error:
+                print(f"⚠️ Google Secret Manager failed: {gsm_error}")
+                print(f"🔄 Falling back to local secrets...")
+                
+                # Fallback to local secrets for development
+                try:
+                    from ...config.secrets_local import get_secret
+                    token = get_secret(access_token_secret)
+                    if token:
+                        print(f"✅ Successfully retrieved {env} access token from local secrets")
+                        return token
+                    else:
+                        print(f"❌ Token not found in local secrets: {access_token_secret}")
+                except ImportError:
+                    print(f"❌ Local secrets module not available")
+                
         except Exception as e:
             print(f"❌ Error getting Square access token: {e}")
-            return None
+        
+        return None
     
     def _get_environment(self) -> SquareEnvironment:
         """Get Square environment (sandbox or production)"""
