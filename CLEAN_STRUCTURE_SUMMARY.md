@@ -22,27 +22,36 @@
 - ✅ Live calendar integration functional
 - ✅ Training package tracking active
 
-## 🗂️ DIRECTORY STRUCTURE
+## 🗂️ CLEAN DIRECTORY STRUCTURE
 
 ```
 gym-bot-modular/
-├── workflows/
+├── clubos_integration_fixed.py   # ✅ CORE ClubOS API (production ready)
+│
+├── workflows/                     # Main application workflows
 │   ├── production_ready/          # ✅ VERIFIED WORKING SCRIPTS
 │   │   ├── README.md              # Full documentation
-│   │   ├── clubos_integration_fixed.py
 │   │   ├── enhanced_clubos_client.py  
 │   │   ├── square_invoice_automation.py
 │   │   ├── comprehensive_data_pull_with_agreements.py
 │   │   ├── extract_active_training_packages.py
 │   │   └── gym_bot_dashboard_with_real_api.py
 │   │
-│   ├── training_workflow.py       # Training-specific workflows
-│   └── invoice_automation.py      # Invoice-specific workflows
+│   ├── invoice_automation/        # Invoice-related workflows
+│   │   ├── check_past_due.py
+│   │   ├── process_past_due_standalone.py
+│   │   └── send_past_due_invoices_final.py
+│   │
+│   ├── main.py                    # Main application entry point
+│   ├── main_enhanced.py           # Enhanced main application
+│   ├── gym_bot_backend.py         # Backend service
+│   ├── create_master_contact_list.py  # Contact list management
+│   └── training_workflow.py       # Training-specific workflows
 │
 ├── services/                      # Modular services
 │   ├── api/                       # API clients
 │   ├── authentication/            # Auth handling  
-│   ├── data/                      # Data management
+│   ├── data/                      # Data management + add_member_agreements.py
 │   ├── payments/                  # Payment processing
 │   └── notifications/             # Messaging & notifications
 │
@@ -59,8 +68,12 @@ gym-bot-modular/
 │   └── ...
 │
 └── archive/                       # Archived/legacy code
-    ├── legacy_scripts/            # Old versions for reference
-    └── needs_review/              # Scripts to assess later
+    ├── legacy_scripts/            # Original working versions
+    ├── development_versions/      # Analysis, exploration, working versions
+    ├── test_scripts/              # All test_*.py, validation scripts  
+    ├── auth_experiments/          # HAR analysis, token extraction experiments
+    ├── messaging_experiments/     # send_message_*.py variations
+    └── dashboard_versions/        # Dashboard development iterations
 ```
 
 ## 🔑 KEY BREAKTHROUGHS PRESERVED
@@ -102,7 +115,44 @@ gym-bot-modular/
 3. **All new development should extend production_ready scripts**
 4. **Maintain this clean structure going forward**
 
+## 📁 ARCHIVED SCRIPT CATEGORIES
+
+### `archive/development_versions/` (28 scripts)
+- Analysis scripts (analyze_*.py)
+- Exploration scripts (explore_*.py) 
+- Working versions (working_*.py)
+- Simple implementations (simple_*.py)
+- Data pull variations (*data_pull*.py)
+
+### `archive/test_scripts/` (12 scripts)
+- All test_*.py files
+- Validation scripts (validate_*.py)
+- Quick test utilities (quick_test.py)
+
+### `archive/auth_experiments/` (15 scripts)
+- HAR analysis scripts (*har*.py)
+- Token extraction experiments (extract_*.py)
+- Authentication flow analysis (*auth*.py)
+- Smart token capture (smart_token_capture.py)
+
+### `archive/messaging_experiments/` (8 scripts)
+- Message sending variations (send_message_*.py)
+- Different API approaches and implementations
+
+### `archive/dashboard_versions/` (6 scripts)
+- Dashboard development iterations (*dashboard*.py)
+- Different UI approaches and implementations
+
+### `archive/legacy_scripts/` (Original working versions)
+- send_live_invoices_and_messages.py (original)
+- gym_bot_clean.py (original)
+- extract_active_training_packages.py (original)
+- Debug scripts moved from main directory
+
+**Total Archived**: ~69 scripts organized and preserved for reference
+
 ---
 **Status**: Production Ready ✅  
 **Last Updated**: July 24, 2025  
-**Verified Working**: All 6 breakthrough scripts functional
+**Verified Working**: All 6 breakthrough scripts functional  
+**Organization**: Complete - Main directory clean, all scripts categorized
