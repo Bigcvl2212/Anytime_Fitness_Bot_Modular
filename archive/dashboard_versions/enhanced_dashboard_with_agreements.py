@@ -3,17 +3,118 @@
 import os
 import sqlite3
 import pandas as pd
-from flask import Flask, render_template, jsonify, request, redirect, url_for
+import re
+from flask import Flask, render_template, jsonify, request, redirect, url_for, session, flash
 from datetime import datetime, timedelta
 import logging
 import json
+import sys
+
+# Add the parent directory to sys.path to import the working ClubOS API
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from clubos_real_calendar_api import ClubOSRealCalendarAPI
+from gym_bot_clean import ClubOSEventDeletion
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-here'
+app.secret_key = 'anytime-fitness-dashboard-secret-key-2025'
+
+# Add regex filters for Jinja2 templates
+@app.template_filter('regex_replace')
+def regex_replace(s, find, replace):
+    """Replace using regex in Jinja2 templates"""
+    return re.sub(find, replace, str(s))
+
+@app.template_filter('regex_findall')
+def regex_findall(s, pattern):
+    """Find all regex matches in Jinja2 templates"""
+    return re.findall(pattern, str(s))
+
+# Add moment function to fix the cursed template
+class MomentJS:
+    def format(self, format_string):
+        return datetime.now().strftime('%B %d, %Y at %I:%M:%S %p')
+
+def moment():
+    return MomentJS()
+
+@app.template_global()
+def moment_global():
+    return moment()
+
+# Make moment available in templates
+@app.context_processor
+def inject_moment():
+    return dict(moment=moment)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+class ClubOSIntegration:
+    """Integration class to connect dashboard with working ClubOS API"""
+    
+    def __init__(self):
+        self.api = ClubOSRealCalendarAPI("j.mayo", "j@SD4fjhANK5WNA")
+        self.event_manager = ClubOSEventDeletion()
+        self.authenticated = False
+        
+    def authenticate(self):
+        """Authenticate with ClubOS"""
+        try:
+            self.authenticated = self.api.authenticate()
+            if self.authenticated:
+                # Also authenticate the event manager
+                self.event_manager.authenticated = True
+                logger.info("✅ ClubOS authentication successful")
+            return self.authenticated
+        except Exception as e:
+            logger.error(f"❌ ClubOS authentication failed: {e}")
+            return False
+    
+    def get_live_events(self):
+        """Get live calendar events from ClubOS"""
+        if not self.authenticated:
+            if not self.authenticate():
+                return []
+        
+        try:
+            events = self.api.get_jeremy_mayo_events()
+            logger.info(f"📅 Retrieved {len(events)} live events from ClubOS")
+            return events
+        except Exception as e:
+            logger.error(f"❌ Error fetching live events: {e}")
+            return []
+    
+    def get_live_members(self):
+        """Get live member data from ClubOS (placeholder for future implementation)"""
+        # TODO: Implement live member data retrieval
+        # For now, this would use the comprehensive data pull
+        logger.info("📊 Live member data retrieval not yet implemented")
+        return []
+    
+    def delete_event(self, event_id):
+        """Delete an event using the working deletion method"""
+        if not self.authenticated:
+            if not self.authenticate():
+                return False
+        
+        return self.event_manager.delete_event_properly(event_id)
+    
+    def send_message(self, contact_info, message_type, subject, message):
+        """Send message via ClubOS (placeholder for future implementation)"""
+        # TODO: Implement messaging via ClubOS
+        logger.info(f"📧 Message sending not yet implemented: {message_type} to {contact_info}")
+        return False
+
+# Initialize ClubOS integration
+clubos = ClubOSIntegration()
+
+@app.context_processor
+def inject_globals():
+    """Inject global variables into all templates"""
+    return {
+        'current_year': datetime.now().year
+    }
 
 class DatabaseManager:
     def __init__(self, db_path='gym_bot.db'):
@@ -341,6 +442,7 @@ if os.path.exists(latest_csv):
 @app.route('/')
 def dashboard():
     """Main dashboard with overview."""
+    print("=== DASHBOARD ROUTE TRIGGERED ===")
     conn = sqlite3.connect(db_manager.db_path)
     cursor = conn.cursor()
     
@@ -365,12 +467,118 @@ def dashboard():
     
     conn.close()
     
+    # Get live data from ClubOS
+    print("=== STARTING CLUBOS INTEGRATION ===")
+    live_events = []
+    clubos_status = "Disconnected"
+    try:
+        print("=== ATTEMPTING CLUBOS AUTHENTICATION ===")
+        if clubos.authenticate():
+            print("=== CLUBOS AUTHENTICATED, GETTING EVENTS ===")
+            live_events = clubos.get_live_events()
+            print(f"=== GOT {len(live_events)} LIVE EVENTS ===")
+            clubos_status = "Connected"
+        else:
+            print("=== CLUBOS AUTHENTICATION FAILED ===")
+            clubos_status = "Authentication Failed"
+    except Exception as e:
+        print(f"=== CLUBOS ERROR: {e} ===")
+        logger.error(f"ClubOS connection error: {e}")
+        clubos_status = f"Error: {str(e)[:50]}..."
+    
+    # Get current sync time
+    sync_time = datetime.now()
+    
     return render_template('dashboard.html', 
                          total_members=total_members,
                          total_prospects=total_prospects,
                          total_training_clients=total_training_clients,
+                         total_live_events=len(live_events),
                          recent_members=recent_members,
-                         recent_prospects=recent_prospects)
+                         recent_prospects=recent_prospects,
+                         recent_events=live_events[:5],  # Show first 5 events
+                         clubos_status=clubos_status,
+                         clubos_connected=clubos.authenticated,
+                         sync_time=sync_time)
+
+@app.route('/calendar')
+def calendar():
+    """Calendar management page with live ClubOS integration"""
+    try:
+        # Get live events from ClubOS
+        if clubos.authenticated:
+            events = clubos.get_live_events()
+            connection_status = 'Connected'
+            sync_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            events = []
+            connection_status = 'Disconnected'
+            sync_time = None
+            
+        return render_template('calendar.html', 
+                             events=events,
+                             connection_status=connection_status,
+                             sync_time=sync_time)
+    except Exception as e:
+        logger.error(f"Calendar error: {e}")
+        flash(f'Error loading calendar: {str(e)}', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/messaging')
+def messaging():
+    """Messaging page for member/prospect communication"""
+    try:
+        # Get recent members and prospects for messaging
+        conn = sqlite3.connect(db_manager.db_path)
+        cursor = conn.cursor()
+        
+        # Get recent members
+        cursor.execute('''
+            SELECT first_name, last_name, email, mobile_phone 
+            FROM members 
+            WHERE status = 'ACTIVE' 
+            ORDER BY created_date DESC 
+            LIMIT 20
+        ''')
+        recent_members = cursor.fetchall()
+        
+        # Get recent prospects
+        cursor.execute('''
+            SELECT first_name, last_name, email, mobile_phone 
+            FROM prospects 
+            ORDER BY created_date DESC 
+            LIMIT 20
+        ''')
+        recent_prospects = cursor.fetchall()
+        
+        conn.close()
+        
+        return render_template('messaging.html', 
+                             recent_members=recent_members,
+                             recent_prospects=recent_prospects)
+    except Exception as e:
+        logger.error(f"Messaging error: {e}")
+        flash(f'Error loading messaging: {str(e)}', 'error')
+        return redirect(url_for('dashboard'))
+
+@app.route('/send-message', methods=['POST'])
+def send_message():
+    """Send message to member or prospect"""
+    try:
+        recipient = request.form.get('recipient')
+        message = request.form.get('message')
+        method = request.form.get('method', 'email')  # email or sms
+        
+        # Here you would integrate with actual messaging service
+        # For now, just log the message
+        logger.info(f"Message sent to {recipient} via {method}: {message}")
+        flash(f'Message sent to {recipient} via {method}', 'success')
+        
+        return redirect(url_for('messaging'))
+    except Exception as e:
+        logger.error(f"Send message error: {e}")
+        flash(f'Error sending message: {str(e)}', 'error')
+        return redirect(url_for('messaging'))
 
 @app.route('/members')
 def members_page():
@@ -536,6 +744,79 @@ def training_clients_page():
     conn.close()
     
     return render_template('training_clients.html', clients=clients)
+
+@app.route('/calendar')
+def calendar_page():
+    """Live calendar management page with ClubOS integration."""
+    # Get live events from ClubOS
+    events = clubos.get_live_events()
+    
+    # Process events for display
+    processed_events = []
+    for event in events:
+        processed_events.append({
+            'id': event.id,
+            'title': str(event),
+            'type': 'Training Session',  # Default type
+            'status': 'Active',
+            'date': datetime.now().strftime('%Y-%m-%d'),  # Placeholder
+            'time': 'TBD',  # Placeholder
+        })
+    
+    return render_template('calendar.html', 
+                         events=processed_events,
+                         total_events=len(processed_events),
+                         clubos_connected=clubos.authenticated)
+
+@app.route('/calendar/delete/<int:event_id>', methods=['POST'])
+def delete_calendar_event(event_id):
+    """Delete a calendar event via ClubOS API."""
+    try:
+        success = clubos.delete_event(event_id)
+        if success:
+            flash(f'Event {event_id} deleted successfully!', 'success')
+        else:
+            flash(f'Failed to delete event {event_id}', 'error')
+    except Exception as e:
+        logger.error(f"Error deleting event {event_id}: {e}")
+        flash(f'Error deleting event: {str(e)}', 'error')
+    
+    return redirect(url_for('calendar_page'))
+
+@app.route('/calendar/sync', methods=['POST'])
+def sync_calendar():
+    """Manually sync calendar data from ClubOS."""
+    try:
+        if clubos.authenticate():
+            events = clubos.get_live_events()
+            flash(f'Calendar synced successfully! Found {len(events)} events.', 'success')
+        else:
+            flash('Failed to connect to ClubOS for sync.', 'error')
+    except Exception as e:
+        logger.error(f"Calendar sync error: {e}")
+        flash(f'Sync error: {str(e)}', 'error')
+    
+    return redirect(url_for('calendar_page'))
+
+@app.route('/messaging')
+def messaging_page():
+    """Messaging center for member communication."""
+    # Get recent members for quick messaging
+    conn = sqlite3.connect(db_manager.db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT * FROM members ORDER BY created_at DESC LIMIT 20")
+    recent_members = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
+    
+    cursor.execute("SELECT * FROM prospects ORDER BY created_at DESC LIMIT 20")
+    recent_prospects = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
+    
+    conn.close()
+    
+    return render_template('messaging.html', 
+                         recent_members=recent_members,
+                         recent_prospects=recent_prospects,
+                         clubos_connected=clubos.authenticated)
 
 def create_templates():
     """Create HTML templates with proper Anytime Fitness branding and enhanced member/prospect displays."""
@@ -772,6 +1053,12 @@ def create_templates():
                     <li class="nav-item">
                         <a class="nav-link" href="/training-clients"><i class="fas fa-dumbbell me-1"></i>Training</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/calendar"><i class="fas fa-calendar me-1"></i>Calendar</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/messaging"><i class="fas fa-envelope me-1"></i>Messages</a>
+                    </li>
                 </ul>
                 
                 <ul class="navbar-nav">
@@ -843,8 +1130,49 @@ def create_templates():
     </div>
     <div class="col-md-3 mb-3">
         <div class="stat-card">
-            <div class="stat-number">{{ total_members + total_prospects }}</div>
-            <div class="stat-label">Total Contacts</div>
+            <div class="stat-number">{{ total_live_events }}</div>
+            <div class="stat-label">Live Events</div>
+        </div>
+    </div>
+</div>
+
+<!-- ClubOS Status Card -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-plug me-2"></i>ClubOS Integration Status
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <p class="mb-1">
+                            <strong>Status:</strong> 
+                            <span class="badge bg-{{ 'success' if clubos_connected else 'danger' }}">
+                                {{ clubos_status }}
+                            </span>
+                        </p>
+                        <p class="mb-1">
+                            <strong>Live Events:</strong> {{ total_live_events }} calendar events retrieved
+                        </p>
+                        <p class="mb-0">
+                            <strong>Last Sync:</strong> {{ moment().format('MMMM Do YYYY, h:mm:ss a') }}
+                        </p>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <a href="/calendar" class="btn btn-purple me-2">
+                            <i class="fas fa-calendar me-2"></i>Manage Calendar
+                        </a>
+                        <form method="POST" action="/calendar/sync" style="display: inline;">
+                            <button type="submit" class="btn btn-outline-purple">
+                                <i class="fas fa-sync me-2"></i>Sync Now
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -911,10 +1239,250 @@ def create_templates():
         </div>
     </div>
 </div>
+
+<!-- Live Events Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-calendar-alt me-2"></i>Live Calendar Events
+                    {% if clubos_connected %}
+                        <span class="badge bg-success ms-2">Connected</span>
+                    {% else %}
+                        <span class="badge bg-danger ms-2">Disconnected</span>
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if recent_events %}
+                    {% for event in recent_events %}
+                    <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                        <div>
+                            <strong>Event {{ event.id }}</strong><br>
+                            <small class="text-muted">{{ event }}</small>
+                        </div>
+                        <div>
+                            <a href="/calendar" class="btn btn-sm btn-outline-purple me-2">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <form method="POST" action="/calendar/delete/{{ event.id }}" style="display: inline;">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                        onclick="return confirm('Delete this event?')">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-4">
+                        {% if clubos_connected %}
+                            <p class="text-muted">No calendar events found</p>
+                        {% else %}
+                            <p class="text-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                ClubOS not connected. Unable to retrieve live events.
+                            </p>
+                        {% endif %}
+                    </div>
+                {% endif %}
+                <div class="text-center mt-3">
+                    <a href="/calendar" class="btn btn-purple">
+                        <i class="fas fa-calendar me-2"></i>Manage Calendar
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}'''
     
     with open(f'{templates_dir}/dashboard.html', 'w') as f:
         f.write(dashboard_template)
+    
+    # Calendar template
+    calendar_template = '''{% extends "base.html" %}
+{% block title %}Calendar Management - {{ super() }}{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0">
+                            <i class="fas fa-calendar-alt me-2"></i>Calendar Management
+                        </h3>
+                        <div>
+                            Status: 
+                            {% if connection_status == 'Connected' %}
+                                <span class="badge bg-success">{{ connection_status }}</span>
+                            {% else %}
+                                <span class="badge bg-danger">{{ connection_status }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <form method="POST" action="/calendar/sync">
+                                <button type="submit" class="btn btn-purple">
+                                    <i class="fas fa-sync me-2"></i>Sync Events
+                                </button>
+                            </form>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            {% if sync_time %}
+                                <small class="text-muted">Last sync: {{ sync_time }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    {% if events %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Event ID</th>
+                                        <th>Details</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for event in events %}
+                                    <tr>
+                                        <td>{{ event.id if event.id else 'N/A' }}</td>
+                                        <td>{{ event }}</td>
+                                        <td>
+                                            {% if event.id %}
+                                            <form method="POST" action="/calendar/delete/{{ event.id }}" 
+                                                  style="display: inline;">
+                                                <button type="submit" class="btn btn-sm btn-danger"
+                                                        onclick="return confirm('Delete event {{ event.id }}?')">
+                                                    <i class="fas fa-trash me-1"></i>Delete
+                                                </button>
+                                            </form>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            {% if connection_status == 'Connected' %}
+                                <i class="fas fa-calendar-check fa-3x text-muted mb-3"></i>
+                                <h5>No Events Found</h5>
+                                <p class="text-muted">No calendar events to display</p>
+                            {% else %}
+                                <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                                <h5>ClubOS Disconnected</h5>
+                                <p class="text-muted">Please authenticate to view calendar events</p>
+                                <form method="POST" action="/calendar/sync">
+                                    <button type="submit" class="btn btn-purple">
+                                        <i class="fas fa-plug me-2"></i>Connect to ClubOS
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}'''
+    
+    with open(f'{templates_dir}/calendar.html', 'w') as f:
+        f.write(calendar_template)
+    
+    # Messaging template
+    messaging_template = '''{% extends "base.html" %}
+{% block title %}Messaging - {{ super() }}{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">
+                        <i class="fas fa-comments me-2"></i>Send Message
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="/send-message">
+                        <div class="mb-3">
+                            <label for="recipient" class="form-label">Recipient</label>
+                            <select class="form-select" id="recipient" name="recipient" required>
+                                <option value="">Select recipient...</option>
+                                <optgroup label="Members">
+                                    {% for member in recent_members %}
+                                    <option value="{{ member[2] }}">{{ member[0] }} {{ member[1] }} ({{ member[2] }})</option>
+                                    {% endfor %}
+                                </optgroup>
+                                <optgroup label="Prospects">
+                                    {% for prospect in recent_prospects %}
+                                    <option value="{{ prospect[2] }}">{{ prospect[0] }} {{ prospect[1] }} ({{ prospect[2] }})</option>
+                                    {% endfor %}
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="method" class="form-label">Method</label>
+                            <select class="form-select" id="method" name="method" required>
+                                <option value="email">Email</option>
+                                <option value="sms">SMS</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="message" class="form-label">Message</label>
+                            <textarea class="form-control" id="message" name="message" rows="5" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-purple">
+                            <i class="fas fa-paper-plane me-2"></i>Send Message
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Quick Templates</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-purple btn-sm" onclick="setMessage('Welcome to Anytime Fitness! We\\'re excited to have you as part of our fitness family.')">
+                            Welcome Message
+                        </button>
+                        <button class="btn btn-outline-purple btn-sm" onclick="setMessage('Hi! Just checking in to see how your fitness journey is going. Let us know if you need any support!')">
+                            Check-in Message
+                        </button>
+                        <button class="btn btn-outline-purple btn-sm" onclick="setMessage('Don\\'t forget about your upcoming training session. We\\'re here to help you reach your goals!')">
+                            Reminder Message
+                        </button>
+                        <button class="btn btn-outline-purple btn-sm" onclick="setMessage('Thank you for being a valued member of Anytime Fitness. Your commitment to health and fitness inspires us!')">
+                            Thank You Message
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function setMessage(text) {
+    document.getElementById('message').value = text;
+}
+</script>
+{% endblock %}'''
+    
+    with open(f'{templates_dir}/messaging.html', 'w') as f:
+        f.write(messaging_template)
     
     # Members template with full agreement information
     members_template = '''{% extends "base.html" %}

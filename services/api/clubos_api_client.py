@@ -39,7 +39,7 @@ class ClubOSAPIAuthentication:
     
     def login(self, username: str, password: str) -> bool:
         """
-        Authenticate with ClubOS web interface
+        Authenticate with ClubOS web interface using the working HAR sequence
         
         Args:
             username: ClubOS username
@@ -49,90 +49,72 @@ class ClubOSAPIAuthentication:
             bool: True if login successful, False otherwise
         """
         try:
-            print("🔐 Attempting ClubOS web authentication...")
+            print("🔐 Attempting ClubOS web authentication using working HAR sequence...")
             
-            # Step 1: Get login page to extract CSRF token
+            # Step 1: Get login page and extract CSRF token (following working pattern)
             print("   📄 Fetching login page...")
-            login_page_response = self.session.get(self.login_url, timeout=30)
+            login_url = f"{self.base_url}/action/Login/view?__fsk=1221801756"
+            login_response = self.session.get(login_url, timeout=30)
             
-            if not login_page_response.ok:
-                print(f"   ❌ Failed to load login page: {login_page_response.status_code}")
+            if not login_response.ok:
+                print(f"   ❌ Failed to load login page: {login_response.status_code}")
                 return False
             
-            # Extract CSRF token from login page
-            csrf_token = self._extract_csrf_token(login_page_response.text)
-            if csrf_token:
-                self.csrf_token = csrf_token
-                print(f"   ✅ Extracted CSRF token: {csrf_token[:20]}...")
-            else:
-                print("   ⚠️ No CSRF token found, proceeding without...")
+            # Extract required form fields using the working pattern
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(login_response.text, 'html.parser')
             
-            # Step 2: Submit login form
-            print("   🔑 Submitting login credentials...")
+            source_page = soup.find('input', {'name': '_sourcePage'})
+            fp_token = soup.find('input', {'name': '__fp'})
+            
+            print("   ✅ Extracted form fields successfully")
+            
+            # Step 2: Submit login form with correct field names (working pattern)
             login_data = {
-                "username": username,
-                "password": password,
-                "submit": "Login"
+                'login': 'Submit',
+                'username': username,
+                'password': password,
+                '_sourcePage': source_page.get('value') if source_page else '',
+                '__fp': fp_token.get('value') if fp_token else ''
             }
             
-            # Add CSRF token if available
-            if self.csrf_token:
-                login_data["csrf_token"] = self.csrf_token
+            login_headers = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Referer': login_url,
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+            }
             
-            login_response = self.session.post(
-                self.login_url,
+            auth_response = self.session.post(
+                f"{self.base_url}/action/Login",
                 data=login_data,
+                headers=login_headers,
                 allow_redirects=True,
                 timeout=30
             )
             
-            # Step 3: Check if login was successful
-            if self._is_login_successful(login_response):
-                self.is_authenticated = True
-                # Print all cookies after login
-                print("   [DEBUG] Cookies after login:")
-                for cookie in self.session.cookies:
-                    print(f"      {cookie.name}={cookie.value}")
-                # Extract Bearer token from cookies if present
-                for cookie in self.session.cookies:
-                    if cookie.name == 'apiV3AccessToken':
-                        self.access_token = cookie.value
-                        print(f"   ✅ Extracted apiV3AccessToken from cookies: {self.access_token[:20]}...")
-                        break
-                if not self.access_token:
-                    print("   [DEBUG] apiV3AccessToken not found after login. Visiting /action/Calendar...")
-                    calendar_url = urljoin(self.base_url, "/action/Calendar")
-                    resp = self.session.get(calendar_url)
-                    print(f"   [DEBUG] Visited /action/Calendar, status: {resp.status_code}")
-                    print("   [DEBUG] Cookies after visiting /action/Calendar:")
-                    for cookie in self.session.cookies:
-                        print(f"      {cookie.name}={cookie.value}")
-                    for cookie in self.session.cookies:
-                        if cookie.name == 'apiV3AccessToken':
-                            self.access_token = cookie.value
-                            print(f"   ✅ Extracted apiV3AccessToken from cookies: {self.access_token[:20]}...")
-                            break
-                if not self.access_token:
-                    print("   [DEBUG] apiV3AccessToken still not found. Trying /action/Login/refresh-api-v3-access-token...")
-                    refresh_url = urljoin(self.base_url, "/action/Login/refresh-api-v3-access-token")
-                    resp = self.session.get(refresh_url)
-                    print(f"   [DEBUG] Visited /action/Login/refresh-api-v3-access-token, status: {resp.status_code}")
-                    print("   [DEBUG] Cookies after visiting refresh-api-v3-access-token:")
-                    for cookie in self.session.cookies:
-                        print(f"      {cookie.name}={cookie.value}")
-                    for cookie in self.session.cookies:
-                        if cookie.name == 'apiV3AccessToken':
-                            self.access_token = cookie.value
-                            print(f"   ✅ Extracted apiV3AccessToken from cookies: {self.access_token[:20]}...")
-                            break
-                if not self.access_token:
-                    # Fallback: Try to extract from HTML
-                    self.access_token = self._extract_access_token(login_response.text)
-                print("   ✅ ClubOS authentication successful!")
-                return True
-            else:
-                print("   ❌ ClubOS authentication failed")
+            # Step 3: Extract session information from cookies (working pattern)
+            session_id = self.session.cookies.get('JSESSIONID')
+            logged_in_user_id = self.session.cookies.get('loggedInUserId')
+            delegated_user_id = self.session.cookies.get('delegatedUserId')
+            api_v3_access_token = self.session.cookies.get('apiV3AccessToken')
+            
+            if not session_id:
+                print("   ❌ Authentication failed - missing JSESSIONID")
                 return False
+            
+            # Set the access token
+            self.access_token = api_v3_access_token
+            self.is_authenticated = True
+            
+            print(f"   ✅ Authentication successful - Session ID: {session_id[:20]}...")
+            if logged_in_user_id:
+                print(f"   👤 User ID: {logged_in_user_id}")
+            if delegated_user_id:
+                print(f"   🎭 Delegated User ID: {delegated_user_id}")
+            if api_v3_access_token:
+                print(f"   🔑 API V3 Access Token: {api_v3_access_token[:20]}...")
+            
+            return True
                 
         except Exception as e:
             print(f"   ❌ Authentication error: {e}")
@@ -239,6 +221,153 @@ class ClubOSAPIAuthentication:
             print(f"   ⚠️ Error checking login status: {e}")
             return False
     
+    def _capture_additional_tokens(self):
+        """
+        Capture additional required tokens and cookies for full ClubOS API access
+        This method visits specific endpoints to trigger token generation
+        """
+        print("   🔧 Capturing additional authentication tokens...")
+        
+        try:
+            # First, try to get to the dashboard properly by following redirects
+            print("      📍 Establishing authenticated session...")
+            
+            # Visit dashboard first with proper headers
+            dashboard_response = self.session.get(
+                f"{self.base_url}/action/Dashboard/view",
+                headers={
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+                    "Upgrade-Insecure-Requests": "1",
+                    "Sec-Fetch-Dest": "document",
+                    "Sec-Fetch-Mode": "navigate",
+                    "Sec-Fetch-Site": "same-origin"
+                },
+                allow_redirects=True,
+                timeout=30
+            )
+            
+            print(f"      📊 Dashboard response: {dashboard_response.status_code} - Final URL: {dashboard_response.url}")
+            
+            # Check if we're actually authenticated by looking at the URL
+            if "Login" in dashboard_response.url:
+                print("      ❌ Still redirected to login - trying alternative authentication")
+                
+                # Try submitting login form again with current session
+                from config.secrets_local import get_secret
+                login_data = {
+                    "username": get_secret('clubos-username'),
+                    "password": get_secret('clubos-password'),
+                    "submit": "Login"
+                }
+                
+                reauth_response = self.session.post(
+                    self.login_url,
+                    data=login_data,
+                    headers={
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                        "Referer": self.login_url
+                    },
+                    allow_redirects=True,
+                    timeout=30
+                )
+                
+                print(f"      🔄 Re-auth response: {reauth_response.status_code} - Final URL: {reauth_response.url}")
+                
+                # Update dashboard response
+                if "Dashboard" in reauth_response.url or "Calendar" in reauth_response.url:
+                    dashboard_response = reauth_response
+                    print("      ✅ Re-authentication successful")
+            
+            # Extract user ID and other important values from the authenticated page
+            if dashboard_response.status_code == 200 and "Login" not in dashboard_response.url:
+                print("      🔍 Extracting user context from authenticated page...")
+                self._extract_user_context(dashboard_response.text)
+            
+            # Print final cookie summary
+            print("   📋 Final authentication cookies:")
+            for cookie in self.session.cookies:
+                if cookie.name in ['JSESSIONID', 'loggedInUserId', 'delegatedUserId', 'apiV3AccessToken', 'apiV3RefreshToken', 'apiV3IdToken']:
+                    value_preview = cookie.value[:20] + "..." if len(cookie.value) > 20 else cookie.value
+                    print(f"      {cookie.name}: {value_preview}")
+            
+        except Exception as e:
+            print(f"   ❌ Error capturing additional tokens: {e}")
+    
+    def _extract_user_context(self, html_content: str):
+        """Extract user context and set missing cookies from authenticated page"""
+        try:
+            import re
+            
+            # Look for user ID patterns in the HTML
+            user_patterns = [
+                r'loggedInUserId["\']?\s*[:=]\s*["\']?(\d+)["\']?',
+                r'delegatedUserId["\']?\s*[:=]\s*["\']?(\d+)["\']?',
+                r'userId["\']?\s*[:=]\s*["\']?(\d+)["\']?',
+                r'currentUser["\']?\s*[:=]\s*["\'][^"\']*userId["\']?\s*[:=]\s*["\']?(\d+)["\']?'
+            ]
+            
+            for pattern in user_patterns:
+                matches = re.findall(pattern, html_content, re.IGNORECASE)
+                if matches:
+                    user_id = matches[0]
+                    cookie_name = pattern.split('[')[0] if '[' in pattern else 'loggedInUserId'
+                    
+                    # Set the user ID cookie if we don't have it
+                    existing_cookie = next((c for c in self.session.cookies if c.name == cookie_name), None)
+                    if not existing_cookie:
+                        self.session.cookies.set(cookie_name, user_id, domain='.club-os.com')
+                        print(f"      🔑 Set {cookie_name}: {user_id}")
+            
+            # Look for JWT tokens in script tags or variables
+            jwt_patterns = [
+                r'apiV3AccessToken["\']?\s*[:=]\s*["\']([^"\']+)["\']',
+                r'accessToken["\']?\s*[:=]\s*["\']([^"\']+)["\']',
+                r'window\.token\s*=\s*["\']([^"\']+)["\']'
+            ]
+            
+            for pattern in jwt_patterns:
+                matches = re.findall(pattern, html_content, re.IGNORECASE)
+                if matches:
+                    token = matches[0]
+                    if token.startswith('ey'):  # JWT tokens start with 'ey'
+                        self.session.cookies.set('apiV3AccessToken', token, domain='.club-os.com')
+                        self.access_token = token
+                        print(f"      🔑 Extracted JWT token: {token[:20]}...")
+                        break
+                        
+        except Exception as e:
+            print(f"      ⚠️ Error extracting user context: {e}")
+    
+    def _extract_jwt_tokens_from_html(self, html_content: str):
+        """Extract JWT tokens from HTML content and set them as cookies"""
+        try:
+            import re
+            
+            # Patterns to find JWT tokens in JavaScript
+            jwt_patterns = [
+                r'apiV3AccessToken["\']?\s*[:=]\s*["\']([^"\']+)["\']',
+                r'apiV3RefreshToken["\']?\s*[:=]\s*["\']([^"\']+)["\']', 
+                r'apiV3IdToken["\']?\s*[:=]\s*["\']([^"\']+)["\']',
+                r'loggedInUserId["\']?\s*[:=]\s*["\']?(\d+)["\']?',
+                r'delegatedUserId["\']?\s*[:=]\s*["\']?(\d+)["\']?'
+            ]
+            
+            for pattern in jwt_patterns:
+                matches = re.findall(pattern, html_content, re.IGNORECASE)
+                if matches:
+                    token_name = pattern.split('[')[0]  # Extract token name from pattern
+                    token_value = matches[0]
+                    
+                    # Set as cookie
+                    self.session.cookies.set(token_name, token_value, domain='.club-os.com')
+                    print(f"      🔑 Extracted {token_name}: {token_value[:20]}...")
+                    
+        except Exception as e:
+            print(f"      ⚠️ Error extracting JWT tokens: {e}")
+
     def get_headers(self) -> Dict[str, str]:
         """Get authenticated headers for API requests"""
         headers = {

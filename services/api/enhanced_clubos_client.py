@@ -177,7 +177,10 @@ class EnhancedClubOSAPIClient(ClubOSAPIClient):
                 "memberStudioSalesDefaultAccount": member_id,
                 "memberStudioSupportDefaultAccount": member_id,
                 "ptSalesDefaultAccount": member_id,
-                "ptSupportDefaultAccount": member_id
+                "ptSupportDefaultAccount": member_id,
+                # Add required tokens for form submission
+                "__fp": self.get_fingerprint_token(),
+                "_sourcePage": self.get_source_page_token()
             }
             
             # Prepare headers for form submission
@@ -226,7 +229,10 @@ class EnhancedClubOSAPIClient(ClubOSAPIClient):
                 "memberStudioSalesDefaultAccount": member_id,
                 "memberStudioSupportDefaultAccount": member_id,
                 "ptSalesDefaultAccount": member_id,
-                "ptSupportDefaultAccount": member_id
+                "ptSupportDefaultAccount": member_id,
+                # Add required tokens for form submission
+                "__fp": self.get_fingerprint_token(),
+                "_sourcePage": self.get_source_page_token()
             }
             
             # Prepare headers for form submission
@@ -487,6 +493,60 @@ class EnhancedClubOSAPIClient(ClubOSAPIClient):
             print(f"   ❌ Error parsing HTML: {e}")
             return []
     
+    # =============================================================================
+    # TOKEN EXTRACTION METHODS (REQUIRED FOR FORM SUBMISSIONS)
+    # =============================================================================
+    
+    def get_fingerprint_token(self) -> str:
+        """
+        Extract FRESH __fp (fingerprint) token from current ClubOS session
+        Required for all form submissions to ClubOS
+        """
+        try:
+            # Get the calendar page to extract fresh tokens  
+            response = self.session.get(f"{self.base_url}/action/Calendar")
+            if response.status_code == 200:
+                # Look for __fp token in the HTML
+                import re
+                fp_match = re.search(r'name="__fp"[^>]*value="([^"]*)"', response.text)
+                if fp_match:
+                    token = fp_match.group(1)
+                    print(f"   ✅ Extracted fresh __fp token: {token[:20]}...")
+                    return token
+                else:
+                    print("   ⚠️ Could not find __fp token in page, using fallback")
+            
+            # Fallback to working token from browser capture
+            return "AGtXoR7WJMiW9vsLF0UPm0n2qctwhl4PvLJiae0fh7izVEIu_Dt7iHx08c_m8dvnEE1jjOmqDoscYJUsplTQdoAuI7a4ZIcF6qrgjUfeqze2k2Wo1Ad371GWBi5n-ziv0q-v7P2RYoeVdFsnz7Iwd8ce4mvoiUykZbAucFKmstLpy5uJtwxwkx4o_9sOZWSNCjdWa1f3uuOQuJVsz0joue87i2n52r63FdulhIxvgGyNTxe6Ftisb8kII0PWjkKXwOucoiWfu5rLFxJl0lewWkcYBsLwFr4blvb7CxdFD5ugyb_XBDPm5NQbJk2z4jXRHGCVLKZU0HbVECW1dMleBooheyp9iOUzJ47ciCbx8fJljJbVw2V23o1PF7oW2KxvZ1pWoDimZBVN3G5oVeBet1GWBi5n-zivCjhBQCXuHCeGbk46meyyekcYBsLwFr4blvb7CxdFD5tJ9qnLcIZeD1Mx2z9wnqxx2EdV3vc0530N0GpuM2T_TqnHfSC0T18aQU8_7YyybYlTvFrbqKICJJb2-wsXRQ-bH90lg3gVRe0g7pGAYpP2jDOjTSqVpsjEkLiVbM9I6LnvO4tp-dq-txXbpYSMb4BsPfbD5iPueCPYR1Xe9zTnfQGs4yv3JXH5xFtNNF_JPa_ICTu2zfpKhlGWBi5n-zivgdnnVsKGzXkFg1EIo49Lu2WMltXDZXbejU8XuhbYrG9nWlagOKZkFSmgK8l239ZMUZYGLmf7OK_Sr6_s_ZFih69W1C-fykfE_-9SfKK9r2mW9vsLF0UPm9hkAbMUcqsokLiVbM9I6LnvO4tp-dq-t9jx4ErX5A5Cktqzmpe6nU-YRahsbZP2Pr8BE6doplhfZks2HqR4BNccYJUsplTQdlUF6SMpCqSnAfjY_-mTR6OqKK08jdX8TQ=="
+        except Exception as e:
+            print(f"   ❌ Error extracting fingerprint token: {e}")
+            return "AGtXoR7WJMiW9vsLF0UPm0n2qctwhl4PvLJiae0fh7izVEIu_Dt7iHx08c_m8dvnEE1jjOmqDoscYJUsplTQdoAuI7a4ZIcF6qrgjUfeqze2k2Wo1Ad371GWBi5n-ziv0q-v7P2RYoeVdFsnz7Iwd8ce4mvoiUykZbAucFKmstLpy5uJtwxwkx4o_9sOZWSNCjdWa1f3uuOQuJVsz0joue87i2n52r63FdulhIxvgGyNTxe6Ftisb8kII0PWjkKXwOucoiWfu5rLFxJl0lewWkcYBsLwFr4blvb7CxdFD5ugyb_XBDPm5NQbJk2z4jXRHGCVLKZU0HbVECW1dMleBooheyp9iOUzJ47ciCbx8fJljJbVw2V23o1PF7oW2KxvZ1pWoDimZBVN3G5oVeBet1GWBi5n-zivCjhBQCXuHCeGbk46meyyekcYBsLwFr4blvb7CxdFD5tJ9qnLcIZeD1Mx2z9wnqxx2EdV3vc0530N0GpuM2T_TqnHfSC0T18aQU8_7YyybYlTvFrbqKICJJb2-wsXRQ-bH90lg3gVRe0g7pGAYpP2jDOjTSqVpsjEkLiVbM9I6LnvO4tp-dq-txXbpYSMb4BsPfbD5iPueCPYR1Xe9zTnfQGs4yv3JXH5xFtNNF_JPa_ICTu2zfpKhlGWBi5n-zivgdnnVsKGzXkFg1EIo49Lu2WMltXDZXbejU8XuhbYrG9nWlagOKZkFSmgK8l239ZMUZYGLmf7OK_Sr6_s_ZFih69W1C-fykfE_-9SfKK9r2mW9vsLF0UPm9hkAbMUcqsokLiVbM9I6LnvO4tp-dq-t9jx4ErX5A5Cktqzmpe6nU-YRahsbZP2Pr8BE6doplhfZks2HqR4BNccYJUsplTQdlUF6SMpCqSnAfjY_-mTR6OqKK08jdX8TQ=="
+
+    def get_source_page_token(self) -> str:
+        """
+        Extract FRESH _sourcePage token from current ClubOS session
+        Required for all form submissions to ClubOS
+        """
+        try:
+            # Get the calendar page to extract fresh tokens
+            response = self.session.get(f"{self.base_url}/action/Calendar")
+            if response.status_code == 200:
+                # Look for _sourcePage token in the HTML
+                import re
+                source_match = re.search(r'name="_sourcePage"[^>]*value="([^"]*)"', response.text)
+                if source_match:
+                    token = source_match.group(1)
+                    print(f"   ✅ Extracted fresh _sourcePage token: {token[:20]}...")
+                    return token
+                else:
+                    print("   ⚠️ Could not find _sourcePage token in page, using fallback")
+            
+            # Fallback to working token from browser capture
+            return "GN6AsTEdTbxJ0LGtZ3ilrEZQiwnc1XV2EIusBezhws92tfAba2lFOA=="
+        except Exception as e:
+            print(f"   ❌ Error extracting source page token: {e}")
+            return "GN6AsTEdTbxJ0LGtZ3ilrEZQiwnc1XV2EIusBezhws92tfAba2lFOA=="
+
     # =============================================================================
     # TRAINING PACKAGE ENDPOINTS
     # =============================================================================

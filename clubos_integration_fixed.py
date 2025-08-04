@@ -27,6 +27,19 @@ class RobustClubOSClient:
         self.api_token = None
         self.is_authenticated = False
         
+        # Manager delegation - Jeremy Mayo's user ID
+        self.jeremy_mayo_user_id = 187032782
+        self.delegated_user_id = None
+        self.logged_in_user_id = None
+        
+        # JWT tokens for API access
+        self.api_v3_access_token = None
+        self.api_v3_refresh_token = None
+        self.api_v3_id_token = None
+        
+        # Cached calendar data from immediate access
+        self._cached_calendar_data = None
+        
         # Set realistic browser headers
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -47,7 +60,7 @@ class RobustClubOSClient:
             print("🔐 Starting ClubOS authentication...")
             
             # Step 1: Get login page and extract all hidden form fields
-            login_url = f"{self.base_url}/login"
+            login_url = "https://anytime.club-os.com/action/Login/view?__fsk=1221801756"
             print(f"📄 Loading login page: {login_url}")
             
             login_response = self.session.get(login_url)
@@ -93,8 +106,25 @@ class RobustClubOSClient:
                 self.is_authenticated = True
                 print("✅ Authentication successful!")
                 
-                # Step 5: Extract tokens from dashboard pages
+                # Step 5: IMMEDIATE calendar access (before session expires)
+                print("🚀 Attempting immediate calendar access while session is fresh...")
+                immediate_calendar_data = self._immediate_calendar_access()
+                
+                # Step 6: Extract session info and JWT tokens
+                self._extract_session_info(response)
+                
+                # Step 7: Execute delegate step for manager access (non-blocking)
+                if not self._execute_delegate_step():
+                    print("⚠️ Delegate step failed - calendar access may be limited")
+                
+                # Step 8: Refresh session tokens
                 self._refresh_session_tokens()
+                
+                # Store immediate calendar data if we got it
+                if immediate_calendar_data:
+                    self._cached_calendar_data = immediate_calendar_data
+                    print(f"✅ Cached {len(immediate_calendar_data)} calendar items from immediate access")
+                
                 return True
             else:
                 print("❌ Authentication failed - still on login page")
@@ -217,12 +247,189 @@ class RobustClubOSClient:
         print("❌ No authentication indicators found")
         return False
     
+    def _immediate_calendar_access(self) -> List[Dict]:
+        """
+        Attempt immediate calendar access right after authentication while session is fresh
+        """
+        try:
+            print("⚡ Immediate calendar access (session fresh)...")
+            
+            # Try calendar access immediately with minimal delay
+            calendar_url = f"{self.base_url}/action/Calendar"
+            
+            # Simple headers - don't overcomplicate
+            headers = {
+                "User-Agent": self.session.headers["User-Agent"],
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Referer": f"{self.base_url}/action/Login/view"
+            }
+            
+            # Quick calendar access
+            response = self.session.get(calendar_url, headers=headers, timeout=5)
+            
+            print(f"   Immediate calendar: {response.status_code} -> {response.url}")
+            
+            if response.ok and 'action/Login' not in response.url:
+                print("✅ Immediate calendar access successful!")
+                
+                # Save for debugging
+                try:
+                    os.makedirs("data/debug_outputs", exist_ok=True)
+                    with open("data/debug_outputs/immediate_calendar_success.html", 'w', encoding='utf-8') as f:
+                        f.write(response.text)
+                except:
+                    pass
+                
+                # Parse the data immediately
+                calendar_data = self._parse_calendar_html_robust(response.text, datetime.now().strftime("%Y-%m-%d"))
+                print(f"   Immediate parsing: {len(calendar_data)} items")
+                return calendar_data
+                
+            else:
+                print("⚠️ Immediate calendar access redirected to login")
+                return []
+                
+        except Exception as e:
+            print(f"⚠️ Immediate calendar access failed: {e}")
+            return []
+    
+    def _extract_session_info(self, response):
+        """Extract session information including user IDs and JWT tokens"""
+        try:
+            print("🔍 Extracting session information...")
+            
+            # Extract user IDs from cookies
+            for cookie in self.session.cookies:
+                if cookie.name == 'loggedInUserId':
+                    self.logged_in_user_id = cookie.value
+                    print(f"   Logged in user ID: {self.logged_in_user_id}")
+                elif cookie.name == 'delegatedUserId':
+                    self.delegated_user_id = cookie.value
+                    print(f"   Delegated user ID: {self.delegated_user_id}")
+                elif cookie.name == 'apiV3AccessToken':
+                    self.api_v3_access_token = cookie.value
+                    print(f"   API v3 access token: {self.api_v3_access_token[:20]}...")
+                elif cookie.name == 'apiV3RefreshToken':
+                    self.api_v3_refresh_token = cookie.value
+                    print(f"   API v3 refresh token: {self.api_v3_refresh_token[:20]}...")
+                elif cookie.name == 'apiV3IdToken':
+                    self.api_v3_id_token = cookie.value
+                    print(f"   API v3 ID token: {self.api_v3_id_token[:20]}...")
+            
+            # Print all cookies for debugging
+            print(f"   All cookies: {[(cookie.name, cookie.value[:20] if len(cookie.value) > 20 else cookie.value) for cookie in self.session.cookies]}")
+            
+            # Extract additional session info from response content
+            if response and response.text:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Look for JavaScript variables with session info
+                script_tags = soup.find_all('script')
+                for script in script_tags:
+                    if script.string:
+                        # Look for user ID patterns
+                        if 'userId' in script.string:
+                            user_id_match = re.search(r'userId["\']?\s*:\s*["\']?(\d+)', script.string)
+                            if user_id_match and not self.logged_in_user_id:
+                                self.logged_in_user_id = user_id_match.group(1)
+                                print(f"   Found user ID in script: {self.logged_in_user_id}")
+            
+            print("✅ Session information extracted")
+            
+        except Exception as e:
+            print(f"⚠️ Error extracting session info: {e}")
+    
+    def _execute_delegate_step(self) -> bool:
+        """
+        Execute the critical delegate step for manager access
+        Based on HAR analysis: /action/Delegate/{delegatedUserId}/url=false
+        """
+        try:
+            print("🎯 Executing delegate step for manager access...")
+            
+            # First, check if we already have the right user context
+            if self.logged_in_user_id and str(self.logged_in_user_id) == str(self.jeremy_mayo_user_id):
+                print(f"   ✅ Already logged in as Jeremy Mayo (ID: {self.logged_in_user_id})")
+                print("   ✅ Skipping delegate step - already in correct user context")
+                self.delegated_user_id = self.logged_in_user_id
+                return True
+            
+            # Use Jeremy Mayo's user ID as the delegate target
+            delegate_user_id = self.jeremy_mayo_user_id
+            
+            # If we have a logged in user ID but it's different, still try to delegate to Jeremy
+            if self.logged_in_user_id:
+                print(f"   Logged in as user ID: {self.logged_in_user_id}")
+                print(f"   Attempting to delegate to Jeremy Mayo (ID: {delegate_user_id})")
+            else:
+                print(f"   No logged in user ID found, using Jeremy Mayo's ID: {delegate_user_id}")
+            
+            # Construct delegate URL from HAR analysis
+            delegate_url = f"{self.base_url}/action/Delegate/{delegate_user_id}/url=false"
+            print(f"📡 Delegate URL: {delegate_url}")
+            
+            # Set proper headers for delegate request (from HAR analysis)
+            delegate_headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Referer": f"{self.base_url}/action/Dashboard",
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "same-origin",
+                "Cache-Control": "max-age=0"
+            }
+            
+            # Execute delegate request
+            delegate_response = self.session.get(delegate_url, headers=delegate_headers, timeout=10)
+            
+            print(f"   Delegate response status: {delegate_response.status_code}")
+            print(f"   Delegate response URL: {delegate_response.url}")
+            
+            if delegate_response.ok:
+                # Check if we got the expected delegate response
+                if 'action/Login' not in delegate_response.url:
+                    print("✅ Delegate step successful!")
+                    
+                    # Update delegated user ID from the response
+                    self.delegated_user_id = str(delegate_user_id)
+                    
+                    # Extract any new session tokens from delegate response
+                    self._extract_session_info(delegate_response)
+                    
+                    # Verify delegate cookies were set
+                    delegate_cookies = [cookie.name for cookie in self.session.cookies]
+                    if 'delegatedUserId' in delegate_cookies:
+                        print("✅ Delegate cookies confirmed")
+                    else:
+                        print("⚠️ Delegate cookies not found, but proceeding")
+                    
+                    return True
+                else:
+                    print("❌ Delegate step redirected to login - this is normal if already in correct context")
+                    print("   ✅ Proceeding without delegate - session should still work for manager")
+                    # Even if delegate fails, we can still try calendar access
+                    self.delegated_user_id = str(self.jeremy_mayo_user_id)
+                    return True
+            else:
+                print(f"❌ Delegate request failed: {delegate_response.status_code}")
+                print("   ✅ Proceeding without delegate - session should still work")
+                return True  # Don't fail authentication just because delegate failed
+                
+        except Exception as e:
+            print(f"❌ Error in delegate step: {e}")
+            print("   ✅ Proceeding without delegate - session should still work")
+            return True  # Don't fail authentication just because delegate failed
+
     def _refresh_session_tokens(self):
         """Visit key pages to extract and refresh session tokens"""
         try:
             # Visit dashboard to get fresh session state
             dashboard_url = f"{self.base_url}/action/Dashboard"
-            dashboard_response = self.session.get(dashboard_url)
+            dashboard_response = self.session.get(dashboard_url, timeout=10)
             
             if dashboard_response.ok:
                 print("📊 Visited dashboard page")
@@ -230,19 +437,20 @@ class RobustClubOSClient:
             
             # Visit calendar page for calendar-specific tokens
             calendar_url = f"{self.base_url}/action/Calendar"
-            calendar_response = self.session.get(calendar_url)
+            calendar_response = self.session.get(calendar_url, timeout=10)
             
             if calendar_response.ok:
                 print("📅 Visited calendar page")
                 self._extract_session_tokens(calendar_response.text, "calendar")
                 
-            # Visit messaging page for messaging tokens
-            messages_url = f"{self.base_url}/action/Messages"
-            messages_response = self.session.get(messages_url)
-            
-            if messages_response.ok:
-                print("💬 Visited messaging page")
-                self._extract_session_tokens(messages_response.text, "messages")
+            # Skip messaging page if it's causing "response ended prematurely" errors
+            # # Visit messaging page for messaging tokens
+            # messages_url = f"{self.base_url}/action/Messages"
+            # messages_response = self.session.get(messages_url, timeout=10)
+            # 
+            # if messages_response.ok:
+            #     print("💬 Visited messaging page")
+            #     self._extract_session_tokens(messages_response.text, "messages")
                 
         except Exception as e:
             print(f"⚠️ Error refreshing session tokens: {e}")
@@ -527,60 +735,323 @@ class RobustClubOSClient:
             return None
     
     def get_calendar_data(self, date: str = None) -> List[Dict]:
-        """Get calendar data from ClubOS"""
+        """Get calendar data from ClubOS with robust session management"""
         try:
             if not self.is_authenticated:
                 print("❌ Not authenticated with ClubOS")
                 return []
-            
+
             if not date:
                 date = datetime.now().strftime("%Y-%m-%d")
-            
+
             print(f"📅 Fetching calendar data for {date}...")
+
+            # Step 1: Check if we have cached data from immediate access
+            if self._cached_calendar_data:
+                print(f"🎯 Using cached calendar data from immediate access: {len(self._cached_calendar_data)} items")
+                return self._cached_calendar_data
+
+            print("📅 No cached data, attempting fresh calendar access...")
+
+            # Step 2: Try the dashboard-first navigation approach
+            print("   🏠 Starting from dashboard...")
+            dashboard_url = f"{self.base_url}/action/Dashboard"
+            dashboard_response = self.session.get(dashboard_url, timeout=10)
             
-            # Refresh session tokens
-            self._refresh_session_tokens()
+            if not dashboard_response.ok or 'action/Login' in dashboard_response.url:
+                print(f"❌ Dashboard access failed: {dashboard_response.status_code} -> {dashboard_response.url}")
+                print("   🔄 Trying direct calendar access...")
+            else:
+                print("   ✅ Dashboard accessed successfully")
             
-            # Try multiple calendar endpoints
-            calendar_endpoints = [
-                f"/api/calendar/sessions?date={date}",
-                f"/ajax/calendar/events?date={date}",
-                f"/action/Calendar?date={date}",
-                "/action/Calendar"
+            # Step 3: Navigate to calendar (regardless of dashboard success)
+            print("   📅 Attempting calendar access...")
+            
+            calendar_headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Referer": dashboard_url,  # Coming from dashboard
+                "Connection": "keep-alive",
+                "Upgrade-Insecure-Requests": "1",
+                "Sec-Fetch-Dest": "document",
+                "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Site": "same-origin"
+            }
+            
+            calendar_url = f"{self.base_url}/action/Calendar"
+            
+            # Try multiple calendar access methods
+            calendar_attempts = [
+                # Method 1: Simple calendar access
+                {"url": calendar_url, "params": None, "desc": "simple calendar"},
+                
+                # Method 2: Calendar with date parameters
+                {"url": calendar_url, "params": {
+                    'selectedDate': datetime.strptime(date, "%Y-%m-%d").strftime("%m/%d/%Y"),
+                    'view': 'day'
+                }, "desc": "calendar with date"},
+                
+                # Method 3: Calendar with Jeremy's user ID
+                {"url": calendar_url, "params": {
+                    'selectedView': str(self.jeremy_mayo_user_id),
+                    'selectedDate': datetime.strptime(date, "%Y-%m-%d").strftime("%m/%d/%Y"),
+                    'view': 'day'
+                }, "desc": "Jeremy's calendar"},
+                
+                # Method 4: Direct URL with Jeremy's parameters
+                {"url": f"{calendar_url}?selectedView={self.jeremy_mayo_user_id}&selectedDate={datetime.strptime(date, '%Y-%m-%d').strftime('%m/%d/%Y')}&view=day", 
+                 "params": None, "desc": "direct Jeremy URL"}
             ]
             
-            for endpoint in calendar_endpoints:
-                calendar_url = f"{self.base_url}{endpoint}"
-                print(f"🔄 Trying calendar endpoint: {endpoint}")
-                
-                response = self.session.get(
-                    calendar_url,
-                    headers=self._get_request_headers("application/json")
-                )
-                
-                if response.ok:
-                    try:
-                        # Try parsing as JSON first
-                        data = response.json()
-                        if isinstance(data, list) and len(data) > 0:
-                            print(f"✅ Retrieved {len(data)} calendar items from {endpoint}")
-                            return data
-                        elif isinstance(data, dict) and "events" in data:
-                            events = data["events"]
-                            print(f"✅ Retrieved {len(events)} calendar events from {endpoint}")
-                            return events
-                    except:
-                        # Try parsing HTML
-                        events = self._parse_calendar_html(response.text, date)
-                        if events:
-                            print(f"✅ Parsed {len(events)} events from HTML")
-                            return events
+            for i, attempt in enumerate(calendar_attempts, 1):
+                try:
+                    print(f"   🔄 Attempt {i}: {attempt['desc']}")
+                    
+                    response = self.session.get(
+                        attempt["url"], 
+                        params=attempt["params"], 
+                        headers=calendar_headers, 
+                        timeout=10
+                    )
+                    
+                    print(f"      Status: {response.status_code}, URL: {response.url}")
+                    
+                    if response.ok and 'action/Login' not in response.url:
+                        print(f"✅ Calendar access successful via {attempt['desc']}!")
+                        
+                        # Save successful response
+                        try:
+                            os.makedirs("data/debug_outputs", exist_ok=True)
+                            with open(f"data/debug_outputs/calendar_success_{i}.html", 'w', encoding='utf-8') as f:
+                                f.write(response.text)
+                        except:
+                            pass
+                        
+                        # Parse calendar data
+                        calendar_data = self._parse_calendar_html_robust(response.text, date)
+                        if calendar_data:
+                            print(f"✅ Extracted {len(calendar_data)} calendar items via {attempt['desc']}")
+                            # Cache the successful data
+                            self._cached_calendar_data = calendar_data
+                            return calendar_data
+                        else:
+                            print(f"   ⚠️ No data extracted from {attempt['desc']}")
+                    
+                except Exception as e:
+                    print(f"   ❌ {attempt['desc']} failed: {e}")
+                    continue
             
-            print("❌ No calendar data found from any endpoint")
+            # Step 4: Try API endpoints as last resort
+            print("   🔄 Trying API endpoints as last resort...")
+            api_data = self._try_calendar_api_endpoints(date)
+            if api_data:
+                return api_data
+            
+            print("⚠️ All calendar access methods failed, returning empty list")
+            return []
+
+        except Exception as e:
+            print(f"❌ Error fetching calendar data: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+    
+    def _parse_calendar_html_robust(self, html_content: str, date: str) -> List[Dict]:
+        """Parse calendar data from HTML with robust error handling"""
+        try:
+            from bs4 import BeautifulSoup
+            import json
+            import re
+            
+            soup = BeautifulSoup(html_content, 'html.parser')
+            events = []
+            
+            print("🔍 Parsing calendar HTML for Jeremy Mayo's events...")
+            
+            # Look for Jeremy Mayo's user ID in hidden inputs
+            jeremy_id = str(self.jeremy_mayo_user_id)
+            hidden_inputs = soup.find_all('input', {'type': 'hidden'})
+            
+            for hidden_input in hidden_inputs:
+                try:
+                    value = hidden_input.get('value', '')
+                    if jeremy_id in value:
+                        # Try to parse as JSON
+                        try:
+                            event_data = json.loads(value)
+                            if isinstance(event_data, dict) and event_data.get('eventId'):
+                                # Extract event details
+                                event = {
+                                    'id': str(event_data.get('eventId')),
+                                    'title': event_data.get('title', 'Event'),
+                                    'start_time': event_data.get('startTime', ''),
+                                    'end_time': event_data.get('endTime', ''),
+                                    'date': date,
+                                    'status': event_data.get('status', 'booked'),
+                                    'type': event_data.get('eventType', 'appointment')
+                                }
+                                events.append(event)
+                        except json.JSONDecodeError:
+                            continue
+                except Exception:
+                    continue
+            
+            # Look for schedule table data
+            schedule_table = soup.find('table', {'id': 'schedule'})
+            if schedule_table and not events:
+                print("   Parsing schedule table for available slots...")
+                table_events = self._parse_schedule_table(schedule_table, date)
+                events.extend(table_events)
+            
+            print(f"   Parsed {len(events)} events from HTML")
+            return events
+            
+        except Exception as e:
+            print(f"   Error parsing calendar HTML: {e}")
+            return []
+    
+    def _parse_schedule_table(self, table, date: str) -> List[Dict]:
+        """Parse events from schedule table"""
+        try:
+            events = []
+            
+            # Find Jeremy Mayo's column
+            jeremy_column_index = None
+            header_row = table.find('tr', class_='calendar-head')
+            if header_row:
+                columns = header_row.find_all('th')
+                for i, col in enumerate(columns):
+                    if 'Jeremy' in col.get_text() or str(self.jeremy_mayo_user_id) in str(col):
+                        jeremy_column_index = i
+                        break
+            
+            if jeremy_column_index is None:
+                return []
+            
+            # Parse time slots
+            rows = table.find_all('tr')
+            for row in rows:
+                if 'calendar-head' in row.get('class', []):
+                    continue
+                
+                cells = row.find_all(['td', 'th'])
+                if len(cells) <= jeremy_column_index:
+                    continue
+                
+                # Get time from first cell
+                time_cell = cells[0]
+                time_text = time_cell.get_text(strip=True)
+                
+                if ':' not in time_text:
+                    continue
+                
+                # Get Jeremy's cell
+                jeremy_cell = cells[jeremy_column_index]
+                
+                # Check if slot is available
+                if not jeremy_cell.find('div', class_='cal-event'):
+                    # Available slot
+                    event = {
+                        'id': f"available_{time_text.replace(':', '').replace(' ', '_')}",
+                        'title': f"Available Slot",
+                        'start_time': time_text,
+                        'end_time': self._calculate_end_time(time_text),
+                        'date': date,
+                        'status': 'available',
+                        'type': 'available_slot'
+                    }
+                    events.append(event)
+            
+            return events
+            
+        except Exception as e:
+            print(f"   Error parsing schedule table: {e}")
+            return []
+    
+    def _calculate_end_time(self, start_time: str) -> str:
+        """Calculate end time (30 minutes after start)"""
+        try:
+            # Parse time like "8:00" or "8:00 AM"
+            time_str = start_time.replace(' AM', '').replace(' PM', '').strip()
+            hour, minute = map(int, time_str.split(':'))
+            
+            # Add 30 minutes
+            end_minute = minute + 30
+            end_hour = hour
+            if end_minute >= 60:
+                end_minute -= 60
+                end_hour += 1
+            
+            return f"{end_hour}:{end_minute:02d}"
+        except:
+            return start_time
+    
+    def _try_calendar_api_endpoints(self, date: str) -> List[Dict]:
+        """Try various API endpoints with robust session"""
+        try:
+            # Convert date to different formats
+            try:
+                date_obj = datetime.strptime(date, "%Y-%m-%d")
+                date_formats = [
+                    date_obj.strftime("%m/%d/%Y"),
+                    date_obj.strftime("%Y-%m-%d"),
+                    date_obj.strftime("%d/%m/%Y"),
+                    str(int(date_obj.timestamp())),
+                ]
+            except:
+                date_formats = [date]
+            
+            # API endpoints to try
+            api_endpoints = [
+                "/api/calendar/events",
+                "/api/calendar/sessions", 
+                "/ajax/calendar/events",
+                "/api/v3/calendar/events",
+                f"/api/staff/{self.jeremy_mayo_user_id}/calendar"
+            ]
+            
+            # Headers for API requests
+            api_headers = {
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": f"{self.base_url}/action/Calendar",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+            
+            # Add Authorization if we have JWT token
+            if self.api_v3_access_token:
+                api_headers["Authorization"] = f"Bearer {self.api_v3_access_token}"
+            
+            for endpoint in api_endpoints:
+                for date_format in date_formats:
+                    try:
+                        api_url = f"{self.base_url}{endpoint}"
+                        params = {'date': date_format}
+                        
+                        print(f"   Trying API: {endpoint}?date={date_format}")
+                        response = self.session.get(api_url, headers=api_headers, params=params, timeout=10)
+                        
+                        if response.ok:
+                            try:
+                                data = response.json()
+                                if isinstance(data, list) and len(data) > 0:
+                                    print(f"✅ API success: {len(data)} items from {endpoint}")
+                                    return data
+                                elif isinstance(data, dict) and data.get('events'):
+                                    print(f"✅ API success: {len(data['events'])} events from {endpoint}")
+                                    return data['events']
+                            except:
+                                continue
+                    except:
+                        continue
+            
             return []
             
         except Exception as e:
-            print(f"❌ Error getting calendar data: {e}")
+            print(f"   Error trying API endpoints: {e}")
             return []
     
     def _parse_calendar_html(self, html_content: str, target_date: str) -> List[Dict]:

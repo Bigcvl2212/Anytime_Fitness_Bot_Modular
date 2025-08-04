@@ -1,34 +1,93 @@
 {% extends "base.html" %}
-{% block title %}Calendar{% endblock %}
-{% block page_title %}ClubOS Calendar Integration{% endblock %}
+{% block title %}Calendar Management - {{ super() }}{% endblock %}
 {% block content %}
-<div class="card">
-    <div class="card-header">
-        <h5>Upcoming Events</h5>
-        <span class="badge bg-secondary">{{ clubos_status }}</span>
-    </div>
-    <div class="card-body">
-        {% if calendar_data %}
-            <div class="table-responsive">
-                <table class="table">
-                    <thead>
-                        <tr><th>Title</th><th>Time</th><th>Instructor</th><th>Spots Available</th></tr>
-                    </thead>
-                    <tbody>
-                        {% for event in calendar_data %}
-                        <tr>
-                            <td>{{ event.title }}</td>
-                            <td>{{ event.time }}</td>
-                            <td>{{ event.instructor }}</td>
-                            <td>{{ event.spots }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3 class="mb-0">
+                            <i class="fas fa-calendar-alt me-2"></i>Calendar Management
+                        </h3>
+                        <div>
+                            Status: 
+                            {% if connection_status == 'Connected' %}
+                                <span class="badge bg-success">{{ connection_status }}</span>
+                            {% else %}
+                                <span class="badge bg-danger">{{ connection_status }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <form method="POST" action="/calendar/sync">
+                                <button type="submit" class="btn btn-purple">
+                                    <i class="fas fa-sync me-2"></i>Sync Events
+                                </button>
+                            </form>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            {% if sync_time %}
+                                <small class="text-muted">Last sync: {{ sync_time }}</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    {% if events %}
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Event ID</th>
+                                        <th>Details</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for event in events %}
+                                    <tr>
+                                        <td>{{ event.id if event.id else 'N/A' }}</td>
+                                        <td>{{ event }}</td>
+                                        <td>
+                                            {% if event.id %}
+                                            <form method="POST" action="/calendar/delete/{{ event.id }}" 
+                                                  style="display: inline;">
+                                                <button type="submit" class="btn btn-sm btn-danger"
+                                                        onclick="return confirm('Delete event {{ event.id }}?')">
+                                                    <i class="fas fa-trash me-1"></i>Delete
+                                                </button>
+                                            </form>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            {% if connection_status == 'Connected' %}
+                                <i class="fas fa-calendar-check fa-3x text-muted mb-3"></i>
+                                <h5>No Events Found</h5>
+                                <p class="text-muted">No calendar events to display</p>
+                            {% else %}
+                                <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                                <h5>ClubOS Disconnected</h5>
+                                <p class="text-muted">Please authenticate to view calendar events</p>
+                                <form method="POST" action="/calendar/sync">
+                                    <button type="submit" class="btn btn-purple">
+                                        <i class="fas fa-plug me-2"></i>Connect to ClubOS
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
             </div>
-        {% else %}
-            <p class="text-muted">No upcoming events found.</p>
-        {% endif %}
+        </div>
     </div>
 </div>
 {% endblock %}

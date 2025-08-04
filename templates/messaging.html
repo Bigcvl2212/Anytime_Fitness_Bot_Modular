@@ -1,16 +1,80 @@
 {% extends "base.html" %}
-{% block title %}Communications - Anytime Fitness®{% endblock %}
-{% block page_title %}Member Communications{% endblock %}
-{% block page_subtitle %}Stay connected with your Anytime Fitness community{% endblock %}
+{% block title %}Messaging - {{ super() }}{% endblock %}
 {% block content %}
-<div class="card">
-    <div class="card-header">
-        <h5><i class="fas fa-comments me-2"></i>Communication Center</h5>
-    </div>
-    <div class="card-body text-center py-5">
-        <i class="fas fa-comments fa-4x text-purple mb-3"></i>
-        <h5>Advanced Communications Coming Soon</h5>
-        <p class="text-muted">Powerful messaging features will be available here.</p>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="mb-0">
+                        <i class="fas fa-comments me-2"></i>Send Message
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="/send-message">
+                        <div class="mb-3">
+                            <label for="recipient" class="form-label">Recipient</label>
+                            <select class="form-select" id="recipient" name="recipient" required>
+                                <option value="">Select recipient...</option>
+                                <optgroup label="Members">
+                                    {% for member in recent_members %}
+                                    <option value="{{ member[2] }}">{{ member[0] }} {{ member[1] }} ({{ member[2] }})</option>
+                                    {% endfor %}
+                                </optgroup>
+                                <optgroup label="Prospects">
+                                    {% for prospect in recent_prospects %}
+                                    <option value="{{ prospect[2] }}">{{ prospect[0] }} {{ prospect[1] }} ({{ prospect[2] }})</option>
+                                    {% endfor %}
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="method" class="form-label">Method</label>
+                            <select class="form-select" id="method" name="method" required>
+                                <option value="email">Email</option>
+                                <option value="sms">SMS</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="message" class="form-label">Message</label>
+                            <textarea class="form-control" id="message" name="message" rows="5" required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-purple">
+                            <i class="fas fa-paper-plane me-2"></i>Send Message
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Quick Templates</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-purple btn-sm" onclick="setMessage('Welcome to Anytime Fitness! We\'re excited to have you as part of our fitness family.')">
+                            Welcome Message
+                        </button>
+                        <button class="btn btn-outline-purple btn-sm" onclick="setMessage('Hi! Just checking in to see how your fitness journey is going. Let us know if you need any support!')">
+                            Check-in Message
+                        </button>
+                        <button class="btn btn-outline-purple btn-sm" onclick="setMessage('Don\'t forget about your upcoming training session. We\'re here to help you reach your goals!')">
+                            Reminder Message
+                        </button>
+                        <button class="btn btn-outline-purple btn-sm" onclick="setMessage('Thank you for being a valued member of Anytime Fitness. Your commitment to health and fitness inspires us!')">
+                            Thank You Message
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
+
+<script>
+function setMessage(text) {
+    document.getElementById('message').value = text;
+}
+</script>
 {% endblock %}
