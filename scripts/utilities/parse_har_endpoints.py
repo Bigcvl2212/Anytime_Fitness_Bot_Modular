@@ -20,6 +20,7 @@ SESSION_FILES = [
     "charles_session.chls/newest.har",
     "charles_session.chls/Charles_session_mapping.har",
     "charles_session.chls/Training_Endpoints.har",
+    "charles_session.chls/Calendar_Endpoints.har",
 ]
 
 KEYWORDS = ['agreement', 'billing', 'payment', 'balance', 'due', 'invoice']

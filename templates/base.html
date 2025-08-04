@@ -3,334 +3,619 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Gym Bot Dashboard{% endblock %}</title>
+    <title>{% block title %}Anytime Fitness Management{% endblock %}</title>
+    
+    <!-- Fluent UI Components -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/chart.js@4.2.1/dist/chart.min.css" rel="stylesheet">
+    <!-- Use system fonts instead of Google Fonts to avoid CORB issues -->
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+    
     <style>
         :root {
-            --sidebar-width: 280px;
-            --primary-color: #6366f1;
-            --secondary-color: #f8fafc;
-            --accent-color: #10b981;
-            --danger-color: #ef4444;
-            --warning-color: #f59e0b;
+            /* Purple & Black Anytime Fitness Theme */
+            --af-purple-primary: #8B5CF6;
+            --af-purple-dark: #7C3AED;
+            --af-purple-light: #A78BFA;
+            --af-purple-accent: #C4B5FD;
+            
+            --af-black-primary: #0F0F0F;
+            --af-black-secondary: #1A1A1A;
+            --af-black-tertiary: #2D2D2D;
+            --af-black-quaternary: #404040;
+            
+            --af-gray-50: #F9FAFB;
+            --af-gray-100: #F3F4F6;
+            --af-gray-200: #E5E7EB;
+            --af-gray-300: #D1D5DB;
+            --af-gray-600: #6B7280;
+            --af-gray-800: #1F2937;
+            
+            /* Fluent Design Shadows */
+            --shadow-2: 0 2px 4px rgba(0, 0, 0, 0.08);
+            --shadow-4: 0 4px 8px rgba(0, 0, 0, 0.12);
+            --shadow-8: 0 8px 16px rgba(0, 0, 0, 0.16);
+            --shadow-16: 0 16px 32px rgba(0, 0, 0, 0.20);
+            
+            /* Fluent Border Radius */
+            --border-radius-small: 4px;
+            --border-radius-medium: 8px;
+            --border-radius-large: 12px;
+            --border-radius-xlarge: 16px;
+        }
+        
+        * {
+            box-sizing: border-box;
         }
         
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background-color: #f8fafc;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
             margin: 0;
+            padding: 0;
+            background: var(--af-gray-50);
+            color: var(--af-black-primary);
+            overflow-x: hidden;
         }
         
-        .sidebar {
+        /* Outlook-style Top Bar */
+        .outlook-topbar {
+            height: 48px;
+            background: var(--af-black-primary);
+            border-bottom: 1px solid var(--af-black-tertiary);
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
             position: fixed;
             top: 0;
             left: 0;
-            height: 100vh;
-            width: var(--sidebar-width);
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            right: 0;
             z-index: 1000;
-            overflow-y: auto;
-            box-shadow: 4px 0 15px rgba(0,0,0,0.1);
         }
         
-        .sidebar-header {
-            padding: 1.5rem;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-        }
-        
-        .sidebar-brand {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: white;
-            text-decoration: none;
-        }
-        
-        .sidebar-nav {
-            padding: 1rem 0;
-        }
-        
-        .nav-item {
-            margin: 0.25rem 1rem;
-        }
-        
-        .nav-link {
+        .outlook-logo {
             display: flex;
             align-items: center;
-            padding: 0.875rem 1rem;
-            color: rgba(255,255,255,0.8);
-            text-decoration: none;
-            border-radius: 0.5rem;
-            transition: all 0.2s;
-            font-weight: 500;
-        }
-        
-        .nav-link:hover, .nav-link.active {
-            background-color: rgba(255,255,255,0.15);
-            color: white;
-            transform: translateX(4px);
-        }
-        
-        .nav-link i {
-            width: 20px;
-            margin-right: 0.75rem;
-        }
-        
-        .main-content {
-            margin-left: var(--sidebar-width);
-            min-height: 100vh;
-        }
-        
-        .top-bar {
-            background: white;
-            border-bottom: 1px solid #e5e7eb;
-            padding: 1rem 2rem;
-            display: flex;
-            justify-content: between;
-            align-items: center;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        
-        .content-area {
-            padding: 2rem;
-        }
-        
-        .card {
-            border: none;
-            border-radius: 1rem;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
-        }
-        
-        .card-header {
-            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-            border-bottom: 1px solid #e2e8f0;
-            border-radius: 1rem 1rem 0 0 !important;
-            padding: 1.25rem;
-        }
-        
-        .btn-primary {
-            background: var(--primary-color);
-            border-color: var(--primary-color);
-            border-radius: 0.5rem;
+            color: var(--af-purple-primary);
             font-weight: 600;
-            padding: 0.5rem 1rem;
+            font-size: 16px;
+            margin-right: 32px;
         }
         
-        .btn-primary:hover {
-            background: #5856f5;
-            border-color: #5856f5;
+        .outlook-logo i {
+            font-size: 20px;
+            margin-right: 8px;
+        }
+        
+        .outlook-search {
+            flex: 1;
+            max-width: 400px;
+            position: relative;
+        }
+        
+        .outlook-search input {
+            width: 100%;
+            height: 32px;
+            background: var(--af-black-secondary);
+            border: 1px solid var(--af-black-tertiary);
+            border-radius: var(--border-radius-medium);
+            padding: 0 12px 0 36px;
+            color: white;
+            font-size: 14px;
+        }
+        
+        .outlook-search input::placeholder {
+            color: var(--af-gray-600);
+        }
+        
+        .outlook-search i {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--af-gray-600);
+        }
+        
+        .outlook-user {
+            display: flex;
+            align-items: center;
+            color: white;
+            margin-left: auto;
+        }
+        
+        .outlook-user-avatar {
+            width: 28px;
+            height: 28px;
+            background: var(--af-purple-primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 12px;
+            margin-left: 12px;
+        }
+        
+        /* Outlook-style Layout */
+        .outlook-container {
+            display: flex;
+            height: 100vh;
+            padding-top: 48px;
+        }
+        
+        /* Outlook-style Sidebar */
+        .outlook-sidebar {
+            width: 280px;
+            background: var(--af-black-secondary);
+            border-right: 1px solid var(--af-black-tertiary);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        
+        .outlook-nav {
+            padding: 16px 12px;
+        }
+        
+        .outlook-nav-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            margin-bottom: 2px;
+            border-radius: var(--border-radius-medium);
+            color: var(--af-gray-300);
+            text-decoration: none;
+            transition: all 0.15s ease;
+            font-weight: 400;
+        }
+        
+        .outlook-nav-item:hover {
+            background: var(--af-black-tertiary);
+            color: white;
+            text-decoration: none;
+        }
+        
+        .outlook-nav-item.active {
+            background: var(--af-purple-primary);
+            color: white;
+        }
+        
+        .outlook-nav-item i {
+            width: 20px;
+            font-size: 16px;
+            margin-right: 12px;
+            text-align: center;
+        }
+        
+        .outlook-nav-section {
+            margin-top: 24px;
+        }
+        
+        .outlook-nav-section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--af-gray-600);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0 12px 8px;
+        }
+        
+        /* Outlook-style Main Content */
+        .outlook-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--af-gray-50);
+            overflow: hidden;
+        }
+        
+        .outlook-header {
+            background: white;
+            border-bottom: 1px solid var(--af-gray-200);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-height: 64px;
+        }
+        
+        .outlook-header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            color: var(--af-black-primary);
+            margin: 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .outlook-header h1 i {
+            margin-right: 12px;
+            color: var(--af-purple-primary);
+        }
+        
+        .outlook-content {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+        }
+        
+        /* Outlook-style Cards */
+        .outlook-card {
+            background: white;
+            border: 1px solid var(--af-gray-200);
+            border-radius: var(--border-radius-large);
+            box-shadow: var(--shadow-2);
+            margin-bottom: 16px;
+            transition: all 0.2s ease;
+        }
+        
+        .outlook-card:hover {
+            box-shadow: var(--shadow-4);
+            border-color: var(--af-gray-300);
+        }
+        
+        .outlook-card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--af-gray-200);
+            background: linear-gradient(135deg, var(--af-purple-primary) 0%, var(--af-purple-dark) 100%);
+            color: white;
+            border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;
+        }
+        
+        .outlook-card-header h5 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+        }
+        
+        .outlook-card-header i {
+            margin-right: 8px;
+        }
+        
+        .outlook-card-body {
+            padding: 20px;
+        }
+        
+        /* Outlook-style Training Session Cards */
+        .training-session-card {
+            background: white;
+            border: 1px solid var(--af-gray-200);
+            border-radius: var(--border-radius-large);
+            box-shadow: var(--shadow-2);
+            transition: all 0.2s ease;
+            overflow: hidden;
+        }
+        
+        .training-session-card:hover {
+            box-shadow: var(--shadow-8);
+            transform: translateY(-2px);
+            border-color: var(--af-purple-light);
+        }
+        
+        .training-session-header {
+            background: linear-gradient(135deg, var(--af-purple-primary) 0%, var(--af-purple-dark) 100%);
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .training-session-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .training-session-time {
+            background: rgba(0, 0, 0, 0.2);
+            color: white;
+            padding: 4px 12px;
+            border-radius: var(--border-radius-medium);
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .training-session-body {
+            padding: 20px;
+        }
+        
+        .session-detail {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        
+        .session-detail:last-child {
+            margin-bottom: 0;
+        }
+        
+        .session-detail-icon {
+            width: 32px;
+            height: 32px;
+            background: var(--af-gray-100);
+            border-radius: var(--border-radius-medium);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            color: var(--af-purple-primary);
+        }
+        
+        .session-detail-content {
+            flex: 1;
+        }
+        
+        .session-detail-label {
+            font-weight: 600;
+            color: var(--af-black-primary);
+            margin-bottom: 2px;
+        }
+        
+        .session-detail-value {
+            color: var(--af-gray-600);
+            font-size: 13px;
+        }
+        
+        /* Outlook-style Buttons */
+        .outlook-btn {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 16px;
+            border-radius: var(--border-radius-medium);
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.15s ease;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .outlook-btn-primary {
+            background: var(--af-purple-primary);
+            color: white;
+        }
+        
+        .outlook-btn-primary:hover {
+            background: var(--af-purple-dark);
+            color: white;
+            text-decoration: none;
+        }
+        
+        .outlook-btn-secondary {
+            background: var(--af-gray-100);
+            color: var(--af-black-primary);
+            border: 1px solid var(--af-gray-200);
+        }
+        
+        .outlook-btn-secondary:hover {
+            background: var(--af-gray-200);
+            color: var(--af-black-primary);
+            text-decoration: none;
+        }
+        
+        .outlook-btn-danger {
+            background: #DC3545;
+            color: white;
+        }
+        
+        .outlook-btn-danger:hover {
+            background: #C82333;
+            color: white;
+            text-decoration: none;
+        }
+        
+        .outlook-btn i {
+            margin-right: 6px;
+        }
+        
+        /* Outlook-style Stats Cards */
+        .outlook-stat-card {
+            background: white;
+            border: 1px solid var(--af-gray-200);
+            border-radius: var(--border-radius-large);
+            padding: 20px;
+            text-align: center;
+            box-shadow: var(--shadow-2);
+            transition: all 0.2s ease;
+        }
+        
+        .outlook-stat-card:hover {
+            box-shadow: var(--shadow-4);
             transform: translateY(-1px);
         }
         
-        .status-indicator {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.875rem;
+        .outlook-stat-number {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--af-purple-primary);
+            margin-bottom: 8px;
+        }
+        
+        .outlook-stat-label {
+            font-size: 14px;
+            color: var(--af-gray-600);
             font-weight: 500;
         }
         
-        .status-healthy {
-            background-color: #dcfce7;
-            color: #166534;
+        /* Status Badges */
+        .outlook-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 8px;
+            border-radius: var(--border-radius-small);
+            font-size: 12px;
+            font-weight: 600;
         }
         
-        .status-warning {
-            background-color: #fef3c7;
-            color: #92400e;
+        .outlook-badge-success {
+            background: #D1FAE5;
+            color: #065F46;
         }
         
-        .status-error {
-            background-color: #fee2e2;
-            color: #991b1b;
+        .outlook-badge-warning {
+            background: #FEF3C7;
+            color: #92400E;
         }
         
-        .metric-card {
-            text-align: center;
-            padding: 1.5rem;
+        .outlook-badge-danger {
+            background: #FEE2E2;
+            color: #991B1B;
         }
         
-        .metric-value {
-            font-size: 2.5rem;
-            font-weight: 700;
-            line-height: 1;
+        .outlook-badge-purple {
+            background: var(--af-purple-accent);
+            color: var(--af-purple-dark);
         }
         
-        .metric-label {
-            color: #6b7280;
-            font-size: 0.875rem;
-            margin-top: 0.5rem;
-        }
-        
-        .chart-container {
-            position: relative;
-            height: 300px;
-            margin: 1rem 0;
-        }
-        
+        /* Responsive Design */
         @media (max-width: 768px) {
-            .sidebar {
-                transform: translateX(-100%);
-                transition: transform 0.3s;
+            .outlook-sidebar {
+                width: 72px;
             }
             
-            .sidebar.show {
-                transform: translateX(0);
+            .outlook-nav-item span {
+                display: none;
             }
             
-            .main-content {
-                margin-left: 0;
+            .outlook-nav-section-title {
+                display: none;
             }
+            
+            .outlook-content {
+                padding: 16px;
+            }
+        }
+        
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--af-gray-100);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--af-gray-300);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--af-gray-600);
+        }
+        
+        /* Session List Styling */
+        .session-row:hover {
+            background: var(--af-gray-50) !important;
+            border-left: 4px solid var(--af-purple-primary) !important;
+        }
+        
+        .session-row:last-child {
+            border-bottom: none !important;
         }
     </style>
-    {% block extra_css %}{% endblock %}
+    
+    {% block extra_head %}{% endblock %}
 </head>
 <body>
-    <!-- Sidebar -->
-    <nav class="sidebar">
-        <div class="sidebar-header">
-            <a href="{{ url_for('dashboard_home') }}" class="sidebar-brand">
-                <i class="fas fa-dumbbell me-2"></i>Gym Bot Pro
-            </a>
+    <!-- Outlook-style Top Bar -->
+    <div class="outlook-topbar">
+        <div class="outlook-logo">
+            <i class="fas fa-dumbbell"></i>
+            <span>Anytime Fitness</span>
         </div>
-        <ul class="sidebar-nav">
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'dashboard_home' %}active{% endif %}" 
-                   href="{{ url_for('dashboard_home') }}">
-                    <i class="fas fa-chart-line"></i>Dashboard
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'workflows_page' %}active{% endif %}" 
-                   href="{{ url_for('workflows_page') }}">
-                    <i class="fas fa-cogs"></i>Bot Controls
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="#payments">
-                    <i class="fas fa-credit-card"></i>Payments
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="#messaging">
-                    <i class="fas fa-comments"></i>Messaging
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link" href="#calendar">
-                    <i class="fas fa-calendar-alt"></i>Calendar
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'analytics_page' %}active{% endif %}" 
-                   href="{{ url_for('analytics_page') }}">
-                    <i class="fas fa-chart-bar"></i>Analytics
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'social_media_page' %}active{% endif %}" 
-                   href="{{ url_for('social_media_page') }}">
-                    <i class="fab fa-instagram"></i>Social Media
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}" 
-                   href="{{ url_for('settings_page') }}">
-                    <i class="fas fa-cog"></i>Settings
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'logs_page' %}active{% endif %}" 
-                   href="{{ url_for('logs_page') }}">
-                    <i class="fas fa-file-alt"></i>Logs
-                </a>
-            </li>
-        </ul>
-    </nav>
-
-    <!-- Main Content -->
-    <div class="main-content">
-        <!-- Top Bar -->
-        <div class="top-bar">
-            <div class="d-flex align-items-center">
-                <button class="btn btn-link d-md-none me-3" onclick="toggleSidebar()">
-                    <i class="fas fa-bars"></i>
-                </button>
-                <h4 class="mb-0">{% block page_title %}{% endblock %}</h4>
-            </div>
-            <div class="d-flex align-items-center">
-                <span class="status-indicator status-healthy me-3">
-                    <i class="fas fa-circle me-1"></i>System Online
-                </span>
-                <button class="btn btn-outline-primary btn-sm" onclick="refreshStatus()">
-                    <i class="fas fa-sync-alt"></i>
-                </button>
-            </div>
+        
+        <div class="outlook-search">
+            <i class="fas fa-search"></i>
+            <input type="text" placeholder="Search members, prospects, events...">
         </div>
-
-        <!-- Content Area -->
-        <div class="content-area">
-            {% with messages = get_flashed_messages() %}
-                {% if messages %}
-                    {% for message in messages %}
-                        <div class="alert alert-info alert-dismissible fade show" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
-            
-            {% block content %}{% endblock %}
+        
+        <div class="outlook-user">
+            <span>Jeremy Mayo</span>
+            <div class="outlook-user-avatar">JM</div>
         </div>
     </div>
     
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1/dist/chart.min.js"></script>
-    <script>
-        function toggleSidebar() {
-            document.querySelector('.sidebar').classList.toggle('show');
-        }
+    <!-- Outlook-style Layout -->
+    <div class="outlook-container">
+        <!-- Outlook-style Sidebar -->
+        <div class="outlook-sidebar">
+            <nav class="outlook-nav">
+                <a href="/" class="outlook-nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                    <i class="fas fa-home"></i>
+                    <span>Dashboard</span>
+                </a>
+                
+                <div class="outlook-nav-section">
+                    <div class="outlook-nav-section-title">People</div>
+                    <a href="/members" class="outlook-nav-item {% if request.endpoint == 'members_page' %}active{% endif %}">
+                        <i class="fas fa-users"></i>
+                        <span>Members</span>
+                    </a>
+                    <a href="/prospects" class="outlook-nav-item {% if request.endpoint == 'prospects_page' %}active{% endif %}">
+                        <i class="fas fa-user-plus"></i>
+                        <span>Prospects</span>
+                    </a>
+                    <a href="/training-clients" class="outlook-nav-item {% if request.endpoint == 'training_clients_page' %}active{% endif %}">
+                        <i class="fas fa-dumbbell"></i>
+                        <span>Training</span>
+                    </a>
+                </div>
+                
+                <div class="outlook-nav-section">
+                    <div class="outlook-nav-section-title">Schedule</div>
+                    <a href="/calendar" class="outlook-nav-item {% if request.endpoint == 'calendar' %}active{% endif %}">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Calendar</span>
+                    </a>
+                </div>
+                
+                <div class="outlook-nav-section">
+                    <div class="outlook-nav-section-title">Communication</div>
+                    <a href="/messaging" class="outlook-nav-item {% if request.endpoint == 'messaging' %}active{% endif %}">
+                        <i class="fas fa-envelope"></i>
+                        <span>Messages</span>
+                    </a>
+                </div>
+            </nav>
+        </div>
         
-        function refreshStatus() {
-            fetch('/api/refresh-status')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        location.reload();
-                    } else {
-                        showAlert('Failed to refresh status: ' + data.error, 'danger');
-                    }
-                })
-                .catch(error => {
-                    showAlert('Error refreshing status: ' + error, 'danger');
-                });
-        }
-        
-        function showAlert(message, type = 'info') {
-            const alertDiv = document.createElement('div');
-            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
-            alertDiv.innerHTML = `
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            `;
-            document.querySelector('.content-area').prepend(alertDiv);
-        }
-        
-        // Auto-refresh every 60 seconds
-        setInterval(() => {
-            refreshStatus();
-        }, 60000);
-    </script>
-    {% block scripts %}{% endblock %}
+        <!-- Outlook-style Main Content -->
+        <div class="outlook-main">
+            <div class="outlook-header">
+                <h1>
+                    {% block page_icon %}<i class="fas fa-home"></i>{% endblock %}
+                    {% block page_title %}Dashboard{% endblock %}
+                </h1>
+                {% block header_actions %}{% endblock %}
+            </div>
+            
+            <div class="outlook-content">
+                {% block content %}{% endblock %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <!-- Core JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Page-specific JS -->
+{% block extra_js %}{% endblock %}
+
 </body>
 </html>

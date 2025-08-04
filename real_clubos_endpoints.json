@@ -1,0 +1,24 @@
+{
+  "timestamp": "2025-07-29T22:20:57.980177",
+  "discovered_endpoints": {
+    "training_packages": {
+      "url": "PASTE_REAL_URL_HERE",
+      "method": "GET_OR_POST",
+      "headers": {
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      "parameters": "PASTE_PARAMETERS_HERE"
+    },
+    "member_search": {
+      "url": "PASTE_REAL_SEARCH_URL_HERE",
+      "method": "GET_OR_POST",
+      "parameters": "PASTE_SEARCH_PARAMS_HERE"
+    },
+    "training_clients": {
+      "url": "PASTE_TRAINING_CLIENTS_URL_HERE",
+      "method": "GET_OR_POST"
+    }
+  },
+  "notes": "Add notes about what each endpoint returns"
+}

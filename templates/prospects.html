@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% block title %}Prospects - Anytime Fitness Management{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="text-purple mb-3">
+            <i class="fas fa-user-plus me-2"></i>
+            Prospects
+            <span class="badge badge-purple ms-3">{{ total_prospects }} Total</span>
+        </h1>
+        <p class="lead text-muted">Manage your potential members and track their journey to membership</p>
+    </div>
+</div>
+
+<!-- Search and Controls -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <form method="GET" class="d-flex">
+            <input type="text" name="search" class="form-control search-bar me-2" 
+                   placeholder="Search prospects by name, email, or phone..." 
+                   value="{{ search }}">
+            <button type="submit" class="btn btn-purple">
+                <i class="fas fa-search"></i>
+            </button>
+        </form>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="/prospect/new" class="btn btn-purple">
+            <i class="fas fa-plus me-2"></i>Add New Prospect
+        </a>
+    </div>
+</div>
+
+<!-- Prospects List -->
+<div class="row">
+    {% for prospect in prospects %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card prospect-card h-100">
+            <div class="card-body">
+                <h5 class="text-purple mb-2">
+                    <i class="fas fa-user-plus me-2"></i>
+                    {{ prospect.full_name }}
+                </h5>
+                
+                <!-- Contact Info -->
+                <div class="contact-info mb-3">
+                    <p class="mb-1">
+                        <i class="fas fa-id-card me-2 text-muted"></i>
+                        <strong>ID:</strong> {{ prospect.id }}
+                    </p>
+                    {% if prospect.email %}
+                    <p class="mb-1">
+                        <i class="fas fa-envelope me-2 text-muted"></i>
+                        <a href="mailto:{{ prospect.email }}">{{ prospect.email }}</a>
+                    </p>
+                    {% endif %}
+                    {% if prospect.mobile_phone %}
+                    <p class="mb-1">
+                        <i class="fas fa-phone me-2 text-muted"></i>
+                        <a href="tel:{{ prospect.mobile_phone }}">{{ prospect.mobile_phone }}</a>
+                    </p>
+                    {% endif %}
+                    {% if prospect.address1 %}
+                    <p class="mb-1">
+                        <i class="fas fa-map-marker-alt me-2 text-muted"></i>
+                        {{ prospect.address1 }}, {{ prospect.city or '' }}, {{ prospect.state or '' }}
+                    </p>
+                    {% endif %}
+                </div>
+                
+                <!-- Prospect-specific Info -->
+                <div class="agreement-info mb-3">
+                    {% if prospect.lead_source %}
+                    <p class="mb-1">
+                        <i class="fas fa-source me-2 text-muted"></i>
+                        <strong>Source:</strong> {{ prospect.lead_source }}
+                    </p>
+                    {% endif %}
+                    {% if prospect.interest_level %}
+                    <p class="mb-1">
+                        <i class="fas fa-star me-2 text-muted"></i>
+                        <strong>Interest:</strong> {{ prospect.interest_level }}/5
+                    </p>
+                    {% endif %}
+                    {% if prospect.trial %}
+                    <p class="mb-1">
+                        <i class="fas fa-dumbbell me-2 text-muted"></i>
+                        <span class="badge bg-warning">Trial Interested</span>
+                    </p>
+                    {% endif %}
+                    {% if prospect.tour_completed %}
+                    <p class="mb-1">
+                        <i class="fas fa-check-circle me-2 text-success"></i>
+                        <span class="badge bg-success">Tour Completed</span>
+                    </p>
+                    {% endif %}
+                </div>
+                
+                <!-- Status and Actions -->
+                <div class="d-flex justify-content-between align-items-center">
+                    {% if prospect.status %}
+                    <span class="badge bg-info">{{ prospect.status }}</span>
+                    {% else %}
+                    <span class="badge bg-secondary">New Lead</span>
+                    {% endif %}
+                    
+                    <div>
+                        <a href="/prospect/{{ prospect.id }}" class="btn btn-sm btn-purple">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        <button class="btn btn-sm btn-outline-purple ms-1" 
+                                data-bs-toggle="modal" 
+                                data-bs-target="#followUpModal{{ prospect.id }}">
+                            <i class="fas fa-calendar"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Follow-up info -->
+                {% if prospect.follow_up_date %}
+                <div class="mt-2">
+                    <small class="text-muted">
+                        <i class="fas fa-calendar-alt me-1"></i>
+                        Follow-up: {{ prospect.follow_up_date }}
+                    </small>
+                </div>
+                {% endif %}
+                
+                <!-- Expandable Details -->
+                <div class="mt-3">
+                    <button class="btn btn-outline-purple btn-sm w-100" type="button" 
+                            data-bs-toggle="collapse" data-bs-target="#details-{{ prospect.id }}" 
+                            aria-expanded="false">
+                        <i class="fas fa-info-circle me-2"></i>More Details
+                    </button>
+                </div>
+                
+                <div class="collapse mt-3" id="details-{{ prospect.id }}">
+                    {% if prospect.date_of_birth %}
+                    <p class="mb-1"><strong>DOB:</strong> {{ prospect.date_of_birth }}</p>
+                    {% endif %}
+                    {% if prospect.gender %}
+                    <p class="mb-1"><strong>Gender:</strong> {{ prospect.gender }}</p>
+                    {% endif %}
+                    {% if prospect.preferred_contact_method %}
+                    <p class="mb-1"><strong>Preferred Contact:</strong> {{ prospect.preferred_contact_method }}</p>
+                    {% endif %}
+                    {% if prospect.best_time_to_call %}
+                    <p class="mb-1"><strong>Best Time to Call:</strong> {{ prospect.best_time_to_call }}</p>
+                    {% endif %}
+                    {% if prospect.trial_session_date %}
+                    <p class="mb-1"><strong>Trial Session:</strong> {{ prospect.trial_session_date }}</p>
+                    {% endif %}
+                    {% if prospect.notes %}
+                    <p class="mb-1"><strong>Notes:</strong> {{ prospect.notes }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Follow-up Modal -->
+        <div class="modal fade" id="followUpModal{{ prospect.id }}" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Schedule Follow-up for {{ prospect.full_name }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form>
+                            <div class="mb-3">
+                                <label class="form-label">Follow-up Date</label>
+                                <input type="date" class="form-control" name="follow_up_date">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Notes</label>
+                                <textarea class="form-control" name="notes" rows="3"></textarea>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-purple">Schedule</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-user-plus fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No prospects found</h5>
+                {% if search %}
+                <p class="text-muted">Try adjusting your search criteria.</p>
+                <a href="/prospects" class="btn btn-purple">Show All Prospects</a>
+                {% else %}
+                <p class="text-muted">Get started by adding your first prospect.</p>
+                <a href="/prospect/new" class="btn btn-purple">Add Prospect</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div class="row mt-4">
+    <div class="col-12">
+        <nav aria-label="Prospects pagination">
+            <ul class="pagination justify-content-center">
+                {% if has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page - 1 }}{% if search %}&search={{ search }}{% endif %}">
+                        <i class="fas fa-chevron-left"></i>
+                    </a>
+                </li>
+                {% endif %}
+                
+                {% for p in range(1, total_pages + 1) %}
+                    {% if p == page %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ p }}</span>
+                    </li>
+                    {% elif p <= 5 or p > total_pages - 5 or (p >= page - 2 and p <= page + 2) %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ p }}{% if search %}&search={{ search }}{% endif %}">{{ p }}</a>
+                    </li>
+                    {% elif p == 6 or p == total_pages - 5 %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page + 1 }}{% if search %}&search={{ search }}{% endif %}">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        
+        <div class="text-center text-muted">
+            Showing {{ ((page - 1) * per_page) + 1 }} to {{ (page * per_page if page * per_page < total_prospects else total_prospects) }} of {{ total_prospects }} prospects
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

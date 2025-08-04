@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+
+{% block title %}Members - Anytime Fitness Management{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="text-purple mb-3">
+            <i class="fas fa-users me-2"></i>
+            Active Members
+            <span class="badge badge-purple ms-3">{{ total_members }} Total</span>
+        </h1>
+        <p class="lead text-muted">Manage your active paying members with complete agreement information</p>
+    </div>
+</div>
+
+<!-- Search and Controls -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <form method="GET" class="d-flex">
+            <input type="text" name="search" class="form-control search-bar me-2" 
+                   placeholder="Search members by name, email, or phone..." 
+                   value="{{ search }}">
+            <button type="submit" class="btn btn-purple">
+                <i class="fas fa-search"></i>
+            </button>
+        </form>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="/member/new" class="btn btn-purple">
+            <i class="fas fa-plus me-2"></i>Add New Member
+        </a>
+    </div>
+</div>
+
+<!-- Members List -->
+<div class="row">
+    {% for member in members %}
+    <div class="col-12 mb-4">
+        <div class="card member-card">
+            <div class="card-body">
+                <div class="row">
+                    <!-- Basic Info -->
+                    <div class="col-md-3">
+                        <h5 class="text-purple mb-2">
+                            <i class="fas fa-user me-2"></i>
+                            {{ member.full_name }}
+                        </h5>
+                        <p class="mb-1">
+                            <i class="fas fa-id-card me-2 text-muted"></i>
+                            <strong>ID:</strong> {{ member.id }}
+                        </p>
+                        {% if member.email %}
+                        <p class="mb-1">
+                            <i class="fas fa-envelope me-2 text-muted"></i>
+                            <a href="mailto:{{ member.email }}">{{ member.email }}</a>
+                        </p>
+                        {% endif %}
+                        {% if member.mobile_phone %}
+                        <p class="mb-1">
+                            <i class="fas fa-phone me-2 text-muted"></i>
+                            <a href="tel:{{ member.mobile_phone }}">{{ member.mobile_phone }}</a>
+                        </p>
+                        {% endif %}
+                        <p class="mb-1">
+                            <i class="fas fa-calendar me-2 text-muted"></i>
+                            <strong>Since:</strong> {{ member.membership_start or 'N/A' }}
+                        </p>
+                    </div>
+                    
+                    <!-- Address & Club Info -->
+                    <div class="col-md-3">
+                        <h6 class="text-purple mb-2">
+                            <i class="fas fa-map-marker-alt me-2"></i>Address
+                        </h6>
+                        <p class="mb-1">{{ member.address1 or 'N/A' }}</p>
+                        {% if member.address2 %}
+                        <p class="mb-1">{{ member.address2 }}</p>
+                        {% endif %}
+                        <p class="mb-1">{{ member.city or 'N/A' }}, {{ member.state or 'N/A' }} {{ member.zip_code or '' }}</p>
+                        
+                        {% if member.home_club_name %}
+                        <h6 class="text-purple mb-2 mt-3">
+                            <i class="fas fa-building me-2"></i>Home Club
+                        </h6>
+                        <p class="mb-1"><strong>{{ member.home_club_name }}</strong></p>
+                        <p class="mb-1">{{ member.home_club_address or '' }}</p>
+                        <p class="mb-1">{{ member.home_club_city or '' }}, {{ member.home_club_state or '' }} {{ member.home_club_zip or '' }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Agreement Info -->
+                    <div class="col-md-3">
+                        {% if member.agreement_id %}
+                        <div class="agreement-info">
+                            <h6 class="text-purple mb-2">
+                                <i class="fas fa-file-contract me-2"></i>Agreement
+                            </h6>
+                            <p class="mb-1"><strong>ID:</strong> {{ member.agreement_id }}</p>
+                            {% if member.agreement_status %}
+                            <p class="mb-1"><strong>Status:</strong> 
+                                <span class="badge bg-success">{{ member.agreement_status }}</span>
+                            </p>
+                            {% endif %}
+                            {% if member.agreement_start_date %}
+                            <p class="mb-1"><strong>Start:</strong> {{ member.agreement_start_date }}</p>
+                            {% endif %}
+                            {% if member.agreement_end_date %}
+                            <p class="mb-1"><strong>End:</strong> {{ member.agreement_end_date }}</p>
+                            {% endif %}
+                            {% if member.agreement_rate %}
+                            <p class="mb-1"><strong>Rate:</strong> ${{ member.agreement_rate }}</p>
+                            {% endif %}
+                            {% if member.agreement_history_count and member.agreement_history_count > 0 %}
+                            <p class="mb-1"><strong>History:</strong> {{ member.agreement_history_count }} agreements</p>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Payment Info -->
+                    <div class="col-md-3">
+                        {% if member.payment_token or member.card_type %}
+                        <div class="payment-info">
+                            <h6 class="text-purple mb-2">
+                                <i class="fas fa-credit-card me-2"></i>Payment
+                            </h6>
+                            {% if member.card_type %}
+                            <p class="mb-1"><strong>Card:</strong> {{ member.card_type }}</p>
+                            {% endif %}
+                            {% if member.card_last4 %}
+                            <p class="mb-1"><strong>Last 4:</strong> ****{{ member.card_last4 }}</p>
+                            {% endif %}
+                            {% if member.expiration_month and member.expiration_year %}
+                            <p class="mb-1"><strong>Expires:</strong> {{ member.expiration_month }}/{{ member.expiration_year }}</p>
+                            {% endif %}
+                            {% if member.billing_name %}
+                            <p class="mb-1"><strong>Billing Name:</strong> {{ member.billing_name }}</p>
+                            {% endif %}
+                            {% if member.account_type %}
+                            <p class="mb-1"><strong>Account Type:</strong> {{ member.account_type }}</p>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Expandable Details -->
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <button class="btn btn-outline-purple btn-sm" type="button" 
+                                data-bs-toggle="collapse" data-bs-target="#details-{{ member.id }}" 
+                                aria-expanded="false">
+                            <i class="fas fa-info-circle me-2"></i>More Details
+                        </button>
+                        <a href="/member/{{ member.id }}" class="btn btn-purple btn-sm ms-2">
+                            <i class="fas fa-eye me-2"></i>Full Profile
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="collapse mt-3" id="details-{{ member.id }}">
+                    <div class="row">
+                        <!-- Personal Details -->
+                        <div class="col-md-4">
+                            <div class="contact-info">
+                                <h6 class="text-purple mb-2">
+                                    <i class="fas fa-user-circle me-2"></i>Personal Details
+                                </h6>
+                                {% if member.date_of_birth %}
+                                <p class="mb-1"><strong>DOB:</strong> {{ member.date_of_birth }}</p>
+                                {% endif %}
+                                {% if member.gender %}
+                                <p class="mb-1"><strong>Gender:</strong> {{ member.gender }}</p>
+                                {% endif %}
+                                {% if member.emergency_contact %}
+                                <p class="mb-1"><strong>Emergency:</strong> {{ member.emergency_contact }}</p>
+                                {% endif %}
+                                {% if member.emergency_phone %}
+                                <p class="mb-1"><strong>Emergency Phone:</strong> {{ member.emergency_phone }}</p>
+                                {% endif %}
+                                {% if member.employer %}
+                                <p class="mb-1"><strong>Employer:</strong> {{ member.employer }}</p>
+                                {% endif %}
+                                {% if member.occupation %}
+                                <p class="mb-1"><strong>Occupation:</strong> {{ member.occupation }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Membership Details -->
+                        <div class="col-md-4">
+                            <div class="agreement-info">
+                                <h6 class="text-purple mb-2">
+                                    <i class="fas fa-id-badge me-2"></i>Membership Details
+                                </h6>
+                                {% if member.key_fob %}
+                                <p class="mb-1"><strong>Key Fob:</strong> {{ member.key_fob }}</p>
+                                {% endif %}
+                                {% if member.last_visit %}
+                                <p class="mb-1"><strong>Last Visit:</strong> {{ member.last_visit }}</p>
+                                {% endif %}
+                                {% if member.user_type %}
+                                <p class="mb-1"><strong>Type:</strong> {{ member.user_type }}</p>
+                                {% endif %}
+                                {% if member.status_message %}
+                                <p class="mb-1"><strong>Status:</strong> {{ member.status_message }}</p>
+                                {% endif %}
+                                <p class="mb-1"><strong>Has App:</strong> 
+                                    <span class="badge bg-{{ 'success' if member.has_app else 'secondary' }}">
+                                        {{ 'Yes' if member.has_app else 'No' }}
+                                    </span>
+                                </p>
+                                {% if member.trial %}
+                                <p class="mb-1"><strong>Trial Member:</strong> 
+                                    <span class="badge bg-warning">Yes</span>
+                                </p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- System Info -->
+                        <div class="col-md-4">
+                            <div class="contact-info">
+                                <h6 class="text-purple mb-2">
+                                    <i class="fas fa-cogs me-2"></i>System Info
+                                </h6>
+                                {% if member.guid %}
+                                <p class="mb-1"><strong>GUID:</strong> <small>{{ member.guid }}</small></p>
+                                {% endif %}
+                                {% if member.source %}
+                                <p class="mb-1"><strong>Source:</strong> {{ member.source }}</p>
+                                {% endif %}
+                                {% if member.rating %}
+                                <p class="mb-1"><strong>Rating:</strong> {{ member.rating }}/5</p>
+                                {% endif %}
+                                {% if member.bucket %}
+                                <p class="mb-1"><strong>Bucket:</strong> {{ member.bucket }}</p>
+                                {% endif %}
+                                {% if member.last_activity_timestamp %}
+                                <p class="mb-1"><strong>Last Activity:</strong> {{ member.last_activity_timestamp }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No members found</h5>
+                {% if search %}
+                <p class="text-muted">Try adjusting your search criteria.</p>
+                <a href="/members" class="btn btn-purple">Show All Members</a>
+                {% else %}
+                <p class="text-muted">Get started by adding your first member.</p>
+                <a href="/member/new" class="btn btn-purple">Add Member</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div class="row mt-4">
+    <div class="col-12">
+        <nav aria-label="Members pagination">
+            <ul class="pagination justify-content-center">
+                {% if has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page - 1 }}{% if search %}&search={{ search }}{% endif %}">
+                        <i class="fas fa-chevron-left"></i>
+                    </a>
+                </li>
+                {% endif %}
+                
+                {% for p in range(1, total_pages + 1) %}
+                    {% if p == page %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ p }}</span>
+                    </li>
+                    {% elif p <= 5 or p > total_pages - 5 or (p >= page - 2 and p <= page + 2) %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ p }}{% if search %}&search={{ search }}{% endif %}">{{ p }}</a>
+                    </li>
+                    {% elif p == 6 or p == total_pages - 5 %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page + 1 }}{% if search %}&search={{ search }}{% endif %}">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        
+        <div class="text-center text-muted">
+            Showing {{ ((page - 1) * per_page) + 1 }} to {{ min(page * per_page, total_members) }} of {{ total_members }} members
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

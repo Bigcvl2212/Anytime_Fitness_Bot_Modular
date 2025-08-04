@@ -1,104 +1,398 @@
-import pandas as pd
-import numpy as np
-from datetime import datetime
-import math
-import time
-from services.payments.square_client_fixed import create_square_invoice
-from send_invoice_via_clubos import login_and_get_session, send_invoice_via_clubos
+#!/usr/bin/env python3
+"""
+ClubOS Calendar Event Deletion Script
+Uses proven working methods from existing API
+"""
 
-CONTACT_LIST_XLSX = "master_contact_list_20250715_181714.xlsx"
-CONTACT_LIST_CSV = "master_contact_list_20250715_181714.csv"
-LATE_FEE = 19.50
+import requests
+import json
+import base64
+import logging
+from datetime import datetime, timedelta
+from typing import List, Dict, Optional
+from dataclasses import dataclass
+from bs4 import BeautifulSoup
 
-# Helper to determine if a member is past due (yellow/red)
-def is_past_due(row):
-    try:
-        amt_due = float(row.get('agreement.amountPastDue', 0))
-        return amt_due > 0
-    except Exception:
-        return False
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logger = logging.getLogger(__name__)
+
+@dataclass
+class CalendarEvent:
+    """Represents a ClubOS calendar event"""
+    id: int
+    funding_status: str
+    attendees: List[Dict]
+    title: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+
+class ClubOSCalendarDeletion:
+    """
+    ClubOS Calendar Event Deletion using proven working methods
+    """
+    
+    def __init__(self, username: str, password: str):
+        self.username = username
+        self.password = password
+        self.session = requests.Session()
+        self.base_url = "https://anytime.club-os.com"
+        
+        # Authentication tokens
+        self.session_id = None
+        self.logged_in_user_id = None
+        self.delegated_user_id = None
+        
+        # Standard headers
+        self.standard_headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br, zstd',
+            'Sec-Ch-Ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Microsoft Edge";v="138"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Windows"',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Dest': 'empty',
+            'X-Requested-With': 'XMLHttpRequest',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+        }
+
+    def authenticate(self) -> bool:
+        """
+        Authenticate using proven working method from existing API
+        """
+        try:
+            logger.info(f"Authenticating {self.username} with ClubOS")
+            
+            # Step 1: Get login page and extract CSRF token
+            login_url = f"{self.base_url}/action/Login/view?__fsk=1221801756"
+            login_response = self.session.get(login_url)
+            login_response.raise_for_status()
+            
+            soup = BeautifulSoup(login_response.text, 'html.parser')
+            
+            # Extract required form fields
+            source_page = soup.find('input', {'name': '_sourcePage'})
+            fp_token = soup.find('input', {'name': '__fp'})
+            
+            logger.info("Extracted form fields successfully")
+            
+            # Step 2: Submit login form with correct field names
+            login_data = {
+                'login': 'Submit',
+                'username': self.username,
+                'password': self.password,
+                '_sourcePage': source_page.get('value') if source_page else '',
+                '__fp': fp_token.get('value') if fp_token else ''
+            }
+            
+            login_headers = {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Referer': login_url,
+                'User-Agent': self.standard_headers['User-Agent']
+            }
+            
+            auth_response = self.session.post(
+                f"{self.base_url}/action/Login",
+                data=login_data,
+                headers=login_headers,
+                allow_redirects=True
+            )
+            
+            # Step 3: Extract session information from cookies
+            self.session_id = self.session.cookies.get('JSESSIONID')
+            self.logged_in_user_id = self.session.cookies.get('loggedInUserId')
+            self.delegated_user_id = self.session.cookies.get('delegatedUserId')
+            
+            if not self.session_id or not self.logged_in_user_id:
+                logger.error("Authentication failed - missing session cookies")
+                return False
+            
+            logger.info(f"Authentication successful - User ID: {self.logged_in_user_id}")
+            return True
+                
+        except Exception as e:
+            logger.error(f"Authentication error: {str(e)}")
+            return False
+
+    def get_bearer_token(self) -> str:
+        """
+        Generate the Bearer token as seen in HAR files
+        """
+        if not self.session_id or not self.logged_in_user_id:
+            raise ValueError("Must authenticate first")
+        
+        # Payload structure from HAR files
+        payload = {
+            "delegateUserId": int(self.logged_in_user_id),
+            "loggedInUserId": int(self.logged_in_user_id),
+            "sessionId": self.session_id
+        }
+        
+        # Create JWT-like token
+        header = "eyJhbGciOiJIUzI1NiJ9"
+        payload_json = json.dumps(payload, separators=(',', ':'))
+        payload_b64 = base64.urlsafe_b64encode(payload_json.encode()).decode().rstrip('=')
+        signature = "xgXI5ZdpWH1czSf2aIzzZmK7r8siUsV59MeeqZF0PNM"
+        
+        return f"{header}.{payload_b64}.{signature}"
+
+    def get_source_page_token(self) -> str:
+        """Get fresh source page token"""
+        try:
+            response = self.session.get(f"{self.base_url}/action/Calendar")
+            soup = BeautifulSoup(response.text, 'html.parser')
+            source_page = soup.find('input', {'name': '_sourcePage'})
+            return source_page.get('value') if source_page else ''
+        except:
+            return ''
+
+    def get_fingerprint_token(self) -> str:
+        """Get fresh fingerprint token"""
+        try:
+            response = self.session.get(f"{self.base_url}/action/Calendar")
+            soup = BeautifulSoup(response.text, 'html.parser')
+            fp_token = soup.find('input', {'name': '__fp'})
+            return fp_token.get('value') if fp_token else ''
+        except:
+            return ''
+
+    def get_calendar_events(self) -> List[CalendarEvent]:
+        """
+        Get current calendar events using HAR event IDs
+        """
+        try:
+            logger.info("Fetching calendar events using HAR event IDs")
+            
+            # Event IDs from HAR files (same as working script)
+            har_event_ids = [
+                152438700, 152241606, 152241619, 152383381, 152313709,
+                152330854, 152383406, 152307818, 152432067, 152251071,
+                152331703, 152323134, 152436981, 152361598, 152404397,
+                150850294, 152390593, 152396339, 152381643, 152339247,
+                152407477, 152330036, 152371551, 149648946, 152335380,
+                152407666, 152375110, 150636019, 152330854, 152383406
+            ]
+            
+            headers = self.standard_headers.copy()
+            headers.update({
+                'Authorization': f'Bearer {self.get_bearer_token()}',
+                'Referer': f'{self.base_url}/action/Calendar'
+            })
+            
+            events = []
+            for event_id in har_event_ids[:10]:  # Test with first 10
+                try:
+                    params = {
+                        'eventIds': str(event_id),
+                        'fields': 'id,title,startTime,endTime,attendees,fundingStatus',
+                        '_': str(int(datetime.now().timestamp() * 1000))
+                    }
+                    
+                    response = self.session.get(
+                        f"{self.base_url}/api/calendar/events",
+            headers=headers, 
+                        params=params
+                    )
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data and 'events' in data:
+                            for event_data in data['events']:
+                                event = CalendarEvent(
+                                    id=event_data.get('id', event_id),
+                                    funding_status=event_data.get('fundingStatus', 'Unknown'),
+                                    attendees=event_data.get('attendees', []),
+                                    title=event_data.get('title'),
+                                    start_time=event_data.get('startTime'),
+                                    end_time=event_data.get('endTime')
+                                )
+                                events.append(event)
+                                logger.info(f"Found event: {event}")
+                    
+                except Exception as e:
+                    logger.warning(f"Error fetching event {event_id}: {e}")
+                    continue
+            
+            logger.info(f"Found {len(events)} calendar events")
+            return events
+            
+        except Exception as e:
+            logger.error(f"Error getting calendar events: {str(e)}")
+            return []
+
+    def delete_event(self, event_id: int) -> bool:
+        """
+        Delete event using the EXACT working pattern from HAR file
+        """
+        try:
+            logger.info(f"Deleting event {event_id} using HAR pattern")
+            
+            # Navigate to calendar page first
+            calendar_response = self.session.get(
+                f"{self.base_url}/action/Calendar",
+                headers={
+                    **self.standard_headers,
+                    'Authorization': f'Bearer {self.get_bearer_token()}'
+                }
+            )
+            
+            if calendar_response.status_code != 200:
+                logger.error(f"Failed to load calendar page: {calendar_response.status_code}")
+                return False
+            
+            # Use the EXACT working deletion pattern from HAR file
+            headers = {
+                'Authorization': f'Bearer {self.get_bearer_token()}',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Referer': 'https://anytime.club-os.com/action/Calendar',
+                'Origin': 'https://anytime.club-os.com'
+            }
+            
+            # EXACT form data from working HAR request
+            form_data = {
+                'calendarEvent.id': '',
+                'calendarEvent.repeatEvent.id': '1687456',  # From HAR
+                'calendarEvent.repeatEvent.calendarEventId': str(event_id),
+                'calendarEvent.clubId': '291',
+                'calendarTimeSlot.past': 'false',
+                'attendee.id': '',
+                'attendee.tfoUserId': '',
+                'attendee.pin': '',
+                'attendee.status.code': '',
+                'attendee.excludeFromPayroll': '',
+                'fundingStatus': '',
+                'editSeries': 'false',
+                'calendarEvent.createdFor.tfoUserId': '187032782',
+                'calendarEvent.eventType': 'SMALL_GROUP_TRAINING',
+                'calendarEvent.instructorId': '',
+                'calendarEvent.clubLocationId': '3586',
+                'calendarEvent.subject': 'Training Session',
+                'startTimeSlotId': '35',
+                'calendarEvent.startTime': '8/1/2025',
+                'endTimeSlotId': '37',
+                'calendarEvent.repeatEvent.repeatType': 'WEEKLY',
+                'calendarEvent.repeatEvent.repeatFrequency': '1',
+                'calendarEvent.repeatEvent.mon': 'true',
+                'calendarEvent.repeatEvent.wed': 'true',
+                'calendarEvent.repeatEvent.fri': 'true',
+                'calendarEvent.repeatEvent.endOn': '',
+                'calendarEvent.repeatEvent.endUntil': '',
+                'calendarEvent.repeatEvent.endType': 'never',
+                'calendarEvent.status.code': 'A',
+                'calendarEvent.notes': '',
+                'calendarEvent.remindCreator': 'true',
+                'calendarEvent.remindCreatorMins': '120',
+                'calendarEvent.remindAttendees': 'true',
+                'calendarEvent.remindAttendeesMins': '120',
+                'calendarEvent.maxAttendees': '',
+                'attendeeSearchText': 'Type attendee\'s name',
+                'attendees[0].id': '',
+                'attendees[0].tfoUserId': '191215290',
+                'attendees[0].status.code': 'A',
+                'attendees[0].pinBy': '',
+                'attendees[0].excludeFromPayroll': 'false',
+                'attendees[0].timeZoneId': 'America/Chicago',
+                'attendees[0].visitType': 'A',
+                'calendarEvent.memberServiceId': '30078',
+                'attendeeEmailToText': '',
+                '_sourcePage': self.get_source_page_token(),
+                '__fp': self.get_fingerprint_token()
+            }
+            
+            logger.info(f"Attempting deletion for event {event_id} with HAR pattern")
+            response = self.session.post(
+                f"{self.base_url}/action/EventPopup/remove",
+                headers=headers,
+                data=form_data
+            )
+            
+            logger.info(f"Deletion response: {response.status_code}")
+            
+            if response.status_code == 200:
+                response_text = response.text
+                logger.info(f"Delete response: {response_text[:100]}...")
+                
+                if "OK" in response_text:
+                    logger.info(f"✅ Event {event_id} deleted successfully!")
+                    return True
+                else:
+                    logger.error(f"Deletion failed: {response_text}")
+                    return False
+            else:
+                logger.error(f"Deletion failed with status {response.status_code}: {response.text}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error deleting event: {str(e)}")
+            return False
+
+    def delete_multiple_events(self, event_ids: List[int]) -> Dict[int, bool]:
+        """
+        Delete multiple events and return results
+        """
+        results = {}
+        logger.info(f"Starting deletion of {len(event_ids)} events")
+        
+        for event_id in event_ids:
+            logger.info(f"Deleting event {event_id}...")
+            success = self.delete_event(event_id)
+            results[event_id] = success
+            
+            if success:
+                logger.info(f"✅ Successfully deleted event {event_id}")
+            else:
+                logger.error(f"❌ Failed to delete event {event_id}")
+        
+        successful = sum(1 for success in results.values() if success)
+        logger.info(f"Deletion complete: {successful}/{len(event_ids)} events deleted successfully")
+        return results
 
 def main():
-    df = pd.read_excel(CONTACT_LIST_XLSX, dtype=str)
-    df['agreement.amountPastDue'] = pd.to_numeric(df['agreement.amountPastDue'], errors='coerce').fillna(0)
-    df['agreement.recurringCost.total'] = pd.to_numeric(df['agreement.recurringCost.total'], errors='coerce').replace(0, np.nan)
-    df['mock_invoice_status'] = ''
-    df['mock_invoice_url'] = ''
-    df['mock_invoice_error'] = ''
-    session = login_and_get_session()
-    if not session:
-        print("❌ Cannot proceed without ClubOS login.")
+    """Main function to test calendar event deletion"""
+    
+    # Load credentials from config
+    from config.clubhub_credentials import CLUBOS_USERNAME, CLUBOS_PASSWORD
+    
+    # Initialize the deletion client
+    client = ClubOSCalendarDeletion(CLUBOS_USERNAME, CLUBOS_PASSWORD)
+    
+    # Step 1: Authenticate
+    logger.info("=== Starting ClubOS Calendar Event Deletion ===")
+    if not client.authenticate():
+        logger.error("Authentication failed!")
         return
-    for idx, row in df.iterrows():
-        if not is_past_due(row):
-            continue
-        member_id = row['ProspectID']
-        name = row.get('Name') or f"{row.get('FirstName','')} {row.get('LastName','')}"
-        email = row.get('Email', None)
-        phone = row.get('Phone', None)
-        if not email or not isinstance(email, str) or '@' not in email:
-            print(f"[SKIP] {name}: No valid email, cannot send invoice.")
-            df.at[idx, 'mock_invoice_status'] = 'skipped_no_email'
-            continue
-        amount_due = float(row['agreement.amountPastDue'])
-        recurring = row['agreement.recurringCost.total']
-        if np.isnan(recurring) or recurring == 0:
-            df.at[idx, 'mock_invoice_status'] = 'Skipped: No recurring cost'
-            continue
-        missed_payments = int(math.floor(amount_due / recurring))
-        late_fees = missed_payments * LATE_FEE
-        # Invoice breakdown
-        breakdown = (f"Overdue Payment - {missed_payments} missed payments, "
-                     f"{missed_payments} late fees ($19.50 each) included. "
-                     "YOU MUST RESPOND TO THIS MESSAGE OR PAY THIS INVOICE IN FULL WITHIN 7 DAYS OR YOUR ACCOUNT WILL BE FLAGGED FOR COLLECTIONS.")
-        # Generate Square invoice
-        try:
-            invoice_url = create_square_invoice(name, amount_due, description=breakdown, email=email, phone=phone)
-            if not invoice_url:
-                df.at[idx, 'mock_invoice_status'] = 'Failed to create invoice'
-                df.at[idx, 'mock_invoice_error'] = 'No invoice URL returned'
-                continue
-        except Exception as e:
-            df.at[idx, 'mock_invoice_status'] = 'Failed to create invoice'
-            df.at[idx, 'mock_invoice_error'] = str(e)
-            continue
-        # Compose ClubOS message/email
-        message = (f"Dear {name},\n\n"
-                   f"Your account is past due. Amount owed: ${amount_due:.2f}. "
-                   f"You have missed {missed_payments} biweekly payment(s). "
-                   f"Late fees applied: ${late_fees:.2f}.\n"
-                   f"Next payment due: {row.get('agreement.dateOfNextPayment','N/A')}\n"
-                   f"Total remaining on contract: ${row.get('agreement.valueRemaining','N/A')}\n"
-                   f"Regular payment: ${recurring:.2f}.\n"
-                   f"Invoice link: {invoice_url}\n\n"
-                   "YOU MUST RESPOND TO THIS MESSAGE OR PAY THIS INVOICE IN FULL WITHIN 7 DAYS OR YOUR ACCOUNT WILL BE FLAGGED FOR COLLECTIONS.")
-        # Send via ClubOS (email and SMS)
-        try:
-            success = send_invoice_via_clubos(
-                session,
-                amount=amount_due,
-                description=breakdown,
-                payment_url=invoice_url,
-                recipient_name=name,
-                recipient_email=email,
-                recipient_phone=phone,
-                extra_message=message
-            )
-            if success:
-                df.at[idx, 'mock_invoice_status'] = 'Sent'
-                df.at[idx, 'mock_invoice_url'] = invoice_url
-            else:
-                df.at[idx, 'mock_invoice_status'] = 'Failed to send message'
-                df.at[idx, 'mock_invoice_error'] = 'ClubOS send failed'
-        except Exception as e:
-            df.at[idx, 'mock_invoice_status'] = 'Failed to send message'
-            df.at[idx, 'mock_invoice_error'] = str(e)
-        # Be polite to APIs
-        time.sleep(1)
-    # Save results
-    df.to_excel(CONTACT_LIST_XLSX, index=False)
-    df.to_csv(CONTACT_LIST_CSV, index=False)
-    print("Live invoices and messages sent. Results saved to master contact list.")
+    
+    logger.info("✅ Authentication successful!")
+    
+    # Step 2: Get calendar events
+    events = client.get_calendar_events()
+    if not events:
+        logger.warning("No events found to delete")
+        return
+    
+    logger.info(f"Found {len(events)} events to potentially delete")
+    
+    # Step 3: Delete events (test with first 3)
+    test_event_ids = [event.id for event in events[:3]]
+    logger.info(f"Testing deletion with events: {test_event_ids}")
+    
+    results = client.delete_multiple_events(test_event_ids)
+    
+    # Step 4: Summary
+    successful_deletions = sum(1 for success in results.values() if success)
+    logger.info(f"=== Deletion Summary ===")
+    logger.info(f"Total events attempted: {len(results)}")
+    logger.info(f"Successfully deleted: {successful_deletions}")
+    logger.info(f"Failed: {len(results) - successful_deletions}")
+    
+    for event_id, success in results.items():
+        status = "✅ SUCCESS" if success else "❌ FAILED"
+        logger.info(f"Event {event_id}: {status}")
 
 if __name__ == "__main__":
     main() 
