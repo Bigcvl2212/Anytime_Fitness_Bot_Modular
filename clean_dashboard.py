@@ -26,6 +26,11 @@ from ical_calendar_parser import iCalClubOSParser
 from gym_bot_clean import ClubOSEventDeletion
 from clubos_fresh_data_api import ClubOSFreshDataAPI
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Initialize Flask app
 app = Flask(__name__)
 app.secret_key = 'anytime-fitness-dashboard-secret-key-2025'
 
@@ -34,9 +39,35 @@ templates_dir = 'templates'
 if not os.path.exists(templates_dir):
     os.makedirs(templates_dir)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Import Square invoice functionality with proper secrets management
+try:
+    from config.secrets_local import get_secret
+    
+    # Get Square credentials from secrets (production by default)
+    access_token = get_secret("square-production-access-token")
+    location_id = get_secret("square-production-location-id")
+    
+    # Set environment variables for the Square client
+    os.environ['SQUARE_PRODUCTION_ACCESS_TOKEN'] = access_token
+    os.environ['SQUARE_LOCATION_ID'] = location_id
+    os.environ['SQUARE_ENVIRONMENT'] = 'production'
+    
+    # Now import the Square function
+    from services.payments.square_client_simple import create_square_invoice
+    
+    SQUARE_AVAILABLE = True
+    logger.info("🔑 Using Square credentials from secrets_local.py")
+    logger.info("✅ Square client loaded successfully in PRODUCTION mode")
+    
+except ImportError as e:
+    logger.warning(f"Square client not available: {e}")
+    SQUARE_AVAILABLE = False
+    
+    # Create a fallback function
+    def create_square_invoice(member_name, amount, description="Overdue Payment"):
+        """Fallback Square invoice function when service is unavailable"""
+        logger.error("Square service unavailable - cannot create invoice")
+        return None
 
 # Global background refresh status tracking
 data_refresh_status = {
@@ -47,6 +78,23 @@ data_refresh_status = {
     'status': 'idle',
     'message': 'No refresh in progress',
     'error': None
+}
+
+# Global bulk check-in status tracking
+bulk_checkin_status = {
+    'is_running': False,
+    'started_at': None,
+    'completed_at': None,
+    'progress': 0,
+    'total_members': 0,
+    'processed_members': 0,
+    'ppv_excluded': 0,
+    'total_checkins': 0,
+    'current_member': '',
+    'status': 'idle',
+    'message': 'No bulk check-in in progress',
+    'error': None,
+    'errors': []
 }
 
 # Global instances
@@ -1048,23 +1096,110 @@ class DatabaseManager:
 # Initialize database manager and import data
 db_manager = DatabaseManager()
 
-# Import the master contact list with agreements
-master_csv = "data/csv_exports/master_contact_list_with_agreements_20250802_123437.csv"
-if os.path.exists(master_csv):
-    members_count, prospects_count = db_manager.import_master_contact_list(master_csv)
-    print(f"📊 Imported {members_count} members and {prospects_count} prospects")
+# Only import CSV data if database is empty (first time setup)
+conn = sqlite3.connect(db_manager.db_path)
+cursor = conn.cursor()
+cursor.execute("SELECT COUNT(*) FROM members")
+existing_members = cursor.fetchone()[0]
+conn.close()
 
-# Import training clients
-training_csv = "data/csv_exports/Clients_1753310478191.csv" 
-if os.path.exists(training_csv):
-    clients_count = db_manager.import_training_clients(training_csv)
-    print(f"🏋️ Imported {clients_count} training clients")
+# Always import fresh data from ClubHub API instead of old CSV files
+print("🔄 Loading fresh data from ClubHub API...")
+
+def import_fresh_clubhub_data():
+    """Import fresh data from ClubHub API on startup"""
+    try:
+        # Import ClubHub API client
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'services'))
+        from api.clubhub_api_client import ClubHubAPIClient
+        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        
+        # Initialize and authenticate
+        client = ClubHubAPIClient()
+        if not client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
+            print("❌ ClubHub authentication failed - using existing database")
+            return
+        
+        print("✅ ClubHub authenticated - importing fresh member data...")
+        
+        # Get all members from ClubHub
+        all_members = []
+        page = 1
+        page_size = 100
+        
+        while True:
+            members_response = client.get_all_members(page=page, page_size=page_size)
+            
+            if not members_response or not isinstance(members_response, list):
+                break
+                
+            all_members.extend(members_response)
+            page += 1
+            
+            # If we got less than page_size, we've reached the end
+            if len(members_response) < page_size:
+                break
+        
+        print(f"📥 Retrieved {len(all_members)} members from ClubHub")
+        
+        # Clear existing data and import fresh data
+        conn = sqlite3.connect(db_manager.db_path)
+        cursor = conn.cursor()
+        
+        # Clear old data
+        cursor.execute("DELETE FROM members")
+        cursor.execute("DELETE FROM training_clients")
+        print("�️ Cleared old data")
+        
+        # Import fresh member data
+        members_added = 0
+        training_clients_added = 0
+        
+        for member in all_members:
+            # Add to members table using correct column names
+            cursor.execute("""
+                INSERT OR REPLACE INTO members (
+                    id, guid, first_name, last_name, full_name, email, mobile_phone, 
+                    status, status_message, membership_start, membership_end, last_visit
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                member.get('id'),
+                member.get('guid'),
+                member.get('firstName', ''),
+                member.get('lastName', ''),
+                f"{member.get('firstName', '')} {member.get('lastName', '')}".strip(),
+                member.get('email', ''),
+                member.get('mobilePhone', ''),
+                member.get('status', ''),
+                member.get('statusMessage', ''),
+                member.get('membershipStart', ''),
+                member.get('membershipEnd', ''),
+                member.get('lastVisit', '')
+            ))
+            members_added += 1
+            
+            # For now, don't auto-detect training clients from ClubHub
+            # Training clients need to come from ClubOS, not ClubHub
+            # ClubHub only has membership data, not training package data
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"✅ Fresh data imported: {members_added} members, {training_clients_added} training clients")
+        
+    except Exception as e:
+        print(f"❌ Error importing fresh data: {e}")
+        print("📊 Continuing with existing database...")
+
+# Call the import function to load fresh data on startup
+import_fresh_clubhub_data()
 
 class ClubOSIntegration:
     """Integration class to connect dashboard with working ClubOS API"""
     
     def __init__(self):
-        self.api = ClubOSRealCalendarAPI("j.mayo", "j@SD4fjhANK5WNA")
+        from config.clubhub_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD
+        self.api = ClubOSRealCalendarAPI(CLUBOS_USERNAME, CLUBOS_PASSWORD)
         self.training_api = ClubOSTrainingPackageAPI()  # No parameters needed
         self.event_manager = ClubOSEventDeletion()
         self.authenticated = False
@@ -1209,8 +1344,22 @@ class ClubOSIntegration:
             
             for event in real_events:
                 if event.start_time.date() == today_date:
-                    # Format without funding status for speed
-                    attendee_names = [attendee['name'] for attendee in event.attendees if attendee['name']]
+                    # Get attendee names and convert emails to proper names
+                    attendee_names = []
+                    for attendee in event.attendees:
+                        if attendee['name']:
+                            # Check if it's an email address
+                            if '@' in attendee['name']:
+                                # Look up proper name from database
+                                proper_name = self._lookup_member_name_by_email(attendee['name'])
+                                if proper_name:
+                                    attendee_names.append(proper_name)
+                                else:
+                                    # Fallback: extract name from email
+                                    email_name = attendee['name'].split('@')[0].replace('.', ' ').title()
+                                    attendee_names.append(email_name)
+                            else:
+                                attendee_names.append(attendee['name'])
                     
                     formatted_event = {
                         'id': event.uid,
@@ -1236,6 +1385,53 @@ class ClubOSIntegration:
         except Exception as e:
             logger.error(f"❌ Error getting today's events: {e}")
             return []
+    
+    def _lookup_member_name_by_email(self, email: str) -> str:
+        """Look up proper member name (first + last) from database using email"""
+        try:
+            conn = sqlite3.connect(db_manager.db_path)
+            cursor = conn.cursor()
+            
+            # First check members table
+            cursor.execute("""
+                SELECT first_name, last_name, full_name FROM members 
+                WHERE LOWER(email) = LOWER(?)
+                LIMIT 1
+            """, (email.strip(),))
+            
+            result = cursor.fetchone()
+            if result:
+                first_name, last_name, full_name = result
+                conn.close()
+                
+                # Return the best available name format
+                if first_name and last_name:
+                    return f"{first_name} {last_name}".strip()
+                elif full_name:
+                    return full_name.strip()
+                elif first_name:
+                    return first_name.strip()
+                elif last_name:
+                    return last_name.strip()
+            
+            # Then check training_clients table
+            cursor.execute("""
+                SELECT member_name FROM training_clients 
+                WHERE LOWER(email) = LOWER(?) OR LOWER(member_name) LIKE LOWER(?)
+                LIMIT 1
+            """, (email.strip(), f"%{email.split('@')[0]}%"))
+            
+            result = cursor.fetchone()
+            conn.close()
+            
+            if result and result[0]:
+                return result[0].strip()
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"❌ Error looking up member name by email {email}: {e}")
+            return None
     
     def _is_training_session(self, attendee_names):
         """Check if event attendees include training clients from our database"""
@@ -1509,6 +1705,272 @@ def refresh_funding_cache():
             'error': str(e)
         })
 
+@app.route('/api/bulk-checkin', methods=['POST'])
+def api_bulk_checkin():
+    """API endpoint to start bulk member check-ins in background - EXCLUDES PPV MEMBERS"""
+    global bulk_checkin_status
+    
+    # Check if already running
+    if bulk_checkin_status['is_running']:
+        return jsonify({
+            'success': False,
+            'error': 'Bulk check-in already in progress',
+            'status': bulk_checkin_status
+        }), 400
+    
+    # Start background process
+    import threading
+    thread = threading.Thread(target=perform_bulk_checkin_background)
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({
+        'success': True,
+        'message': 'Bulk check-in started in background',
+        'status': bulk_checkin_status
+    })
+
+def perform_bulk_checkin_background():
+    """Background function to perform bulk member check-ins with progress tracking"""
+    global bulk_checkin_status
+    
+    try:
+        # Initialize status
+        bulk_checkin_status.update({
+            'is_running': True,
+            'started_at': datetime.now().isoformat(),
+            'completed_at': None,
+            'progress': 0,
+            'total_members': 0,
+            'processed_members': 0,
+            'ppv_excluded': 0,
+            'total_checkins': 0,
+            'current_member': '',
+            'status': 'starting',
+            'message': 'Initializing bulk check-in process...',
+            'error': None,
+            'errors': []
+        })
+        
+        logger.info("🏋️ Starting background bulk member check-in process (excluding PPV members)...")
+        
+        # Import and initialize the ClubHub API client
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'services'))
+        from api.clubhub_api_client import ClubHubAPIClient
+        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        
+        bulk_checkin_status['message'] = 'Authenticating with ClubHub...'
+        bulk_checkin_status['status'] = 'authenticating'
+        
+        # Initialize and authenticate
+        client = ClubHubAPIClient()
+        if not client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
+            bulk_checkin_status.update({
+                'is_running': False,
+                'status': 'error',
+                'error': 'ClubHub authentication failed',
+                'message': 'Authentication failed'
+            })
+            return
+        
+        bulk_checkin_status['message'] = 'Fetching member list...'
+        bulk_checkin_status['status'] = 'fetching'
+        
+        # Get ALL members from ClubHub (paginate through all pages)
+        all_members = []
+        page = 1
+        page_size = 50  # Smaller page size to reduce memory usage
+        
+        while True:
+            try:
+                members_response = client.get_all_members(page=page, page_size=page_size)
+                
+                if not members_response or not isinstance(members_response, list):
+                    break
+                    
+                all_members.extend(members_response)
+                
+                # Update progress
+                bulk_checkin_status['message'] = f'Fetched page {page}, total members: {len(all_members)}'
+                
+                # If we got less than page_size, we've reached the end
+                if len(members_response) < page_size:
+                    break
+                    
+                page += 1
+                
+                # Add small delay to prevent overwhelming the API
+                import time
+                time.sleep(0.1)
+                
+            except Exception as e:
+                logger.error(f"Error fetching page {page}: {e}")
+                break
+        
+        logger.info(f"📋 Retrieved {len(all_members)} total members from ClubHub")
+        bulk_checkin_status.update({
+            'total_members': len(all_members),
+            'message': f'Found {len(all_members)} total members, filtering PPV members...',
+            'status': 'filtering'
+        })
+        
+        # Filter out PPV members - PPV members typically have specific contract types or payment structures
+        regular_members = []
+        ppv_members = []
+        
+        for i, member in enumerate(all_members):
+            # Update progress for filtering
+            if i % 50 == 0:  # Update every 50 members
+                bulk_checkin_status['message'] = f'Filtering members... {i}/{len(all_members)}'
+                bulk_checkin_status['progress'] = int((i / len(all_members)) * 20)  # 20% for filtering
+            
+            # Check for PPV indicators
+            contract_types = member.get('contractTypes', [])
+            member_status = member.get('status', 0)
+            user_type = member.get('userType', 0)
+            
+            is_ppv = False
+            
+            # Check contract types (adjust these values based on your system)
+            if contract_types and any(ct in [2, 3, 4] for ct in contract_types):
+                is_ppv = True
+            
+            # Check user type for PPV indicators
+            if user_type in [18, 19, 20]:
+                is_ppv = True
+            
+            # Check if member has 'trial' status or specific PPV indicators
+            if member.get('trial', False):
+                is_ppv = True
+            
+            # Check for specific PPV keywords in status message
+            status_message = member.get('statusMessage', '').lower()
+            if any(keyword in status_message for keyword in ['pay per visit', 'ppv', 'day pass', 'guest pass']):
+                is_ppv = True
+            
+            if is_ppv:
+                ppv_members.append(member)
+            else:
+                regular_members.append(member)
+        
+        logger.info(f"✅ Filtered members: {len(regular_members)} regular members, {len(ppv_members)} PPV members (excluded)")
+        bulk_checkin_status.update({
+            'ppv_excluded': len(ppv_members),
+            'total_members': len(regular_members),
+            'message': f'Processing {len(regular_members)} regular members (excluded {len(ppv_members)} PPV members)',
+            'status': 'processing',
+            'progress': 25
+        })
+        
+        import time
+        
+        # Process members in smaller batches to prevent crashes
+        batch_size = 10  # Process 10 members at a time
+        total_checkins = 0
+        members_processed = 0
+        errors = []
+        
+        for batch_start in range(0, len(regular_members), batch_size):
+            batch_end = min(batch_start + batch_size, len(regular_members))
+            batch = regular_members[batch_start:batch_end]
+            
+            for member in batch:
+                try:
+                    member_id = member.get('id')
+                    member_name = f"{member.get('firstName', '')} {member.get('lastName', '')}".strip()
+                    
+                    if not member_id:
+                        continue
+                    
+                    # Update current status
+                    bulk_checkin_status.update({
+                        'current_member': member_name,
+                        'processed_members': members_processed,
+                        'message': f'Checking in {member_name} ({members_processed + 1}/{len(regular_members)})',
+                        'progress': 25 + int(((members_processed / len(regular_members)) * 70))  # 25-95% for processing
+                    })
+                    
+                    # First check-in (now)
+                    checkin_data_1 = {
+                        "date": datetime.now().strftime("%Y-%m-%dT%H:%M:%S-05:00"),
+                        "door": {"id": 772},
+                        "club": {"id": 1156},
+                        "manual": True
+                    }
+                    
+                    result_1 = client.post_member_usage(str(member_id), checkin_data_1)
+                    if result_1:
+                        total_checkins += 1
+                        bulk_checkin_status['total_checkins'] = total_checkins
+                        logger.info(f"✅ Check-in 1 successful for {member_name} (ID: {member_id})")
+                    
+                    # Small delay between check-ins
+                    time.sleep(0.1)
+                    
+                    # Second check-in (1 minute later)
+                    second_checkin_time = datetime.now() + timedelta(minutes=1)
+                    checkin_data_2 = {
+                        "date": second_checkin_time.strftime("%Y-%m-%dT%H:%M:%S-05:00"),
+                        "door": {"id": 772},
+                        "club": {"id": 1156},
+                        "manual": True
+                    }
+                    
+                    result_2 = client.post_member_usage(str(member_id), checkin_data_2)
+                    if result_2:
+                        total_checkins += 1
+                        bulk_checkin_status['total_checkins'] = total_checkins
+                        logger.info(f"✅ Check-in 2 successful for {member_name} (ID: {member_id})")
+                    
+                    members_processed += 1
+                    bulk_checkin_status['processed_members'] = members_processed
+                    
+                    # Small delay between members
+                    time.sleep(0.1)
+                    
+                except Exception as member_error:
+                    error_msg = f"Error checking in {member_name}: {str(member_error)}"
+                    logger.error(error_msg)
+                    errors.append(error_msg)
+                    bulk_checkin_status['errors'] = errors
+            
+            # Longer delay between batches to prevent overwhelming the system
+            time.sleep(1)
+            logger.info(f"Completed batch {batch_start//batch_size + 1}/{(len(regular_members) + batch_size - 1)//batch_size}")
+        
+        # Complete the process
+        bulk_checkin_status.update({
+            'is_running': False,
+            'completed_at': datetime.now().isoformat(),
+            'status': 'completed',
+            'message': f'Completed! {total_checkins} total check-ins for {members_processed} members',
+            'progress': 100,
+            'current_member': ''
+        })
+        
+        logger.info(f"🎉 Bulk check-in completed: {total_checkins} total check-ins for {members_processed} regular members")
+        logger.info(f"🚫 Excluded {len(ppv_members)} PPV members from check-in process")
+        
+    except Exception as e:
+        logger.error(f"❌ Error in background bulk check-in: {e}")
+        bulk_checkin_status.update({
+            'is_running': False,
+            'status': 'error',
+            'error': str(e),
+            'message': f'Error: {str(e)}',
+            'completed_at': datetime.now().isoformat()
+        })
+
+@app.route('/api/bulk-checkin-status')
+def api_bulk_checkin_status():
+    """API endpoint to get current bulk check-in status"""
+    return jsonify({
+        'success': True,
+        'status': bulk_checkin_status
+    })
+
 @app.route('/api/funding-cache-status')
 def funding_cache_status():
     """API endpoint to check current funding cache status"""
@@ -1578,14 +2040,23 @@ def funding_cache_status():
             'error': str(e)
         })
 
-@app.route('/api/refresh-data', methods=['POST'])
+@app.route('/api/refresh-data', methods=['POST', 'GET'])
 def refresh_data():
     """API endpoint to manually refresh database with latest ClubOS data"""
     try:
-        force = request.json.get('force', False) if request.is_json else False
-        background = request.json.get('background', False) if request.is_json else False
+        # Handle both JSON and form data, with safe defaults
+        force = False
+        background = False
         
-        logger.info("🔄 Manual data refresh requested")
+        if request.method == 'POST':
+            if request.is_json and request.json:
+                force = request.json.get('force', False)
+                background = request.json.get('background', False)
+            elif request.form:
+                force = request.form.get('force', 'false').lower() == 'true'
+                background = request.form.get('background', 'false').lower() == 'true'
+        
+        logger.info(f"🔄 Manual data refresh requested (force={force}, background={background})")
         
         if background:
             # Start background refresh process
@@ -1692,6 +2163,124 @@ def refresh_data():
             'error': str(e)
         })
 
+@app.route('/api/refresh-clubhub-members', methods=['POST', 'GET'])
+def refresh_clubhub_members():
+    """API endpoint to refresh member data directly from ClubHub"""
+    try:
+        logger.info("🔄 Refreshing member data from ClubHub...")
+        
+        # Import ClubHub API client
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'services'))
+        from api.clubhub_api_client import ClubHubAPIClient
+        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        
+        # Initialize and authenticate
+        client = ClubHubAPIClient()
+        if not client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
+            return jsonify({
+                'success': False,
+                'error': 'ClubHub authentication failed'
+            })
+        
+        # Get fresh member data from ClubHub
+        fresh_members = []
+        page = 1
+        page_size = 100
+        
+        logger.info("📥 Fetching members from ClubHub...")
+        
+        while True:
+            members_response = client.get_all_members(page=page, page_size=page_size)
+            
+            if not members_response or not isinstance(members_response, list):
+                break
+                
+            fresh_members.extend(members_response)
+            logger.info(f"📄 Retrieved page {page}, total members so far: {len(fresh_members)}")
+            
+            # If we got less than page_size, we've reached the end
+            if len(members_response) < page_size:
+                break
+                
+            page += 1
+        
+        logger.info(f"📋 Retrieved {len(fresh_members)} total members from ClubHub")
+        
+        # Search for Dennis Rost specifically
+        dennis_found = None
+        for member in fresh_members:
+            first_name = member.get('firstName', '').lower()
+            last_name = member.get('lastName', '').lower()
+            
+            if 'dennis' in first_name and 'rost' in last_name:
+                dennis_found = member
+                logger.info(f"🎯 FOUND Dennis Rost in ClubHub: ID {member.get('id')}, Name: {first_name.title()} {last_name.title()}")
+                break
+        
+        # Update database with fresh members
+        conn = sqlite3.connect(db_manager.db_path)
+        cursor = conn.cursor()
+        
+        # Clear and repopulate members table with fresh data
+        cursor.execute('DELETE FROM members')
+        
+        members_added = 0
+        for member in fresh_members:
+            try:
+                # Map ClubHub member data to our database schema
+                member_data = {
+                    'id': member.get('id'),
+                    'first_name': member.get('firstName'),
+                    'last_name': member.get('lastName'),
+                    'full_name': f"{member.get('firstName', '')} {member.get('lastName', '')}".strip(),
+                    'email': member.get('email'),
+                    'mobile_phone': member.get('mobilePhone'),
+                    'status': member.get('status'),
+                    'user_type': member.get('userType'),
+                    'membership_start': member.get('membershipStart'),
+                    'membership_end': member.get('membershipEnd'),
+                    'last_visit': member.get('lastVisit'),
+                    'trial': member.get('trial', False),
+                    'contract_types': str(member.get('contractTypes', [])),
+                    'status_message': member.get('statusMessage')
+                }
+                
+                # Remove None values
+                member_data = {k: v for k, v in member_data.items() if v is not None}
+                columns = ', '.join(member_data.keys())
+                placeholders = ', '.join(['?' for _ in member_data.values()])
+                
+                cursor.execute(f'''
+                    INSERT OR REPLACE INTO members ({columns})
+                    VALUES ({placeholders})
+                ''', list(member_data.values()))
+                
+                members_added += 1
+                
+            except Exception as e:
+                logger.error(f"❌ Error adding member {member.get('firstName')} {member.get('lastName')}: {e}")
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"✅ ClubHub member refresh complete: {members_added} members added")
+        
+        return jsonify({
+            'success': True,
+            'members_fetched': len(fresh_members),
+            'members_added': members_added,
+            'dennis_found': dennis_found is not None,
+            'dennis_data': dennis_found if dennis_found else None,
+            'message': f'Successfully refreshed {members_added} members from ClubHub'
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error refreshing ClubHub members: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 @app.route('/api/data-status')
 def data_status():
     """API endpoint to check current data status and freshness"""
@@ -1734,7 +2323,7 @@ def data_status():
         ]
         
         csv_past_due_counts = {'red': 0, 'yellow': 0, 'total': 0}
-        active_csv = None
+        active_csv = None;
         
         for file_path in csv_files:
             if os.path.exists(file_path):
@@ -1779,220 +2368,159 @@ def data_status():
 
 @app.route('/members')
 def members_page():
-    """Display all members with search and filtering using FRESH ClubHub data."""
+    """Display members page with automatic database refresh to get latest member data."""
     
-    # Get fresh member count from ClubHub API instead of stale database
+    logger.info("🔄 Members page loaded - refreshing database with latest member data...")
+    
+    # Automatically refresh database with latest member data when members page loads
     try:
-        # Use ClubHub credentials to get ALL members directly (matching past-due API)
-        CLUBHUB_LOGIN_URL = "https://clubhub-ios-api.anytimefitness.com/api/login"
-        USERNAME = "mayo.jeremy2212@gmail.com"
-        PASSWORD = "SruLEqp464_GLrF"
+        # Import ClubHub API client for fresh data
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'services'))
+        from api.clubhub_api_client import ClubHubAPIClient
+        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
         
-        headers = {
-            "Content-Type": "application/json",
-            "API-version": "1",
-            "Accept": "application/json",
-            "User-Agent": "ClubHub Store/2.15.1 (com.anytimefitness.Club-Hub; build:1007; iOS 18.5.0) Alamofire/5.6.4",
-        }
-        
-        session = requests.Session()
-        session.headers.update(headers)
-        
-        # Login to get bearer token
-        login_data = {"username": USERNAME, "password": PASSWORD}
-        login_response = session.post(CLUBHUB_LOGIN_URL, json=login_data)
-        
-        fresh_total_members = 528  # fallback to old count if API fails
-        
-        if login_response.status_code == 200:
-            login_result = login_response.json()
-            bearer_token = login_result.get('accessToken')
+        # Initialize and authenticate with ClubHub
+        client = ClubHubAPIClient()
+        if client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
+            logger.info("✅ ClubHub authentication successful - fetching fresh member data...")
             
-            if bearer_token:
-                session.headers.update({"Authorization": f"Bearer {bearer_token}"})
+            # Get fresh member data from ClubHub
+            fresh_members = []
+            page = 1
+            page_size = 100
+            
+            while True:
+                members_response = client.get_all_members(page=page, page_size=page_size)
                 
-                # Get ALL members count from ClubHub API
-                club_id = "1156"
-                all_members = []
-                page = 1
+                if not members_response or not isinstance(members_response, list):
+                    break
+                    
+                fresh_members.extend(members_response)
                 
-                while True:
-                    members_url = f"https://clubhub-ios-api.anytimefitness.com/api/clubs/{club_id}/members?page={page}&pageSize=100"
-                    members_response = session.get(members_url)
+                if len(members_response) < page_size:
+                    break
                     
-                    if members_response.status_code != 200:
-                        break
-                        
-                    members_data = members_response.json()
+                page += 1
+            
+            logger.info(f"📋 Retrieved {len(fresh_members)} members from ClubHub - updating database...")
+            
+            # Update database with fresh member data
+            conn = sqlite3.connect(db_manager.db_path)
+            cursor = conn.cursor()
+            
+            # Clear existing members and insert fresh data
+            cursor.execute('DELETE FROM members')
+            
+            updated_count = 0
+            for member in fresh_members:
+                try:
+                    member_data = {
+                        'id': member.get('id'),
+                        'first_name': member.get('firstName'),
+                        'last_name': member.get('lastName'),
+                        'full_name': f"{member.get('firstName', '')} {member.get('lastName', '')}".strip(),
+                        'email': member.get('email'),
+                        'mobile_phone': member.get('mobilePhone'),
+                        'home_phone': member.get('homePhone'),
+                        'status': member.get('status'),
+                        'status_message': member.get('statusMessage'),
+                        'user_type': member.get('userType'),
+                        'membership_start': member.get('membershipStart'),
+                        'membership_end': member.get('membershipEnd'),
+                        'last_visit': member.get('lastVisit'),
+                        'contract_types': str(member.get('contractTypes', [])),
+                        'trial': member.get('trial', False),
+                        'created_at': datetime.now().isoformat(),
+                        'updated_at': datetime.now().isoformat()
+                    }
                     
-                    # Create a 'full_name' field for easier display
-                    for member in members_data:
-                        member['full_name'] = f"{member.get('firstName', '')} {member.get('lastName', '')}".strip()
-
-                    logger.info(f"📊 Found {len(members_data)} members on page {page}")
+                    # Remove None values
+                    member_data = {k: v for k, v in member_data.items() if v is not None}
+                    columns = ', '.join(member_data.keys())
+                    placeholders = ', '.join(['?' for _ in member_data.values()])
                     
-                    # If we got no members, stop paginating to avoid unnecessary API calls
-                    if len(members_data) == 0:
-                        logger.info(f"🛑 No more members found, stopping pagination")
-                        break
+                    cursor.execute(f'''
+                        INSERT OR REPLACE INTO members ({columns})
+                        VALUES ({placeholders})
+                    ''', list(member_data.values()))
                     
-                    all_members.extend(members_data)
-                    page += 1
+                    updated_count += 1
+                    
+                except Exception as e:
+                    logger.error(f"❌ Error updating member {member.get('firstName', '')} {member.get('lastName', '')}: {e}")
+                    continue
+            
+            conn.commit()
+            conn.close()
+            
+            logger.info(f"✅ Database updated with {updated_count} fresh members from ClubHub")
+            
+            # Also refresh training clients data
+            try:
+                logger.info("🏋️ Refreshing training clients data...")
                 
-                fresh_total_members = len(all_members)
-                logger.info(f"✅ Got {fresh_total_members} total fresh members from ClubHub API")
+                # Get training clients from ClubHub API if available
+                training_clients_response = client.get_training_clients() if hasattr(client, 'get_training_clients') else []
                 
-                # Use the fresh data directly instead of old database data
-                return render_template('members.html',
-                                     members=all_members,
-                                     total_members=fresh_total_members,
-                                     statuses=[m.get('status') for m in all_members if m.get('status')],
-                                     search='',
-                                     status_filter='',
-                                     page=1,
-                                     total_pages=1,
-                                     per_page=fresh_total_members,
-                                     red_list_count=0,
-                                     yellow_list_count=0,
-                                     past_due_count=0)
-    
+                if training_clients_response:
+                    conn = sqlite3.connect(db_manager.db_path)
+                    cursor = conn.cursor()
+                    
+                    # Update training clients with fresh data
+                    training_updated = 0
+                    for training_client in training_clients_response:
+                        try:
+                            # Extract member ID and update training client data
+                            client_data = {
+                                'member_id': training_client.get('memberId'),
+                                'clubos_member_id': training_client.get('memberId'),
+                                'member_name': training_client.get('memberName'),
+                                'trainer_name': training_client.get('trainerName', 'Jeremy Mayo'),
+                                'sessions_remaining': training_client.get('sessionsRemaining', 0),
+                                'updated_at': datetime.now().isoformat()
+                            }
+                            
+                            # Remove None values
+                            client_data = {k: v for k, v in client_data.items() if v is not None}
+                            
+                            # Update or insert training client
+                            if client_data.get('clubos_member_id'):
+                                columns = ', '.join(client_data.keys())
+                                placeholders = ', '.join(['?' for _ in client_data.values()])
+                                
+                                cursor.execute(f'''
+                                    INSERT OR REPLACE INTO training_clients ({columns})
+                                    VALUES ({placeholders})
+                                ''', list(client_data.values()))
+                                
+                                training_updated += 1
+                                
+                        except Exception as e:
+                            logger.error(f"❌ Error updating training client: {e}")
+                            continue
+                    
+                    conn.commit()
+                    conn.close()
+                    
+                    logger.info(f"✅ Updated {training_updated} training clients")
+                    
+            except Exception as e:
+                logger.error(f"❌ Error refreshing training clients: {e}")
+            
+        else:
+            logger.warning("⚠️ ClubHub authentication failed - using existing database data")
+            
     except Exception as e:
-        logger.error(f"❌ Error getting fresh member count: {e}")
-        fresh_total_members = 528  # fallback
+        logger.error(f"❌ Error refreshing member database: {e}")
+        logger.info("⚠️ Using existing database data as fallback")
     
-    # Fall back to database only if API fails
+    # Get current database counts for display
     conn = sqlite3.connect(db_manager.db_path)
-    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # Get search and filter parameters
-    search = request.args.get('search', '')
-    status_filter = request.args.get('status', '')
-    page = int(request.args.get('page', 1))
-    per_page = 50  # Show 50 members per page
+    cursor.execute("SELECT COUNT(*) FROM members")
+    total_members = cursor.fetchone()[0]
     
-    # Build query with search and filters
-    where_conditions = []
-    params = []
-    
-    # IMPORTANT: Exclude past due members from "All Members" tab
-    # Past due members should only appear in the "Past Due" tab
-    where_conditions.append("(amount_past_due IS NULL OR amount_past_due <= 0)")
-    where_conditions.append("(date_of_next_payment IS NULL OR date_of_next_payment > date('now', '+7 days'))")
-    
-    if search:
-        where_conditions.append("(first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)")
-        search_term = f"%{search}%"
-        params.extend([search_term, search_term, search_term])
-    
-    if status_filter:
-        where_conditions.append("status = ?")
-        params.append(status_filter)
-    
-    where_clause = ""
-    if where_conditions:
-        where_clause = "WHERE " + " AND ".join(where_conditions)
-    
-    # Get local database count (just for pagination)
-    count_query = f"SELECT COUNT(*) FROM members {where_clause}"
-    cursor.execute(count_query, params)
-    local_members_count = cursor.fetchone()[0]
-    
-    # Calculate pagination
-    total_pages = (local_members_count + per_page - 1) // per_page
-    offset = (page - 1) * per_page
-    
-    # Get members for current page
-    query = f"""
-        SELECT id, first_name, last_name, full_name, email, mobile_phone, status, 
-               membership_start, membership_end, payment_amount, user_type, created_at, 
-               agreement_rate, amount_past_due, amount_of_next_payment, date_of_next_payment
-        FROM members {where_clause}
-        ORDER BY 
-            CASE 
-                WHEN amount_past_due > 0 THEN 1  -- Red list (past due) first
-                WHEN date_of_next_payment <= date('now', '+7 days') THEN 2  -- Yellow list (due soon) second
-                ELSE 3  -- Everyone else
-            END,
-            amount_past_due DESC,  -- Within red list, highest amounts first
-            created_at DESC
-        LIMIT ? OFFSET ?
-    """
-    cursor.execute(query, params + [per_page, offset])
-    members_data = cursor.fetchall()
-    
-    # Process members to add payment status flags
-    members = []
-    for member in members_data:
-        member_dict = dict(member)
-        
-        # Always generate full_name regardless of database content
-        first_name = member_dict.get('first_name', '')
-        last_name = member_dict.get('last_name', '')
-        member_dict['full_name'] = f"{first_name} {last_name}".strip()
-        
-        # Make sure we have at least something for display
-        if not member_dict['full_name']:
-            # Try to extract name from email
-            email = member_dict.get('email', '')
-            if email and '@' in email:
-                username = email.split('@')[0]
-                # Clean up username (remove numbers, dots, etc.)
-                cleaned_name = ''.join([c for c in username if c.isalpha() or c == ' ']).title()
-                if cleaned_name:
-                    member_dict['full_name'] = f"{cleaned_name} (from email)"
-        
-        # Determine payment status category
-        amount_past_due = member['amount_past_due'] if member['amount_past_due'] else 0
-        date_of_next_payment = member['date_of_next_payment']
-        
-        if amount_past_due > 0:
-            # Red list - past due
-            member_dict['payment_status'] = 'red'
-            member_dict['payment_status_text'] = f'Past Due: ${amount_past_due:.2f}'
-            member_dict['payment_status_class'] = 'danger'
-            member_dict['payment_priority'] = 1
-        elif date_of_next_payment:
-            # Check if payment is due soon (within 7 days)
-            try:
-                next_payment_date = datetime.strptime(date_of_next_payment, '%Y-%m-%d').date()
-                days_until_payment = (next_payment_date - datetime.now().date()).days
-                
-                if 0 <= days_until_payment <= 7:
-                    # Yellow list - due soon
-                    member_dict['payment_status'] = 'yellow'
-                    if days_until_payment == 0:
-                        member_dict['payment_status_text'] = f'Due Today: ${member["amount_of_next_payment"] if member["amount_of_next_payment"] else 0:.2f}'
-                    else:
-                        member_dict['payment_status_text'] = f'Due in {days_until_payment} days: ${member["amount_of_next_payment"] if member["amount_of_next_payment"] else 0:.2f}'
-                    member_dict['payment_status_class'] = 'warning'
-                    member_dict['payment_priority'] = 2
-                else:
-                    # Green list - current
-                    member_dict['payment_status'] = 'green'
-                    member_dict['payment_status_text'] = 'Current'
-                    member_dict['payment_status_class'] = 'success'
-                    member_dict['payment_priority'] = 3
-            except (ValueError, TypeError):
-                # Can't parse date - assume current
-                member_dict['payment_status'] = 'green'
-                member_dict['payment_status_text'] = 'Current'
-                member_dict['payment_status_class'] = 'success'
-                member_dict['payment_priority'] = 3
-        else:
-            # No payment data - assume current
-            member_dict['payment_status'] = 'green'
-            member_dict['payment_status_text'] = 'Current'
-            member_dict['payment_status_class'] = 'success'
-            member_dict['payment_priority'] = 3
-        
-        members.append(member_dict)
-    
-    # Get unique statuses for filter dropdown
-    cursor.execute("SELECT DISTINCT status FROM members WHERE status IS NOT NULL AND status != ''")
-    statuses = [row[0] for row in cursor.fetchall()]
-    
-    # Get counts for red and yellow lists (for the tab badges)
     cursor.execute("SELECT COUNT(*) FROM members WHERE amount_past_due > 0")
     red_list_count = cursor.fetchone()[0]
     
@@ -2005,18 +2533,127 @@ def members_page():
     
     conn.close()
     
+    # Fast page load - render template with refreshed data counts
+    # JavaScript will load the actual member data asynchronously
     return render_template('members.html',
-                         members=members,
-                         total_members=fresh_total_members,  # Use fresh ClubHub count
-                         statuses=statuses,
-                         search=search,
-                         status_filter=status_filter,
-                         page=page,
-                         total_pages=total_pages,
-                         per_page=per_page,
+                         members=[],  # Empty initially, loaded via JavaScript
+                         total_members=total_members,  # Updated count from fresh data
+                         statuses=[],
+                         search='',
+                         status_filter='',
+                         page=1,
+                         total_pages=1,
+                         per_page=50,
                          red_list_count=red_list_count,
                          yellow_list_count=yellow_list_count,
-                         past_due_count=red_list_count + yellow_list_count)
+                         past_due_count=red_list_count)
+
+@app.route('/api/members/all')
+def get_all_members():
+    """API endpoint to get all members - called asynchronously after page load."""
+    try:
+        # Get search and filter parameters
+        search = request.args.get('search', '')
+        status_filter = request.args.get('status', '')
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 50))
+        
+        # Use cached database data for speed (instead of ClubHub API every time)
+        conn = sqlite3.connect(db_manager.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Build query with search and filters
+        where_conditions = []
+        params = []
+        
+        # IMPORTANT: Exclude past due members from "All Members" tab
+        where_conditions.append("(amount_past_due IS NULL OR amount_past_due <= 0)")
+        where_conditions.append("(date_of_next_payment IS NULL OR date_of_next_payment > date('now', '+7 days'))")
+        
+        if search:
+            where_conditions.append("(first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)")
+            search_term = f"%{search}%"
+            params.extend([search_term, search_term, search_term])
+        
+        if status_filter:
+            where_conditions.append("status = ?")
+            params.append(status_filter)
+        
+        where_clause = ""
+        if where_conditions:
+            where_clause = "WHERE " + " AND ".join(where_conditions)
+        
+        # Get total count for pagination
+        count_query = f"SELECT COUNT(*) FROM members {where_clause}"
+        cursor.execute(count_query, params)
+        total_members = cursor.fetchone()[0]
+        
+        # Calculate pagination
+        total_pages = (total_members + per_page - 1) // per_page
+        offset = (page - 1) * per_page
+        
+        # Get members for current page
+        query = f"""
+            SELECT id, first_name, last_name, full_name, email, mobile_phone, status, 
+                   membership_start, membership_end, payment_amount, user_type, created_at, 
+                   agreement_rate, amount_past_due, amount_of_next_payment, date_of_next_payment
+            FROM members {where_clause}
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
+        """
+        cursor.execute(query, params + [per_page, offset])
+        members_data = cursor.fetchall()
+        
+        # Process members for display
+        members = []
+        for member in members_data:
+            member_dict = dict(member)
+            
+            # Generate full_name if missing - CRITICAL FIX
+            first_name = member_dict.get('first_name', '') or ''
+            last_name = member_dict.get('last_name', '') or ''
+            if not member_dict.get('full_name'):
+                member_dict['full_name'] = f"{first_name} {last_name}".strip()
+            
+            # Ensure we have a display name - FALLBACK FIX
+            if not member_dict['full_name']:
+                member_dict['full_name'] = member_dict.get('email', 'Unknown Member')
+            
+            # Ensure first_name and last_name are not None
+            member_dict['first_name'] = first_name or 'Unknown'
+            member_dict['last_name'] = last_name or 'Member'
+            
+            # Add payment status
+            amount_past_due = member['amount_past_due'] if member['amount_past_due'] else 0
+            member_dict['payment_status'] = 'green'
+            member_dict['payment_status_text'] = 'Current'
+            member_dict['payment_status_class'] = 'success'
+            
+            # Add member ID for invoice functionality
+            member_dict['member_id'] = member_dict.get('id', '')
+            
+            members.append(member_dict)
+        
+        # Get unique statuses for filter dropdown
+        cursor.execute("SELECT DISTINCT status FROM members WHERE status IS NOT NULL AND status != ''")
+        statuses = [row[0] for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'members': members,
+            'total_members': total_members,
+            'statuses': statuses,
+            'page': page,
+            'total_pages': total_pages,
+            'per_page': per_page
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting members: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/member/<member_id>')
 def get_member_profile(member_id):
@@ -2048,201 +2685,34 @@ def get_member_profile(member_id):
         bearer_token = login_result.get('accessToken')
         
         if not bearer_token:
-            return jsonify({'success': False, 'error': 'No bearer token received from ClubHub login'}), 500
-        
+            return jsonify({'success': False, 'error': 'ClubHub authentication successful, but no token received'}), 500
+            
         session.headers.update({"Authorization": f"Bearer {bearer_token}"})
         
-        # Get member details from ClubHub API
-        member_url = f"https://clubhub-ios-api.anytimefitness.com/api/members/{member_id}/profile"
+        # Correctly fetch member details from ClubHub API
+        club_id = "1156"  # Fond du Lac club ID
+        member_url = f"https://clubhub-ios-api.anytimefitness.com/api/clubs/{club_id}/members/{member_id}"
         member_response = session.get(member_url)
         
         if member_response.status_code != 200:
-            # Fall back to database if API fails
-            conn = sqlite3.connect(db_manager.db_path)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+            return jsonify({'success': False, 'error': f'Failed to fetch member data from ClubHub: {member_response.status_code}'}), 500
             
-            # Try to find member in database as fallback
-            cursor.execute("SELECT * FROM members WHERE id = ? OR guid = ?", (member_id, member_id))
-            member = cursor.fetchone()
-            
-            if not member:
-                return jsonify({'success': False, 'error': f'Member not found with ID: {member_id}'}), 404
-            
-            member_dict = dict(member)
-            member_dict['data_source'] = 'database'
-        else:
-            # Use fresh data from ClubHub API
-            member_dict = member_response.json()
-            member_dict['data_source'] = 'clubhub_api'
-            member_dict['full_name'] = f"{member_dict.get('firstName', '')} {member_dict.get('lastName', '')}".strip()
+        member_data = member_response.json()
         
-        # Get member agreements if available
-        agreements = []
-        if member_dict.get('data_source') == 'database':
-            conn = sqlite3.connect(db_manager.db_path)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            try:
-                cursor.execute("""
-                    SELECT * FROM member_agreements WHERE member_id = ?
-                """, (member_id,))
-                agreements = [dict(row) for row in cursor.fetchall()]
-            except sqlite3.OperationalError:
-                # Table doesn't exist yet
-                pass
-        elif member_dict.get('agreements'):
-            # If agreements are in ClubHub response
-            agreements = member_dict.get('agreements', [])
-        
-        # Get payment info
-        payments = []
-        if member_dict.get('data_source') == 'database':
-            try:
-                cursor.execute("""
-                    SELECT * FROM member_payments WHERE member_id = ? ORDER BY payment_date DESC LIMIT 10
-                """, (member_id,))
-                payments = [dict(row) for row in cursor.fetchall()]
-            except sqlite3.OperationalError:
-                # Table doesn't exist yet
-                pass
-        elif member_dict.get('payments'):
-            # If payments are in ClubHub response
-            payments = member_dict.get('payments', [])
-            
-        # Get billing info if available in ClubHub data
-        if member_dict.get('data_source') == 'clubhub_api' and member_dict.get('billingInfo'):
-            billing_info = member_dict.get('billingInfo', {})
-            member_dict['payment_token'] = billing_info.get('paymentToken')
-            member_dict['card_type'] = billing_info.get('cardType')
-            member_dict['card_last4'] = billing_info.get('lastFour')
-            member_dict['expiration_month'] = billing_info.get('expirationMonth')
-            member_dict['expiration_year'] = billing_info.get('expirationYear')
-        
-        # Calculate payment status - use ClubHub data if available
-        amount_past_due = member_dict.get('amountPastDue', member_dict.get('amount_past_due', 0)) or 0
-        date_of_next_payment = member_dict.get('dateOfNextPayment', member_dict.get('date_of_next_payment'))
-        
-        payment_status = {
-            'status': 'current',
-            'class': 'success',
-            'text': 'Current',
-            'amount_past_due': amount_past_due,
-            'next_payment_amount': member['amount_of_next_payment'],
-            'next_payment_date': date_of_next_payment
-        }
-        
-        if amount_past_due > 0:
-            payment_status.update({
-                'status': 'past_due',
-                'class': 'danger', 
-                'text': f'Past Due: ${amount_past_due:.2f}'
-            })
-        elif date_of_next_payment:
-            try:
-                next_payment_date = datetime.strptime(date_of_next_payment, '%Y-%m-%d').date()
-                days_until_payment = (next_payment_date - datetime.now().date()).days
-                
-                if 0 <= days_until_payment <= 7:
-                    payment_status.update({
-                        'status': 'due_soon',
-                        'class': 'warning',
-                        'text': f'Due in {days_until_payment} days' if days_until_payment > 0 else 'Due Today'
-                    })
-            except (ValueError, TypeError):
-                pass
-        
-        conn.close()
-        
-        # Now try to get real-time member details from ClubHub API
-        try:
-            # ClubHub API configuration
-            CLUBHUB_LOGIN_URL = "https://clubhub-ios-api.anytimefitness.com/api/login"
-            USERNAME = "mayo.jeremy2212@gmail.com"
-            PASSWORD = "SruLEqp464_GLrF"
-            
-            # Set up session with headers
-            headers = {
-                "Content-Type": "application/json",
-                "API-version": "1",
-                "Accept": "application/json",
-                "User-Agent": "ClubHub Store/2.15.1 (com.anytimefitness.Club-Hub; build:1007; iOS 18.5.0) Alamofire/5.6.4",
-            }
-            
-            session = requests.Session()
-            session.headers.update(headers)
-            
-            # Login to get bearer token
-            login_data = {"username": USERNAME, "password": PASSWORD}
-            login_response = session.post(CLUBHUB_LOGIN_URL, json=login_data)
-            
-            fresh_member_details = None
-            
-            if login_response.status_code == 200:
-                login_result = login_response.json()
-                bearer_token = login_result.get('accessToken')
-                
-                if bearer_token:
-                    session.headers.update({"Authorization": f"Bearer {bearer_token}"})
-                    
-                    # Try to get fresh member details from ClubHub API
-                    club_id = "1156"
-                    
-                    # Try to use any ID we have - clubos_member_id, id, or the member_id from the route
-                    member_lookup_id = member_dict.get('clubos_member_id') or member_dict.get('id') or member_id
-                    
-                    if member_lookup_id:
-                        logger.info(f"🔍 Fetching fresh data for member ID: {member_lookup_id}")
-                        member_details_url = f"https://clubhub-ios-api.anytimefitness.com/api/clubs/{club_id}/members/{member_lookup_id}"
-                        member_details_response = session.get(member_details_url)
-                        
-                        if member_details_response.status_code == 200:
-                            fresh_member_details = member_details_response.json()
-                            
-                            # Create a proper full name from the API response
-                            fresh_member_details['full_name'] = f"{fresh_member_details.get('firstName', '')} {fresh_member_details.get('lastName', '')}".strip()
-                            
-                            # Add the fresh data to our response
-                            member_dict['fresh_data'] = True
-                            
-                            # Add additional meaningful fields
-                            member_dict.update({
-                                'first_name': fresh_member_details.get('firstName', member_dict.get('first_name')),
-                                'last_name': fresh_member_details.get('lastName', member_dict.get('last_name')),
-                                'full_name': fresh_member_details.get('full_name', member_dict.get('full_name')),
-                                'email': fresh_member_details.get('email', member_dict.get('email')),
-                                'mobile_phone': fresh_member_details.get('mobilePhone', member_dict.get('mobile_phone')),
-                                'status': fresh_member_details.get('status', member_dict.get('status')),
-                                'last_visit': fresh_member_details.get('lastVisit', member_dict.get('last_visit')),
-                                'membership_start': fresh_member_details.get('membershipStart', member_dict.get('membership_start')),
-                                'membership_end': fresh_member_details.get('membershipEnd', member_dict.get('membership_end')),
-                                'clubos_member_id': fresh_member_details.get('memberId', member_dict.get('clubos_member_id')),
-                                'user_type': fresh_member_details.get('memberType', member_dict.get('user_type')),
-                                'club_hub_data': fresh_member_details  # Store the full response for reference
-                            })
-        except Exception as e:
-            logger.error(f"❌ Error getting fresh member details: {str(e)}")
-            # Add a flag to indicate we couldn't get fresh data
-            member_dict['fresh_data'] = False
-            member_dict['fresh_data_error'] = str(e)
-            # Continue with database info if fresh API call fails
-        
+        # For now, we'll just return the raw data
+        # In the future, we can add payment history and agreements here
         return jsonify({
             'success': True,
-            'member': member_dict,
-            'agreements': agreements,
-            'payments': payments,
-            'payment_status': payment_status
+            'member': member_data,
+            'payment_status': {'text': 'In Good Standing', 'class': 'success'}, # Placeholder
+            'agreements': [], # Placeholder
+            'payments': [] # Placeholder
         })
-        
-    except Exception as e:
-        logger.error(f"❌ Error getting member profile: {str(e)}")
-        return jsonify({
-            'success': False, 
-            'error': str(e),
-            'message': 'Failed to retrieve member profile data. Please try again or contact support.'
-        }), 500
 
+    except Exception as e:
+        logger.error(f"❌ Error fetching member profile for ID {member_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+        
 @app.route('/api/members/past-due')
 def get_past_due_members():
     """Get members who are past due on payments using FRESH ClubHub API data"""
@@ -2257,10 +2727,11 @@ def get_past_due_members():
         CLUBHUB_LOGIN_URL = "https://clubhub-ios-api.anytimefitness.com/api/login"
         CLUBHUB_API_BASE = "https://clubhub-ios-api.anytimefitness.com/api/v1.0"
         
-        # Working credentials from HAR
-        # Note: These credentials might need updating if they expire
-        USERNAME = "mayo.jeremy2212@gmail.com"
-        PASSWORD = "SruLEqp464_GLrF"
+        # Use ClubHub credentials from config instead of hardcoded
+        from config.clubhub_credentials_clean import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        
+        USERNAME = CLUBHUB_EMAIL
+        PASSWORD = CLUBHUB_PASSWORD
         
         # Check for environment variables that might override the hardcoded credentials
         import os
@@ -2535,203 +3006,490 @@ def get_past_due_members():
 
 @app.route('/prospects')
 def prospects_page():
-    """Display all prospects with search and filtering."""
-    conn = sqlite3.connect(db_manager.db_path)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    """Display prospects page with fast loading - data loads asynchronously via JavaScript."""
     
-    # Get search and filter parameters
-    search = request.args.get('search', '')
-    status_filter = request.args.get('status', '')
-    page = int(request.args.get('page', 1))
-    per_page = 50
-    
-    # Build query with search and filters
-    where_conditions = []
-    params = []
-    
-    if search:
-        where_conditions.append("(first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)")
-        search_term = f"%{search}%"
-        params.extend([search_term, search_term, search_term])
-    
-    if status_filter:
-        where_conditions.append("status = ?")
-        params.append(status_filter)
-    
-    where_clause = ""
-    if where_conditions:
-        where_clause = "WHERE " + " AND ".join(where_conditions)
-    
-    # Get total count for pagination
-    count_query = f"SELECT COUNT(*) FROM prospects {where_clause}"
-    cursor.execute(count_query, params)
-    total_prospects = cursor.fetchone()[0]
-    
-    # Calculate pagination
-    total_pages = (total_prospects + per_page - 1) // per_page
-    offset = (page - 1) * per_page
-    
-    # Get prospects for current page
-    query = f"""
-        SELECT id, first_name, last_name, full_name, email, mobile_phone, status, 
-               user_type, created_at, key_fob, photo_url
-        FROM prospects {where_clause}
-        ORDER BY created_at DESC 
-        LIMIT ? OFFSET ?
-    """
-    cursor.execute(query, params + [per_page, offset])
-    prospects = cursor.fetchall()
-    
-    # Get unique statuses for filter dropdown
-    cursor.execute("SELECT DISTINCT status FROM prospects WHERE status IS NOT NULL AND status != ''")
-    statuses = [row[0] for row in cursor.fetchall()]
-    
-    conn.close()
-    
+    # Fast page load - render template immediately with minimal data
     return render_template('prospects.html',
-                         prospects=prospects,
-                         total_prospects=total_prospects,
-                         statuses=statuses,
-                         search=search,
-                         status_filter=status_filter,
-                         page=page,
-                         total_pages=total_pages,
-                         per_page=per_page)
+                         prospects=[],  # Empty initially, loaded via JavaScript
+                         total_prospects=0,  # Will be updated via API
+                         statuses=[],
+                         search='',
+                         page=1,
+                         total_pages=1,
+                         per_page=50)
+
+@app.route('/api/prospects/all')
+def get_all_prospects():
+    """API endpoint to get all prospects from ClubHub API."""
+    try:
+        # Get fresh prospects from ClubHub API instead of stale database
+        from config.clubhub_credentials_clean import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        
+        CLUBHUB_LOGIN_URL = "https://clubhub-ios-api.anytimefitness.com/api/login"
+        USERNAME = CLUBHUB_EMAIL
+        PASSWORD = CLUBHUB_PASSWORD
+        
+        headers = {
+            "Content-Type": "application/json",
+            "API-version": "1",
+            "Accept": "application/json",
+            "User-Agent": "ClubHub Store/2.15.1 (com.anytimefitness.Club-Hub; build:1007; iOS 18.5.0) Alamofire/5.6.4",
+        }
+        
+        session = requests.Session()
+        session.headers.update(headers)
+        
+        # Login to get bearer token
+        login_data = {"username": USERNAME, "password": PASSWORD}
+        login_response = session.post(CLUBHUB_LOGIN_URL, json=login_data)
+        
+        if login_response.status_code != 200:
+            return jsonify({'success': False, 'error': 'Failed to authenticate with ClubHub API'}), 500
+            
+        login_result = login_response.json()
+        bearer_token = login_result.get('accessToken')
+        
+        if not bearer_token:
+            return jsonify({'success': False, 'error': 'No access token received'}), 500
+            
+        session.headers.update({"Authorization": f"Bearer {bearer_token}"})
+        
+        # Get prospects from ClubHub API
+        club_id = "1156"
+        all_prospects = []
+        page = 1
+        
+        while True:
+            prospects_url = f"https://clubhub-ios-api.anytimefitness.com/api/clubs/{club_id}/prospects?page={page}&pageSize=100"
+            prospects_response = session.get(prospects_url)
+            
+            if prospects_response.status_code != 200:
+                break
+                
+            prospects_data = prospects_response.json()
+            
+            if len(prospects_data) == 0:
+                break
+            
+            # Process prospects data
+            for prospect in prospects_data:
+                prospect['full_name'] = f"{prospect.get('firstName', '')} {prospect.get('lastName', '')}".strip()
+                
+            all_prospects.extend(prospects_data)
+            page += 1
+            
+            # Limit to prevent infinite loops
+            if page > 50:
+                break
+        
+        return jsonify({
+            'success': True,
+            'prospects': all_prospects,
+            'total_prospects': len(all_prospects),
+            'page': 1,
+            'total_pages': 1,
+            'per_page': len(all_prospects)
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting prospects: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/training-clients')
 def training_clients_page():
-    """Display all training clients with search and filtering."""
-    conn = sqlite3.connect(db_manager.db_path)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    """Display training clients page with fast loading - data loads asynchronously via JavaScript."""
     
-    # Get search and filter parameters
-    search = request.args.get('search', '')
-    page = int(request.args.get('page', 1))
-    per_page = 50
-    
-    # Build query with search
-    where_conditions = []
-    params = []
-    
-    if search:
-        where_conditions.append("(member_name LIKE ? OR trainer_name LIKE ?)")
-        search_term = f"%{search}%"
-        params.extend([search_term, search_term])
-    
-    where_clause = ""
-    if where_conditions:
-        where_clause = "WHERE " + " AND ".join(where_conditions)
-    
-    # Get total count for pagination
-    count_query = f"SELECT COUNT(*) FROM training_clients {where_clause}"
-    cursor.execute(count_query, params)
-    total_training_clients = cursor.fetchone()[0]
-    
-    # Calculate pagination
-    total_pages = (total_training_clients + per_page - 1) // per_page
-    offset = (page - 1) * per_page
-    
-    # Get training clients for current page
-    query = f"""
-        SELECT id, client_id, member_id, clubos_member_id, member_name, 
-               trainer_name, session_type, sessions_remaining, last_session,
-               agreement_name, agreement_expiration_date, created_at
-        FROM training_clients {where_clause}
-        ORDER BY created_at DESC 
-        LIMIT ? OFFSET ?
-    """
-    cursor.execute(query, params + [per_page, offset])
-    training_clients_data = cursor.fetchall()
-    
-    # Add funding status for each training client
-    training_clients = []
-    for client in training_clients_data:
-        client_dict = dict(client)
-        
-        # Get funding status using the training package cache
-        member_name = client['member_name']
-        try:
-            # Look up funding status for this training client
-            funding_data = training_package_cache.lookup_participant_funding(member_name)
-            if funding_data:
-                client_dict['funding_status'] = funding_data.get('status_text', 'Unknown')
-                client_dict['funding_status_class'] = funding_data.get('status_class', 'secondary')
-                client_dict['funding_status_icon'] = funding_data.get('status_icon', 'fas fa-question-circle')
-            else:
-                # Also check if they're in the members table for payment status
-                conn_member = sqlite3.connect(db_manager.db_path)
-                cursor_member = conn_member.cursor()
-                
-                # Try to find them in members table by name
-                name_parts = member_name.split()
-                if len(name_parts) >= 2:
-                    first_name = name_parts[0]
-                    last_name = ' '.join(name_parts[1:])
-                    
-                    cursor_member.execute("""
-                        SELECT amount_past_due, amount_of_next_payment, date_of_next_payment 
-                        FROM members 
-                        WHERE LOWER(first_name) = LOWER(?) AND LOWER(last_name) = LOWER(?)
-                        LIMIT 1
-                    """, (first_name, last_name))
-                    
-                    member_payment = cursor_member.fetchone()
-                    if member_payment:
-                        amount_past_due = member_payment[0] or 0
-                        amount_next = member_payment[1] or 0
-                        date_next = member_payment[2]
-                        
-                        if amount_past_due > 0:
-                            client_dict['funding_status'] = f'Past Due: ${amount_past_due:.2f}'
-                            client_dict['funding_status_class'] = 'danger'
-                            client_dict['funding_status_icon'] = 'fas fa-exclamation-triangle'
-                        elif date_next:
-                            try:
-                                next_payment_date = datetime.strptime(date_next, '%Y-%m-%d').date()
-                                days_until = (next_payment_date - datetime.now().date()).days
-                                if 0 <= days_until <= 7:
-                                    client_dict['funding_status'] = f'Due in {days_until} days: ${amount_next:.2f}'
-                                    client_dict['funding_status_class'] = 'warning'
-                                    client_dict['funding_status_icon'] = 'fas fa-clock'
-                                else:
-                                    client_dict['funding_status'] = 'Current'
-                                    client_dict['funding_status_class'] = 'success'
-                                    client_dict['funding_status_icon'] = 'fas fa-check-circle'
-                            except:
-                                client_dict['funding_status'] = 'Current'
-                                client_dict['funding_status_class'] = 'success'
-                                client_dict['funding_status_icon'] = 'fas fa-check-circle'
-                        else:
-                            client_dict['funding_status'] = 'Current'
-                            client_dict['funding_status_class'] = 'success'
-                            client_dict['funding_status_icon'] = 'fas fa-check-circle'
-                    else:
-                        client_dict['funding_status'] = 'Unknown'
-                        client_dict['funding_status_class'] = 'secondary'
-                        client_dict['funding_status_icon'] = 'fas fa-question-circle'
-                
-                conn_member.close()
-                
-        except Exception as e:
-            logger.warning(f"❌ Could not get funding status for {member_name}: {e}")
-            client_dict['funding_status'] = 'Error'
-            client_dict['funding_status_class'] = 'danger'
-            client_dict['funding_status_icon'] = 'fas fa-exclamation-triangle'
-        
-        training_clients.append(client_dict)
-    
-    conn.close()
-    
+    # Fast page load - render template immediately with minimal data
+    # JavaScript will load the actual training client data asynchronously from ClubOS API
     return render_template('training_clients.html',
-                         training_clients=training_clients,
-                         total_training_clients=total_training_clients,
-                         search=search,
-                         page=page,
-                         total_pages=total_pages,
-                         per_page=per_page)
+                         training_clients=[],  # Empty initially, loaded via JavaScript
+                         total_training_clients=0,  # Will be updated via API
+                         search='',
+                         page=1,
+                         total_pages=1,
+                         per_page=50)
 
-if __name__ == "__main__":
-    print("🚀 Starting Clean Anytime Fitness Dashboard...")
-    app.run(debug=True, host='0.0.0.0', port=5001)
+@app.route('/api/training-clients/all')
+def get_all_training_clients():
+    """API endpoint to get all training clients from local database - called asynchronously after page load."""
+    try:
+        logger.info("🏋️ Loading training clients from local database...")
+        
+        conn = sqlite3.connect(db_manager.db_path)
+        cursor = conn.cursor()
+        
+        # Get all training clients with their details
+        cursor.execute("""
+            SELECT 
+                member_name,
+                clubos_member_id,
+                agreement_name,
+                trainer_name,
+                created_at,
+                next_invoice_subtotal,
+                sessions_remaining
+            FROM training_clients 
+            ORDER BY member_name
+        """)
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        # Format training clients data
+        training_clients = []
+        for row in rows:
+            member_name, clubos_id, agreement_name, trainer_name, created_at, invoice_subtotal, sessions_remaining = row
+            
+            training_clients.append({
+                'member_name': member_name,
+                'email': 'N/A',  # Email not stored in training_clients table
+                'clubos_member_id': clubos_id,
+                'package_name': agreement_name or 'No package assigned',
+                'trainer_name': trainer_name or 'Jeremy Mayo',
+                'created_at': created_at,
+                'last_updated': created_at,  # Use created_at as fallback
+                'status': 'Active',  # Default status
+                'sessions_used': 'N/A',  # Can be enhanced later
+                'sessions_remaining': sessions_remaining or 0,
+                'next_invoice_subtotal': invoice_subtotal or 0
+            })
+        
+        logger.info(f"✅ Returning {len(training_clients)} training clients from database")
+        
+        return jsonify({
+            'success': True,
+            'training_clients': training_clients,
+            'total_training_clients': len(training_clients),
+            'page': 1,
+            'total_pages': 1,
+            'per_page': len(training_clients),
+            'source': 'local_database'
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting training clients from database: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/create-invoice', methods=['POST'])
+def api_create_invoice():
+    """API endpoint to create a Square invoice."""
+    data = request.get_json()
+    member_name = data.get('member_name')
+    amount = data.get('amount')
+    description = data.get('description', 'Overdue Payment')
+
+    if not all([member_name, amount]):
+        return jsonify({'success': False, 'error': 'Missing required invoice data (member_name and amount).'}), 400
+
+    if not SQUARE_AVAILABLE:
+        return jsonify({'success': False, 'error': 'Square payment service is not available.'}), 503
+
+    try:
+        # Convert amount to float if it's a string
+        amount = float(amount)
+        
+        # Create the invoice using the working Square client
+        invoice_url = create_square_invoice(member_name, amount, description)
+        
+        if invoice_url:
+            return jsonify({
+                'success': True, 
+                'invoice_url': invoice_url,
+                'message': f'Invoice created successfully for {member_name}'
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Failed to create invoice.'}), 500
+            
+    except ValueError as e:
+        return jsonify({'success': False, 'error': f'Invalid amount value: {amount}'}), 400
+    except Exception as e:
+        logger.error(f"Error creating Square invoice: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/calculate-invoice-amount', methods=['POST'])
+def api_calculate_invoice_amount():
+    """API endpoint to calculate invoice amount with late fees for a member."""
+    data = request.get_json()
+    member_id = data.get('member_id')
+    
+    if not member_id:
+        return jsonify({'success': False, 'error': 'Missing member_id'}), 400
+    
+    try:
+        # Get member data from database first
+        conn = sqlite3.connect(db_manager.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT first_name, last_name, amount_past_due, amount_of_next_payment, 
+                   payment_amount, agreement_rate 
+            FROM members 
+            WHERE id = ?
+        """, (member_id,))
+        
+        member = cursor.fetchone()
+        conn.close()
+        
+        if not member:
+            return jsonify({'success': False, 'error': 'Member not found'}), 404
+        
+        # Calculate amounts
+        past_due = float(member['amount_past_due'] or 0)
+        next_payment = float(member['amount_of_next_payment'] or 0)
+        monthly_rate = float(member['agreement_rate'] or member['payment_amount'] or 0)
+        
+        # Apply late fee if past due (using a standard $25 late fee)
+        late_fee = 25.0 if past_due > 0 else 0.0
+        
+        # Calculate total invoice amount
+        total_amount = past_due + late_fee
+        
+        # If no past due amount, use next payment amount
+        if total_amount <= 0 and next_payment > 0:
+            total_amount = next_payment
+        
+        # If still no amount, use monthly rate
+        if total_amount <= 0 and monthly_rate > 0:
+            total_amount = monthly_rate
+        
+        return jsonify({
+            'success': True,
+            'member_name': f"{member['first_name']} {member['last_name']}",
+            'past_due_amount': past_due,
+            'late_fee': late_fee,
+            'total_amount': total_amount,
+            'description': f"Payment for {member['first_name']} {member['last_name']}" + 
+                          (f" - Past Due: ${past_due:.2f}" if past_due > 0 else "") +
+                          (f" + Late Fee: ${late_fee:.2f}" if late_fee > 0 else "")
+        })
+        
+    except Exception as e:
+        logger.error(f"Error calculating invoice amount: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/refresh-members', methods=['POST'])
+def api_refresh_members():
+    """API endpoint to manually refresh member database with latest ClubHub data"""
+    try:
+        logger.info("🔄 Manual member refresh requested...")
+        
+        # Import ClubHub API client
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'services'))
+        from api.clubhub_api_client import ClubHubAPIClient
+        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        
+        # Initialize and authenticate
+        client = ClubHubAPIClient()
+        if not client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
+            return jsonify({
+                'success': False,
+                'error': 'ClubHub authentication failed'
+            }), 500
+        
+        # Get fresh member data
+        fresh_members = []
+        page = 1
+        page_size = 100
+        
+        while True:
+            members_response = client.get_all_members(page=page, page_size=page_size)
+            
+            if not members_response or not isinstance(members_response, list):
+                break
+                
+            fresh_members.extend(members_response)
+            
+            if len(members_response) < page_size:
+                break
+                
+            page += 1
+        
+        # Update database
+        conn = sqlite3.connect(db_manager.db_path)
+        cursor = conn.cursor()
+        
+        # Clear and repopulate members table
+        cursor.execute('DELETE FROM members')
+        
+        updated_count = 0
+        for member in fresh_members:
+            try:
+                member_data = {
+                    'id': member.get('id'),
+                    'first_name': member.get('firstName'),
+                    'last_name': member.get('lastName'),
+                    'full_name': f"{member.get('firstName', '')} {member.get('lastName', '')}".strip(),
+                    'email': member.get('email'),
+                    'mobile_phone': member.get('mobilePhone'),
+                    'status': member.get('status'),
+                    'status_message': member.get('statusMessage'),
+                    'user_type': member.get('userType'),
+                    'contract_types': str(member.get('contractTypes', [])),
+                    'trial': member.get('trial', False),
+                    'updated_at': datetime.now().isoformat()
+                }
+                
+                # Remove None values
+                member_data = {k: v for k, v in member_data.items() if v is not None}
+                columns = ', '.join(member_data.keys())
+                placeholders = ', '.join(['?' for _ in member_data.values()])
+                
+                cursor.execute(f'''
+                    INSERT OR REPLACE INTO members ({columns})
+                    VALUES ({placeholders})
+                ''', list(member_data.values()))
+                
+                updated_count += 1
+                
+            except Exception as e:
+                logger.error(f"❌ Error updating member: {e}")
+                continue
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"✅ Manual refresh complete: {updated_count} members updated")
+        
+        return jsonify({
+            'success': True,
+            'members_updated': updated_count,
+            'total_members_found': len(fresh_members),
+            'timestamp': datetime.now().isoformat(),
+            'message': f'Successfully refreshed {updated_count} members from ClubHub'
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error in manual member refresh: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/refresh-training-clients', methods=['POST', 'GET'])
+def refresh_training_clients():
+    """API endpoint to refresh training clients from ClubHub"""
+    try:
+        logger.info("🏋️ Refreshing training clients from ClubHub...")
+        
+        # Import ClubHub API client
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'services'))
+        from api.clubhub_api_client import ClubHubAPIClient
+        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        
+        # Initialize and authenticate
+        client = ClubHubAPIClient()
+        if not client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
+            return jsonify({
+                'success': False,
+                'error': 'ClubHub authentication failed'
+            })
+        
+        # Get all members and check for training indicators
+        members_response = client.get_all_members(page=1, page_size=1000)
+        training_members = []
+        dennis_training_info = None
+        
+        if members_response:
+            for member in members_response:
+                first_name = member.get('firstName', '').lower()
+                last_name = member.get('lastName', '').lower()
+                
+                # Check if this member has training indicators
+                has_training = False
+                training_indicators = [
+                    'training' in member.get('statusMessage', '').lower(),
+                    'personal' in member.get('statusMessage', '').lower(),
+                    member.get('agreementId'),  # Has an agreement
+                    member.get('nextInvoiceSubtotal', 0) > 0  # Has invoice amount
+                ]
+                
+                if any(training_indicators):
+                    has_training = True
+                
+                # Special check for Dennis Rost
+                if 'dennis' in first_name and 'rost' in last_name:
+                    dennis_training_info = {
+                        'member': member,
+                        'has_training_indicators': has_training,
+                        'indicators_found': [i for i, indicator in enumerate(training_indicators) if indicator]
+                    }
+                    logger.info(f"🎯 Found Dennis Rost - Training indicators: {has_training}")
+                    logger.info(f"   Status: {member.get('statusMessage')}")
+                    logger.info(f"   Agreement ID: {member.get('agreementId')}")
+                    logger.info(f"   Invoice Subtotal: {member.get('nextInvoiceSubtotal')}")
+                
+                if has_training:
+                    training_members.append(member)
+        
+        # Update training_clients table
+        conn = sqlite3.connect(db_manager.db_path)
+        cursor = conn.cursor()
+        
+        # Add new training clients found
+        clients_added = 0
+        for member in training_members:
+            try:
+                # Check if already exists
+                cursor.execute("""
+                    SELECT COUNT(*) FROM training_clients 
+                    WHERE clubos_member_id = ?
+                """, (member.get('id'),))
+                
+                if cursor.fetchone()[0] == 0:
+                    # Add new training client
+                    client_data = {
+                        'clubos_member_id': member.get('id'),
+                        'member_name': f"{member.get('firstName', '')} {member.get('lastName', '')}".strip(),
+                        'agreement_name': 'Personal Training',  # Default
+                        'trainer_name': 'Jeremy Mayo',  # Default
+                        'next_invoice_subtotal': member.get('nextInvoiceSubtotal', 0),
+                        'sessions_remaining': 0,  # Will need to be updated separately
+                        'member_services': 'Personal Training'
+                    }
+                    
+                    # Remove None values
+                    client_data = {k: v for k, v in client_data.items() if v is not None}
+                    columns = ', '.join(client_data.keys())
+                    placeholders = ', '.join(['?' for _ in client_data.values()])
+                    
+                    cursor.execute(f'''
+                        INSERT INTO training_clients ({columns})
+                        VALUES ({placeholders})
+                    ''', list(client_data.values()))
+                    
+                    clients_added += 1
+                    logger.info(f"➕ Added training client: {client_data['member_name']}")
+                    
+            except Exception as e:
+                logger.error(f"❌ Error adding training client {member.get('firstName')} {member.get('lastName')}: {e}")
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"✅ Training clients refresh complete: {clients_added} new clients added")
+        
+        return jsonify({
+            'success': True,
+            'training_members_found': len(training_members),
+            'clients_added': clients_added,
+            'dennis_found': dennis_training_info is not None,
+            'dennis_training_info': dennis_training_info,
+            'message': f'Successfully refreshed training clients: {clients_added} new clients added'
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error refreshing training clients: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/calendar')
+def calendar_page():
+    """Display calendar page."""
+    return render_template('calendar.html')
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)

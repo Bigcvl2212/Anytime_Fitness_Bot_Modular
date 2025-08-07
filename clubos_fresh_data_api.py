@@ -179,6 +179,21 @@ class ClubOSFreshDataAPI:
             logger.error(f"❌ Error getting payment status for member {member_id}: {e}")
             return {}
     
+    def get_member_payment_history(self, member_id: str) -> List[Dict]:
+        """Get the complete payment history for a member."""
+        if not self.authenticated:
+            if not self.authenticate():
+                return []
+        
+        # This is a placeholder. In a real scenario, this would call a ClubOS API endpoint.
+        logger.info(f"Fetching payment history for member {member_id}...")
+        return [
+            {"date": "2025-07-01", "amount": 50.00, "status": "Paid", "description": "Monthly Dues"},
+            {"date": "2025-06-01", "amount": 50.00, "status": "Paid", "description": "Monthly Dues"},
+            {"date": "2025-05-01", "amount": 50.00, "status": "Missed", "description": "Monthly Dues"},
+            {"date": "2025-04-01", "amount": 50.00, "status": "Paid", "description": "Monthly Dues"},
+        ]
+    
     def get_fresh_data_summary(self) -> Dict:
         """Get a summary of fresh data from ClubOS"""
         try:

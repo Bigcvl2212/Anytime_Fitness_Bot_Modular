@@ -34,178 +34,165 @@
 </div>
 
 <!-- Prospects List -->
-<div class="row">
-    {% for prospect in prospects %}
-    <div class="col-md-6 col-lg-4 mb-4">
-        <div class="card prospect-card h-100">
-            <div class="card-body">
-                <h5 class="text-purple mb-2">
-                    <i class="fas fa-user-plus me-2"></i>
-                    {{ prospect.full_name }}
-                </h5>
+<div class="row" id="prospectsContainer">
+    <!-- Prospects will be loaded asynchronously here -->
+</div>
+
+<!-- Loading State -->
+<div id="prospects-loading" class="text-center py-5">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="text-muted mt-3">Loading prospects from ClubHub...</p>
+</div>
+
+<!-- No Prospects Found -->
+<div id="no-prospects" class="col-12" style="display: none;">
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-user-plus fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">No prospects found</h5>
+            <p class="text-muted">Get started by adding your first prospect.</p>
+            <a href="/prospect/new" class="btn btn-purple">Add Prospect</a>
+        </div>
+    </div>
+</div>
+
+<script>
+// Load prospects asynchronously
+async function loadProspects() {
+    console.log('🔄 Loading prospects from ClubHub API...');
+    
+    const prospectsContainer = document.getElementById('prospectsContainer');
+    const loadingElement = document.getElementById('prospects-loading');
+    const noProspectsElement = document.getElementById('no-prospects');
+    
+    try {
+        const response = await fetch('/api/prospects/all');
+        const data = await response.json();
+        
+        // Hide loading state
+        if (loadingElement) loadingElement.style.display = 'none';
+        
+        if (data.success && data.prospects.length > 0) {
+            console.log(`✅ Loaded ${data.prospects.length} prospects from ClubHub`);
+            
+            let html = '';
+            data.prospects.forEach(prospect => {
+                const displayName = prospect.full_name || `${prospect.firstName || ''} ${prospect.lastName || ''}`.trim() || 'Unknown Name';
+                const prospectId = prospect.id || prospect.prospectId || 'N/A';
                 
-                <!-- Contact Info -->
-                <div class="contact-info mb-3">
-                    <p class="mb-1">
-                        <i class="fas fa-id-card me-2 text-muted"></i>
-                        <strong>ID:</strong> {{ prospect.id }}
-                    </p>
-                    {% if prospect.email %}
-                    <p class="mb-1">
-                        <i class="fas fa-envelope me-2 text-muted"></i>
-                        <a href="mailto:{{ prospect.email }}">{{ prospect.email }}</a>
-                    </p>
-                    {% endif %}
-                    {% if prospect.mobile_phone %}
-                    <p class="mb-1">
-                        <i class="fas fa-phone me-2 text-muted"></i>
-                        <a href="tel:{{ prospect.mobile_phone }}">{{ prospect.mobile_phone }}</a>
-                    </p>
-                    {% endif %}
-                    {% if prospect.address1 %}
-                    <p class="mb-1">
-                        <i class="fas fa-map-marker-alt me-2 text-muted"></i>
-                        {{ prospect.address1 }}, {{ prospect.city or '' }}, {{ prospect.state or '' }}
-                    </p>
-                    {% endif %}
-                </div>
-                
-                <!-- Prospect-specific Info -->
-                <div class="agreement-info mb-3">
-                    {% if prospect.lead_source %}
-                    <p class="mb-1">
-                        <i class="fas fa-source me-2 text-muted"></i>
-                        <strong>Source:</strong> {{ prospect.lead_source }}
-                    </p>
-                    {% endif %}
-                    {% if prospect.interest_level %}
-                    <p class="mb-1">
-                        <i class="fas fa-star me-2 text-muted"></i>
-                        <strong>Interest:</strong> {{ prospect.interest_level }}/5
-                    </p>
-                    {% endif %}
-                    {% if prospect.trial %}
-                    <p class="mb-1">
-                        <i class="fas fa-dumbbell me-2 text-muted"></i>
-                        <span class="badge bg-warning">Trial Interested</span>
-                    </p>
-                    {% endif %}
-                    {% if prospect.tour_completed %}
-                    <p class="mb-1">
-                        <i class="fas fa-check-circle me-2 text-success"></i>
-                        <span class="badge bg-success">Tour Completed</span>
-                    </p>
-                    {% endif %}
-                </div>
-                
-                <!-- Status and Actions -->
-                <div class="d-flex justify-content-between align-items-center">
-                    {% if prospect.status %}
-                    <span class="badge bg-info">{{ prospect.status }}</span>
-                    {% else %}
-                    <span class="badge bg-secondary">New Lead</span>
-                    {% endif %}
-                    
-                    <div>
-                        <a href="/prospect/{{ prospect.id }}" class="btn btn-sm btn-purple">
-                            <i class="fas fa-eye"></i>
-                        </a>
-                        <button class="btn btn-sm btn-outline-purple ms-1" 
-                                data-bs-toggle="modal" 
-                                data-bs-target="#followUpModal{{ prospect.id }}">
-                            <i class="fas fa-calendar"></i>
-                        </button>
+                html += `
+                    <div class="col-md-6 col-lg-4 mb-4">
+                        <div class="card prospect-card h-100">
+                            <div class="card-body">
+                                <h5 class="text-purple mb-2">
+                                    <i class="fas fa-user-plus me-2"></i>
+                                    ${displayName}
+                                </h5>
+                                
+                                <div class="contact-info mb-3">
+                                    <p class="mb-1">
+                                        <i class="fas fa-id-card me-2 text-muted"></i>
+                                        <strong>ID:</strong> ${prospectId}
+                                    </p>
+                                    ${prospect.email ? `
+                                    <p class="mb-1">
+                                        <i class="fas fa-envelope me-2 text-muted"></i>
+                                        <a href="mailto:${prospect.email}">${prospect.email}</a>
+                                    </p>
+                                    ` : ''}
+                                    ${prospect.mobilePhone || prospect.mobile_phone ? `
+                                    <p class="mb-1">
+                                        <i class="fas fa-phone me-2 text-muted"></i>
+                                        <a href="tel:${prospect.mobilePhone || prospect.mobile_phone}">${prospect.mobilePhone || prospect.mobile_phone}</a>
+                                    </p>
+                                    ` : ''}
+                                    ${prospect.address1 ? `
+                                    <p class="mb-1">
+                                        <i class="fas fa-map-marker-alt me-2 text-muted"></i>
+                                        ${prospect.address1}, ${prospect.city || ''}, ${prospect.state || ''}
+                                    </p>
+                                    ` : ''}
+                                </div>
+                                
+                                <div class="agreement-info mb-3">
+                                    ${prospect.leadSource || prospect.lead_source ? `
+                                    <p class="mb-1">
+                                        <i class="fas fa-source me-2 text-muted"></i>
+                                        <strong>Source:</strong> ${prospect.leadSource || prospect.lead_source}
+                                    </p>
+                                    ` : ''}
+                                    ${prospect.interestLevel || prospect.interest_level ? `
+                                    <p class="mb-1">
+                                        <i class="fas fa-star me-2 text-muted"></i>
+                                        <strong>Interest:</strong> ${prospect.interestLevel || prospect.interest_level}/5
+                                    </p>
+                                    ` : ''}
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="badge bg-info">${prospect.status || 'New Lead'}</span>
+                                    <div>
+                                        <a href="/prospect/${prospectId}" class="btn btn-sm btn-purple">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                                
+                                ${prospect.followUpDate || prospect.follow_up_date ? `
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar-alt me-1"></i>
+                                        Follow-up: ${prospect.followUpDate || prospect.follow_up_date}
+                                    </small>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
                     </div>
-                </div>
-                
-                <!-- Follow-up info -->
-                {% if prospect.follow_up_date %}
-                <div class="mt-2">
-                    <small class="text-muted">
-                        <i class="fas fa-calendar-alt me-1"></i>
-                        Follow-up: {{ prospect.follow_up_date }}
-                    </small>
-                </div>
-                {% endif %}
-                
-                <!-- Expandable Details -->
-                <div class="mt-3">
-                    <button class="btn btn-outline-purple btn-sm w-100" type="button" 
-                            data-bs-toggle="collapse" data-bs-target="#details-{{ prospect.id }}" 
-                            aria-expanded="false">
-                        <i class="fas fa-info-circle me-2"></i>More Details
+                `;
+            });
+            
+            prospectsContainer.innerHTML = html;
+            
+            // Update the total count in the header badge
+            const totalBadge = document.querySelector('.badge-purple');
+            if (totalBadge) {
+                totalBadge.textContent = `${data.prospects.length} Total`;
+            }
+            
+        } else {
+            console.log('ℹ️ No prospects found or API returned empty result');
+            if (noProspectsElement) noProspectsElement.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('❌ Error loading prospects:', error);
+        
+        // Hide loading state
+        if (loadingElement) loadingElement.style.display = 'none';
+        
+        // Show error message
+        prospectsContainer.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Error loading prospects: ${error.message}
+                    <button class="btn btn-sm btn-outline-danger ms-2" onclick="loadProspects()">
+                        <i class="fas fa-retry me-1"></i>Retry
                     </button>
                 </div>
-                
-                <div class="collapse mt-3" id="details-{{ prospect.id }}">
-                    {% if prospect.date_of_birth %}
-                    <p class="mb-1"><strong>DOB:</strong> {{ prospect.date_of_birth }}</p>
-                    {% endif %}
-                    {% if prospect.gender %}
-                    <p class="mb-1"><strong>Gender:</strong> {{ prospect.gender }}</p>
-                    {% endif %}
-                    {% if prospect.preferred_contact_method %}
-                    <p class="mb-1"><strong>Preferred Contact:</strong> {{ prospect.preferred_contact_method }}</p>
-                    {% endif %}
-                    {% if prospect.best_time_to_call %}
-                    <p class="mb-1"><strong>Best Time to Call:</strong> {{ prospect.best_time_to_call }}</p>
-                    {% endif %}
-                    {% if prospect.trial_session_date %}
-                    <p class="mb-1"><strong>Trial Session:</strong> {{ prospect.trial_session_date }}</p>
-                    {% endif %}
-                    {% if prospect.notes %}
-                    <p class="mb-1"><strong>Notes:</strong> {{ prospect.notes }}</p>
-                    {% endif %}
-                </div>
             </div>
-        </div>
-        
-        <!-- Follow-up Modal -->
-        <div class="modal fade" id="followUpModal{{ prospect.id }}" tabindex="-1">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Schedule Follow-up for {{ prospect.full_name }}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <form>
-                            <div class="mb-3">
-                                <label class="form-label">Follow-up Date</label>
-                                <input type="date" class="form-control" name="follow_up_date">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Notes</label>
-                                <textarea class="form-control" name="notes" rows="3"></textarea>
-                            </div>
-                        </form>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-purple">Schedule</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    {% else %}
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body text-center py-5">
-                <i class="fas fa-user-plus fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">No prospects found</h5>
-                {% if search %}
-                <p class="text-muted">Try adjusting your search criteria.</p>
-                <a href="/prospects" class="btn btn-purple">Show All Prospects</a>
-                {% else %}
-                <p class="text-muted">Get started by adding your first prospect.</p>
-                <a href="/prospect/new" class="btn btn-purple">Add Prospect</a>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    {% endfor %}
-</div>
+        `;
+    }
+}
+
+// Load prospects when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Prospects page loaded - starting async data load');
+    loadProspects();
+});
+</script>
 
 <!-- Pagination -->
 {% if total_pages > 1 %}

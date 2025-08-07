@@ -524,32 +524,30 @@ class TrainingPackageCache:
                     'status_text': 'Member Not Found',
                     'status_icon': 'fas fa-user-slash'
                 }
+            else:
+                # Step 2: Get payment status using our working ClubOS API
+                logger.info(f"📦 Getting payment status for member ID: {member_id}")
+                payment_status = clubos_training_api.get_member_payment_status(member_id)
+                
+                # Convert payment status to funding data format - REAL DATA ONLY
+                if payment_status == "Current":
+                    funding_data = {
+                        'status': 'current',
+                        'status_class': 'success',
+                        'status_text': 'Current',
+                        'status_icon': 'fas fa-check-circle'
+                    }
+                elif payment_status == "Past Due":
+                    funding_data = {
+                        'status': 'past_due',
+                        'status_class': 'danger',
+                        'status_text': 'Past Due',
+                        'status_icon': 'fas fa-exclamation-triangle'
+                    }
                 else:
-                    # Step 2: Get payment status using our working ClubOS API
-                    logger.info(f"📦 Getting payment status for member ID: {member_id}")
-                    payment_status = clubos_training_api.get_member_payment_status(member_id)
-                    
-                    # Convert payment status to funding data format - REAL DATA ONLY
-                    if payment_status == "Current":
-                        funding_data = {
-                            'status': 'current',
-                            'status_class': 'success',
-                            'status_text': 'Current',
-                            'status_icon': 'fas fa-check-circle'
-                        }
-                    elif payment_status == "Past Due":
-                        funding_data = {
-                            'status': 'past_due',
-                            'status_class': 'danger',
-                            'status_text': 'Past Due',
-                            'status_icon': 'fas fa-exclamation-triangle'
-                        }
-                    else:
-                        # If we can't get real data, return None - NO FALLBACKS
-                        logger.warning(f"⚠️ Could not get real payment status for {participant_name} - returning None")
-                        return None
-            
-            # Cache the result only if we have real data
+                    # If we can't get real data, return None - NO FALLBACKS
+                    logger.warning(f"⚠️ Could not get real payment status for {participant_name} - returning None")
+                    return None            # Cache the result only if we have real data
             if funding_data:
                 self.cache[cache_key] = {
                     'data': funding_data,
@@ -1326,6 +1324,107 @@ def api_check_funding():
         
     except Exception as e:
         logger.error(f"❌ Error in funding API: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/bulk-checkin', methods=['POST'])
+def api_bulk_checkin():
+    """API endpoint to perform bulk member check-ins using ClubHub API"""
+    try:
+        logger.info("🏋️ Starting bulk member check-in process...")
+        
+        # Import and initialize the ClubHub API client
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'services'))
+        from api.clubhub_api_client import ClubHubAPIClient
+        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        
+        # Initialize and authenticate
+        client = ClubHubAPIClient()
+        if not client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
+            return jsonify({
+                'success': False,
+                'error': 'ClubHub authentication failed'
+            }), 500
+        
+        # Get members from ClubHub
+        members_response = client.get_all_members(page=1, page_size=50)  # Limit to first 50 members
+        
+        if not members_response or not isinstance(members_response, list):
+            return jsonify({
+                'success': False,
+                'error': 'Failed to retrieve members from ClubHub'
+            }), 500
+        
+        from datetime import datetime, timedelta
+        import random
+        
+        total_checkins = 0
+        members_processed = 0
+        errors = []
+        
+        # Check in each member twice (as requested)
+        for member in members_response:
+            try:
+                member_id = member.get('id')
+                member_name = f"{member.get('firstName', '')} {member.get('lastName', '')}"
+                
+                if not member_id:
+                    continue
+                
+                # First check-in (now)
+                checkin_data_1 = {
+                    "date": datetime.now().strftime("%Y-%m-%dT%H:%M:%S-05:00"),
+                    "door": {"id": 772},
+                    "club": {"id": 1156},
+                    "manual": True
+                }
+                
+                result_1 = client.post_member_usage(str(member_id), checkin_data_1)
+                if result_1:
+                    total_checkins += 1
+                    logger.info(f"✅ Check-in 1 successful for {member_name} (ID: {member_id})")
+                
+                # Small delay between check-ins
+                import time
+                time.sleep(0.1)
+                
+                # Second check-in (1 minute later)
+                second_checkin_time = datetime.now() + timedelta(minutes=1)
+                checkin_data_2 = {
+                    "date": second_checkin_time.strftime("%Y-%m-%dT%H:%M:%S-05:00"),
+                    "door": {"id": 772},
+                    "club": {"id": 1156},
+                    "manual": True
+                }
+                
+                result_2 = client.post_member_usage(str(member_id), checkin_data_2)
+                if result_2:
+                    total_checkins += 1
+                    logger.info(f"✅ Check-in 2 successful for {member_name} (ID: {member_id})")
+                
+                members_processed += 1
+                
+                # Small delay between members to avoid rate limiting
+                time.sleep(0.2)
+                
+            except Exception as member_error:
+                error_msg = f"Error checking in {member_name}: {str(member_error)}"
+                logger.error(error_msg)
+                errors.append(error_msg)
+        
+        logger.info(f"🎉 Bulk check-in completed: {total_checkins} total check-ins for {members_processed} members")
+        
+        return jsonify({
+            'success': True,
+            'total_checkins': total_checkins,
+            'members_processed': members_processed,
+            'errors': errors
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error in bulk check-in API: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

@@ -5,160 +5,262 @@
 {% block content %}
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
-        <h5><i class="fas fa-user-friends me-2"></i>Personal Training Clients ({{ total_training_clients }} total)</h5>
+        <h5><i class="fas fa-user-friends me-2"></i>Personal Training Clients <span id="client-count-badge" class="badge bg-primary">Loading...</span></h5>
         <div class="d-flex gap-2">
             <!-- Search Form -->
-            <form method="GET" class="d-flex gap-2">
+            <form method="GET" class="d-flex gap-2" id="searchForm">
                 <input type="text" 
                        name="search" 
-                       value="{{ search }}" 
+                       id="searchInput"
                        placeholder="Search clients or trainers..." 
                        class="form-control form-control-sm" 
                        style="width: 200px;">
                 
-                <button type="submit" class="btn btn-primary btn-sm">
+                <button type="button" class="btn btn-primary btn-sm" onclick="filterClients()">
                     <i class="fas fa-search"></i> Search
                 </button>
                 
-                {% if search %}
-                <a href="{{ url_for('training_clients_page') }}" class="btn btn-outline-secondary btn-sm">
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearSearch()">
                     <i class="fas fa-times"></i> Clear
-                </a>
-                {% endif %}
+                </button>
             </form>
+            
+            <!-- Refresh Button -->
+            <button type="button" class="btn btn-success btn-sm" onclick="refreshTrainingClients()">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
         </div>
     </div>
     <div class="card-body">
-        {% if training_clients %}
-        <div class="table-container">
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>Client</th>
-                        <th>Trainer</th>
-                        <th>Session Type</th>
-                        <th>Sessions Left</th>
-                        <th>Last Session</th>
-                        <th>Funding Status</th>
-                        <th>Agreement</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for client in training_clients %}
-                    <tr>
-                        <td>
-                            <strong>{{ client.member_name or 'Unknown Member' }}</strong>
-                            <br>
-                            <small class="text-muted">ID: {{ client.client_id or client.id }}</small>
-                            {% if client.clubos_member_id %}
-                            <br>
-                            <small class="text-muted">ClubOS: {{ client.clubos_member_id }}</small>
-                            {% endif %}
-                        </td>
-                        <td>{{ client.trainer_name or 'Not Assigned' }}</td>
-                        <td>
-                            {% if client.session_type %}
-                            <span class="badge badge-purple">{{ client.session_type }}</span>
-                            {% else %}
-                            <span class="badge bg-secondary">Not Specified</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if client.sessions_remaining is not none %}
-                            <span class="badge {% if client.sessions_remaining > 5 %}bg-success{% elif client.sessions_remaining > 2 %}bg-warning{% else %}bg-danger{% endif %}">
-                                {{ client.sessions_remaining }}
-                            </span>
-                            {% else %}
-                            <span class="badge bg-secondary">Unknown</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ client.last_session or 'Never' }}</td>
-                        <td>
-                            <span class="badge bg-{{ client.funding_status_class }}">
-                                <i class="{{ client.funding_status_icon }} me-1"></i>
-                                {{ client.funding_status }}
-                            </span>
-                        </td>
-                        <td>
-                            {% if client.agreement_name %}
-                            <div>
-                                <strong>{{ client.agreement_name }}</strong>
-                                {% if client.agreement_expiration_date %}
-                                <br>
-                                <small class="text-muted">Expires: {{ client.agreement_expiration_date }}</small>
-                                {% endif %}
-                            </div>
-                            {% else %}
-                            <span class="text-muted">No Agreement</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <!-- Loading State -->
+        <div id="training-clients-loading" class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="text-muted mt-3">Loading training clients from ClubOS...</p>
         </div>
-        
-        <!-- Pagination -->
-        {% if total_pages > 1 %}
-        <div class="d-flex justify-content-center mt-4">
-            <nav aria-label="Page navigation">
-                <ul class="pagination pagination-sm">
-                    {% if page > 1 %}
-                    <li class="page-item">
-                        <a class="page-link" href="{{ url_for('training_clients_page', page=page-1, search=search) }}">
-                            <i class="fas fa-chevron-left"></i>
-                        </a>
-                    </li>
-                    {% endif %}
-                    
-                    {% for p in range(1, total_pages + 1) %}
-                    {% if p == page %}
-                    <li class="page-item active">
-                        <span class="page-link">{{ p }}</span>
-                    </li>
-                    {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 1 and p <= page + 1) %}
-                    <li class="page-item">
-                        <a class="page-link" href="{{ url_for('training_clients_page', page=p, search=search) }}">{{ p }}</a>
-                    </li>
-                    {% elif p == 4 and page > 6 %}
-                    <li class="page-item disabled">
-                        <span class="page-link">...</span>
-                    </li>
-                    {% elif p == total_pages - 3 and page < total_pages - 5 %}
-                    <li class="page-item disabled">
-                        <span class="page-link">...</span>
-                    </li>
-                    {% endif %}
-                    {% endfor %}
-                    
-                    {% if page < total_pages %}
-                    <li class="page-item">
-                        <a class="page-link" href="{{ url_for('training_clients_page', page=page+1, search=search) }}">
-                            <i class="fas fa-chevron-right"></i>
-                        </a>
-                    </li>
-                    {% endif %}
-                </ul>
-            </nav>
+
+        <!-- Training Clients Container -->
+        <div id="training-clients-container" style="display: none;">
+            <div class="table-container">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Client</th>
+                            <th>Trainer</th>
+                            <th>Session Type</th>
+                            <th>Sessions Left</th>
+                            <th>Last Session</th>
+                            <th>Funding Status</th>
+                            <th>Agreement</th>
+                        </tr>
+                    </thead>
+                    <tbody id="training-clients-tbody">
+                        <!-- Training clients will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
         </div>
-        
-        <div class="text-center text-secondary text-xs mt-2">
-            Showing {{ ((page-1) * per_page + 1) }} to {{ (page * per_page if page * per_page < total_training_clients else total_training_clients) }} of {{ total_training_clients }} training clients
+
+        <!-- No Training Clients Found -->
+        <div id="no-training-clients" style="display: none;">
+            <div class="text-center py-4">
+                <i class="fas fa-user-friends fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No training clients found</h5>
+                <p class="text-muted">No personal training clients available from ClubOS.</p>
+                <button class="btn btn-primary" onclick="refreshTrainingClients()">
+                    <i class="fas fa-sync-alt me-2"></i>Try Again
+                </button>
+            </div>
         </div>
-        {% endif %}
-        
-        {% else %}
-        <div class="text-center py-4">
-            <i class="fas fa-user-friends fa-3x text-muted mb-3"></i>
-            <h5 class="text-muted">No training clients found</h5>
-            {% if search %}
-            <p class="text-muted">Try adjusting your search criteria.</p>
-            <a href="{{ url_for('training_clients_page') }}" class="btn btn-primary">Show All Clients</a>
-            {% else %}
-            <p class="text-muted">No personal training clients in the database.</p>
-            {% endif %}
+
+        <!-- Error State -->
+        <div id="training-clients-error" style="display: none;">
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <span id="error-message">Error loading training clients</span>
+                <button class="btn btn-sm btn-outline-danger ms-2" onclick="refreshTrainingClients()">
+                    <i class="fas fa-retry me-1"></i>Retry
+                </button>
+            </div>
         </div>
-        {% endif %}
     </div>
 </div>
+
+<script>
+// Load training clients asynchronously
+let allTrainingClients = [];
+let filteredClients = [];
+
+async function loadTrainingClients() {
+    console.log('🏋️ Loading training clients from ClubOS API...');
+    
+    const loadingElement = document.getElementById('training-clients-loading');
+    const containerElement = document.getElementById('training-clients-container');
+    const noClientsElement = document.getElementById('no-training-clients');
+    const errorElement = document.getElementById('training-clients-error');
+    
+    // Show loading state
+    loadingElement.style.display = 'block';
+    containerElement.style.display = 'none';
+    noClientsElement.style.display = 'none';
+    errorElement.style.display = 'none';
+    
+    try {
+        const response = await fetch('/api/training-clients/all');
+        const data = await response.json();
+        
+        // Hide loading state
+        loadingElement.style.display = 'none';
+        
+        if (data.success && data.training_clients && data.training_clients.length > 0) {
+            console.log(`✅ Loaded ${data.training_clients.length} training clients from ClubOS`);
+            
+            allTrainingClients = data.training_clients;
+            filteredClients = [...allTrainingClients];
+            
+            displayTrainingClients(filteredClients);
+            updateClientCount(filteredClients.length, data.data_source || 'clubos');
+            
+            containerElement.style.display = 'block';
+        } else {
+            console.log('ℹ️ No training clients found or API returned empty result');
+            noClientsElement.style.display = 'block';
+            updateClientCount(0, data.data_source || 'unknown');
+        }
+    } catch (error) {
+        console.error('❌ Error loading training clients:', error);
+        
+        // Hide loading state
+        loadingElement.style.display = 'none';
+        
+        // Show error message
+        document.getElementById('error-message').textContent = `Error loading training clients: ${error.message}`;
+        errorElement.style.display = 'block';
+        updateClientCount(0, 'error');
+    }
+}
+
+function displayTrainingClients(clients) {
+    const tbody = document.getElementById('training-clients-tbody');
+    
+    let html = '';
+    clients.forEach(client => {
+        const sessionsRemaining = client.sessions_remaining || 0;
+        const sessionsBadgeClass = sessionsRemaining > 5 ? 'bg-success' : 
+                                   sessionsRemaining > 2 ? 'bg-warning' : 'bg-danger';
+        
+        html += `
+            <tr>
+                <td>
+                    <strong>${client.member_name || 'Unknown Member'}</strong>
+                    <br>
+                    <small class="text-muted">ID: ${client.id || 'N/A'}</small>
+                    ${client.clubos_member_id ? `<br><small class="text-muted">ClubOS: ${client.clubos_member_id}</small>` : ''}
+                </td>
+                <td>${client.trainer_name || 'Not Assigned'}</td>
+                <td>
+                    ${client.session_type ? 
+                        `<span class="badge badge-purple">${client.session_type}</span>` : 
+                        `<span class="badge bg-secondary">Not Specified</span>`
+                    }
+                </td>
+                <td>
+                    <span class="badge ${sessionsBadgeClass}">
+                        ${sessionsRemaining}
+                    </span>
+                </td>
+                <td>${client.last_session || 'Never'}</td>
+                <td>
+                    <span class="badge bg-${client.funding_status_class || 'secondary'}">
+                        <i class="${client.funding_status_icon || 'fas fa-question-circle'} me-1"></i>
+                        ${client.funding_status || 'Unknown'}
+                    </span>
+                </td>
+                <td>
+                    ${client.agreement_name ? `
+                        <div>
+                            <strong>${client.agreement_name}</strong>
+                            ${client.agreement_expiration_date ? `<br><small class="text-muted">Expires: ${client.agreement_expiration_date}</small>` : ''}
+                        </div>
+                    ` : '<span class="text-muted">No Agreement</span>'}
+                </td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+}
+
+function updateClientCount(count, source) {
+    const badge = document.getElementById('client-count-badge');
+    let sourceText = '';
+    
+    switch(source) {
+        case 'clubos_live_api':
+            sourceText = ' (Live)';
+            badge.className = 'badge bg-success';
+            break;
+        case 'database_fallback':
+            sourceText = ' (Cached)';
+            badge.className = 'badge bg-warning';
+            break;
+        case 'error':
+            sourceText = ' (Error)';
+            badge.className = 'badge bg-danger';
+            break;
+        default:
+            badge.className = 'badge bg-primary';
+    }
+    
+    badge.textContent = `${count} total${sourceText}`;
+}
+
+function filterClients() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    
+    if (searchTerm === '') {
+        filteredClients = [...allTrainingClients];
+    } else {
+        filteredClients = allTrainingClients.filter(client => {
+            const memberName = (client.member_name || '').toLowerCase();
+            const trainerName = (client.trainer_name || '').toLowerCase();
+            const sessionType = (client.session_type || '').toLowerCase();
+            
+            return memberName.includes(searchTerm) || 
+                   trainerName.includes(searchTerm) || 
+                   sessionType.includes(searchTerm);
+        });
+    }
+    
+    displayTrainingClients(filteredClients);
+    updateClientCount(filteredClients.length, 'filtered');
+}
+
+function clearSearch() {
+    document.getElementById('searchInput').value = '';
+    filteredClients = [...allTrainingClients];
+    displayTrainingClients(filteredClients);
+    updateClientCount(filteredClients.length, 'all');
+}
+
+async function refreshTrainingClients() {
+    console.log('🔄 Refreshing training clients data...');
+    await loadTrainingClients();
+}
+
+// Load training clients when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Training clients page loaded - starting async data load');
+    loadTrainingClients();
+    
+    // Add enter key support for search
+    document.getElementById('searchInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            filterClients();
+        }
+    });
+});
+</script>
 {% endblock %}

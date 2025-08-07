@@ -220,7 +220,7 @@ class ClubOSCalendarDeletion:
             logger.info(f"Found {len(events)} calendar events")
             return events
             
-        except Exception as e:
+    except Exception as e:
             logger.error(f"Error getting calendar events: {str(e)}")
             return []
 
@@ -245,7 +245,7 @@ class ClubOSCalendarDeletion:
                 return False
             
             # Use the EXACT working deletion pattern from HAR file
-            headers = {
+        headers = {
                 'Authorization': f'Bearer {self.get_bearer_token()}',
                 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
                 'X-Requested-With': 'XMLHttpRequest',
@@ -319,17 +319,17 @@ class ClubOSCalendarDeletion:
                 
                 if "OK" in response_text:
                     logger.info(f"✅ Event {event_id} deleted successfully!")
-                    return True
+        return True
                 else:
                     logger.error(f"Deletion failed: {response_text}")
                     return False
             else:
                 logger.error(f"Deletion failed with status {response.status_code}: {response.text}")
                 return False
-                
-        except Exception as e:
+        
+    except Exception as e:
             logger.error(f"Error deleting event: {str(e)}")
-            return False
+        return False
 
     def delete_multiple_events(self, event_ids: List[int]) -> Dict[int, bool]:
         """
