@@ -9,6 +9,7 @@ import pandas as pd
 import re
 import random
 import glob
+from difflib import SequenceMatcher
 from flask import Flask, render_template, jsonify, request, redirect, url_for, session, flash
 from datetime import datetime, timedelta
 from typing import Dict, Any
@@ -21,6 +22,7 @@ from bs4 import BeautifulSoup
 
 # Import our working ClubOS API
 from clubos_training_api import ClubOSTrainingPackageAPI
+from clubos_training_clients_api import ClubOSTrainingClientsAPI
 from clubos_real_calendar_api import ClubOSRealCalendarAPI
 from ical_calendar_parser import iCalClubOSParser
 from gym_bot_clean import ClubOSEventDeletion
@@ -108,31 +110,54 @@ class TrainingPackageCache:
         self.cache_expiry_hours = 24  # Cache expires after 24 hours
         self.api = ClubOSTrainingPackageAPI()
         
-    def lookup_participant_funding(self, participant_name: str, participant_email: str = None) -> dict:
-        """Look up funding status - first from cache, then from ClubOS API if needed"""
+    def lookup_participant_funding(self, participant_name: str, participant_email: str = None, force_live: bool = True) -> dict:
+        """Look up funding status - with option to force live data instead of cache"""
         try:
-            logger.info(f"🔍 Looking up funding for: {participant_name}")
+            logger.info(f"🔍 Looking up funding for: {participant_name} (force_live={force_live})")
             
-            # First, check if we have cached data that's still fresh
-            cached_data = self._get_cached_funding(participant_name)
-            if cached_data and not self._is_cache_stale(cached_data):
-                logger.info(f"✅ Using cached funding data for {participant_name}")
-                return self._format_funding_response(cached_data)
-            
-            # If no fresh cache, get member ID and try to fetch fresh data
-            member_id = self._get_member_id_from_database(participant_name, participant_email)
-            if member_id:
-                logger.info(f"📦 Fetching fresh funding data for member ID: {member_id}")
-                fresh_data = self._fetch_fresh_funding_data(member_id, participant_name)
-                if fresh_data:
-                    # Cache the fresh data
-                    self._cache_funding_data(fresh_data)
-                    return self._format_funding_response(fresh_data)
-            
-            # If we have stale cached data, use it as fallback
-            if cached_data:
-                logger.info(f"⚠️ Using stale cached data for {participant_name}")
-                return self._format_funding_response(cached_data, is_stale=True)
+            if force_live:
+                # Force live data fetch, bypass cache completely
+                logger.info(f"🔴 FORCING LIVE DATA for {participant_name} - bypassing cache")
+                member_id = self._get_member_id_from_database(participant_name, participant_email)
+                if not member_id:
+                    # Live resolve from ClubOS PT dashboard (no CSV dependency)
+                    logger.info(f"🧭 Resolving ClubOS ID live for {participant_name}")
+                    member_id = self._resolve_member_id_live(participant_name, participant_email)
+                if member_id:
+                    logger.info(f"📡 Fetching LIVE funding data for member ID: {member_id}")
+                    fresh_data = self._fetch_fresh_funding_data(member_id, participant_name)
+                    if fresh_data:
+                        # Still cache the fresh data for future reference
+                        self._cache_funding_data(fresh_data)
+                        # Mark as fresh (not cached)
+                        resp = self._format_funding_response(fresh_data, is_stale=False)
+                        if resp:
+                            resp['is_cached'] = False
+                        return resp
+                else:
+                    logger.warning(f"❌ No member ID found for {participant_name}")
+                    return None
+            else:
+                # Original logic - check cache first, then fetch fresh
+                cached_data = self._get_cached_funding(participant_name)
+                if cached_data and not self._is_cache_stale(cached_data):
+                    logger.info(f"✅ Using cached funding data for {participant_name}")
+                    return self._format_funding_response(cached_data)
+                
+                # If no fresh cache, get member ID and try to fetch fresh data
+                member_id = self._get_member_id_from_database(participant_name, participant_email)
+                if member_id:
+                    logger.info(f"📦 Fetching fresh funding data for member ID: {member_id}")
+                    fresh_data = self._fetch_fresh_funding_data(member_id, participant_name)
+                    if fresh_data:
+                        # Cache the fresh data
+                        self._cache_funding_data(fresh_data)
+                        return self._format_funding_response(fresh_data)
+                
+                # If we have stale cached data, use it as fallback
+                if cached_data:
+                    logger.info(f"⚠️ Using stale cached data for {participant_name}")
+                    return self._format_funding_response(cached_data, is_stale=True)
             
             # No data available
             logger.warning(f"❌ No funding data available for {participant_name}")
@@ -358,6 +383,10 @@ class TrainingPackageCache:
             
             if is_stale:
                 response['status_text'] += ' (Cached)'
+            else:
+                # Heuristic: if data source is direct ClubOS API and we have raw data, treat as fresh
+                if cached_data.get('data_source') == 'clubos_api' and cached_data.get('raw_clubos_data') is not None:
+                    response['is_cached'] = False
                 
             return response
             
@@ -434,34 +463,104 @@ class TrainingPackageCache:
                 conn.close()
                 logger.info(f"✅ Found ClubOS ID in training clients: {result[0]} for {participant_name}")
                 return str(result[0])
-            
-            # Fallback to members table
-            search_conditions = ["LOWER(first_name) LIKE LOWER(?) OR LOWER(last_name) LIKE LOWER(?) OR LOWER(full_name) LIKE LOWER(?)"]
-            params = [f"%{participant_name}%", f"%{participant_name}%", f"%{participant_name}%"]
-            
-            if participant_email:
-                search_conditions.append("LOWER(email) = LOWER(?)")
-                params.append(participant_email)
-            
-            query = f"""
-                SELECT id FROM members 
-                WHERE {' OR '.join(search_conditions)}
+            # Optional: check if profile_url exists and contains memberId
+            cursor.execute("""
+                SELECT profile_url FROM training_clients 
+                WHERE LOWER(member_name) LIKE LOWER(?)
                 LIMIT 1
-            """
-            
-            cursor.execute(query, params)
-            result = cursor.fetchone()
+            """, (f"%{participant_name.strip()}%",))
+            prof = cursor.fetchone()
+            if prof and prof[0]:
+                m = re.search(r"memberId=(\d+)", prof[0])
+                if m:
+                    conn.close()
+                    return m.group(1)
+
             conn.close()
-            
-            if result and result[0]:
-                logger.info(f"✅ Found member ID in members table: {result[0]} for {participant_name}")
-                return str(result[0])
-            
-            logger.warning(f"❌ No member ID found for participant: {participant_name}")
+            logger.warning(f"❌ No ClubOS member ID found locally for: {participant_name}")
             return None
             
         except Exception as e:
             logger.error(f"❌ Database error looking up member ID: {e}")
+            return None
+
+    def _resolve_member_id_live(self, participant_name: str, participant_email: str = None) -> str:
+        """Resolve ClubOS memberId by scraping the Personal Training dashboard and fuzzy-matching names."""
+        try:
+            api = ClubOSTrainingClientsAPI()
+            if not api.authenticate():
+                logger.warning("⚠️ TrainingClients API auth failed for live ID resolution")
+                return None
+
+            candidates = []
+            # Prefer JSON list if available
+            try:
+                data = api.get_training_clients()
+                if isinstance(data, list):
+                    for item in data:
+                        name = (item.get('name') or item.get('memberName') or '').strip()
+                        mid = item.get('memberId') or item.get('clubos_member_id')
+                        if name and mid:
+                            candidates.append((name, str(mid)))
+                elif isinstance(data, dict):
+                    arr = data.get('clients') or data.get('data') or []
+                    for item in arr:
+                        name = (item.get('name') or item.get('memberName') or '').strip()
+                        mid = item.get('memberId') or item.get('clubos_member_id')
+                        if name and mid:
+                            candidates.append((name, str(mid)))
+            except Exception:
+                pass
+
+            # Fallback to HTML scraping
+            if not candidates:
+                html = api.get_personal_training_dashboard()
+                if html:
+                    soup = BeautifulSoup(html, 'html.parser')
+                    for a in soup.find_all('a', href=True):
+                        href = a['href']
+                        m = re.search(r"memberId=(\d+)", href)
+                        if m:
+                            name = a.get_text(strip=True)
+                            if name:
+                                candidates.append((name, m.group(1)))
+
+            if not candidates:
+                logger.warning("⚠️ No candidates discovered for live ID resolution")
+                return None
+
+            target = participant_name.strip().lower()
+            best_mid = None
+            best_score = 0.0
+            for name, mid in candidates:
+                nm = name.strip().lower()
+                score = SequenceMatcher(None, target, nm).ratio()
+                if score > best_score:
+                    best_score = score
+                    best_mid = mid
+
+            if best_mid and best_score >= 0.6:
+                # Persist mapping for future
+                try:
+                    conn = sqlite3.connect(db_manager.db_path)
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        """
+                        INSERT OR IGNORE INTO training_clients (member_id, clubos_member_id, member_name)
+                        VALUES (?, ?, ?)
+                        """,
+                        (int(best_mid), int(best_mid), participant_name.strip())
+                    )
+                    conn.commit()
+                    conn.close()
+                except Exception:
+                    pass
+                return str(best_mid)
+
+            logger.warning(f"⚠️ Live ID resolution score too low ({best_score:.2f}) for {participant_name}")
+            return None
+        except Exception as e:
+            logger.error(f"❌ Live ID resolution error: {e}")
             return None
 
 # Initialize training package cache
@@ -1641,35 +1740,48 @@ def dashboard():
 
 @app.route('/api/check-funding', methods=['POST'])
 def check_funding():
-    """API endpoint to check real funding status for participants"""
+    """API endpoint to check LIVE funding status for participants (no cache)"""
     try:
         data = request.get_json()
         participant_name = data.get('participant', '')
         time = data.get('time', '')
         
-        logger.info(f"🔍 API request to check funding for: {participant_name}")
+        logger.info(f"� LIVE FUNDING API request for: {participant_name}")
         
-        # Use the training package cache to get real funding data
-        funding_data = training_package_cache.lookup_participant_funding(participant_name)
+        # Force live data fetch, bypass cache completely for dashboard cards
+        funding_data = training_package_cache.lookup_participant_funding(participant_name, force_live=True)
         
         if funding_data:
-            logger.info(f"✅ API returning funding data for {participant_name}: {funding_data}")
+            logger.info(f"✅ LIVE API returning funding data for {participant_name}: {funding_data}")
             return jsonify({
                 'success': True,
                 'funding': funding_data
             })
-        else:
-            logger.warning(f"⚠️ No funding data found for {participant_name}")
+        
+        # If first attempt failed, try refreshing training_clients mapping from ClubOS and retry once
+        logger.info(f"🧭 No live funding found for {participant_name}; attempting ClubOS mapping refresh and retry...")
+        refresh_result = refresh_training_clients_from_clubos()
+        logger.info(f"🔄 Mapping refresh result: {refresh_result}")
+
+        funding_data = training_package_cache.lookup_participant_funding(participant_name, force_live=True)
+        if funding_data:
+            logger.info(f"✅ LIVE API returning funding data after refresh for {participant_name}: {funding_data}")
             return jsonify({
                 'success': True,
-                'funding': {
-                    'status_text': 'No Data',
-                    'status_class': 'secondary',
-                    'status_icon': 'fas fa-question-circle',
-                    'is_cached': False,
-                    'message': 'No funding data available - please refresh cache'
-                }
+                'funding': funding_data
             })
+
+        logger.warning(f"⚠️ No live funding data found for {participant_name} after mapping refresh")
+        return jsonify({
+            'success': True,
+            'funding': {
+                'status_text': 'No Data',
+                'status_class': 'secondary',
+                'status_icon': 'fas fa-question-circle',
+                'is_cached': False,
+                'message': 'No funding data available - training client mapping may be incomplete'
+            }
+        })
     
     except Exception as e:
         logger.error(f"❌ Error in funding API: {e}")
@@ -3486,10 +3598,111 @@ def refresh_training_clients():
             'error': str(e)
         })
 
+# --- New: Refresh training clients mapping directly from ClubOS PT dashboard ---
+def refresh_training_clients_from_clubos() -> dict:
+    """
+    Scrape ClubOS Personal Training dashboard to map member names -> ClubOS member IDs,
+    and upsert into training_clients table. This enables live funding lookups to resolve IDs.
+    """
+    try:
+        api = ClubOSTrainingClientsAPI()
+        if not api.authenticate():
+            return {"success": False, "error": "ClubOS auth failed"}
+
+        html = api.get_personal_training_dashboard()
+        if not html:
+            return {"success": False, "error": "Failed to load PT dashboard"}
+
+        soup = BeautifulSoup(html, 'html.parser')
+        import re
+
+        mappings = []
+        anchor_patterns = [
+            re.compile(r"/action/Member(?:Profile)?/(\d+)")
+        ]
+
+        # Extract from <a href>
+        for a in soup.find_all('a', href=True):
+            href = a['href']
+            text = (a.get_text() or '').strip()
+            clubos_id = None
+            for pat in anchor_patterns:
+                m = pat.search(href)
+                if m:
+                    clubos_id = m.group(1)
+                    break
+            if not clubos_id:
+                m2 = re.search(r"memberId=(\d+)", href)
+                if m2:
+                    clubos_id = m2.group(1)
+            if clubos_id and text:
+                mappings.append((int(clubos_id), text))
+
+        # Extract from data attributes if present
+        for el in soup.find_all(attrs={'data-member-id': True}):
+            try:
+                cid = int(el.get('data-member-id'))
+                name = (el.get('data-member-name') or el.get_text() or '').strip()
+                if cid and name:
+                    mappings.append((cid, name))
+            except Exception:
+                pass
+
+        # Deduplicate by clubos_id
+        unique = {}
+        for cid, name in mappings:
+            unique.setdefault(cid, name)
+
+        if not unique:
+            logger.warning("⚠️ No member mappings discovered on PT dashboard")
+            return {"success": False, "error": "No member mappings discovered"}
+
+        conn = sqlite3.connect(db_manager.db_path)
+        cursor = conn.cursor()
+        added = 0
+        updated = 0
+
+        for cid, name in unique.items():
+            try:
+                cursor.execute("SELECT id, member_name FROM training_clients WHERE clubos_member_id = ?", (cid,))
+                row = cursor.fetchone()
+                if row:
+                    if row[1] != name:
+                        cursor.execute("UPDATE training_clients SET member_name = ? WHERE id = ?", (name, row[0]))
+                        updated += 1
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO training_clients (member_id, clubos_member_id, member_name)
+                        VALUES (?, ?, ?)
+                        """,
+                        (cid, cid, name)
+                    )
+                    added += 1
+            except Exception as e:
+                logger.error(f"❌ Error upserting training client {cid} - {name}: {e}")
+
+        conn.commit()
+        conn.close()
+
+        total = len(unique)
+        logger.info(f"✅ ClubOS training clients refreshed. discovered={total}, added={added}, updated={updated}")
+        return {"success": True, "discovered": total, "added": added, "updated": updated}
+
+    except Exception as e:
+        logger.error(f"❌ Error refreshing training clients from ClubOS: {e}")
+        return {"success": False, "error": str(e)}
+
+@app.route('/api/refresh-training-clients-clubos', methods=['POST', 'GET'])
+def api_refresh_training_clients_clubos():
+    result = refresh_training_clients_from_clubos()
+    status = 200 if result.get('success') else 500
+    return jsonify(result), status
+
 @app.route('/calendar')
 def calendar_page():
     """Display calendar page."""
     return render_template('calendar.html')
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5000)

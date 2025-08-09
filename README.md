@@ -101,3 +101,8 @@ For issues with this script, check:
 2. Square Dashboard for invoice creation status
 3. ClubOS system for member data accuracy
 4. Console output and generated CSV for specific error details
+
+## Assistant Chatmode Reference
+
+For development automation rules, file paths, and safety gates used by the AI assistant, see:
+- docs/chatmode.md

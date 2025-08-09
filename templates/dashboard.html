@@ -226,12 +226,13 @@
                             {% if is_appointment %}
                                 <span class="outlook-badge outlook-badge-info">Free</span>
                             {% else %}
-                                <span id="funding-status-{{ loop.index }}" class="outlook-badge outlook-badge-secondary" 
+                                <span id="funding-status-{{ loop.index }}" class="outlook-badge outlook-badge-warning" 
                                       data-participant="{{ all_participants[0] if all_participants else '' }}"
                                       data-time="{{ event.get('start_time', '') }} - {{ event.get('end_time', '') }}"
-                                      data-all-participants="{{ ', '.join(all_participants) if all_participants else '' }}">
-                                    <i class="fas fa-clock"></i>
-                                    Loading...
+                                      data-all-participants="{{ ', '.join(all_participants) if all_participants else '' }}"
+                                      title="Loading live funding data...">
+                                    <i class="fas fa-wifi"></i>
+                                    Live...
                                 </span>
                             {% endif %}
                         </div>
@@ -868,9 +869,18 @@ function checkAllFundingStatusesAsync() {
 }
 
 function checkEventCardFunding(element, participant, time) {
-    console.log(`🔍 Checking funding for event card: ${participant}`);
+    console.log(`� LIVE FUNDING CHECK for event card: ${participant}`);
     console.log('API endpoint: /api/check-funding');
     console.log('Request data:', { participant, time });
+    
+    // Show live loading state
+    element.innerHTML = `
+        <span class="outlook-badge outlook-badge-warning">
+            <i class="fas fa-wifi fa-pulse"></i>
+            Live...
+        </span>
+    `;
+    element.title = 'Fetching live funding data from ClubOS...';
     
     fetch('/api/check-funding', {
         method: 'POST',
@@ -883,28 +893,30 @@ function checkEventCardFunding(element, participant, time) {
         })
     })
     .then(response => {
-        console.log('API response status:', response.status);
+        console.log('LIVE API response status:', response.status);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         return response.json();
     })
     .then(data => {
-        console.log('API response data:', data);
+        console.log('LIVE API response data:', data);
         if (data.success) {
             const funding = data.funding;
-            console.log(`✅ Funding data received for ${participant}:`, funding);
+            console.log(`✅ LIVE funding data received for ${participant}:`, funding);
             
             const statusIcon = funding.status_icon || 'fas fa-question-circle';
             const statusText = funding.status_text || 'Unknown';
             const statusClass = `outlook-badge-${funding.status_class || 'secondary'}`;
             
             element.innerHTML = `
-                <span class="outlook-badge ${statusClass}">
+                <span class="outlook-badge ${statusClass}" title="Live data from ClubOS API">
                     <i class="${statusIcon}"></i>
                     ${statusText}
+                    <small style="opacity: 0.7; font-size: 0.7em;"> LIVE</small>
                 </span>
             `;
+            element.title = 'Live funding status from ClubOS API';
         } else {
             console.error('❌ API error for', participant, ':', data.error);
             element.innerHTML = `

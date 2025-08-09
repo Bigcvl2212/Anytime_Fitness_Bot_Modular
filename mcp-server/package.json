@@ -1,0 +1,28 @@
+{
+  "name": "gym-bot-mcp",
+  "version": "1.0.0",
+  "description": "Custom MCP Server for Anytime Fitness Bot Development, Production, and Maintenance",
+  "main": "gym-bot-mcp.py",
+  "type": "module",
+  "scripts": {
+    "start": "python gym-bot-mcp.py",
+    "dev": "python gym-bot-mcp.py",
+    "test": "python -m pytest tests/ -v"
+  },
+  "dependencies": {
+    "mcp": "^1.0.0"
+  },
+  "devDependencies": {
+    "pytest": "^7.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "anytime-fitness",
+    "gym-bot",
+    "clubos",
+    "api-integration",
+    "member-management"
+  ],
+  "author": "Gym Bot Development Team",
+  "license": "MIT"
+}
