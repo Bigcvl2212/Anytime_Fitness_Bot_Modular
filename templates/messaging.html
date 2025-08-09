@@ -1,53 +1,744 @@
 {% extends "base.html" %}
-{% block title %}Messaging - {{ super() }}{% endblock %}
+{% block title %}Messaging Center - {{ super() }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .messaging-container {
+        height: calc(100vh - 200px);
+        min-height: 600px;
+    }
+    
+    .threads-panel {
+        border-right: 1px solid #dee2e6;
+        height: 100%;
+        overflow-y: auto;
+    }
+    
+    .thread-item {
+        padding: 1rem;
+        border-bottom: 1px solid #f8f9fa;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+    
+    .thread-item:hover {
+        background-color: #f8f9fa;
+    }
+    
+    .thread-item.active {
+        background-color: #e3f2fd;
+        border-left: 4px solid #1976d2;
+    }
+    
+    .thread-item.unread {
+        background-color: #fff3e0;
+        border-left: 4px solid #ff9800;
+    }
+    
+    .conversation-panel {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .conversation-header {
+        padding: 1rem;
+        border-bottom: 1px solid #dee2e6;
+        background: #f8f9fa;
+    }
+    
+    .messages-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        background: #fafafa;
+    }
+    
+    .message-item {
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: flex-start;
+    }
+    
+    .message-item.outbound {
+        justify-content: flex-end;
+    }
+    
+    .message-bubble {
+        max-width: 70%;
+        padding: 0.75rem 1rem;
+        border-radius: 1rem;
+        position: relative;
+    }
+    
+    .message-bubble.inbound {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-bottom-left-radius: 0.25rem;
+    }
+    
+    .message-bubble.outbound {
+        background: #0d6efd;
+        color: white;
+        border-bottom-right-radius: 0.25rem;
+    }
+    
+    .message-meta {
+        font-size: 0.75rem;
+        margin-top: 0.25rem;
+        opacity: 0.7;
+    }
+    
+    .compose-panel {
+        padding: 1rem;
+        border-top: 1px solid #dee2e6;
+        background: white;
+    }
+    
+    .daily-report-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+    }
+    
+    .report-metric {
+        text-align: center;
+        padding: 1rem;
+    }
+    
+    .report-metric .metric-value {
+        font-size: 2rem;
+        font-weight: bold;
+        display: block;
+    }
+    
+    .report-metric .metric-label {
+        font-size: 0.875rem;
+        opacity: 0.9;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
-    <div class="row">
-        <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="mb-0">
-                        <i class="fas fa-comments me-2"></i>Send Message
-                    </h3>
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-comments me-2 text-primary"></i>
+                        Messaging Center
+                    </h1>
+                    <p class="text-muted mb-0">Unified messaging inbox with daily reporting</p>
                 </div>
-                <div class="card-body">
-                    <form method="POST" action="/send-message">
-                        <div class="mb-3">
-                            <label for="recipient" class="form-label">Recipient</label>
-                            <select class="form-select" id="recipient" name="recipient" required>
-                                <option value="">Select recipient...</option>
-                                <optgroup label="Members">
-                                    {% for member in recent_members %}
-                                    <option value="{{ member[2] }}">{{ member[0] }} {{ member[1] }} ({{ member[2] }})</option>
-                                    {% endfor %}
-                                </optgroup>
-                                <optgroup label="Prospects">
-                                    {% for prospect in recent_prospects %}
-                                    <option value="{{ prospect[2] }}">{{ prospect[0] }} {{ prospect[1] }} ({{ prospect[2] }})</option>
-                                    {% endfor %}
-                                </optgroup>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="method" class="form-label">Method</label>
-                            <select class="form-select" id="method" name="method" required>
-                                <option value="email">Email</option>
-                                <option value="sms">SMS</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="message" class="form-label">Message</label>
-                            <textarea class="form-control" id="message" name="message" rows="5" required></textarea>
-                        </div>
-                        <button type="submit" class="btn btn-purple">
-                            <i class="fas fa-paper-plane me-2"></i>Send Message
-                        </button>
-                    </form>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-info" onclick="showDailyReport()">
+                        <i class="fas fa-chart-line me-1"></i>
+                        Daily Report
+                    </button>
+                    <button class="btn btn-success" onclick="composeNewMessage()">
+                        <i class="fas fa-plus me-1"></i>
+                        New Message
+                    </button>
+                    <button class="btn btn-primary" onclick="refreshInbox()">
+                        <i class="fas fa-sync-alt me-1"></i>
+                        Refresh
+                    </button>
                 </div>
             </div>
         </div>
-        <div class="col-md-4">
-            <div class="card">
+    </div>
+
+    <!-- Main Messaging Interface -->
+    <div class="row messaging-container">
+        <!-- Threads Panel -->
+        <div class="col-md-4 threads-panel p-0">
+            <div class="card h-100">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="fas fa-inbox me-2"></i>
+                            Inbox
+                        </h6>
+                        <span id="unreadCount" class="badge bg-primary">0</span>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="threadsContainer">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <p class="text-muted mt-3">Loading conversations...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Conversation Panel -->
+        <div class="col-md-8 p-0">
+            <div class="card h-100">
+                <div id="conversationArea">
+                    <div class="text-center py-5">
+                        <i class="fas fa-comments fa-4x text-muted mb-3"></i>
+                        <h5 class="text-muted">Select a conversation to start messaging</h5>
+                        <p class="text-muted">Choose a thread from the inbox to view messages</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Daily Report Modal -->
+<div class="modal fade" id="dailyReportModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header daily-report-card">
+                <h5 class="modal-title">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Daily Activity Report
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="dailyReportContent">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="text-muted mt-3">Generating daily report...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="exportReport()">
+                    <i class="fas fa-download me-1"></i>Export Report
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Compose Message Modal -->
+<div class="modal fade" id="composeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-envelope me-2"></i>
+                    Compose New Message
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="composeForm">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Member</label>
+                            <select class="form-select" id="composeMember" name="member_id" required>
+                                <option value="">Select member...</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Message Type</label>
+                            <select class="form-select" id="composeType" name="message_type" required>
+                                <option value="email">Email</option>
+                                <option value="sms">SMS</option>
+                                <option value="system">System Notification</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Subject</label>
+                            <input type="text" class="form-control" id="composeSubject" name="subject" placeholder="Message subject...">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Message</label>
+                            <textarea class="form-control" id="composeMessage" name="message_content" rows="6" placeholder="Type your message here..." required></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="sendNewMessage()">
+                    <i class="fas fa-paper-plane me-1"></i>Send Message
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let messageThreads = [];
+let currentThreadId = null;
+let currentMemberId = null;
+
+// Initialize messaging interface
+document.addEventListener('DOMContentLoaded', function() {
+    loadInbox();
+    loadMembersForCompose();
+});
+
+// Load inbox with recent threads
+async function loadInbox() {
+    try {
+        const response = await fetch('/api/messaging/inbox/recent');
+        const data = await response.json();
+        
+        if (data.success) {
+            messageThreads = data.threads || [];
+            renderThreads();
+            updateUnreadCount();
+        } else {
+            console.error('Failed to load inbox:', data.error);
+            showInboxError('Error loading inbox: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Network error loading inbox:', error);
+        showInboxError('Network error loading inbox');
+    }
+}
+
+// Render message threads
+function renderThreads() {
+    const container = document.getElementById('threadsContainer');
+    
+    if (!messageThreads || messageThreads.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <h6 class="text-muted">No conversations yet</h6>
+                <p class="text-muted small">Start a new conversation to get started</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const threadsHtml = messageThreads.map(thread => {
+        const latestMessage = thread.latest_message;
+        const isUnread = thread.status === 'unread' || (latestMessage && latestMessage.status === 'sent');
+        
+        return `
+            <div class="thread-item ${isUnread ? 'unread' : ''}" onclick="selectThread(${thread.id}, ${thread.member_id})">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">${escapeHtml(thread.member_full_name || thread.member_name || 'Unknown Member')}</h6>
+                        <p class="mb-1 text-muted small">
+                            ${escapeHtml(thread.thread_subject || getThreadTypeLabel(thread.thread_type))}
+                        </p>
+                        ${latestMessage ? `
+                            <p class="mb-0 text-muted small">
+                                ${escapeHtml((latestMessage.message_content || '').substring(0, 60))}${latestMessage.message_content && latestMessage.message_content.length > 60 ? '...' : ''}
+                            </p>
+                        ` : ''}
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted">${formatTimeAgo(thread.last_message_at)}</small>
+                        <div class="mt-1">
+                            <span class="badge ${getThreadTypeBadge(thread.thread_type)}">${getThreadTypeLabel(thread.thread_type)}</span>
+                            ${isUnread ? '<span class="badge bg-primary">New</span>' : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = threadsHtml;
+}
+
+// Select and load thread conversation
+async function selectThread(threadId, memberId) {
+    currentThreadId = threadId;
+    currentMemberId = memberId;
+    
+    // Update UI state
+    document.querySelectorAll('.thread-item').forEach(item => item.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    
+    // Load full conversation
+    try {
+        const response = await fetch(`/api/messaging/thread?memberId=${memberId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            renderConversation(data.threads, memberId);
+        } else {
+            showConversationError('Error loading conversation: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error loading conversation:', error);
+        showConversationError('Network error loading conversation');
+    }
+}
+
+// Render conversation
+function renderConversation(threads, memberId) {
+    const conversationArea = document.getElementById('conversationArea');
+    
+    // Find the member info
+    const memberThread = messageThreads.find(t => t.member_id == memberId);
+    const memberName = memberThread ? (memberThread.member_full_name || memberThread.member_name) : 'Unknown Member';
+    
+    // Combine all messages from all threads for this member
+    let allMessages = [];
+    threads.forEach(thread => {
+        if (thread.messages) {
+            allMessages.push(...thread.messages.map(msg => ({
+                ...msg,
+                thread_type: thread.thread_type
+            })));
+        }
+    });
+    
+    // Sort messages by timestamp
+    allMessages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    
+    const messagesHtml = allMessages.map(message => `
+        <div class="message-item ${message.direction || 'inbound'}">
+            <div class="message-bubble ${message.direction || 'inbound'}">
+                <div class="message-content">
+                    ${escapeHtml(message.message_content || '')}
+                </div>
+                <div class="message-meta">
+                    <span class="badge badge-sm ${getThreadTypeBadge(message.thread_type)}">${getThreadTypeLabel(message.thread_type)}</span>
+                    <span class="ms-2">${formatDateTime(message.created_at)}</span>
+                    ${message.sender_name ? `<span class="ms-2">by ${escapeHtml(message.sender_name)}</span>` : ''}
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    conversationArea.innerHTML = `
+        <div class="conversation-panel">
+            <div class="conversation-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-1">${escapeHtml(memberName)}</h5>
+                        <small class="text-muted">${memberThread ? escapeHtml(memberThread.member_email || '') : ''}</small>
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewMemberProfile(${memberId})">
+                            <i class="fas fa-user me-1"></i>View Profile
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="messages-container" id="messagesContainer">
+                ${allMessages.length > 0 ? messagesHtml : `
+                    <div class="text-center py-5">
+                        <i class="fas fa-comment fa-3x text-muted mb-3"></i>
+                        <h6 class="text-muted">No messages yet</h6>
+                        <p class="text-muted">Start the conversation below</p>
+                    </div>
+                `}
+            </div>
+            <div class="compose-panel">
+                <div class="row g-2">
+                    <div class="col-md-3">
+                        <select class="form-select form-select-sm" id="quickReplyType">
+                            <option value="email">Email</option>
+                            <option value="sms">SMS</option>
+                            <option value="system">System</option>
+                        </select>
+                    </div>
+                    <div class="col-md-7">
+                        <input type="text" class="form-control form-control-sm" id="quickReplyMessage" 
+                               placeholder="Type your message..." onkeypress="handleQuickReplyEnter(event)">
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-primary btn-sm w-100" onclick="sendQuickReply()">
+                            <i class="fas fa-paper-plane"></i> Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Scroll to bottom of messages
+    setTimeout(() => {
+        const messagesContainer = document.getElementById('messagesContainer');
+        if (messagesContainer) {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    }, 100);
+}
+
+// Daily report functions
+async function showDailyReport() {
+    const modal = new bootstrap.Modal(document.getElementById('dailyReportModal'));
+    modal.show();
+    
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        const response = await fetch(`/api/daily-report?date=${today}`);
+        const data = await response.json();
+        
+        if (data.success && data.report) {
+            renderDailyReport(data.report);
+        } else {
+            showReportError('Error loading daily report');
+        }
+    } catch (error) {
+        console.error('Error loading daily report:', error);
+        showReportError('Network error loading report');
+    }
+}
+
+function renderDailyReport(report) {
+    const content = document.getElementById('dailyReportContent');
+    
+    content.innerHTML = `
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <h6 class="mb-3">Daily Activity Summary - ${formatDate(report.report_date)}</h6>
+            </div>
+        </div>
+        
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="card bg-primary text-white">
+                    <div class="card-body report-metric">
+                        <span class="metric-value">${report.bulk_checkins_count || 0}</span>
+                        <span class="metric-label">Bulk Check-ins</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body report-metric">
+                        <span class="metric-value">${report.invoices_created || 0}</span>
+                        <span class="metric-label">Invoices Created</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-dark">
+                    <div class="card-body report-metric">
+                        <span class="metric-value">${report.invoices_paid || 0}</span>
+                        <span class="metric-label">Invoices Paid</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body report-metric">
+                        <span class="metric-value">$${(report.revenue_collected || 0).toFixed(0)}</span>
+                        <span class="metric-label">Revenue Collected</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row g-3 mt-3">
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body report-metric">
+                        <span class="metric-value">${report.campaigns_sent || 0}</span>
+                        <span class="metric-label">Campaigns Sent</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body report-metric">
+                        <span class="metric-value">${report.replies_received || 0}</span>
+                        <span class="metric-label">Replies Received</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body report-metric">
+                        <span class="metric-value">${report.appointments_completed || 0}</span>
+                        <span class="metric-label">Appointments</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body report-metric">
+                        <span class="metric-value">${report.new_members || 0}</span>
+                        <span class="metric-label">New Members</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Report generated on ${formatDateTime(report.created_at)} and last updated ${formatDateTime(report.updated_at)}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Compose new message
+function composeNewMessage() {
+    const modal = new bootstrap.Modal(document.getElementById('composeModal'));
+    modal.show();
+}
+
+async function loadMembersForCompose() {
+    try {
+        const response = await fetch('/api/members/list?per_page=100');
+        const data = await response.json();
+        
+        if (data.success) {
+            const select = document.getElementById('composeMember');
+            const options = data.members.map(member => 
+                `<option value="${member.id}">${escapeHtml(member.full_name || 'Unknown')} (${escapeHtml(member.email || 'No email')})</option>`
+            ).join('');
+            
+            select.innerHTML = '<option value="">Select member...</option>' + options;
+        }
+    } catch (error) {
+        console.error('Error loading members for compose:', error);
+    }
+}
+
+// Utility functions
+function updateUnreadCount() {
+    const unreadCount = messageThreads.filter(thread => 
+        thread.status === 'unread' || (thread.latest_message && thread.latest_message.status === 'sent')
+    ).length;
+    
+    document.getElementById('unreadCount').textContent = unreadCount;
+}
+
+function getThreadTypeLabel(type) {
+    const labels = {
+        'clubos': 'ClubOS',
+        'sms': 'SMS',
+        'email': 'Email',
+        'bot': 'Bot',
+        'system': 'System'
+    };
+    return labels[type] || 'Message';
+}
+
+function getThreadTypeBadge(type) {
+    const badges = {
+        'clubos': 'bg-primary',
+        'sms': 'bg-success',
+        'email': 'bg-info',
+        'bot': 'bg-warning',
+        'system': 'bg-secondary'
+    };
+    return badges[type] || 'bg-secondary';
+}
+
+function refreshInbox() {
+    loadInbox();
+}
+
+function showInboxError(message) {
+    document.getElementById('threadsContainer').innerHTML = `
+        <div class="alert alert-danger m-3">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            ${escapeHtml(message)}
+        </div>
+    `;
+}
+
+function showConversationError(message) {
+    document.getElementById('conversationArea').innerHTML = `
+        <div class="text-center py-5">
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                ${escapeHtml(message)}
+            </div>
+        </div>
+    `;
+}
+
+function showReportError(message) {
+    document.getElementById('dailyReportContent').innerHTML = `
+        <div class="alert alert-danger">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            ${escapeHtml(message)}
+        </div>
+    `;
+}
+
+function handleQuickReplyEnter(event) {
+    if (event.key === 'Enter') {
+        sendQuickReply();
+    }
+}
+
+function sendQuickReply() {
+    // Placeholder for quick reply functionality
+    alert('Quick reply functionality will be implemented in the next phase');
+}
+
+function sendNewMessage() {
+    // Placeholder for new message functionality
+    alert('New message functionality will be implemented in the next phase');
+}
+
+function viewMemberProfile(memberId) {
+    // This could open the member detail sidebar from members.html
+    alert(`Opening profile for member ${memberId} - integration with members page coming soon`);
+}
+
+function exportReport() {
+    alert('Report export functionality coming soon');
+}
+
+// Utility functions for formatting
+function formatTimeAgo(dateString) {
+    if (!dateString) return '';
+    try {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMinutes = Math.floor((now - date) / (1000 * 60));
+        
+        if (diffMinutes < 1) return 'Just now';
+        if (diffMinutes < 60) return `${diffMinutes}m ago`;
+        if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+        return `${Math.floor(diffMinutes / 1440)}d ago`;
+    } catch {
+        return 'Unknown';
+    }
+}
+
+function formatDateTime(dateString) {
+    if (!dateString) return '';
+    try {
+        return new Date(dateString).toLocaleString();
+    } catch {
+        return 'Invalid Date';
+    }
+}
+
+function formatDate(dateString) {
+    if (!dateString) return '';
+    try {
+        return new Date(dateString).toLocaleDateString();
+    } catch {
+        return 'Invalid Date';
+    }
+}
+
+function escapeHtml(unsafe) {
+    if (!unsafe) return '';
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+</script>
+{% endblock %}
                 <div class="card-header">
                     <h5 class="mb-0">Quick Templates</h5>
                 </div>
