@@ -1,53 +1,772 @@
 {% extends "base.html" %}
 {% block title %}Calendar Management - {{ super() }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .calendar-container {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+    
+    .event-card {
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+        transition: transform 0.2s ease-in-out;
+        cursor: pointer;
+    }
+    
+    .event-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        border-color: #0d6efd;
+    }
+    
+    .event-status-confirmed {
+        background: #d1e7dd;
+        color: #0f5132;
+        border-left: 4px solid #198754;
+    }
+    
+    .event-status-pending {
+        background: #fff3cd;
+        color: #664d03;
+        border-left: 4px solid #ffc107;
+    }
+    
+    .event-status-cancelled {
+        background: #f8d7da;
+        color: #721c24;
+        border-left: 4px solid #dc3545;
+    }
+    
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 1px;
+        background: #dee2e6;
+        border: 1px solid #dee2e6;
+    }
+    
+    .calendar-day {
+        background: white;
+        min-height: 120px;
+        padding: 0.5rem;
+        position: relative;
+    }
+    
+    .calendar-day.other-month {
+        background: #f8f9fa;
+        color: #6c757d;
+    }
+    
+    .calendar-day.today {
+        background: #e3f2fd;
+        border: 2px solid #1976d2;
+    }
+    
+    .calendar-event {
+        background: #0d6efd;
+        color: white;
+        font-size: 0.75rem;
+        padding: 0.25rem;
+        margin: 0.125rem 0;
+        border-radius: 0.25rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: pointer;
+    }
+    
+    .calendar-event:hover {
+        background: #0b5ed7;
+    }
+    
+    .view-toggle {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+    }
+    
+    .view-toggle .btn {
+        border: none;
+        border-radius: 0;
+    }
+    
+    .view-toggle .btn.active {
+        background: #0d6efd;
+        color: white;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-calendar-alt me-2 text-primary"></i>
+                        Calendar Management
+                    </h1>
+                    <p class="text-muted mb-0">Two-way calendar sync with ClubOS</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success" onclick="createNewEvent()">
+                        <i class="fas fa-plus me-1"></i>
+                        New Event
+                    </button>
+                    <button class="btn btn-primary" onclick="refreshCalendar()">
+                        <i class="fas fa-sync-alt me-1"></i>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Calendar Controls -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="d-flex align-items-center gap-3">
+                <div class="view-toggle btn-group" role="group">
+                    <button class="btn btn-outline-primary active" id="monthViewBtn" onclick="switchView('month')">
+                        <i class="fas fa-calendar me-1"></i>Month
+                    </button>
+                    <button class="btn btn-outline-primary" id="listViewBtn" onclick="switchView('list')">
+                        <i class="fas fa-list me-1"></i>List
+                    </button>
+                </div>
+                
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-outline-secondary btn-sm" onclick="changeMonth(-1)">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <span class="mx-3 fw-bold" id="currentMonthLabel">Loading...</span>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="changeMonth(1)">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 text-end">
+            <div id="connectionStatus" class="badge bg-secondary">Connecting...</div>
+            <small class="text-muted ms-2" id="lastSyncTime">Never synced</small>
+        </div>
+    </div>
+
+    <!-- Calendar Views -->
     <div class="row">
         <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h3 class="mb-0">
-                            <i class="fas fa-calendar-alt me-2"></i>Calendar Management
-                        </h3>
-                        <div>
-                            Status: 
-                            {% if connection_status == 'Connected' %}
-                                <span class="badge bg-success">{{ connection_status }}</span>
-                            {% else %}
-                                <span class="badge bg-danger">{{ connection_status }}</span>
-                            {% endif %}
+            <!-- Month View -->
+            <div id="monthView" class="calendar-container">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="calendar-grid">
+                            <div class="text-center fw-bold p-2">Sunday</div>
+                            <div class="text-center fw-bold p-2">Monday</div>
+                            <div class="text-center fw-bold p-2">Tuesday</div>
+                            <div class="text-center fw-bold p-2">Wednesday</div>
+                            <div class="text-center fw-bold p-2">Thursday</div>
+                            <div class="text-center fw-bold p-2">Friday</div>
+                            <div class="text-center fw-bold p-2">Saturday</div>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="calendarGrid" class="calendar-grid">
+                            <!-- Calendar days will be inserted here -->
                         </div>
                     </div>
                 </div>
-                <div class="card-body">
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <form method="POST" action="/calendar/sync">
-                                <button type="submit" class="btn btn-purple">
-                                    <i class="fas fa-sync me-2"></i>Sync Events
-                                </button>
-                            </form>
-                        </div>
-                        <div class="col-md-6 text-end">
-                            {% if sync_time %}
-                                <small class="text-muted">Last sync: {{ sync_time }}</small>
-                            {% endif %}
+            </div>
+
+            <!-- List View -->
+            <div id="listView" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list me-2"></i>
+                            Events List
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="eventsListContainer">
+                            <div class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status"></div>
+                                <p class="text-muted mt-3">Loading events...</p>
+                            </div>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Creation/Edit Modal -->
+<div class="modal fade" id="eventModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="eventModalTitle">
+                    <i class="fas fa-calendar-plus me-2"></i>
+                    Create New Event
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="eventForm">
+                    <input type="hidden" id="eventId" name="event_id">
                     
-                    {% if events %}
-                        <div class="table-responsive">
-                            <table class="table table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>Event ID</th>
-                                        <th>Details</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for event in events %}
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Event Title</label>
+                            <input type="text" class="form-control" id="eventTitle" name="title" required>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Start Date & Time</label>
+                            <input type="datetime-local" class="form-control" id="eventStartTime" name="start_time" required>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">End Date & Time</label>
+                            <input type="datetime-local" class="form-control" id="eventEndTime" name="end_time" required>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Trainer</label>
+                            <select class="form-select" id="eventTrainer" name="trainer_id">
+                                <option value="">Select Trainer</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Client</label>
+                            <select class="form-select" id="eventClient" name="client_id">
+                                <option value="">Select Client</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        
+                        <div class="col-12">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" id="eventDescription" name="description" rows="3"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="deleteEventBtn" onclick="deleteEvent()" style="display: none;">
+                    <i class="fas fa-trash me-1"></i>Delete
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveEvent()">
+                    <i class="fas fa-save me-1"></i>Save Event
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Detail Modal -->
+<div class="modal fade" id="eventDetailModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-calendar-day me-2"></i>
+                    Event Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="eventDetailContent">
+                    <!-- Event details will be inserted here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="editCurrentEvent()">
+                    <i class="fas fa-edit me-1"></i>Edit
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2 text-warning"></i>
+                    Confirm Deletion
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this event? This action cannot be undone.</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-info-circle me-2"></i>
+                    The event will be permanently removed from ClubOS.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteEvent()">
+                    <i class="fas fa-trash me-1"></i>Delete Event
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentDate = new Date();
+let currentView = 'month';
+let events = [];
+let selectedEventId = null;
+
+// Initialize calendar
+document.addEventListener('DOMContentLoaded', function() {
+    loadCalendarEvents();
+    updateMonthLabel();
+    renderCalendar();
+});
+
+// Load events from API
+async function loadCalendarEvents() {
+    try {
+        const startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+        const endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+        
+        const response = await fetch(`/api/calendar/events?start=${startDate.toISOString().split('T')[0]}&end=${endDate.toISOString().split('T')[0]}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            events = data.events || [];
+            renderCalendar();
+            updateConnectionStatus('Connected');
+        } else {
+            console.error('Failed to load events:', data.error);
+            updateConnectionStatus('Error');
+        }
+    } catch (error) {
+        console.error('Network error loading events:', error);
+        updateConnectionStatus('Disconnected');
+    }
+}
+
+// Render calendar based on current view
+function renderCalendar() {
+    if (currentView === 'month') {
+        renderMonthView();
+    } else {
+        renderListView();
+    }
+}
+
+// Render month view calendar
+function renderMonthView() {
+    const calendarGrid = document.getElementById('calendarGrid');
+    const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay());
+    
+    let calendarHtml = '';
+    const today = new Date();
+    
+    for (let week = 0; week < 6; week++) {
+        for (let day = 0; day < 7; day++) {
+            const currentCalendarDate = new Date(startDate);
+            currentCalendarDate.setDate(startDate.getDate() + (week * 7) + day);
+            
+            const isCurrentMonth = currentCalendarDate.getMonth() === currentDate.getMonth();
+            const isToday = currentCalendarDate.toDateString() === today.toDateString();
+            
+            const dayEvents = events.filter(event => {
+                const eventDate = new Date(event.start_time || event.start);
+                return eventDate.toDateString() === currentCalendarDate.toDateString();
+            });
+            
+            const eventsHtml = dayEvents.slice(0, 3).map(event => 
+                `<div class="calendar-event" onclick="showEventDetail('${event.id}')" title="${escapeHtml(event.title || event.summary)}">
+                    ${escapeHtml((event.title || event.summary || 'Event').substring(0, 15))}
+                </div>`
+            ).join('');
+            
+            const moreEventsHtml = dayEvents.length > 3 ? 
+                `<div class="calendar-event" style="background: #6c757d;">+${dayEvents.length - 3} more</div>` : '';
+            
+            calendarHtml += `
+                <div class="calendar-day ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'today' : ''}" 
+                     onclick="createEventForDate('${currentCalendarDate.toISOString().split('T')[0]}')">
+                    <div class="fw-bold">${currentCalendarDate.getDate()}</div>
+                    ${eventsHtml}
+                    ${moreEventsHtml}
+                </div>
+            `;
+        }
+    }
+    
+    calendarGrid.innerHTML = calendarHtml;
+}
+
+// Render list view
+function renderListView() {
+    const container = document.getElementById('eventsListContainer');
+    
+    if (!events || events.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-calendar fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No events found</h5>
+                <p class="text-muted">Create your first event to get started</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const sortedEvents = [...events].sort((a, b) => 
+        new Date(a.start_time || a.start) - new Date(b.start_time || b.start)
+    );
+    
+    const eventsHtml = sortedEvents.map(event => `
+        <div class="event-card card mb-3" onclick="showEventDetail('${event.id}')">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h6 class="mb-1">${escapeHtml(event.title || event.summary || 'Untitled Event')}</h6>
+                        <p class="text-muted mb-0 small">
+                            ${escapeHtml(event.description || 'No description')}
+                        </p>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="small">
+                            <i class="fas fa-clock me-1"></i>
+                            ${formatEventTime(event.start_time || event.start)} - ${formatEventTime(event.end_time || event.end)}
+                        </div>
+                        <div class="small text-muted">
+                            <i class="fas fa-calendar me-1"></i>
+                            ${formatEventDate(event.start_time || event.start)}
+                        </div>
+                    </div>
+                    <div class="col-md-3 text-end">
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary" onclick="event.stopPropagation(); editEvent('${event.id}')">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="event.stopPropagation(); confirmDelete('${event.id}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    container.innerHTML = eventsHtml;
+}
+
+// View switching
+function switchView(view) {
+    currentView = view;
+    
+    // Update button states
+    document.getElementById('monthViewBtn').classList.toggle('active', view === 'month');
+    document.getElementById('listViewBtn').classList.toggle('active', view === 'list');
+    
+    // Show/hide view containers
+    document.getElementById('monthView').style.display = view === 'month' ? 'block' : 'none';
+    document.getElementById('listView').style.display = view === 'list' ? 'block' : 'none';
+    
+    renderCalendar();
+}
+
+// Navigation
+function changeMonth(delta) {
+    currentDate.setMonth(currentDate.getMonth() + delta);
+    updateMonthLabel();
+    loadCalendarEvents();
+}
+
+function updateMonthLabel() {
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'];
+    
+    document.getElementById('currentMonthLabel').textContent = 
+        `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+}
+
+function refreshCalendar() {
+    loadCalendarEvents();
+    updateConnectionStatus('Syncing...');
+}
+
+// Event management
+function createNewEvent() {
+    selectedEventId = null;
+    resetEventForm();
+    document.getElementById('eventModalTitle').innerHTML = '<i class="fas fa-calendar-plus me-2"></i>Create New Event';
+    document.getElementById('deleteEventBtn').style.display = 'none';
+    
+    const modal = new bootstrap.Modal(document.getElementById('eventModal'));
+    modal.show();
+}
+
+function createEventForDate(dateString) {
+    createNewEvent();
+    
+    // Set default start time to the clicked date at 9 AM
+    const eventDate = new Date(dateString + 'T09:00');
+    const endDate = new Date(dateString + 'T10:00');
+    
+    document.getElementById('eventStartTime').value = eventDate.toISOString().slice(0, 16);
+    document.getElementById('eventEndTime').value = endDate.toISOString().slice(0, 16);
+}
+
+function editEvent(eventId) {
+    const event = events.find(e => e.id == eventId);
+    if (!event) return;
+    
+    selectedEventId = eventId;
+    populateEventForm(event);
+    document.getElementById('eventModalTitle').innerHTML = '<i class="fas fa-calendar-edit me-2"></i>Edit Event';
+    document.getElementById('deleteEventBtn').style.display = 'block';
+    
+    const modal = new bootstrap.Modal(document.getElementById('eventModal'));
+    modal.show();
+}
+
+function editCurrentEvent() {
+    if (selectedEventId) {
+        const detailModal = bootstrap.Modal.getInstance(document.getElementById('eventDetailModal'));
+        detailModal.hide();
+        editEvent(selectedEventId);
+    }
+}
+
+function resetEventForm() {
+    document.getElementById('eventForm').reset();
+    document.getElementById('eventId').value = '';
+}
+
+function populateEventForm(event) {
+    document.getElementById('eventId').value = event.id;
+    document.getElementById('eventTitle').value = event.title || event.summary || '';
+    document.getElementById('eventDescription').value = event.description || '';
+    
+    if (event.start_time || event.start) {
+        const startDate = new Date(event.start_time || event.start);
+        document.getElementById('eventStartTime').value = startDate.toISOString().slice(0, 16);
+    }
+    
+    if (event.end_time || event.end) {
+        const endDate = new Date(event.end_time || event.end);
+        document.getElementById('eventEndTime').value = endDate.toISOString().slice(0, 16);
+    }
+    
+    // Populate trainer and client if available
+    if (event.trainer_id) {
+        document.getElementById('eventTrainer').value = event.trainer_id;
+    }
+    if (event.client_id) {
+        document.getElementById('eventClient').value = event.client_id;
+    }
+}
+
+async function saveEvent() {
+    const form = document.getElementById('eventForm');
+    const formData = new FormData(form);
+    const eventData = Object.fromEntries(formData);
+    
+    try {
+        const isEditing = !!selectedEventId;
+        const url = isEditing ? `/api/calendar/events/${selectedEventId}` : '/api/calendar/events';
+        const method = isEditing ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(eventData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('eventModal'));
+            modal.hide();
+            loadCalendarEvents(); // Refresh calendar
+            
+            alert(isEditing ? 'Event updated successfully!' : 'Event created successfully!');
+        } else {
+            alert('Error saving event: ' + data.error);
+        }
+    } catch (error) {
+        alert('Network error: ' + error.message);
+    }
+}
+
+function confirmDelete(eventId) {
+    selectedEventId = eventId;
+    const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    modal.show();
+}
+
+function deleteEvent() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('eventModal'));
+    modal.hide();
+    confirmDelete(selectedEventId);
+}
+
+async function confirmDeleteEvent() {
+    if (!selectedEventId) return;
+    
+    try {
+        const response = await fetch(`/api/calendar/events/${selectedEventId}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ confirmed: true })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
+            modal.hide();
+            loadCalendarEvents(); // Refresh calendar
+            
+            alert('Event deleted successfully!');
+        } else {
+            alert('Error deleting event: ' + data.error);
+        }
+    } catch (error) {
+        alert('Network error: ' + error.message);
+    }
+}
+
+function showEventDetail(eventId) {
+    const event = events.find(e => e.id == eventId);
+    if (!event) return;
+    
+    selectedEventId = eventId;
+    
+    const content = document.getElementById('eventDetailContent');
+    content.innerHTML = `
+        <div class="event-detail">
+            <h5 class="mb-3">${escapeHtml(event.title || event.summary || 'Untitled Event')}</h5>
+            
+            <div class="row g-3">
+                <div class="col-12">
+                    <strong>Date & Time:</strong><br>
+                    <i class="fas fa-clock me-1 text-muted"></i>
+                    ${formatEventDateTime(event.start_time || event.start)} - ${formatEventDateTime(event.end_time || event.end)}
+                </div>
+                
+                ${event.description ? `
+                <div class="col-12">
+                    <strong>Description:</strong><br>
+                    ${escapeHtml(event.description)}
+                </div>
+                ` : ''}
+                
+                ${event.trainer_name ? `
+                <div class="col-md-6">
+                    <strong>Trainer:</strong><br>
+                    <i class="fas fa-user-tie me-1 text-muted"></i>
+                    ${escapeHtml(event.trainer_name)}
+                </div>
+                ` : ''}
+                
+                ${event.client_name ? `
+                <div class="col-md-6">
+                    <strong>Client:</strong><br>
+                    <i class="fas fa-user me-1 text-muted"></i>
+                    ${escapeHtml(event.client_name)}
+                </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+    
+    const modal = new bootstrap.Modal(document.getElementById('eventDetailModal'));
+    modal.show();
+}
+
+// Status updates
+function updateConnectionStatus(status) {
+    const element = document.getElementById('connectionStatus');
+    const timeElement = document.getElementById('lastSyncTime');
+    
+    element.className = 'badge';
+    
+    switch (status) {
+        case 'Connected':
+            element.classList.add('bg-success');
+            timeElement.textContent = 'Just now';
+            break;
+        case 'Syncing...':
+            element.classList.add('bg-info');
+            break;
+        case 'Error':
+            element.classList.add('bg-danger');
+            break;
+        default:
+            element.classList.add('bg-secondary');
+    }
+    
+    element.textContent = status;
+}
+
+// Utility functions
+function formatEventTime(dateString) {
+    if (!dateString) return '';
+    try {
+        return new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+        return 'Invalid Time';
+    }
+}
+
+function formatEventDate(dateString) {
+    if (!dateString) return '';
+    try {
+        return new Date(dateString).toLocaleDateString();
+    } catch {
+        return 'Invalid Date';
+    }
+}
+
+function formatEventDateTime(dateString) {
+    if (!dateString) return '';
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+        return 'Invalid Date/Time';
+    }
+}
+
+function escapeHtml(unsafe) {
+    if (!unsafe) return '';
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+</script>
+{% endblock %}
                                     <tr>
                                         <td>{{ event.id if event.id else 'N/A' }}</td>
                                         <td>{{ event }}</td>

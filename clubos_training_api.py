@@ -640,10 +640,30 @@ class ClubOSTrainingPackageAPI:
                 ])
 
             logger.info(f"[ClubOS] Starting live search for '{name}' with {len(attempts)} attempts")
-            for attempt in attempts:
+            search_results_log = {
+                'search_term': name,
+                'phone': phone,
+                'total_attempts': len(attempts),
+                'successful_branches': [],
+                'failed_branches': [],
+                'final_result': None
+            }
+            
+            for i, attempt in enumerate(attempts):
                 try:
                     dbg = f"{attempt['method']} {attempt['url'].replace(self.base_url,'')}"
                     req_headers = attempt.get('headers') or headers_json
+                    
+                    branch_info = {
+                        'attempt_number': i + 1,
+                        'method': attempt['method'],
+                        'endpoint': attempt['url'].replace(self.base_url,''),
+                        'branch_type': 'assignees' if 'assignees' in attempt['url'] else ('suggest' if 'Suggest' in attempt['url'] else 'scrape'),
+                        'status_code': None,
+                        'data_shape': None,
+                        'result_found': False
+                    }
+                    
                     if attempt['method'] == 'GET':
                         r = self.session.get(attempt['url'], headers=req_headers, params=attempt.get('params'), timeout=10)
                     elif 'json' in attempt:
@@ -651,8 +671,12 @@ class ClubOSTrainingPackageAPI:
                     else:
                         r = self.session.post(attempt['url'], headers=req_headers, data=attempt.get('data'), timeout=10)
 
-                    logger.info(f"[ClubOS] search attempt {dbg} -> {r.status_code}")
+                    branch_info['status_code'] = r.status_code
+                    logger.info(f"[ClubOS] search attempt {i+1}/{len(attempts)} {dbg} -> {r.status_code}")
+                    
                     if r.status_code != 200:
+                        branch_info['error'] = f'HTTP {r.status_code}'
+                        search_results_log['failed_branches'].append(branch_info)
                         continue
 
                     # Parse possible shapes: list of members, dict with 'members' or 'results', or single dict
@@ -660,11 +684,13 @@ class ClubOSTrainingPackageAPI:
                         data = r.json()
                         # Debug JSON shape
                         if isinstance(data, list):
+                            branch_info['data_shape'] = f'list[{len(data)}]'
                             logger.info(f"[ClubOS] 200 JSON from {dbg}: list len={len(data)}")
                             if not data:
                                 # include tiny snippet to see actual payload
                                 logger.info(f"[ClubOS] empty list payload from {dbg}; snippet: {(r.text or '')[:200].replace('\n',' ')}")
                         elif isinstance(data, dict):
+                            branch_info['data_shape'] = f'dict[{list(data.keys())[:6]}]'
                             logger.info(f"[ClubOS] 200 JSON from {dbg}: dict keys={list(data.keys())[:6]}")
                             if not data:
                                 logger.info(f"[ClubOS] empty dict payload from {dbg}; snippet: {(r.text or '')[:200].replace('\n',' ')}")
@@ -672,9 +698,12 @@ class ClubOSTrainingPackageAPI:
                         # Fallback: try to extract IDs from raw text/HTML snippets, but only if the name appears nearby
                         text = r.text or ''
                         ctype = r.headers.get('Content-Type', '')
+                        branch_info['data_shape'] = f'html[{len(text)}]'
                         logger.info(f"[ClubOS] 200 non-JSON from {dbg} (Content-Type: {ctype}); snippet: {text[:240].replace('\n',' ') if text else ''}")
                         # Skip HTML extraction on generic UserSearch page to avoid unrelated links
                         if '/action/UserSearch' in dbg:
+                            branch_info['skip_reason'] = 'UserSearch HTML extraction avoided'
+                            search_results_log['failed_branches'].append(branch_info)
                             continue
                         # Only trust HTML extraction if the searched name appears in the document
                         name_lc = (name or '').strip().lower()
@@ -689,12 +718,26 @@ class ClubOSTrainingPackageAPI:
                                         href = a['href']
                                         mm = re.search(r"/Members/view/(\d+)", href) or re.search(r"/action/Members/view/(\d+)", href)
                                         if mm:
-                                            return mm.group(1)
+                                            member_id = mm.group(1)
+                                            branch_info['result_found'] = True
+                                            branch_info['member_id'] = member_id
+                                            branch_info['extraction_method'] = 'anchor_href_with_name_match'
+                                            search_results_log['successful_branches'].append(branch_info)
+                                            search_results_log['final_result'] = member_id
+                                            logger.info(f"✅ [ClubOS] Found member ID via HTML anchor matching: {member_id} (branch: {branch_info['branch_type']})")
+                                            return member_id
                                         # Check common id-carrying attributes on the same element
                                         for attr in ('data-id','data-member-id','data-memberid','data-user-id','data-userid','data-value','value'):
                                             aval = a.get(attr)
                                             if aval and str(aval).isdigit():
-                                                return str(int(aval))
+                                                member_id = str(int(aval))
+                                                branch_info['result_found'] = True
+                                                branch_info['member_id'] = member_id
+                                                branch_info['extraction_method'] = f'anchor_attribute_{attr}'
+                                                search_results_log['successful_branches'].append(branch_info)
+                                                search_results_log['final_result'] = member_id
+                                                logger.info(f"✅ [ClubOS] Found member ID via HTML attribute: {member_id} (branch: {branch_info['branch_type']})")
+                                                return member_id
                             # If name not present or no matching anchors, avoid taking the first generic /Members/view link
                             # As a very last resort on suggest-like widgets, accept explicit id attributes without name only if the response is tiny (autocomplete widget)
                             if text and len(text) < 2000:

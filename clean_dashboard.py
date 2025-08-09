@@ -9,14 +9,17 @@ import pandas as pd
 import re
 import random
 import glob
+import uuid
 from difflib import SequenceMatcher
 from flask import Flask, render_template, jsonify, request, redirect, url_for, session, flash
 from datetime import datetime, timedelta
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 import logging
 import json
 import sys
 import requests
+import threading
+import time
 from clubos_fresh_data_api import ClubOSFreshDataAPI
 from clubos_training_api import ClubOSTrainingPackageAPI
 from clubos_training_clients_api import ClubOSTrainingClientsAPI
@@ -1019,11 +1022,136 @@ class DatabaseManager:
             )
         ''')
         
+        # Member transactions table for invoice and payment tracking
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS member_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_id INTEGER,
+                clubos_member_id INTEGER,
+                member_name TEXT,
+                type TEXT,  -- 'invoice', 'payment', 'refund', 'fee'
+                amount REAL,
+                invoice_id TEXT,  -- Square invoice ID or external reference
+                status TEXT,  -- 'pending', 'sent', 'paid', 'failed', 'cancelled'
+                description TEXT,
+                payment_method TEXT,  -- 'square', 'cash', 'check', 'other'
+                square_data TEXT,  -- JSON data from Square API
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                meta_json TEXT,  -- Additional metadata as JSON
+                
+                FOREIGN KEY (member_id) REFERENCES members (id)
+            )
+        ''')
+        
+        # Message threads table for organizing conversations
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS message_threads (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_id INTEGER,
+                clubos_member_id INTEGER,
+                member_name TEXT,
+                thread_type TEXT,  -- 'clubos', 'sms', 'email', 'bot'
+                thread_subject TEXT,
+                external_thread_id TEXT,  -- ID from external system (ClubOS, SMS service, etc.)
+                status TEXT,  -- 'active', 'archived', 'closed'
+                last_message_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                
+                FOREIGN KEY (member_id) REFERENCES members (id)
+            )
+        ''')
+        
+        # Messages table for individual messages within threads
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                thread_id INTEGER,
+                member_id INTEGER,
+                sender_type TEXT,  -- 'member', 'staff', 'system', 'bot'
+                sender_name TEXT,
+                sender_email TEXT,
+                message_content TEXT,
+                message_type TEXT,  -- 'text', 'image', 'file', 'system'
+                external_message_id TEXT,  -- ID from external system
+                direction TEXT,  -- 'inbound', 'outbound'
+                status TEXT,  -- 'sent', 'delivered', 'read', 'failed'
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                read_at TIMESTAMP,
+                metadata_json TEXT,  -- Additional metadata as JSON
+                
+                FOREIGN KEY (thread_id) REFERENCES message_threads (id),
+                FOREIGN KEY (member_id) REFERENCES members (id)
+            )
+        ''')
+        
+        # Bulk check-in tracking table for resume on restart functionality
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS bulk_checkin_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id TEXT UNIQUE,  -- UUID for tracking specific runs
+                status TEXT,  -- 'running', 'completed', 'failed', 'paused'
+                total_members INTEGER DEFAULT 0,
+                processed_members INTEGER DEFAULT 0,
+                successful_checkins INTEGER DEFAULT 0,
+                failed_checkins INTEGER DEFAULT 0,
+                excluded_ppv INTEGER DEFAULT 0,
+                excluded_other INTEGER DEFAULT 0,
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP,
+                error_message TEXT,
+                resume_data_json TEXT  -- JSON data for resuming interrupted runs
+            )
+        ''')
+        
+        # Daily report cache table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS daily_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                report_date DATE UNIQUE,
+                bulk_checkins_count INTEGER DEFAULT 0,
+                campaigns_sent INTEGER DEFAULT 0,
+                replies_received INTEGER DEFAULT 0,
+                invoices_created INTEGER DEFAULT 0,
+                invoices_paid INTEGER DEFAULT 0,
+                appointments_completed INTEGER DEFAULT 0,
+                appointments_rescheduled INTEGER DEFAULT 0,
+                new_members INTEGER DEFAULT 0,
+                member_visits INTEGER DEFAULT 0,
+                revenue_collected REAL DEFAULT 0.0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                data_json TEXT  -- Additional metrics as JSON
+            )
+        ''')
+        
         # Create indexes for better performance
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_funding_cache_member_id ON funding_status_cache(member_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_funding_cache_clubos_id ON funding_status_cache(clubos_member_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_funding_cache_updated ON funding_status_cache(last_updated)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_funding_cache_stale ON funding_status_cache(is_stale)')
+        
+        # Indexes for new tables
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_member_transactions_member_id ON member_transactions(member_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_member_transactions_type ON member_transactions(type)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_member_transactions_status ON member_transactions(status)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_member_transactions_created ON member_transactions(created_at)')
+        
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_message_threads_member_id ON message_threads(member_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_message_threads_type ON message_threads(thread_type)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_message_threads_status ON message_threads(status)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_message_threads_last_message ON message_threads(last_message_at)')
+        
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_thread_id ON messages(thread_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_member_id ON messages(member_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_created ON messages(created_at)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_direction ON messages(direction)')
+        
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_bulk_checkin_runs_status ON bulk_checkin_runs(status)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_bulk_checkin_runs_started ON bulk_checkin_runs(started_at)')
+        
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_daily_reports_date ON daily_reports(report_date)')
         
         conn.commit()
         conn.close()
@@ -1957,9 +2085,120 @@ def refresh_funding_cache():
             'error': str(e)
         })
 
+def save_bulk_checkin_run(run_id: str, status: str, status_data: dict, error_message: str = None):
+    """Save bulk check-in run status to database for resume capability"""
+    try:
+        conn = sqlite3.connect(db_manager.db_path)
+        cursor = conn.cursor()
+        
+        # Insert or update run record
+        cursor.execute('''
+            INSERT OR REPLACE INTO bulk_checkin_runs 
+            (run_id, status, total_members, processed_members, successful_checkins, 
+             failed_checkins, excluded_ppv, excluded_other, started_at, completed_at, 
+             error_message, resume_data_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            run_id,
+            status,
+            status_data.get('total_members', 0),
+            status_data.get('processed_members', 0),
+            status_data.get('total_checkins', 0),
+            len(status_data.get('errors', [])),
+            status_data.get('ppv_excluded', 0),
+            status_data.get('comp_excluded', 0) + status_data.get('frozen_excluded', 0),
+            status_data.get('started_at'),
+            status_data.get('completed_at'),
+            error_message,
+            json.dumps(status_data)
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+    except Exception as e:
+        logger.error(f"❌ Error saving bulk check-in run: {e}")
+
+def load_bulk_checkin_resume_data(run_id: str) -> dict:
+    """Load bulk check-in run data for resuming"""
+    try:
+        conn = sqlite3.connect(db_manager.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('SELECT * FROM bulk_checkin_runs WHERE run_id = ?', (run_id,))
+        result = cursor.fetchone()
+        conn.close()
+        
+        if result:
+            return {
+                'status': json.loads(result['resume_data_json']) if result['resume_data_json'] else {},
+                'processed_members': result['processed_members'],
+                'total_members': result['total_members']
+            }
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"❌ Error loading bulk check-in resume data: {e}")
+        return None
+
+@app.route('/api/bulk-checkin-resume/<run_id>', methods=['POST'])
+def api_bulk_checkin_resume(run_id):
+    """API endpoint to resume a paused or failed bulk check-in run"""
+    global bulk_checkin_status
+    
+    # Check if already running
+    if bulk_checkin_status['is_running']:
+        return jsonify({
+            'success': False,
+            'error': 'Bulk check-in already in progress',
+            'status': bulk_checkin_status
+        }), 400
+    
+    # Start background process with resume
+    thread = threading.Thread(target=perform_bulk_checkin_background, args=(run_id,))
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({
+        'success': True,
+        'message': f'Bulk check-in resumed for run: {run_id}',
+        'status': bulk_checkin_status
+    })
+
+@app.route('/api/bulk-checkin-runs')
+def api_bulk_checkin_runs():
+    """API endpoint to get list of bulk check-in runs"""
+    try:
+        conn = sqlite3.connect(db_manager.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT * FROM bulk_checkin_runs 
+            ORDER BY started_at DESC 
+            LIMIT 50
+        ''')
+        
+        runs = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'runs': runs
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching bulk check-in runs: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
 @app.route('/api/bulk-checkin', methods=['POST'])
 def api_bulk_checkin():
-    """API endpoint to start bulk member check-ins in background - EXCLUDES PPV MEMBERS"""
+    """API endpoint to start bulk member check-ins in background - EXCLUDES PPV/COMP/FROZEN MEMBERS"""
     global bulk_checkin_status
     
     # Check if already running
@@ -1971,7 +2210,6 @@ def api_bulk_checkin():
         }), 400
     
     # Start background process
-    import threading
     thread = threading.Thread(target=perform_bulk_checkin_background)
     thread.daemon = True
     thread.start()
@@ -1982,53 +2220,92 @@ def api_bulk_checkin():
         'status': bulk_checkin_status
     })
 
-def perform_bulk_checkin_background():
-    """Background function to perform bulk member check-ins with progress tracking"""
+def perform_bulk_checkin_background(resume_run_id=None):
+    """Background function to perform bulk member check-ins with progress tracking and resume capability"""
     global bulk_checkin_status
     
+    run_id = resume_run_id or str(uuid.uuid4())
+    
     try:
-        # Initialize status
-        bulk_checkin_status.update({
-            'is_running': True,
-            'started_at': datetime.now().isoformat(),
-            'completed_at': None,
-            'progress': 0,
-            'total_members': 0,
-            'processed_members': 0,
-            'ppv_excluded': 0,
-            'total_checkins': 0,
-            'current_member': '',
-            'status': 'starting',
-            'message': 'Initializing bulk check-in process...',
-            'error': None,
-            'errors': []
-        })
+        # Initialize or resume status
+        if resume_run_id:
+            # Load resume data from database
+            resume_data = load_bulk_checkin_resume_data(resume_run_id)
+            if resume_data:
+                logger.info(f"🔄 Resuming bulk check-in run: {resume_run_id}")
+                bulk_checkin_status.update(resume_data.get('status', {}))
+                bulk_checkin_status['is_running'] = True
+                bulk_checkin_status['status'] = 'resuming'
+                bulk_checkin_status['message'] = f'Resuming from {resume_data.get("processed_members", 0)} processed members...'
+            else:
+                logger.warning(f"❌ Could not find resume data for run: {resume_run_id}")
+                resume_run_id = None
         
-        logger.info("🏋️ Starting background bulk member check-in process (excluding PPV members)...")
+        if not resume_run_id:
+            # Initialize new run
+            bulk_checkin_status.update({
+                'is_running': True,
+                'run_id': run_id,
+                'started_at': datetime.now().isoformat(),
+                'completed_at': None,
+                'progress': 0,
+                'total_members': 0,
+                'processed_members': 0,
+                'ppv_excluded': 0,
+                'comp_excluded': 0,
+                'frozen_excluded': 0,
+                'total_checkins': 0,
+                'current_member': '',
+                'status': 'starting',
+                'message': 'Initializing bulk check-in process...',
+                'error': None,
+                'errors': []
+            })
+            
+            # Create database tracking record
+            save_bulk_checkin_run(run_id, 'running', bulk_checkin_status)
+        
+        logger.info(f"🏋️ Starting background bulk member check-in process (run: {run_id})...")
         
         # Import and initialize the ClubHub API client
         import sys
         import os
         sys.path.append(os.path.join(os.path.dirname(__file__), 'services'))
-        from api.clubhub_api_client import ClubHubAPIClient
-        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        
+        try:
+            from api.clubhub_api_client import ClubHubAPIClient
+            from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        except ImportError as e:
+            logger.error(f"❌ Failed to import ClubHub modules: {e}")
+            bulk_checkin_status.update({
+                'is_running': False,
+                'status': 'error',
+                'error': f'Import error: {e}',
+                'message': 'Failed to import required modules'
+            })
+            save_bulk_checkin_run(run_id, 'failed', bulk_checkin_status, error_message=str(e))
+            return
         
         bulk_checkin_status['message'] = 'Authenticating with ClubHub...'
         bulk_checkin_status['status'] = 'authenticating'
+        save_bulk_checkin_run(run_id, 'running', bulk_checkin_status)
         
         # Initialize and authenticate
         client = ClubHubAPIClient()
         if not client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
+            error_msg = 'ClubHub authentication failed'
             bulk_checkin_status.update({
                 'is_running': False,
                 'status': 'error',
-                'error': 'ClubHub authentication failed',
+                'error': error_msg,
                 'message': 'Authentication failed'
             })
+            save_bulk_checkin_run(run_id, 'failed', bulk_checkin_status, error_message=error_msg)
             return
         
         bulk_checkin_status['message'] = 'Fetching member list...'
         bulk_checkin_status['status'] = 'fetching'
+        save_bulk_checkin_run(run_id, 'running', bulk_checkin_status)
         
         # Get ALL members from ClubHub (paginate through all pages)
         all_members = []
@@ -2054,7 +2331,6 @@ def perform_bulk_checkin_background():
                 page += 1
                 
                 # Add small delay to prevent overwhelming the API
-                import time
                 time.sleep(0.1)
                 
             except Exception as e:
@@ -2064,13 +2340,16 @@ def perform_bulk_checkin_background():
         logger.info(f"📋 Retrieved {len(all_members)} total members from ClubHub")
         bulk_checkin_status.update({
             'total_members': len(all_members),
-            'message': f'Found {len(all_members)} total members, filtering PPV members...',
+            'message': f'Found {len(all_members)} total members, filtering excluded members...',
             'status': 'filtering'
         })
+        save_bulk_checkin_run(run_id, 'running', bulk_checkin_status)
         
-        # Filter out PPV members - PPV members typically have specific contract types or payment structures
+        # Enhanced member filtering with categorization
         regular_members = []
         ppv_members = []
+        comp_members = []
+        frozen_members = []
         
         for i, member in enumerate(all_members):
             # Update progress for filtering
@@ -2078,45 +2357,62 @@ def perform_bulk_checkin_background():
                 bulk_checkin_status['message'] = f'Filtering members... {i}/{len(all_members)}'
                 bulk_checkin_status['progress'] = int((i / len(all_members)) * 20)  # 20% for filtering
             
-            # Check for PPV indicators
+            # Extract member data for categorization
             contract_types = member.get('contractTypes', [])
             member_status = member.get('status', 0)
             user_type = member.get('userType', 0)
+            status_message = member.get('statusMessage', '').lower()
             
+            # Categorize members
             is_ppv = False
+            is_comp = False
+            is_frozen = False
             
-            # Check contract types (adjust these values based on your system)
+            # PPV Check (Pay Per Visit)
             if contract_types and any(ct in [2, 3, 4] for ct in contract_types):
                 is_ppv = True
-            
-            # Check user type for PPV indicators
-            if user_type in [18, 19, 20]:
+            elif user_type in [18, 19, 20]:
+                is_ppv = True
+            elif member.get('trial', False):
+                is_ppv = True
+            elif any(keyword in status_message for keyword in ['pay per visit', 'ppv', 'day pass', 'guest pass']):
                 is_ppv = True
             
-            # Check if member has 'trial' status or specific PPV indicators
-            if member.get('trial', False):
-                is_ppv = True
+            # Comp Check (Complimentary memberships)
+            if not is_ppv:
+                if any(keyword in status_message for keyword in ['comp', 'complimentary', 'free', 'staff']):
+                    is_comp = True
+                elif user_type in [99, 100]:  # Adjust based on your system's comp user types
+                    is_comp = True
             
-            # Check for specific PPV keywords in status message
-            status_message = member.get('statusMessage', '').lower()
-            if any(keyword in status_message for keyword in ['pay per visit', 'ppv', 'day pass', 'guest pass']):
-                is_ppv = True
+            # Frozen Check (Frozen/Hold memberships)
+            if not is_ppv and not is_comp:
+                if member_status in [2, 3]:  # Common frozen status codes
+                    is_frozen = True
+                elif any(keyword in status_message for keyword in ['frozen', 'hold', 'suspend', 'pause']):
+                    is_frozen = True
             
+            # Categorize member
             if is_ppv:
                 ppv_members.append(member)
+            elif is_comp:
+                comp_members.append(member)
+            elif is_frozen:
+                frozen_members.append(member)
             else:
                 regular_members.append(member)
         
-        logger.info(f"✅ Filtered members: {len(regular_members)} regular members, {len(ppv_members)} PPV members (excluded)")
+        logger.info(f"✅ Member categorization: {len(regular_members)} regular, {len(ppv_members)} PPV, {len(comp_members)} comp, {len(frozen_members)} frozen")
         bulk_checkin_status.update({
             'ppv_excluded': len(ppv_members),
+            'comp_excluded': len(comp_members),
+            'frozen_excluded': len(frozen_members),
             'total_members': len(regular_members),
-            'message': f'Processing {len(regular_members)} regular members (excluded {len(ppv_members)} PPV members)',
+            'message': f'Processing {len(regular_members)} regular members (excluded {len(ppv_members)} PPV, {len(comp_members)} comp, {len(frozen_members)} frozen)',
             'status': 'processing',
             'progress': 25
         })
-        
-        import time
+        save_bulk_checkin_run(run_id, 'running', bulk_checkin_status)
         
         # Process members in smaller batches to prevent crashes
         batch_size = 10  # Process 10 members at a time
@@ -3638,6 +3934,692 @@ def api_refresh_training_clients_clubos():
     result = refresh_training_clients_from_clubos()
     status = 200 if result.get('success') else 500
     return jsonify(result), status
+
+# Dashboard Beta API Endpoints
+
+@app.route('/api/members/list')
+def api_members_list():
+    """Get filtered list of members with pagination"""
+    try:
+        # Get query parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = min(request.args.get('per_page', 50, type=int), 100)
+        search = request.args.get('search', '', type=str)
+        status_filter = request.args.get('status', '', type=str)  # ppv, comp, frozen, active
+        
+        conn = sqlite3.connect(db_manager.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Build query with filters
+        where_conditions = []
+        params = []
+        
+        if search:
+            where_conditions.append('(full_name LIKE ? OR email LIKE ? OR mobile_phone LIKE ?)')
+            search_term = f'%{search}%'
+            params.extend([search_term, search_term, search_term])
+        
+        if status_filter:
+            if status_filter == 'ppv':
+                where_conditions.append('(trial = 1 OR status_message LIKE "%ppv%" OR status_message LIKE "%day pass%")')
+            elif status_filter == 'comp':
+                where_conditions.append('status_message LIKE "%comp%" OR status_message LIKE "%staff%"')
+            elif status_filter == 'frozen':
+                where_conditions.append('(status IN (2, 3) OR status_message LIKE "%frozen%" OR status_message LIKE "%hold%")')
+            elif status_filter == 'active':
+                where_conditions.append('status = 1 AND trial = 0')
+        
+        where_clause = ' AND '.join(where_conditions) if where_conditions else '1=1'
+        
+        # Get total count
+        cursor.execute(f'SELECT COUNT(*) FROM members WHERE {where_clause}', params)
+        total_count = cursor.fetchone()[0]
+        
+        # Get paginated results
+        offset = (page - 1) * per_page
+        cursor.execute(f'''
+            SELECT id, full_name, email, mobile_phone, status, status_message, 
+                   trial, user_type, last_activity_timestamp, created_at
+            FROM members 
+            WHERE {where_clause}
+            ORDER BY full_name
+            LIMIT ? OFFSET ?
+        ''', params + [per_page, offset])
+        
+        members = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'members': members,
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': total_count,
+                'pages': (total_count + per_page - 1) // per_page
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching members list: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/members/<int:member_id>')
+def api_member_details(member_id):
+    """Get full member details with funding, transactions, and messaging history"""
+    try:
+        conn = sqlite3.connect(db_manager.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Get member basic info
+        cursor.execute('SELECT * FROM members WHERE id = ?', (member_id,))
+        member = cursor.fetchone()
+        
+        if not member:
+            return jsonify({
+                'success': False,
+                'error': 'Member not found'
+            }), 404
+        
+        member_data = dict(member)
+        
+        # Get funding status
+        cursor.execute('SELECT * FROM funding_status_cache WHERE member_id = ? ORDER BY last_updated DESC LIMIT 1', (member_id,))
+        funding = cursor.fetchone()
+        member_data['funding_status'] = dict(funding) if funding else None
+        
+        # Get transaction history
+        cursor.execute('''
+            SELECT * FROM member_transactions 
+            WHERE member_id = ? 
+            ORDER BY created_at DESC 
+            LIMIT 50
+        ''', (member_id,))
+        member_data['transactions'] = [dict(row) for row in cursor.fetchall()]
+        
+        # Get message threads
+        cursor.execute('''
+            SELECT * FROM message_threads 
+            WHERE member_id = ? 
+            ORDER BY last_message_at DESC 
+            LIMIT 20
+        ''', (member_id,))
+        threads = [dict(row) for row in cursor.fetchall()]
+        
+        # Get recent messages for each thread
+        for thread in threads:
+            cursor.execute('''
+                SELECT * FROM messages 
+                WHERE thread_id = ? 
+                ORDER BY created_at DESC 
+                LIMIT 10
+            ''', (thread['id'],))
+            thread['recent_messages'] = [dict(row) for row in cursor.fetchall()]
+        
+        member_data['message_threads'] = threads
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'member': member_data
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching member details: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/training/clients')
+def api_training_clients():
+    """Get training clients list with agreement data"""
+    try:
+        # Use existing ClubOS training API to get authoritative list
+        assignees = clubos_training_api.fetch_assignees()
+        
+        if not assignees:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to fetch training clients from ClubOS'
+            }), 500
+        
+        # Enhance with agreement data
+        enhanced_clients = []
+        
+        for client in assignees:
+            client_data = dict(client)
+            
+            # Get agreements summary for this client
+            try:
+                member_id = client.get('member_id') or client.get('clubos_member_id')
+                if member_id:
+                    # Get payment status and agreements
+                    payment_status = clubos_training_api.get_member_payment_status(member_id)
+                    client_data['payment_status'] = payment_status
+                    
+                    # Get cached funding data
+                    conn = sqlite3.connect(db_manager.db_path)
+                    conn.row_factory = sqlite3.Row
+                    cursor = conn.cursor()
+                    cursor.execute('SELECT * FROM funding_status_cache WHERE clubos_member_id = ? ORDER BY last_updated DESC LIMIT 1', (member_id,))
+                    funding = cursor.fetchone()
+                    client_data['funding_cache'] = dict(funding) if funding else None
+                    conn.close()
+                
+            except Exception as e:
+                logger.warning(f"Could not get agreement data for client {client.get('member_name', 'Unknown')}: {e}")
+                client_data['payment_status'] = 'Unknown'
+                client_data['funding_cache'] = None
+            
+            enhanced_clients.append(client_data)
+        
+        return jsonify({
+            'success': True,
+            'clients': enhanced_clients
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching training clients: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/invoices/create', methods=['POST'])
+def api_create_invoice():
+    """Create single Square invoice for a member"""
+    try:
+        data = request.get_json()
+        member_id = data.get('member_id')
+        amount = data.get('amount')
+        description = data.get('description', 'Training Package Payment')
+        
+        if not member_id or not amount:
+            return jsonify({
+                'success': False,
+                'error': 'member_id and amount are required'
+            }), 400
+        
+        # Get member details
+        conn = sqlite3.connect(db_manager.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM members WHERE id = ?', (member_id,))
+        member = cursor.fetchone()
+        
+        if not member:
+            return jsonify({
+                'success': False,
+                'error': 'Member not found'
+            }), 404
+        
+        # Import Square client
+        from services.payments.square_client_simple import create_square_invoice
+        
+        # Create invoice
+        result = create_square_invoice(
+            member_name=member['full_name'],
+            member_email=member['email'],
+            amount=float(amount),
+            description=description
+        )
+        
+        if result and result.get('success'):
+            # Log transaction
+            cursor.execute('''
+                INSERT INTO member_transactions 
+                (member_id, clubos_member_id, member_name, type, amount, invoice_id, 
+                 status, description, payment_method, square_data, meta_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                member_id,
+                member.get('clubos_member_id'),
+                member['full_name'],
+                'invoice',
+                amount,
+                result.get('invoice_id'),
+                'sent',
+                description,
+                'square',
+                json.dumps(result.get('square_data', {})),
+                json.dumps({'created_via': 'dashboard_api'})
+            ))
+            conn.commit()
+        
+        conn.close()
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"❌ Error creating invoice: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/invoices/batch', methods=['POST'])
+def api_create_batch_invoices():
+    """Create batch Square invoices for multiple members/clients"""
+    try:
+        data = request.get_json()
+        target_type = data.get('type', 'members')  # 'members' or 'training_clients'
+        filter_criteria = data.get('filter', 'past_due')  # 'past_due', 'all'
+        
+        # Import Square client
+        from services.payments.square_client_simple import create_square_invoice
+        
+        results = []
+        
+        if target_type == 'training_clients':
+            # Get training clients with past due status
+            clients = clubos_training_api.fetch_assignees()
+            for client in clients:
+                try:
+                    member_id = client.get('member_id') or client.get('clubos_member_id')
+                    if member_id:
+                        payment_status = clubos_training_api.get_member_payment_status(member_id)
+                        if filter_criteria == 'all' or (filter_criteria == 'past_due' and payment_status == 'Past Due'):
+                            # Create invoice for this client
+                            result = create_square_invoice(
+                                member_name=client.get('member_name', 'Unknown'),
+                                member_email=client.get('email', ''),
+                                amount=50.0,  # Default amount - should be configurable
+                                description='Training Package Payment - Past Due'
+                            )
+                            results.append({
+                                'member_name': client.get('member_name'),
+                                'result': result
+                            })
+                except Exception as e:
+                    logger.error(f"Error creating invoice for training client {client.get('member_name')}: {e}")
+                    results.append({
+                        'member_name': client.get('member_name'),
+                        'result': {'success': False, 'error': str(e)}
+                    })
+        
+        else:
+            # Handle members batch invoicing
+            return jsonify({
+                'success': False,
+                'error': 'Members batch invoicing not yet implemented'
+            }), 501
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'summary': {
+                'total_processed': len(results),
+                'successful': len([r for r in results if r['result'].get('success')]),
+                'failed': len([r for r in results if not r['result'].get('success')])
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error creating batch invoices: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/messaging/inbox/recent')
+def api_messaging_inbox():
+    """Get recent messaging inbox with aggregated threads"""
+    try:
+        conn = sqlite3.connect(db_manager.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Get recent message threads
+        cursor.execute('''
+            SELECT mt.*, m.full_name as member_full_name, m.email as member_email
+            FROM message_threads mt
+            LEFT JOIN members m ON mt.member_id = m.id
+            ORDER BY mt.last_message_at DESC
+            LIMIT 50
+        ''')
+        
+        threads = []
+        for row in cursor.fetchall():
+            thread_data = dict(row)
+            
+            # Get latest message for preview
+            cursor.execute('''
+                SELECT * FROM messages 
+                WHERE thread_id = ? 
+                ORDER BY created_at DESC 
+                LIMIT 1
+            ''', (thread_data['id'],))
+            
+            latest_message = cursor.fetchone()
+            thread_data['latest_message'] = dict(latest_message) if latest_message else None
+            
+            threads.append(thread_data)
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'threads': threads
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching messaging inbox: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/messaging/thread')
+def api_messaging_thread():
+    """Get full messaging thread history for a member"""
+    try:
+        member_id = request.args.get('memberId', type=int)
+        
+        if not member_id:
+            return jsonify({
+                'success': False,
+                'error': 'memberId parameter required'
+            }), 400
+        
+        conn = sqlite3.connect(db_manager.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Get all threads for this member
+        cursor.execute('''
+            SELECT * FROM message_threads 
+            WHERE member_id = ? 
+            ORDER BY created_at DESC
+        ''', (member_id,))
+        
+        threads = []
+        for thread_row in cursor.fetchall():
+            thread_data = dict(thread_row)
+            
+            # Get all messages for this thread
+            cursor.execute('''
+                SELECT * FROM messages 
+                WHERE thread_id = ? 
+                ORDER BY created_at ASC
+            ''', (thread_data['id'],))
+            
+            thread_data['messages'] = [dict(row) for row in cursor.fetchall()]
+            threads.append(thread_data)
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'threads': threads
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching messaging thread: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/daily-report')
+def api_daily_report():
+    """Get daily report with aggregated metrics"""
+    try:
+        report_date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+        
+        conn = sqlite3.connect(db_manager.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Get or create daily report
+        cursor.execute('SELECT * FROM daily_reports WHERE report_date = ?', (report_date,))
+        report = cursor.fetchone()
+        
+        if not report:
+            # Generate report for the requested date
+            report_data = generate_daily_report(report_date)
+            cursor.execute('''
+                INSERT INTO daily_reports 
+                (report_date, bulk_checkins_count, campaigns_sent, replies_received,
+                 invoices_created, invoices_paid, appointments_completed, 
+                 appointments_rescheduled, new_members, member_visits, revenue_collected, data_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                report_date,
+                report_data.get('bulk_checkins_count', 0),
+                report_data.get('campaigns_sent', 0),
+                report_data.get('replies_received', 0),
+                report_data.get('invoices_created', 0),
+                report_data.get('invoices_paid', 0),
+                report_data.get('appointments_completed', 0),
+                report_data.get('appointments_rescheduled', 0),
+                report_data.get('new_members', 0),
+                report_data.get('member_visits', 0),
+                report_data.get('revenue_collected', 0.0),
+                json.dumps(report_data)
+            ))
+            conn.commit()
+            
+            # Fetch the newly created report
+            cursor.execute('SELECT * FROM daily_reports WHERE report_date = ?', (report_date,))
+            report = cursor.fetchone()
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'report': dict(report) if report else None
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching daily report: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# Calendar Two-Way API Endpoints
+
+@app.route('/api/calendar/events')
+def api_calendar_events():
+    """Get calendar events using iCal parser"""
+    try:
+        from ical_calendar_parser import iCalClubOSParser
+        
+        start_date = request.args.get('start', datetime.now().strftime('%Y-%m-%d'))
+        end_date = request.args.get('end', (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d'))
+        
+        # Use existing iCal parser
+        parser = iCalClubOSParser()
+        events = parser.get_events_for_date_range(start_date, end_date)
+        
+        return jsonify({
+            'success': True,
+            'events': events
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error fetching calendar events: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/calendar/events', methods=['POST'])
+def api_calendar_create_event():
+    """Create new calendar event via ClubOS API"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['title', 'start_time', 'end_time']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({
+                    'success': False,
+                    'error': f'Missing required field: {field}'
+                }), 400
+        
+        # Use ClubOS real calendar API
+        calendar_api = ClubOSRealCalendarAPI()
+        
+        # Create event
+        result = calendar_api.create_event(
+            title=data['title'],
+            start_time=data['start_time'],
+            end_time=data['end_time'],
+            description=data.get('description', ''),
+            trainer_id=data.get('trainer_id'),
+            client_id=data.get('client_id'),
+            service_id=data.get('service_id')
+        )
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"❌ Error creating calendar event: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/calendar/events/<int:event_id>', methods=['PUT'])
+def api_calendar_update_event(event_id):
+    """Update existing calendar event"""
+    try:
+        data = request.get_json()
+        
+        # Use ClubOS real calendar API
+        calendar_api = ClubOSRealCalendarAPI()
+        
+        # Update event
+        result = calendar_api.update_event(
+            event_id=event_id,
+            title=data.get('title'),
+            start_time=data.get('start_time'),
+            end_time=data.get('end_time'),
+            description=data.get('description'),
+            trainer_id=data.get('trainer_id'),
+            client_id=data.get('client_id')
+        )
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"❌ Error updating calendar event: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/calendar/events/<int:event_id>', methods=['DELETE'])
+def api_calendar_delete_event(event_id):
+    """Delete calendar event with confirmation requirement"""
+    try:
+        data = request.get_json() or {}
+        confirmed = data.get('confirmed', False)
+        
+        if not confirmed:
+            return jsonify({
+                'success': False,
+                'error': 'Deletion requires confirmed: true',
+                'requires_confirmation': True
+            }), 400
+        
+        # Use gym_bot_clean ClubOSEventDeletion
+        event_deletion = ClubOSEventDeletion()
+        
+        # Delete event
+        result = event_deletion.delete_event(event_id)
+        
+        # Log the deletion
+        logger.info(f"📅 Calendar event deleted: {event_id} (confirmed deletion)")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Event {event_id} deleted successfully',
+            'deletion_result': result
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error deleting calendar event: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+def generate_daily_report(report_date: str) -> dict:
+    """Generate daily report metrics for a specific date"""
+    try:
+        conn = sqlite3.connect(db_manager.db_path)
+        cursor = conn.cursor()
+        
+        # Count bulk check-in runs for the date
+        cursor.execute('''
+            SELECT COUNT(*) FROM bulk_checkin_runs 
+            WHERE DATE(started_at) = ?
+        ''', (report_date,))
+        bulk_checkins = cursor.fetchone()[0]
+        
+        # Count transactions/invoices created on the date
+        cursor.execute('''
+            SELECT COUNT(*) FROM member_transactions 
+            WHERE type = 'invoice' AND DATE(created_at) = ?
+        ''', (report_date,))
+        invoices_created = cursor.fetchone()[0]
+        
+        # Count paid invoices
+        cursor.execute('''
+            SELECT COUNT(*) FROM member_transactions 
+            WHERE type = 'invoice' AND status = 'paid' AND DATE(updated_at) = ?
+        ''', (report_date,))
+        invoices_paid = cursor.fetchone()[0]
+        
+        # Calculate revenue collected
+        cursor.execute('''
+            SELECT COALESCE(SUM(amount), 0) FROM member_transactions 
+            WHERE type = 'invoice' AND status = 'paid' AND DATE(updated_at) = ?
+        ''', (report_date,))
+        revenue_collected = cursor.fetchone()[0]
+        
+        # Count new members (if we track join dates)
+        cursor.execute('''
+            SELECT COUNT(*) FROM members 
+            WHERE DATE(created_at) = ?
+        ''', (report_date,))
+        new_members = cursor.fetchone()[0]
+        
+        # Count messages received
+        cursor.execute('''
+            SELECT COUNT(*) FROM messages 
+            WHERE direction = 'inbound' AND DATE(created_at) = ?
+        ''', (report_date,))
+        replies_received = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return {
+            'bulk_checkins_count': bulk_checkins,
+            'campaigns_sent': 0,  # Placeholder - implement based on actual campaign system
+            'replies_received': replies_received,
+            'invoices_created': invoices_created,
+            'invoices_paid': invoices_paid,
+            'appointments_completed': 0,  # Placeholder - implement based on calendar system
+            'appointments_rescheduled': 0,  # Placeholder
+            'new_members': new_members,
+            'member_visits': 0,  # Placeholder - would need check-in data
+            'revenue_collected': float(revenue_collected)
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error generating daily report: {e}")
+        return {}
 
 @app.route('/calendar')
 def calendar_page():
