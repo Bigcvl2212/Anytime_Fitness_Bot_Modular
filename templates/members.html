@@ -33,53 +33,8 @@
     }
     
     .member-card:hover {
-        transform:         html += `
-            <div class="col-md-6 col-lg-        // Generate a proper full name
-        let displayName = 'Unknown Name';
-        if (member.full_name && member.full_name.trim() !== '') {
-            displayName = member.full_name;
-        } else if (member.first_name || member.last_name) {
-            displayName = `${member.first_name || ''} ${member.last_name || ''}`.trim();
-        } else if (member.email && member.email.includes('@')) {
-            // Try to extract a name from email
-            const emailName = member.email.split('@')[0];
-            const cleanedName = emailName.replace(/[^a-zA-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
-            if (cleanedName) {
-                displayName = cleanedName.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
-                displayName += ' (from email)';
-            }
-        }
-        
-        html += `
-            <div class="col-md-6 col-lg-4 mb-4">
-                <div class="card ${cardClass}" style="cursor: pointer;" onclick="openMemberProfile(${member.id}, '${displayName.replace(/'/g, "\\'")}', '${member.email ? member.email.replace(/'/g, "\\'") : ''}')">
-                    <div class="card-body">
-                        <h6 class="card-title">${displayName}</h6>
-                        <p class="card-text">
-                            <small class="text-muted">${member.email || 'No email'}</small><br>
-                            <span class="badge ${badgeClass}">${member.status_text}</span>
-                        </p>
-                        ${member.mobile_phone ? `<small class="text-muted">📞 ${member.mobile_phone}</small>` : ''}
-                    </div>
-                </div>
-            </div>
-        `;            <div class="card ${cardClass}" style="cursor: pointer;" onclick="openMemberProfile(${member.id}, '${member.full_name ? member.full_name.replace(/'/g, "\\'") : ''}', '${member.email ? member.email.replace(/'/g, "\\'") : ''}')">
-                    <div class="card-body">
-                        <h6 class="card-title">
-                            ${member.full_name || (member.first_name && member.last_name ? 
-                              `${member.first_name} ${member.last_name}` : 
-                              (member.first_name || member.last_name || 'Unknown Name'))}
-                        </h6>
-                        <p class="card-text">
-                            <small class="text-muted">${member.email || 'No email'}</small><br>
-                            <span class="badge ${badgeClass}">${member.status_text}</span>
-                        </p>
-                        ${member.mobile_phone ? `<small class="text-muted">📞 ${member.mobile_phone}</small>` : ''}
-                    </div>
-                </div>
-            </div>
-        `;x);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transform: translateY(-3px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
     
     .stats-card {
@@ -254,7 +209,7 @@
                             <input type="text" class="form-control search-input" placeholder="Search members by name, email, or phone..." id="memberSearch">
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-2">
                         <select class="form-select search-input" id="statusFilter">
                             <option value="">All Status</option>
                             <option value="active">Active</option>
@@ -263,65 +218,20 @@
                             <option value="frozen">Frozen</option>
                         </select>
                     </div>
+                    <div class="col-md-2 mt-3 mt-md-0">
+                        <select class="form-select search-input" id="priorityFilter">
+                            <option value="">All Outlook</option>
+                            <option value="red">Past Due (Red)</option>
+                            <option value="yellow">Due Soon (Yellow)</option>
+                            <option value="ppv">PPV</option>
+                            <option value="none">Active/Other</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
             <!-- Members Grid -->
-            <div class="row" id="membersContainer">
-                {% for member in members %}
-                <div class="col-xl-3 col-lg-4 col-md-6 mb-4 member-item" 
-                     data-name="{{ member.full_name|default(member.firstName ~ ' ' ~ member.lastName, true)|lower }}" 
-                     data-email="{{ member.email|default(member.Email, true)|lower }}" 
-                     data-status="{{ member.status|default(member.Status, true)|lower }}">
-                    <div class="card member-card h-100" onclick="openMemberProfile({{ member.id|default(member.prospectId, true) }}, '{{ member.full_name|default(member.firstName ~ ' ' ~ member.lastName, true) }}', '{{ member.email|default(member.Email, true) }}')">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h6 class="card-title mb-0">
-                                {% if member.full_name %}
-                                    {{ member.full_name }}
-                                {% elif member.firstName is defined and member.lastName is defined %}
-                                    {{ member.firstName }} {{ member.lastName }}
-                                {% elif member.first_name is defined and member.last_name is defined %}
-                                    {{ member.first_name }} {{ member.last_name }}
-                                {% elif member.firstName is defined %}
-                                    {{ member.firstName }}
-                                {% elif member.first_name is defined %}
-                                    {{ member.first_name }}
-                                {% elif member.lastName is defined %}
-                                    {{ member.lastName }}
-                                {% elif member.last_name is defined %}
-                                    {{ member.last_name }}
-                                {% else %}
-                                    Unknown Name
-                                {% endif %}
-                                </h6>
-                                <span class="badge bg-primary">{{ member.status|default(member.Status, true) or 'Active' }}</span>
-                            </div>
-                            <p class="card-text text-muted small mb-2">
-                                <i class="fas fa-envelope me-1"></i>{{ member.email|default(member.Email, true) or 'No email' }}
-                            </p>
-                            {% if member.mobile_phone or member.mobilePhone %}
-                            <p class="card-text text-muted small mb-2">
-                                <i class="fas fa-phone me-1"></i>{{ member.mobile_phone|default(member.mobilePhone, true) }}
-                            </p>
-                            {% endif %}
-                            <div class="d-flex justify-content-between align-items-end">
-                                <small class="text-muted">
-                                    ID: {{ member.id|default(member.prospectId, true) }}
-                                </small>
-                                <small class="text-muted">
-                                    {% if member.membership_start or member.membershipStart %}
-                                        Since: {{ (member.membership_start|default(member.membershipStart, true))[:10] }}
-                                    {% elif member.created_at %}
-                                        Since: {{ member.created_at[:10] }}
-                                    {% endif %}
-                                </small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
+            <div class="row" id="membersContainer"></div>
 
             {% if not members %}
             <div class="empty-state">
@@ -1470,16 +1380,21 @@ async function loadAllMembers(page = 1, search = '', statusFilter = '') {
                     }
                 }
                 
+                const priority = member.priority_status || '';
+                const badgeClass = member.payment_status_class || (priority === 'red' ? 'danger' : priority === 'yellow' ? 'warning' : (priority === 'ppv' ? 'info' : 'primary'));
+                const statusText = member.status_text || member.status || 'Active';
+
                 html += `
                     <div class="col-xl-3 col-lg-4 col-md-6 mb-4 member-item" 
                          data-name="${(displayName || '').toLowerCase()}" 
                          data-email="${(member.email || '').toLowerCase()}" 
-                         data-status="${(member.status || '').toLowerCase()}">
+                         data-status="${(member.status || '').toLowerCase()}"
+                         data-priority="${priority}">
                         <div class="card member-card h-100" onclick="openMemberProfile(${member.id}, '${displayName}', '${member.email || ''}')">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
                                     <h6 class="card-title mb-0">${displayName}</h6>
-                                    <span class="badge bg-${member.payment_status_class || 'primary'}">${member.status || 'Active'}</span>
+                                    <span class="badge bg-${badgeClass}">${statusText}</span>
                                 </div>
                                 <p class="card-text text-muted small mb-2">
                                     <i class="fas fa-envelope me-1"></i>${member.email || 'No email'}
@@ -1542,6 +1457,7 @@ async function loadAllMembers(page = 1, search = '', statusFilter = '') {
 // Function to update status filter options
 function updateStatusFilterOptions(statuses) {
     const statusFilter = document.getElementById('statusFilter');
+    const priorityFilter = document.getElementById('priorityFilter');
     if (statusFilter && statuses.length > 0) {
         const currentValue = statusFilter.value;
         statusFilter.innerHTML = '<option value="">All Status</option>';
@@ -1573,17 +1489,19 @@ document.addEventListener('DOMContentLoaded', function() {
     function filterMembers() {
         const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
         const statusTerm = statusFilter ? statusFilter.value.toLowerCase() : '';
-        const memberItems = document.querySelectorAll('.member-item');
+    const memberItems = document.querySelectorAll('.member-item');
         
         memberItems.forEach(item => {
             const name = item.dataset.name || '';
             const email = item.dataset.email || '';
             const status = item.dataset.status || '';
+            const priority = item.dataset.priority || '';
             
             const matchesSearch = name.includes(searchTerm) || email.includes(searchTerm);
             const matchesStatus = !statusTerm || status.includes(statusTerm);
+            const matchesPriority = !(priorityFilter && priorityFilter.value) || (priority === (priorityFilter.value || '')) || (priorityFilter.value === 'none' && (!priority || priority === ''));
             
-            if (matchesSearch && matchesStatus) {
+            if (matchesSearch && matchesStatus && matchesPriority) {
                 item.style.display = 'block';
             } else {
                 item.style.display = 'none';
@@ -1597,6 +1515,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (statusFilter) {
         statusFilter.addEventListener('change', filterMembers);
+    }
+    if (priorityFilter) {
+        priorityFilter.addEventListener('change', filterMembers);
     }
 
     // Tab switching functionality

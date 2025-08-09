@@ -17,16 +17,12 @@ import logging
 import json
 import sys
 import requests
-import time
-from bs4 import BeautifulSoup
-
-# Import our working ClubOS API
+from clubos_fresh_data_api import ClubOSFreshDataAPI
 from clubos_training_api import ClubOSTrainingPackageAPI
 from clubos_training_clients_api import ClubOSTrainingClientsAPI
 from clubos_real_calendar_api import ClubOSRealCalendarAPI
 from ical_calendar_parser import iCalClubOSParser
 from gym_bot_clean import ClubOSEventDeletion
-from clubos_fresh_data_api import ClubOSFreshDataAPI
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -106,61 +102,29 @@ clubos_fresh_data_api = ClubOSFreshDataAPI()
 class TrainingPackageCache:
     """Enhanced cache for training package data with database storage and daily updates"""
     
-    def __init__(self):
-        self.cache_expiry_hours = 24  # Cache expires after 24 hours
-        self.api = ClubOSTrainingPackageAPI()
+    def __init__(self, cache_expiry_hours: int = 24):
+        # Default cache expiry to 24 hours for background refreshes
+        self.cache_expiry_hours = cache_expiry_hours
+        # Use the globally initialized ClubOS training API client
+        self.api = clubos_training_api
         
-    def lookup_participant_funding(self, participant_name: str, participant_email: str = None, force_live: bool = True) -> dict:
-        """Look up funding status - with option to force live data instead of cache"""
+    def lookup_participant_funding(self, participant_name: str, participant_email: str = None, participant_phone: str = None) -> dict:
+        """Look up funding status - LIVE ONLY (no cache fallback for card display)."""
         try:
-            logger.info(f"🔍 Looking up funding for: {participant_name} (force_live={force_live})")
-            
-            if force_live:
-                # Force live data fetch, bypass cache completely
-                logger.info(f"🔴 FORCING LIVE DATA for {participant_name} - bypassing cache")
-                member_id = self._get_member_id_from_database(participant_name, participant_email)
-                if not member_id:
-                    # Live resolve from ClubOS PT dashboard (no CSV dependency)
-                    logger.info(f"🧭 Resolving ClubOS ID live for {participant_name}")
-                    member_id = self._resolve_member_id_live(participant_name, participant_email)
-                if member_id:
-                    logger.info(f"📡 Fetching LIVE funding data for member ID: {member_id}")
-                    fresh_data = self._fetch_fresh_funding_data(member_id, participant_name)
-                    if fresh_data:
-                        # Still cache the fresh data for future reference
-                        self._cache_funding_data(fresh_data)
-                        # Mark as fresh (not cached)
-                        resp = self._format_funding_response(fresh_data, is_stale=False)
-                        if resp:
-                            resp['is_cached'] = False
-                        return resp
-                else:
-                    logger.warning(f"❌ No member ID found for {participant_name}")
-                    return None
-            else:
-                # Original logic - check cache first, then fetch fresh
-                cached_data = self._get_cached_funding(participant_name)
-                if cached_data and not self._is_cache_stale(cached_data):
-                    logger.info(f"✅ Using cached funding data for {participant_name}")
-                    return self._format_funding_response(cached_data)
-                
-                # If no fresh cache, get member ID and try to fetch fresh data
-                member_id = self._get_member_id_from_database(participant_name, participant_email)
-                if member_id:
-                    logger.info(f"📦 Fetching fresh funding data for member ID: {member_id}")
-                    fresh_data = self._fetch_fresh_funding_data(member_id, participant_name)
-                    if fresh_data:
-                        # Cache the fresh data
-                        self._cache_funding_data(fresh_data)
-                        return self._format_funding_response(fresh_data)
-                
-                # If we have stale cached data, use it as fallback
-                if cached_data:
-                    logger.info(f"⚠️ Using stale cached data for {participant_name}")
-                    return self._format_funding_response(cached_data, is_stale=True)
+            logger.info(f"🔍 Looking up funding for: {participant_name}")
+
+            # LIVE lookup only for the most accurate status
+            member_id = self._get_member_id_from_database(participant_name, participant_email, participant_phone)
+            if member_id:
+                logger.info(f"📦 Fetching fresh funding data for member ID: {member_id}")
+                fresh_data = self._fetch_fresh_funding_data(member_id, participant_name)
+                if fresh_data:
+                    # Cache the fresh data then return
+                    self._cache_funding_data(fresh_data)
+                    return self._format_funding_response(fresh_data, is_stale=False, is_cached=False)
             
             # No data available
-            logger.warning(f"❌ No funding data available for {participant_name}")
+            logger.warning(f"❌ No LIVE funding data available for {participant_name}")
             return None
             
         except Exception as e:
@@ -366,7 +330,7 @@ class TrainingPackageCache:
         except Exception as e:
             logger.error(f"❌ Error caching funding data: {e}")
     
-    def _format_funding_response(self, cached_data: dict, is_stale: bool = False) -> dict:
+    def _format_funding_response(self, cached_data: dict, is_stale: bool = False, is_cached: bool = True) -> dict:
         """Format cached data for API response"""
         try:
             response = {
@@ -377,7 +341,7 @@ class TrainingPackageCache:
                 'sessions_remaining': cached_data.get('sessions_remaining', 0),
                 'package_name': cached_data.get('package_name'),
                 'last_updated': cached_data.get('last_updated'),
-                'is_cached': True,
+                'is_cached': is_cached,
                 'is_stale': is_stale
             }
             
@@ -445,7 +409,7 @@ class TrainingPackageCache:
             logger.error(f"❌ Error in daily funding refresh: {e}")
             return {'success': False, 'error': str(e)}
     
-    def _get_member_id_from_database(self, participant_name: str, participant_email: str = None) -> str:
+    def _get_member_id_from_database(self, participant_name: str, participant_email: str = None, participant_phone: str = None) -> str:
         """Get member ID from local database - now using real database with imported data"""
         try:
             conn = sqlite3.connect(db_manager.db_path)
@@ -463,21 +427,145 @@ class TrainingPackageCache:
                 conn.close()
                 logger.info(f"✅ Found ClubOS ID in training clients: {result[0]} for {participant_name}")
                 return str(result[0])
-            # Optional: check if profile_url exists and contains memberId
-            cursor.execute("""
-                SELECT profile_url FROM training_clients 
-                WHERE LOWER(member_name) LIKE LOWER(?)
+            
+
+            # Assignees fast-path: use ClubOS Assignees page as the authoritative list we can modify
+            try:
+                idx = self.api.get_assignee_index(force_refresh=False)
+                if idx:
+                    if participant_email and participant_email.lower() in idx.get('by_email', {}):
+                        clubos_id = idx['by_email'][participant_email.lower()]
+                        conn.close()
+                        logger.info(f"✅ Found ClubOS ID via Assignees (email): {clubos_id} for {participant_name}")
+                        return str(clubos_id)
+                    # Phone-based lookup via Assignees index
+                    if participant_phone:
+                        try:
+                            norm_ph = self.api._normalize_phone(participant_phone)
+                        except Exception:
+                            norm_ph = None
+                        if norm_ph and norm_ph in idx.get('by_phone', {}):
+                            clubos_id = idx['by_phone'][norm_ph]
+                            conn.close()
+                            logger.info(f"✅ Found ClubOS ID via Assignees (phone): {clubos_id} for {participant_name}")
+                            return str(clubos_id)
+                    # Name-based fallback using normalized name
+                    norm = self.api._normalize_name(participant_name)
+                    if norm and norm in idx.get('by_name', {}):
+                        clubos_id = idx['by_name'][norm]
+                        conn.close()
+                        logger.info(f"✅ Found ClubOS ID via Assignees (name): {clubos_id} for {participant_name}")
+                        return str(clubos_id)
+            except Exception as e:
+                logger.debug(f"Assignees index lookup skipped/failed: {e}")
+                idx = None
+            # If not found via initial Assignees cache, try a forced refresh and retry matches once
+            if not result or not (result and result[0]):
+                try:
+                    if not idx:
+                        idx = self.api.get_assignee_index(force_refresh=True)
+                    if idx:
+                        if participant_email and participant_email.lower() in idx.get('by_email', {}):
+                            clubos_id = idx['by_email'][participant_email.lower()]
+                            conn.close()
+                            logger.info(f"✅ Found ClubOS ID via Assignees REFRESH (email): {clubos_id} for {participant_name}")
+                            return str(clubos_id)
+                        if participant_phone:
+                            try:
+                                norm_ph = self.api._normalize_phone(participant_phone)
+                            except Exception:
+                                norm_ph = None
+                            if norm_ph and norm_ph in idx.get('by_phone', {}):
+                                clubos_id = idx['by_phone'][norm_ph]
+                                conn.close()
+                                logger.info(f"✅ Found ClubOS ID via Assignees REFRESH (phone): {clubos_id} for {participant_name}")
+                                return str(clubos_id)
+                        norm = self.api._normalize_name(participant_name)
+                        if norm and norm in idx.get('by_name', {}):
+                            clubos_id = idx['by_name'][norm]
+                            conn.close()
+                            logger.info(f"✅ Found ClubOS ID via Assignees REFRESH (name): {clubos_id} for {participant_name}")
+                            return str(clubos_id)
+                except Exception as e:
+                    logger.debug(f"Forced Assignees refresh failed: {e}")
+            
+            # Fallback to members table (ClubHub IDs) — do NOT treat as ClubOS IDs
+            search_conditions = ["LOWER(first_name) LIKE LOWER(?) OR LOWER(last_name) LIKE LOWER(?) OR LOWER(full_name) LIKE LOWER(?)"]
+            params = [f"%{participant_name}%", f"%{participant_name}%", f"%{participant_name}%"]
+            
+            if participant_email:
+                search_conditions.append("LOWER(email) = LOWER(?)")
+                params.append(participant_email)
+            # Add phone search as a hint to derive email/name for live lookup
+            phone_digits = None
+            if participant_phone:
+                try:
+                    phone_digits = self.api._normalize_phone(participant_phone)
+                except Exception:
+                    phone_digits = None
+            
+            query = f"""
+                SELECT id FROM members 
+                WHERE {' OR '.join(search_conditions)}
                 LIMIT 1
-            """, (f"%{participant_name.strip()}%",))
-            prof = cursor.fetchone()
-            if prof and prof[0]:
-                m = re.search(r"memberId=(\d+)", prof[0])
-                if m:
-                    conn.close()
-                    return m.group(1)
+            """
+            
+            cursor.execute(query, params)
+            result = cursor.fetchone()
+            # If no direct name/email match and we have a phone, try to locate a member row by phone to obtain a better email/name for live lookup
+            candidate_email = participant_email
+            candidate_name = participant_name
+            if (not result or not result[0]) and phone_digits:
+                try:
+                    cursor.execute(
+                        """
+                        SELECT id, full_name, email, mobile_phone, home_phone, work_phone
+                        FROM members
+                        WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(mobile_phone,''), '-', ''), '(', ''), ')', ''), ' ', '') LIKE ?
+                           OR REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(home_phone,''), '-', ''), '(', ''), ')', ''), ' ', '') LIKE ?
+                           OR REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(work_phone,''), '-', ''), '(', ''), ')', ''), ' ', '') LIKE ?
+                        LIMIT 1
+                        """,
+                        [f"%{phone_digits}%", f"%{phone_digits}%", f"%{phone_digits}%"]
+                    )
+                    phone_row = cursor.fetchone()
+                    if phone_row:
+                        candidate_name = phone_row[1] or candidate_name
+                        candidate_email = (phone_row[2] or candidate_email)
+                        logger.info(f"ℹ️ Found member by phone for {participant_name}; using name/email for live ClubOS search")
+                except Exception as e:
+                    logger.debug(f"Phone-based members lookup failed: {e}")
 
             conn.close()
-            logger.warning(f"❌ No ClubOS member ID found locally for: {participant_name}")
+            
+            if result and result[0]:
+                logger.info(f"ℹ️ Members table has local ID {result[0]} for {participant_name} (ClubHub ID) — performing live ClubOS lookup...")
+            else:
+                logger.warning(f"❌ No local match for {participant_name} — performing live ClubOS lookup...")
+
+            # Live lookup via ClubOS search endpoints (Charles-captured)
+            try:
+                # Prefer the best candidate email/name we have at this point; try a couple of attempts
+                live_member_id = None
+                attempts = [
+                    (candidate_name, candidate_email),
+                    (participant_name, participant_email),
+                    (participant_name, None)
+                ]
+                for nm, em in attempts:
+                    if nm:
+                        try:
+                            mid = self.api.search_member_id(nm, em, participant_phone)
+                            if mid:
+                                live_member_id = mid
+                                break
+                        except Exception:
+                            continue
+                if live_member_id:
+                    logger.info(f"🌐 Live lookup found ClubOS ID {live_member_id} for {participant_name}")
+                    return str(live_member_id)
+            except Exception as e:
+                logger.warning(f"⚠️ Live member lookup failed for {participant_name}: {e}")
             return None
             
         except Exception as e:
@@ -1738,40 +1826,94 @@ def dashboard():
                          clubos_connected=clubos.authenticated,
                          sync_time=sync_time)
 
+@app.route('/api/clubos/status')
+def api_clubos_status():
+    """Diagnostic: report ClubOS auth/session status without exposing secrets."""
+    try:
+        # Ensure we have a client instance
+        api = clubos_training_api
+        # Attempt to ensure session is alive but do not force credentials into response
+        try:
+            alive = api._ensure_session_alive() if hasattr(api, '_ensure_session_alive') else api.authenticate()
+        except Exception:
+            alive = False
+        # Try to get assignees count
+        assignees_count = None
+        try:
+            idx = api.get_assignee_index(force_refresh=False)
+            assignees_count = sum(len(v) for v in (idx or {}).values()) if idx else 0
+        except Exception:
+            assignees_count = 0
+        return jsonify({
+            'success': True,
+            'authenticated': bool(getattr(api, 'authenticated', False)),
+            'session_alive': bool(alive),
+            'has_access_token': bool(getattr(api, 'access_token', None)),
+            'assignees_index_size': assignees_count
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/check-funding', methods=['POST'])
 def check_funding():
-    """API endpoint to check LIVE funding status for participants (no cache)"""
+    """API endpoint to check real funding status for participants"""
     try:
-        data = request.get_json()
-        participant_name = data.get('participant', '')
+        data = request.get_json() if request.is_json else {}
+        participant_name = (data.get('participant') or data.get('participant_name') or '').strip()
+        # Optional email for improved matching
+        participant_email = (data.get('participant_email') or data.get('email') or '').strip() or None
+        # Optional phone for improved matching
+        participant_phone = (data.get('participant_phone') or data.get('phone') or '').strip() or None
         time = data.get('time', '')
-        
-        logger.info(f"� LIVE FUNDING API request for: {participant_name}")
-        
-        # Force live data fetch, bypass cache completely for dashboard cards
-        funding_data = training_package_cache.lookup_participant_funding(participant_name, force_live=True)
-        
+
+        logger.info(f"🔍 API request to check funding for: {participant_name}")
+
+        # Use the training package cache to get real funding data
+        funding_data = training_package_cache.lookup_participant_funding(
+            participant_name, participant_email, participant_phone
+        )
+
         if funding_data:
-            logger.info(f"✅ LIVE API returning funding data for {participant_name}: {funding_data}")
+            logger.info(f"✅ API returning funding data for {participant_name}: {funding_data}")
+            return jsonify({'success': True, 'funding': funding_data})
+        else:
+            logger.warning(f"⚠️ No funding data found for {participant_name}")
             return jsonify({
                 'success': True,
-                'funding': funding_data
+                'funding': {
+                    'status_text': 'No Data',
+                    'status_class': 'secondary',
+                    'status_icon': 'fas fa-question-circle',
+                    'is_cached': False,
+                    'is_stale': False,
+                    'message': 'No live funding data available'
+                }
             })
-        
-        # If first attempt failed, try refreshing training_clients mapping from ClubOS and retry once
-        logger.info(f"🧭 No live funding found for {participant_name}; attempting ClubOS mapping refresh and retry...")
-        refresh_result = refresh_training_clients_from_clubos()
-        logger.info(f"🔄 Mapping refresh result: {refresh_result}")
+    except Exception as e:
+        logger.error(f"❌ Error in funding API: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
-        funding_data = training_package_cache.lookup_participant_funding(participant_name, force_live=True)
-        if funding_data:
-            logger.info(f"✅ LIVE API returning funding data after refresh for {participant_name}: {funding_data}")
-            return jsonify({
-                'success': True,
-                'funding': funding_data
-            })
+@app.route('/api/check-funding-by-id', methods=['POST'])
+def check_funding_by_id():
+    """API endpoint to check funding by known ClubOS member ID (bypasses name search)."""
+    try:
+        data = request.get_json() if request.is_json else {}
+        clubos_member_id = str(data.get('clubos_member_id') or data.get('member_id') or '').strip()
+        member_name = (data.get('member_name') or data.get('name') or f"Member {clubos_member_id}").strip()
 
-        logger.warning(f"⚠️ No live funding data found for {participant_name} after mapping refresh")
+        if not clubos_member_id:
+            return jsonify({'success': False, 'error': 'clubos_member_id is required'}), 400
+
+        logger.info(f"🔎 Direct funding check for ClubOS ID: {clubos_member_id} ({member_name})")
+
+        # Fetch fresh funding directly, bypassing name->ID search
+        fresh_data = training_package_cache._fetch_fresh_funding_data(clubos_member_id, member_name)
+        if fresh_data:
+            training_package_cache._cache_funding_data(fresh_data)
+            response = training_package_cache._format_funding_response(fresh_data, is_stale=False, is_cached=False)
+            return jsonify({'success': True, 'funding': response})
+
+        logger.warning(f"❌ No LIVE funding data available for ClubOS ID {clubos_member_id}")
         return jsonify({
             'success': True,
             'funding': {
@@ -1779,16 +1921,14 @@ def check_funding():
                 'status_class': 'secondary',
                 'status_icon': 'fas fa-question-circle',
                 'is_cached': False,
-                'message': 'No funding data available - training client mapping may be incomplete'
+                'is_stale': False,
+                'message': 'No live funding data available'
             }
         })
-    
+
     except Exception as e:
-        logger.error(f"❌ Error in funding API: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        })
+        logger.error(f"❌ Error in direct funding API: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/refresh-funding', methods=['POST'])
 def refresh_funding_cache():
@@ -2663,96 +2803,130 @@ def members_page():
 @app.route('/api/members/all')
 def get_all_members():
     """API endpoint to get all members - called asynchronously after page load."""
+    conn = None
     try:
         # Get search and filter parameters
         search = request.args.get('search', '')
         status_filter = request.args.get('status', '')
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 50))
-        
+
         # Use cached database data for speed (instead of ClubHub API every time)
         conn = sqlite3.connect(db_manager.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        
+
         # Build query with search and filters
         where_conditions = []
         params = []
-        
-        # IMPORTANT: Exclude past due members from "All Members" tab
-        where_conditions.append("(amount_past_due IS NULL OR amount_past_due <= 0)")
-        where_conditions.append("(date_of_next_payment IS NULL OR date_of_next_payment > date('now', '+7 days'))")
-        
+
         if search:
             where_conditions.append("(first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)")
             search_term = f"%{search}%"
             params.extend([search_term, search_term, search_term])
-        
+
         if status_filter:
             where_conditions.append("status = ?")
             params.append(status_filter)
-        
+
         where_clause = ""
         if where_conditions:
             where_clause = "WHERE " + " AND ".join(where_conditions)
-        
+
         # Get total count for pagination
         count_query = f"SELECT COUNT(*) FROM members {where_clause}"
         cursor.execute(count_query, params)
         total_members = cursor.fetchone()[0]
-        
+
         # Calculate pagination
         total_pages = (total_members + per_page - 1) // per_page
         offset = (page - 1) * per_page
-        
+
         # Get members for current page
         query = f"""
-            SELECT id, first_name, last_name, full_name, email, mobile_phone, status, 
-                   membership_start, membership_end, payment_amount, user_type, created_at, 
-                   agreement_rate, amount_past_due, amount_of_next_payment, date_of_next_payment
+            SELECT id, first_name, last_name, full_name, email, mobile_phone, status,
+                   status_message, membership_start, membership_end, payment_amount, user_type, created_at,
+                   agreement_rate, amount_past_due, amount_of_next_payment, date_of_next_payment, trial
             FROM members {where_clause}
             ORDER BY created_at DESC
             LIMIT ? OFFSET ?
         """
         cursor.execute(query, params + [per_page, offset])
         members_data = cursor.fetchall()
-        
+
         # Process members for display
         members = []
         for member in members_data:
             member_dict = dict(member)
-            
+
             # Generate full_name if missing - CRITICAL FIX
             first_name = member_dict.get('first_name', '') or ''
             last_name = member_dict.get('last_name', '') or ''
             if not member_dict.get('full_name'):
                 member_dict['full_name'] = f"{first_name} {last_name}".strip()
-            
+
             # Ensure we have a display name - FALLBACK FIX
             if not member_dict['full_name']:
                 member_dict['full_name'] = member_dict.get('email', 'Unknown Member')
-            
+
             # Ensure first_name and last_name are not None
             member_dict['first_name'] = first_name or 'Unknown'
             member_dict['last_name'] = last_name or 'Member'
-            
-            # Add payment status
-            amount_past_due = member['amount_past_due'] if member['amount_past_due'] else 0
-            member_dict['payment_status'] = 'green'
-            member_dict['payment_status_text'] = 'Current'
-            member_dict['payment_status_class'] = 'success'
-            
+
+            # Classify priority/outlook and badge for UI
+            status_message = (member_dict.get('status_message') or '').lower()
+            user_type = str(member_dict.get('user_type') or '').lower()
+            trial = bool(member_dict.get('trial')) if member_dict.get('trial') is not None else False
+            amount_past_due = float(member_dict.get('amount_past_due') or 0)
+            next_due = member_dict.get('date_of_next_payment') or ''
+            priority = ''
+            status_text = member_dict.get('status') or 'Active'
+            badge_class = 'primary'
+
+            # Determine PPV
+            is_ppv = False
+            if 'pay per visit' in status_message or 'ppv' in status_message:
+                is_ppv = True
+            if user_type in ('17', 'ppv'):
+                is_ppv = True
+            if trial:
+                is_ppv = True
+
+            # Determine red/yellow
+            if amount_past_due > 0:
+                priority = 'red'
+                status_text = 'Past Due'
+                badge_class = 'danger'
+            else:
+                # due within 7 days
+                try:
+                    if next_due:
+                        due_dt = datetime.fromisoformat(str(next_due).replace('Z','').split('T')[0])
+                        if (due_dt - datetime.now()).days <= 7:
+                            priority = 'yellow'
+                            status_text = 'Due Soon'
+                            badge_class = 'warning'
+                except Exception:
+                    pass
+
+            if not priority and is_ppv:
+                priority = 'ppv'
+                status_text = 'PPV'
+                badge_class = 'info'
+
+            member_dict['priority_status'] = priority
+            member_dict['status_text'] = status_text
+            member_dict['payment_status_class'] = badge_class
+
             # Add member ID for invoice functionality
             member_dict['member_id'] = member_dict.get('id', '')
-            
+
             members.append(member_dict)
-        
+
         # Get unique statuses for filter dropdown
         cursor.execute("SELECT DISTINCT status FROM members WHERE status IS NOT NULL AND status != ''")
         statuses = [row[0] for row in cursor.fetchall()]
-        
-        conn.close()
-        
+
         return jsonify({
             'success': True,
             'members': members,
@@ -2762,359 +2936,125 @@ def get_all_members():
             'total_pages': total_pages,
             'per_page': per_page
         })
-        
+
     except Exception as e:
         logger.error(f"❌ Error getting members: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+    finally:
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            pass
+
+@app.route('/api/members/past-due')
+def get_past_due_members():
+    """Return red/yellow members from the local database (fast, reliable)."""
+    try:
+        conn = sqlite3.connect(db_manager.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT id, first_name, last_name, full_name, email, mobile_phone, status,
+                   status_message, amount_past_due, amount_of_next_payment, date_of_next_payment
+            FROM members
+            WHERE (amount_past_due IS NOT NULL AND amount_past_due > 0)
+               OR (
+                    (date_of_next_payment IS NOT NULL AND date(date_of_next_payment) <= date('now', '+7 days'))
+                    AND (amount_past_due IS NULL OR amount_past_due <= 0)
+                  )
+            ORDER BY COALESCE(amount_past_due, 0) DESC
+            """
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        members = []
+        for r in rows:
+            m = dict(r)
+            first = m.get('first_name') or ''
+            last = m.get('last_name') or ''
+            if not (m.get('full_name') or '').strip():
+                m['full_name'] = f"{first} {last}".strip() or (m.get('email') or 'Unknown Member')
+
+            apd = float(m.get('amount_past_due') or 0)
+            priority = 'red' if apd > 0 else 'yellow'
+            m['priority_status'] = priority
+            m['status_text'] = 'Past Due' if priority == 'red' else 'Due Soon'
+            members.append(m)
+
+        return jsonify({'success': True, 'past_due_members': members})
+    except Exception as e:
+        logger.error(f"❌ Error getting past due members: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/member/<member_id>')
 def get_member_profile(member_id):
-    """Get detailed member profile information from fresh ClubHub data."""
+    """Get detailed member profile information from the local database (used by modal)."""
     try:
-        # Use ClubHub credentials to get fresh member data directly 
-        CLUBHUB_LOGIN_URL = "https://clubhub-ios-api.anytimefitness.com/api/login"
-        USERNAME = "mayo.jeremy2212@gmail.com"
-        PASSWORD = "SruLEqp464_GLrF"
-        
-        headers = {
-            "Content-Type": "application/json",
-            "API-version": "1",
-            "Accept": "application/json",
-            "User-Agent": "ClubHub Store/2.15.1 (com.anytimefitness.Club-Hub; build:1007; iOS 18.5.0) Alamofire/5.6.4",
-        }
-        
-        session = requests.Session()
-        session.headers.update(headers)
-        
-        # Login to get bearer token
-        login_data = {"username": USERNAME, "password": PASSWORD}
-        login_response = session.post(CLUBHUB_LOGIN_URL, json=login_data)
-        
-        if login_response.status_code != 200:
-            return jsonify({'success': False, 'error': 'Failed to authenticate with ClubHub API'}), 500
-            
-        login_result = login_response.json()
-        bearer_token = login_result.get('accessToken')
-        
-        if not bearer_token:
-            return jsonify({'success': False, 'error': 'ClubHub authentication successful, but no token received'}), 500
-            
-        session.headers.update({"Authorization": f"Bearer {bearer_token}"})
-        
-        # Correctly fetch member details from ClubHub API
-        club_id = "1156"  # Fond du Lac club ID
-        member_url = f"https://clubhub-ios-api.anytimefitness.com/api/clubs/{club_id}/members/{member_id}"
-        member_response = session.get(member_url)
-        
-        if member_response.status_code != 200:
-            return jsonify({'success': False, 'error': f'Failed to fetch member data from ClubHub: {member_response.status_code}'}), 500
-            
-        member_data = member_response.json()
-        
-        # For now, we'll just return the raw data
-        # In the future, we can add payment history and agreements here
+        conn = sqlite3.connect(db_manager.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM members WHERE id = ? LIMIT 1", (member_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return jsonify({'success': False, 'error': 'Member not found'}), 404
+
+        member = dict(row)
+
+        # Compute payment status
+        amount_past_due = float(member.get('amount_past_due') or 0)
+        next_amount = member.get('amount_of_next_payment')
+        next_date = member.get('date_of_next_payment')
+
+        pay_status = {'text': 'Current', 'class': 'success'}
+        if amount_past_due > 0:
+            pay_status = {'text': f"Past Due (${amount_past_due:.2f})", 'class': 'danger'}
+        else:
+            try:
+                if next_date:
+                    due_dt = datetime.fromisoformat(str(next_date).replace('Z','').split('T')[0])
+                    if (due_dt - datetime.now()).days <= 7:
+                        pay_status = {'text': 'Due Soon', 'class': 'warning'}
+            except Exception:
+                pass
+
+        # Build agreements summary from flat columns (best-effort)
+        agreements = []
+        if member.get('agreement_id') or member.get('agreement_type') or member.get('agreement_start_date'):
+            agreements.append({
+                'agreement_id': member.get('agreement_id'),
+                'agreement_type': member.get('agreement_type') or 'Membership',
+                'start_date': member.get('agreement_start_date'),
+                'end_date': member.get('agreement_end_date'),
+                'rate': member.get('agreement_rate') or member.get('payment_amount'),
+                'status': member.get('agreement_status') or member.get('status'),
+            })
+
+        # Payments history not stored; include next payment as a single entry if available
+        payments = []
+        if next_date or next_amount:
+            payments.append({
+                'payment_date': next_date,
+                'amount': next_amount or member.get('payment_amount'),
+                'payment_type': 'Scheduled',
+                'status': 'pending' if amount_past_due == 0 else 'due'
+            })
+
         return jsonify({
             'success': True,
-            'member': member_data,
-            'payment_status': {'text': 'In Good Standing', 'class': 'success'}, # Placeholder
-            'agreements': [], # Placeholder
-            'payments': [] # Placeholder
+            'member': member,
+            'payment_status': pay_status,
+            'agreements': agreements,
+            'payments': payments
         })
-
     except Exception as e:
-        logger.error(f"❌ Error fetching member profile for ID {member_id}: {e}")
+        logger.error(f"❌ Error getting member profile: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
-        
-@app.route('/api/members/past-due')
-def get_past_due_members():
-    """Get members who are past due on payments using FRESH ClubHub API data"""
-    try:
-        import datetime
-        logger.info("🔍 Getting past due members from FRESH ClubHub API...")
-        
-        # Use ClubHub credentials to get ALL members directly (matching HAR analysis)
-        import requests
-        
-        # ClubHub API configuration (from working HAR analysis)
-        CLUBHUB_LOGIN_URL = "https://clubhub-ios-api.anytimefitness.com/api/login"
-        CLUBHUB_API_BASE = "https://clubhub-ios-api.anytimefitness.com/api/v1.0"
-        
-        # Use ClubHub credentials from config instead of hardcoded
-        from config.clubhub_credentials_clean import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
-        
-        USERNAME = CLUBHUB_EMAIL
-        PASSWORD = CLUBHUB_PASSWORD
-        
-        # Check for environment variables that might override the hardcoded credentials
-        import os
-        env_username = os.environ.get('CLUBHUB_USERNAME')
-        env_password = os.environ.get('CLUBHUB_PASSWORD')
-        
-        if env_username and env_password:
-            logger.info("🔑 Using credentials from environment variables")
-            USERNAME = env_username
-            PASSWORD = env_password
-        
-        # Exact headers from successful HAR requests
-        headers = {
-            "Content-Type": "application/json",
-            "API-version": "1",
-            "Accept": "application/json",
-            "User-Agent": "ClubHub Store/2.15.1 (com.anytimefitness.Club-Hub; build:1007; iOS 18.5.0) Alamofire/5.6.4",
-        }
-        
-        # Create session
-        session = requests.Session()
-        session.headers.update(headers)
-        
-        # Login to get bearer token
-        login_data = {
-            "username": USERNAME,  # Fixed: was "email", should be "username" 
-            "password": PASSWORD
-        }
-        
-        logger.info("🔑 Authenticating with ClubHub...")
-        try:
-            login_response = session.post(CLUBHUB_LOGIN_URL, json=login_data)
-            logger.info(f"🔑 ClubHub login response status: {login_response.status_code}")
-            
-            if login_response.status_code == 200:
-                login_result = login_response.json()
-                logger.info(f"🔑 ClubHub login response keys: {list(login_result.keys())}")
-                bearer_token = login_result.get('accessToken')  # Fixed: was 'token', should be 'accessToken'
-            else:
-                logger.error(f"🔑 ClubHub authentication failed with status {login_response.status_code}")
-                try:
-                    error_data = login_response.json()
-                    logger.error(f"🔑 ClubHub error response: {error_data}")
-                except:
-                    logger.error(f"🔑 ClubHub error text: {login_response.text}")
-        except Exception as e:
-            logger.error(f"❌ Exception during ClubHub authentication: {e}")
-            raise
-            
-        login_response = None  # Initialize outside the try block for the else clause
-        bearer_token = None  # Initialize outside the try block
-        try:
-            login_response = session.post(CLUBHUB_LOGIN_URL, json=login_data)
-            logger.info(f"🔑 ClubHub login response status: {login_response.status_code}")
-            
-            if login_response.status_code == 200:
-                login_result = login_response.json()
-                logger.info(f"🔑 ClubHub login response keys: {list(login_result.keys())}")
-                bearer_token = login_result.get('accessToken')  # Fixed: was 'token', should be 'accessToken'
-            else:
-                logger.error(f"🔑 ClubHub authentication failed with status {login_response.status_code}")
-                try:
-                    error_data = login_response.json()
-                    logger.error(f"🔑 ClubHub error response: {error_data}")
-                except:
-                    logger.error(f"🔑 ClubHub error text: {login_response.text}")
-                    
-            if bearer_token:
-                logger.info("✅ ClubHub authentication successful")
-                
-                # Update headers with bearer token
-                session.headers.update({
-                    "Authorization": f"Bearer {bearer_token}"
-                })
-                
-                # Get ALL members from ClubHub API (paginated like working script)
-                club_id = "1156"  # Fond du Lac club ID
-                all_members = []
-                page = 1
-                    
-                while True:
-                    members_url = f"https://clubhub-ios-api.anytimefitness.com/api/clubs/{club_id}/members?page={page}&pageSize=100"
-                    logger.info(f"📄 Fetching page {page}...")
-                    
-                    members_response = session.get(members_url)
-                    
-                    if members_response.status_code != 200:
-                        logger.error(f"❌ Failed to fetch page {page}: {members_response.status_code}")
-                        break
-                        
-                    members_data = members_response.json()
-                    
-                    # Create a 'full_name' field for easier display
-                    for member in members_data:
-                        member['full_name'] = f"{member.get('firstName', '')} {member.get('lastName', '')}".strip()
-
-                    logger.info(f"📊 Found {len(members_data)} members on page {page}")
-                    
-                    # If we got no members, stop paginating to avoid unnecessary API calls
-                    if len(members_data) == 0:
-                        logger.info(f"🛑 No more members found, stopping pagination")
-                        break
-                        
-                    all_members.extend(members_data)
-                    page += 1
-                    
-                fresh_members = all_members
-                logger.info(f"✅ Got {len(fresh_members)} total fresh members from ClubHub API")
-                
-                red_members = []
-                yellow_members = []
-                
-                # Process each member to categorize by payment status (EXACTLY like ClubHub tablet)
-                for member in fresh_members:
-                    status_msg = str(member.get('statusMessage', member.get('status_message', member.get('StatusMessage', '')))).strip()
-                    
-                    # Determine member priority based on status message
-                    priority_status = None
-                    status_text = status_msg
-                    
-                    # Match exactly what ClubHub shows on tablet
-                    if ('Past Due more than 30 days' in status_msg or 
-                        'Delinquent' in status_msg or 
-                        'Delinquent- Can not Expire' in status_msg):
-                        priority_status = 'red'
-                        if 'Delinquent- Can not Expire' in status_msg:
-                            status_text = 'Delinquent- Can not Expire'
-                        else:
-                            status_text = 'Past Due 30+ Days'
-                    elif ('Past Due 6-30 days' in status_msg or
-                          'invalid' in status_msg.lower() and ('address' in status_msg.lower() or 'billing' in status_msg.lower())):
-                        priority_status = 'yellow'
-                        if 'invalid' in status_msg.lower() and 'address' in status_msg.lower():
-                            status_text = 'Invalid Address'
-                        elif 'invalid' in status_msg.lower() and 'billing' in status_msg.lower():
-                            status_text = 'Invalid Billing Info'
-                        else:
-                            status_text = 'Past Due 6-30 Days'
-                    elif 'Member is pending cancel' in status_msg:
-                        priority_status = 'yellow'
-                        status_text = 'Pending Cancel'
-                    elif 'Member will expire within 30 days' in status_msg:
-                        priority_status = 'yellow'
-                        status_text = 'Expiring Soon'
-                    elif 'Member is in good standing' in status_msg:
-                        continue  # Skip current members
-                    elif 'Pay per visit member' in status_msg:
-                        continue  # Skip PPV
-                    elif 'Comp member' in status_msg:
-                        continue  # Skip comp
-                    elif 'Staff member' in status_msg:
-                        continue  # Skip staff
-                    else:
-                        continue  # Skip others
-                    
-                    if priority_status:
-                        # Extract first and last name with fallbacks
-                        first_name = str(member.get('firstName', member.get('first_name', member.get('FirstName', ''))))
-                        last_name = str(member.get('lastName', member.get('last_name', member.get('LastName', ''))))
-                        
-                        # Create full_name properly
-                        full_name = member.get('full_name', '')
-                        if not full_name.strip() and (first_name or last_name):
-                            full_name = f"{first_name} {last_name}".strip()
-                        
-                        # Create member data dictionary
-                        member_data = {
-                            'id': str(member.get('id', member.get('prospectId', member.get('ProspectID', '')))),
-                            'full_name': full_name,
-                            'first_name': first_name,
-                            'last_name': last_name,
-                            'email': str(member.get('email', member.get('Email', ''))),
-                            'mobile_phone': str(member.get('mobilePhone', member.get('phone', member.get('Phone', member.get('MobilePhone', ''))))),
-                            'priority_status': priority_status,
-                            'status_text': status_text,
-                            'address': str(member.get('address1', member.get('address', member.get('Address', '')))),
-                            'city': str(member.get('city', member.get('City', ''))),
-                            'state': str(member.get('state', member.get('State', ''))),
-                            'zip': str(member.get('zip', member.get('zipCode', member.get('ZipCode', '')))),
-                            'membership_start': str(member.get('membershipStart', member.get('membership_start', member.get('MemberSince', '')))),
-                            'last_visit': str(member.get('lastVisit', member.get('last_visit', member.get('LastVisit', ''))))
-                        }
-                        
-                        if priority_status == 'red':
-                            red_members.append(member_data)
-                        elif priority_status == 'yellow':
-                            yellow_members.append(member_data)
-                
-                # Combine and sort by priority (red first, then yellow)
-                all_past_due = red_members + yellow_members
-                
-                red_count = len(red_members)
-                yellow_count = len(yellow_members)
-                total_count = red_count + yellow_count
-                
-                logger.info(f"✅ FRESH ClubHub data: {red_count} red, {yellow_count} yellow, {total_count} total")
-                
-                # Prepare the response data
-                response_data = {
-                    'red_count': red_count,
-                    'yellow_count': yellow_count,
-                    'total_count': total_count,
-                    'past_due_members': all_past_due,
-                    'message': f'FRESH ClubHub data: {red_count} red, {yellow_count} yellow past due members',
-                    'data_source': 'clubhub_live_api',
-                    'timestamp': datetime.datetime.now().isoformat()
-                }
-                
-                # Cache the data for fallback
-                try:
-                    import json
-                    import os
-                    
-                    cache_dir = os.path.join(os.path.dirname(__file__), 'cache')
-                    if not os.path.exists(cache_dir):
-                        os.makedirs(cache_dir)
-                        
-                    cache_path = os.path.join(cache_dir, 'past_due_members_cache.json')
-                    with open(cache_path, 'w') as cache_file:
-                        json.dump(response_data, cache_file)
-                    logger.info("✅ Past due members data cached successfully")
-                except Exception as cache_error:
-                    logger.error(f"❌ Failed to cache data: {cache_error}")
-                
-                return jsonify(response_data)
-            else:
-                logger.error("❌ No bearer token received from ClubHub login")
-                return jsonify({
-                    'red_count': 0,
-                    'yellow_count': 0,
-                    'total_count': 0,
-                    'past_due_members': [],
-                    'error': 'No bearer token received from ClubHub'
-                }), 500
-                
-        except Exception as e:
-            logger.error(f"❌ ClubHub API access error: {e}")
-            # Try to use cached data if available
-            try:
-                import json
-                import os
-                cache_path = os.path.join(os.path.dirname(__file__), 'cache', 'past_due_members_cache.json')
-                
-                if os.path.exists(cache_path):
-                    logger.info("🔍 ClubHub API failed, using cached past due data")
-                    with open(cache_path, 'r') as cache_file:
-                        cached_data = json.load(cache_file)
-                        cached_data['message'] = 'Using cached data (ClubHub API is unavailable)'
-                        cached_data['data_source'] = 'cache'
-                        return jsonify(cached_data)
-            except Exception as cache_error:
-                logger.error(f"❌ Failed to read cache: {cache_error}")
-                
-            # If no cache or cache failed, return error
-            return jsonify({
-                'red_count': 0,
-                'yellow_count': 0,
-                'total_count': 0,
-                'past_due_members': [],
-                'error': f'ClubHub API error: {e}'
-            }), 500
-            
-    except Exception as e:
-        logger.error(f"❌ Error getting fresh ClubHub data: {e}")
-        return jsonify({
-            'red_count': 0,
-            'yellow_count': 0,
-            'total_count': 0,
-            'past_due_members': [],
-            'error': str(e)
-        }), 500
 
 @app.route('/prospects')
 def prospects_page():

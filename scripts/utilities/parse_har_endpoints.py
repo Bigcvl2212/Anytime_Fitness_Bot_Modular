@@ -20,10 +20,11 @@ SESSION_FILES = [
     "charles_session.chls/newest.har",
     "charles_session.chls/Charles_session_mapping.har",
     "charles_session.chls/Training_Endpoints.har",
+    "charles_session.chls/Training_payments.har",
     "charles_session.chls/Calendar_Endpoints.har",
 ]
 
-KEYWORDS = ['agreement', 'billing', 'payment', 'balance', 'due', 'invoice']
+KEYWORDS = ['agreement', 'billing', 'payment', 'balance', 'due', 'invoice', 'training', 'package', 'session', 'member', 'search']
 # SESSION_EXTENSIONS = ['.har', '.chls', '.chlz']
 
 # Helper to check if any keyword is in a string
@@ -84,10 +85,18 @@ def main():
             res = entry.get('response', {})
             url = req.get('url', '')
             method = req.get('method', 'GET')
-            if '/api/' not in url:
+            # Consider API and relevant action/ajax endpoints (ClubOS often uses /action for search like UserSuggest)
+            lower_url = url.lower()
+            if not (
+                '/api/' in lower_url or
+                '/action/' in lower_url or
+                '/ajax/' in lower_url or
+                'training' in lower_url
+            ):
                 continue
-                parsed_url = urlparse(url)
-                path = parsed_url.path
+            # Parse URL path for API requests
+            parsed_url = urlparse(url)
+            path = parsed_url.path
             path_group = re.sub(r'/\d{3,}/', '/{id}/', path)
             content = res.get('content', {})
             text = content.get('text', '')
