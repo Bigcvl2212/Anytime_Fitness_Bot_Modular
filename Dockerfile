@@ -20,6 +20,7 @@ EXPOSE 5000
 
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_ENV=production
+ENV PYTHONPATH=/app/src
 
 # Run with gunicorn
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "wsgi:app"]
