@@ -27,6 +27,7 @@ env/
 ENV/
 env.bak/
 venv.bak/
+.venv/
 
 # IDE
 .vscode/
@@ -123,3 +124,9 @@ tokens.json
 api_keys.json
 *.key
 *.pem
+
+# Project-specific ignores
+*.sqlite
+gym_bot.db
+archive/
+.env.example
