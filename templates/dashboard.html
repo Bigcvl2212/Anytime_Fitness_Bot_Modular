@@ -140,7 +140,7 @@
                     <div style="width: 80px;">TIME</div>
                     <div style="flex: 1;">CLIENT</div>
                     <div style="width: 120px;">TYPE</div>
-                    <div style="width: 100px;">FUNDING</div>
+                    <div style="width: 160px;">FUNDING</div>
                     <div style="width: 80px;">ACTIONS</div>
                 </div>
 
@@ -222,7 +222,7 @@
                         </div>
 
                         <!-- Funding Status -->
-                        <div style="width: 100px;">
+                        <div style="width: 160px;">
                             {% if is_appointment %}
                                 <span class="outlook-badge outlook-badge-info">Free</span>
                             {% else %}
@@ -280,6 +280,9 @@
                 {% endif %}
             </div>
         </div>
+
+        <!-- Training Payment Lookup Column -->
+        <!-- Remove Training Payment Lookup UI card -->
 
         <!-- Bot Supervision Column -->
         <div class="col-md-4">
@@ -520,7 +523,7 @@ function checkMultipleParticipantsFunding(participants, time) {
     console.log(`🔍 Checking funding for ${participants.length} participants:`, participants);
     
     const fundingPromises = participants.map(participant => 
-        fetch('/api/check-funding', {
+    fetch('/api/training/payment-status', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -870,7 +873,7 @@ function checkAllFundingStatusesAsync() {
 
 function checkEventCardFunding(element, participant, time) {
     console.log(`� LIVE FUNDING CHECK for event card: ${participant}`);
-    console.log('API endpoint: /api/check-funding');
+    console.log('API endpoint: /api/training/payment-status');
     console.log('Request data:', { participant, time });
     
     // Show live loading state
@@ -882,7 +885,7 @@ function checkEventCardFunding(element, participant, time) {
     `;
     element.title = 'Fetching live funding data from ClubOS...';
     
-    fetch('/api/check-funding', {
+    fetch('/api/training/payment-status', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -906,9 +909,11 @@ function checkEventCardFunding(element, participant, time) {
             console.log(`✅ LIVE funding data received for ${participant}:`, funding);
             
             const statusIcon = funding.status_icon || 'fas fa-question-circle';
-            const statusText = funding.status_text || 'Unknown';
             const statusClass = `outlook-badge-${funding.status_class || 'secondary'}`;
-            
+            const amountOwed = typeof funding.amount_owed === 'number' ? funding.amount_owed : parseFloat(funding.amount_owed || 0) || 0;
+            const statusText = funding.status_text || (amountOwed > 0 ? `Past Due - $${amountOwed.toFixed(2)}` : 'Current');
+
+            // Always show backend-provided status text, which already includes amount when past due
             element.innerHTML = `
                 <span class="outlook-badge ${statusClass}" title="Live data from ClubOS API">
                     <i class="${statusIcon}"></i>

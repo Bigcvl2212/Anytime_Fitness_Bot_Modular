@@ -367,7 +367,7 @@ class ClubOSAPIAuthentication:
                     
         except Exception as e:
             print(f"      ⚠️ Error extracting JWT tokens: {e}")
-
+    
     def get_headers(self) -> Dict[str, str]:
         """Get authenticated headers for API requests"""
         headers = {
@@ -714,7 +714,7 @@ class ClubOSAPIClient:
                 return True
             else:
                 print(f"   ❌ Message send failed: {response.status_code}")
-                return False
+            return False
             
         except Exception as e:
             print(f"   ❌ Error in form submission: {e}")

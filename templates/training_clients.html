@@ -6,47 +6,151 @@
 {% block extra_css %}
 <style>
     .client-card {
-        transition: transform 0.2s ease-in-out;
+        transition: all 0.3s ease-in-out;
         cursor: pointer;
-        border: 1px solid #dee2e6;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
+        border: 1px solid #e9ecef;
+        border-radius: 0.75rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
     }
     
     .client-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
         border-color: #0d6efd;
+        background: linear-gradient(135deg, #ffffff 0%, #f0f8ff 100%);
+    }
+    
+    .agreement-name-display {
+        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        border-radius: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        border-left: 4px solid #2196f3;
+    }
+    
+    .agreement-name-display .text-primary {
+        color: #1565c0 !important;
+        font-size: 0.95rem;
+        font-weight: 600;
+    }
+    
+    .trainer-info {
+        background: #f8f9fa;
+        border-radius: 0.375rem;
+        padding: 0.25rem 0.5rem;
+        display: inline-block;
+        border: 1px solid #e9ecef;
+    }
+    
+    .sessions-info {
+        background: #f8fff9;
+        border-radius: 0.5rem;
+        padding: 0.5rem;
+        border: 1px solid #d4edda;
+    }
+    
+    .payment-status {
+        margin-bottom: 0.5rem;
+    }
+    
+    .package-details {
+        font-size: 0.8rem;
+        line-height: 1.2;
     }
     
     .agreement-status-current {
-        background: #d1e7dd;
+        background: linear-gradient(135deg, #d1e7dd 0%, #badbcc 100%);
         color: #0f5132;
         border: 1px solid #badbcc;
+        font-weight: 600;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
     }
     
     .agreement-status-past-due {
-        background: #f8d7da;
+        background: linear-gradient(135deg, #f8d7da 0%, #f5c2c7 100%);
         color: #721c24;
         border: 1px solid #f5c2c7;
+        font-weight: 600;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
+        animation: pulse-warning 2s infinite;
     }
     
     .agreement-status-unknown {
-        background: #e2e3e5;
+        background: linear-gradient(135deg, #e2e3e5 0%, #c4c8cc 100%);
         color: #41464b;
         border: 1px solid #c4c8cc;
+        font-weight: 600;
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.5rem;
+    }
+    
+    @keyframes pulse-warning {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.8; }
     }
     
     .stats-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
         border: none;
+        border-radius: 1rem;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
     }
     
     .count-display {
         font-size: 2.5rem;
         font-weight: bold;
         margin-bottom: 0.5rem;
+    }
+    
+    .client-card .card-body {
+        padding: 1.25rem;
+    }
+    
+    .client-card h6 {
+        font-size: 1.1rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .btn-group .btn {
+        border-radius: 0.5rem;
+        margin-left: 0.25rem;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-group .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    
+    .financial-stat {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        background: rgba(255,255,255,0.8);
+        border: 1px solid rgba(0,0,0,0.1);
+    }
+    
+    .financial-stat h4 {
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+    
+    .financial-stat small {
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+    
+    .alert-danger {
+        border-left: 4px solid #dc3545;
+        background: linear-gradient(135deg, #f8d7da 0%, #f5c2c7 100%);
+    }
+    
+    .alert-danger .alert-heading {
+        color: #721c24;
+        font-weight: 600;
     }
 </style>
 {% endblock %}
@@ -245,6 +349,32 @@
         </div>
     </div>
 </div>
+
+<!-- Client Details Modal with Package Agreements -->
+<div class="modal fade" id="clientDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-user me-2"></i>
+                    <span id="clientDetailsTitle">Client Details</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="clientDetailsContent">
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="text-muted mt-3">Loading client details...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -270,11 +400,11 @@ async function loadTrainingClients() {
     countBadge.textContent = 'Loading...';
     
     try {
-        const response = await fetch('/api/training/clients');
+        const response = await fetch('/api/training-clients/all');
         const data = await response.json();
         
         if (data.success) {
-            trainingClients = data.clients;
+            trainingClients = data.training_clients;
             updateTrainerFilter();
             applyFilters();
             updateStats();
@@ -310,25 +440,33 @@ function renderClients(clients) {
         <div class="client-card card mb-3" onclick="showClientDetail('${client.member_id || client.clubos_member_id}')">
             <div class="card-body">
                 <div class="row align-items-center">
-                    <div class="col-md-4">
-                        <h6 class="mb-1">${escapeHtml(client.member_name || 'Unknown Client')}</h6>
-                        <p class="text-muted mb-0 small">
+                    <div class="col-md-5">
+                        <h6 class="mb-1 fw-bold">${escapeHtml(client.member_name || 'Unknown Client')}</h6>
+                        <div class="agreement-name-display mb-2" id="client-agreement-name-${client.member_id || client.clubos_member_id}">
+                            <div class="text-primary fw-semibold">
+                                <i class="fas fa-file-contract me-1"></i> Loading agreement...
+                            </div>
+                        </div>
+                        <div class="trainer-info small text-muted">
                             <i class="fas fa-user-tie me-1"></i>
                             ${escapeHtml(client.trainer_name || 'No trainer assigned')}
-                        </p>
+                        </div>
                     </div>
                     <div class="col-md-3">
-                        <p class="mb-0 small">
-                            <i class="fas fa-calendar me-1"></i>
-                            ${client.sessions_remaining || 0} sessions remaining
-                        </p>
-                        <p class="mb-0 small text-muted">
-                            Last: ${escapeHtml(client.last_session || 'Never')}
-                        </p>
+                        <div class="sessions-info">
+                            <div class="mb-1">
+                                <i class="fas fa-calendar-check me-1 text-success"></i>
+                                <span class="fw-semibold">${client.sessions_remaining || 0}</span> sessions remaining
+                            </div>
+                            <div class="small text-muted">
+                                <i class="fas fa-clock me-1"></i>
+                                Last: ${escapeHtml(client.last_session || 'Never')}
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-3">
-                        ${renderPaymentStatus(client)}
-                    </div>
+                                         <div class="col-md-2">
+                         <!-- Payment status removed from card face - only shown in modal -->
+                     </div>
                     <div class="col-md-2 text-end">
                         <div class="btn-group btn-group-sm">
                             <button class="btn btn-outline-primary" onclick="event.stopPropagation(); showClientDetail('${client.member_id || client.clubos_member_id}')">
@@ -345,28 +483,194 @@ function renderClients(clients) {
     `).join('');
     
     container.innerHTML = clientsHtml;
+
+    // After rendering, fetch agreements/funding for each client in view
+    clients.forEach(client => {
+        const id = client.member_id || client.clubos_member_id;
+        if (id) fetchAndRenderClientAgreements(id);
+    });
 }
 
-// Render payment status badge
-function renderPaymentStatus(client) {
-    const paymentStatus = client.payment_status || 'Unknown';
-    let badgeClass = 'agreement-status-unknown';
-    
-    if (paymentStatus === 'Current') {
-        badgeClass = 'agreement-status-current';
-    } else if (paymentStatus === 'Past Due') {
-        badgeClass = 'agreement-status-past-due';
-    }
-    
-    return `
-        <div>
-            <span class="badge ${badgeClass} mb-1">${paymentStatus}</span>
-            ${client.funding_cache && client.funding_cache.amount_remaining ? 
-                `<div class="small text-muted">$${(client.funding_cache.amount_remaining || 0).toFixed(2)} remaining</div>` : 
-                ''
+// Fetch per-client agreements and render past-due amounts
+async function fetchAndRenderClientAgreements(memberId, attempts = 0) {
+    const container = document.getElementById(`client-funding-${memberId}`);
+    const pkgLine = document.getElementById(`client-package-${memberId}`);
+    const nameLine = document.getElementById(`client-agreement-name-${memberId}`);
+    if (!container) return;
+    try {
+        const resp = await fetch(`/api/training-clients/${memberId}/agreements`);
+        const data = await resp.json();
+        if (!data.success) {
+            // Retry once or twice if initial call fails (auth/delegation can be racing)
+            if (attempts < 2) {
+                if (nameLine) nameLine.innerHTML = `<i class="fas fa-file-contract me-1"></i> Retrying...`;
+                setTimeout(() => fetchAndRenderClientAgreements(memberId, attempts + 1), 900);
+                return;
             }
-        </div>
-    `;
+            container.innerHTML = `<span class="badge agreement-status-unknown"><i class=\"fas fa-exclamation-triangle me-1\"></i> Unknown</span>`;
+            if (pkgLine) pkgLine.textContent = '';
+            if (nameLine) nameLine.innerHTML = `<span class="text-muted"><i class=\"fas fa-file-contract me-1\"></i>No active agreement</span>`;
+            return;
+        }
+        let agreements = data.agreements || [];
+        // Safety filter: drop canceled/completed/collection agreements if backend didn’t filter
+        const isActiveAgreement = (ag) => {
+            try {
+                const v2pa = ag?.v2?.packageAgreement || {};
+                const barePA = ag?.bare?.packageAgreement || {};
+                const texts = [
+                    (v2pa.status || v2pa.agreementStatus || v2pa.state || ''),
+                    (ag.status_text || ''),
+                    (barePA.status || barePA.agreementStatus || barePA.state || ''),
+                    (ag.bare?.status || ag.bare?.state || ''),
+                ].map(s => (s || '').toString().toLowerCase());
+                const flags = [
+                    v2pa.isCancelled, v2pa.isCanceled, v2pa.isComplete, v2pa.isCompleted,
+                    ag?.bare?.isCancelled, ag?.bare?.isCanceled, ag?.bare?.isComplete, ag?.bare?.isCompleted
+                ];
+                if (flags.some(f => !!f)) return false;
+                if (texts.some(t => t.includes('cancel') || t.includes('complete') || t.includes('collection'))) return false;
+            } catch {}
+            return true;
+        };
+        agreements = agreements.filter(isActiveAgreement);
+        if (agreements.length === 0) {
+            if (attempts < 2) {
+                if (nameLine) nameLine.innerHTML = `<i class="fas fa-file-contract me-1"></i> Retrying...`;
+                setTimeout(() => fetchAndRenderClientAgreements(memberId, attempts + 1), 900);
+                return;
+            }
+            container.innerHTML = `<span class="badge agreement-status-unknown"><i class=\"fas fa-file-contract me-1\"></i> No Agreements</span>`;
+            if (pkgLine) pkgLine.textContent = '';
+            if (nameLine) nameLine.innerHTML = `<span class="text-muted"><i class=\"fas fa-file-contract me-1\"></i>No active agreement</span>`;
+            return;
+        }
+        // Helper to derive an agreement name robustly across shapes
+        const deriveAgreementName = (ag) => {
+            try {
+                // The backend already extracts the real package name from ClubOS - use it directly
+                if (ag.package_name && ag.package_name !== 'Training Package') {
+                    return ag.package_name;
+                }
+                
+                // Fallback to V2 data if package_name is not available
+                const v2 = ag.v2 || {};
+                const v2pa = v2.packageAgreement || (v2.data && v2.data.packageAgreement) || (v2.include && v2.include.packageAgreement) || null;
+                if (v2pa) {
+                    const v2Keys = ['name','productName','packageName','planName','agreementName','programName'];
+                    for (const k of v2Keys) { if (v2pa[k]) return v2pa[k]; }
+                    if (v2pa.package && v2pa.package.name) return v2pa.package.name;
+                }
+                
+                // Final fallback to bare data
+                const bare = ag.bare || {};
+                const barePA = bare.packageAgreement || {};
+                const bareKeys = ['packageAgreementName','packageName','agreementName','productName','planName','name','typeName','packageAgreementTypeName'];
+                for (const k of bareKeys) { if (bare[k]) return bare[k]; }
+                for (const k of bareKeys) { if (barePA && barePA[k]) return barePA[k]; }
+                if (bare.package && bare.package.name) return bare.package.name;
+            } catch {}
+            return 'Training Package';
+        };
+
+        // Compute past-due using SPA logic if invoices are present
+    const computePastDueFromInvoices = (ag) => {
+            try {
+                const v2 = ag.v2 || {};
+                let invoices = null;
+                if (v2.include && Array.isArray(v2.include.invoices)) invoices = v2.include.invoices;
+                else if (Array.isArray(v2.invoices)) invoices = v2.invoices;
+                if (!Array.isArray(invoices)) return null;
+                const toFloat = (v) => {
+                    if (v == null) return 0;
+                    if (typeof v === 'number') return v;
+                    if (typeof v === 'string') return parseFloat(v.replace(/[$,]/g, '')) || 0;
+                    return 0;
+                };
+        const isPast = (s) => {
+            const t = (s || '').toString().trim().toLowerCase();
+            // SPA parity: only these two statuses contribute
+            return t === 'delinquent' || t === 'pay now';
+        };
+                let total = 0;
+                for (const inv of invoices) {
+                    if (isPast(inv.status)) {
+            // Prefer invoice_total, then fall back
+            const amt = toFloat(inv.invoice_total ?? inv.remainingTotal ?? inv.total);
+                        if (amt > 0) total += amt;
+                    }
+                }
+                return Math.round(total * 100) / 100;
+            } catch { return null; }
+        };
+
+        // Build list of agreements with per-agreement past-due amounts (prefer invoices calc)
+        const rows = agreements.map(ag => {
+            const invoiceAmt = computePastDueFromInvoices(ag);
+            const amt = (invoiceAmt != null ? invoiceAmt : (typeof ag.amount_owed === 'number' ? ag.amount_owed : parseFloat(ag.amount_owed || 0) || 0));
+            const isPastDue = amt > 0;
+            const badge = isPastDue ? 'agreement-status-past-due' : 'agreement-status-current';
+            const label = isPastDue ? `Past Due - $${amt.toFixed(2)}` : 'Current';
+            const pkg = deriveAgreementName(ag);
+            return `<div class="mb-1"><span class="badge ${badge}"><i class=\"fas ${isPastDue ? 'fa-exclamation-circle' : 'fa-check-circle'} me-1\"></i>${label}</span> <small class="text-muted">${escapeHtml(pkg)}</small></div>`;
+        }).join('');
+        container.innerHTML = rows;
+        
+        // Select the PRIMARY active agreement for the card face - prioritize by sessions and status
+        let primaryAgreement = null;
+        
+        // First priority: agreements with sessions remaining
+        primaryAgreement = agreements.find(a => {
+            const sessionsRemaining = a?.v2?.packageAgreement?.sessionsRemaining || 0;
+            return sessionsRemaining > 0;
+        });
+        
+        // Second priority: current status agreements
+        if (!primaryAgreement) {
+            primaryAgreement = agreements.find(a => {
+                const status = (a.status || '').toLowerCase();
+                return status === 'current' || status === 'active';
+            });
+        }
+        
+        // Fallback to first agreement if no preferred found
+        if (!primaryAgreement) {
+            primaryAgreement = agreements[0];
+        }
+        
+        const primaryName = deriveAgreementName(primaryAgreement);
+        
+        // Calculate total past due across all agreements using invoice data
+        let totalPastDue = 0;
+        
+        try {
+            agreements.forEach(ag => {
+                const invoiceAmt = computePastDueFromInvoices(ag);
+                if (invoiceAmt != null && invoiceAmt > 0) {
+                    totalPastDue += invoiceAmt;
+                }
+            });
+            
+            totalPastDue = Math.round(totalPastDue * 100) / 100; // Round to 2 decimal places
+        } catch (e) {
+            console.warn('Error calculating total past due:', e);
+        }
+        
+        // Update the agreement name display - ONLY show the primary package name
+        if (nameLine) {
+            nameLine.innerHTML = `<i class="fas fa-file-contract me-1"></i>${escapeHtml(primaryName)}`;
+        }
+        
+        // Clear package details line - we don't want this info on the card face
+        if (pkgLine) {
+            pkgLine.textContent = '';
+        }
+    } catch (e) {
+        container.innerHTML = `<span class="badge agreement-status-unknown"><i class=\"fas fa-wifi me-1\"></i> Network Error</span>`;
+        if (pkgLine) pkgLine.textContent = '';
+        const nameLine2 = document.getElementById(`client-agreement-name-${memberId}`);
+        if (nameLine2) nameLine2.innerHTML = `<span class="text-muted"><i class=\"fas fa-file-contract me-1\"></i>Agreement unavailable</span>`;
+    }
 }
 
 // Update trainer filter dropdown
@@ -449,15 +753,477 @@ function updateStats() {
 }
 
 // Client detail functions
-function showClientDetail(clientId) {
-    // For now, show an alert - could be enhanced with a modal like members
+async function showClientDetail(clientId) {
+    // Find the client in our data
     const client = trainingClients.find(c => 
         (c.member_id || c.clubos_member_id) == clientId
     );
     
-    if (client) {
-        alert(`Client: ${client.member_name}\nTrainer: ${client.trainer_name}\nStatus: ${client.payment_status}\nSessions: ${client.sessions_remaining || 0} remaining`);
+    if (!client) {
+        console.error('Client not found:', clientId);
+        return;
     }
+    
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('clientDetailsModal'));
+    document.getElementById('clientDetailsTitle').textContent = `${client.member_name} - Training Details`;
+    
+    // Show loading state
+    document.getElementById('clientDetailsContent').innerHTML = `
+        <div class="text-center py-3">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-3">Loading package agreements...</p>
+        </div>
+    `;
+    
+    modal.show();
+    
+    try {
+        // Fetch package agreements from our new API endpoint
+        const response = await fetch(`/api/training-clients/${clientId}/agreements`);
+        const data = await response.json();
+        
+        if (data.success) {
+            // Display client details and package agreements
+            displayClientDetailsWithAgreements(client, data.agreements);
+        } else {
+            // Show error message
+            document.getElementById('clientDetailsContent').innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Unable to load package agreements: ${data.error || 'Unknown error'}
+                </div>
+                ${getBasicClientInfo(client)}
+            `;
+        }
+    } catch (error) {
+        console.error('Error fetching package agreements:', error);
+        document.getElementById('clientDetailsContent').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-times-circle me-2"></i>
+                Error loading package agreements. Please try again.
+            </div>
+            ${getBasicClientInfo(client)}
+        `;
+    }
+}
+
+function displayClientDetailsWithAgreements(client, agreements) {
+    const content = document.getElementById('clientDetailsContent');
+            // Also update the card's agreement name, in case the initial card fetch raced and showed none
+        try {
+            const id = client.member_id || client.clubos_member_id;
+            const nameLine = document.getElementById(`client-agreement-name-${id}`);
+            if (nameLine && Array.isArray(agreements) && agreements.length) {
+                // Use the same logic as the card face - prioritize by sessions and status
+                let preferred = agreements.find(a => {
+                    const sessionsRemaining = a?.v2?.packageAgreement?.sessionsRemaining || 0;
+                    return sessionsRemaining > 0;
+                });
+                
+                if (!preferred) {
+                    preferred = agreements.find(a => {
+                        const status = (a.status || '').toLowerCase();
+                        return status === 'current' || status === 'active';
+                    });
+                }
+                
+                if (!preferred) {
+                    preferred = agreements[0];
+                }
+                
+                // Use the actual package_name from the backend
+                const primaryName = preferred.package_name || 'Training Package';
+                nameLine.innerHTML = `<i class="fas fa-file-contract me-1"></i>${escapeHtml(primaryName)}`;
+            }
+        } catch {}
+    
+    let html = `
+        <!-- Client Basic Information -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6 class="card-title text-primary">
+                            <i class="fas fa-user me-2"></i>Client Information
+                        </h6>
+                        <p class="mb-1"><strong>Name:</strong> ${client.member_name}</p>
+                        <p class="mb-1"><strong>ClubOS ID:</strong> ${client.clubos_member_id || 'N/A'}</p>
+                        <p class="mb-1"><strong>Primary Trainer:</strong> ${client.trainer_name || 'Jeremy Mayo'}</p>
+                        <p class="mb-0"><strong>Status:</strong> 
+                            <span class="badge ${client.status === 'Active' ? 'bg-success' : 'bg-warning'}">${client.status || 'Active'}</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6 class="card-title text-success">
+                            <i class="fas fa-chart-line me-2"></i>Training Summary
+                        </h6>
+                        <p class="mb-1"><strong>Sessions Remaining:</strong> ${client.sessions_remaining || 'N/A'}</p>
+                        <p class="mb-1"><strong>Next Invoice:</strong> $${client.next_invoice_subtotal || '0.00'}</p>
+                        <p class="mb-0"><strong>Last Updated:</strong> ${client.last_updated || client.created_at || 'N/A'}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Financial Summary Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-warning">
+                    <div class="card-header bg-warning text-dark">
+                        <h6 class="mb-0">
+                            <i class="fas fa-dollar-sign me-2"></i>
+                            Financial Summary
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3 text-center">
+                                <div class="financial-stat">
+                                    <h4 class="text-primary mb-1">$${calculateTotalPastDue(agreements).toFixed(2)}</h4>
+                                    <small class="text-muted">Total Past Due</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <div class="financial-stat">
+                                    <h4 class="text-success mb-1">${agreements.length}</h4>
+                                    <small class="text-muted">Active Agreements</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <div class="financial-stat">
+                                    <h4 class="text-info mb-1">${calculateTotalSessions(agreements)}</h4>
+                                    <small class="text-muted">Total Sessions</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3 text-center">
+                                <div class="financial-stat">
+                                    <h4 class="text-warning mb-1">$${calculateTotalValue(agreements).toFixed(2)}</h4>
+                                    <small class="text-muted">Total Value</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Package Agreements Section -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-file-contract me-2"></i>
+                    Active Training Package Agreements (${agreements.length})
+                </h6>
+            </div>
+            <div class="card-body">
+    `;
+    
+    if (agreements.length === 0) {
+        html += `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                No active training package agreements found for this client.
+            </div>
+        `;
+    } else {
+        html += `
+            <div class="row">
+        `;
+        
+        agreements.forEach((agreement, index) => {
+            const billing = agreement.billing || {};
+            const v2 = agreement.v2 || {};
+            const sales = agreement.salespeople;
+            const totalVal = agreement.agreement_total_value || {};
+            const bare = agreement.bare || {};
+            const billingStatuses = bare.billingStatuses || bare.billingStatus || null;
+            const collapseId = `bareRaw-${agreement.agreement_id || index}`;
+            const invoicePastDue = agreement.invoice_past_due || {};
+            
+            html += `
+                <div class="col-md-6 mb-3">
+                    <div class="card border-primary h-100">
+                        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                                                         <h6 class="mb-0">
+                                 <i class="fas fa-dumbbell me-2"></i>
+                                 ${escapeHtml(agreement.package_name || 'Package #' + (agreement.agreement_id || (index + 1)))}
+                             </h6>
+                            <span class="badge ${((agreement.status || '').toLowerCase() === 'past due') ? 'bg-danger' : 'bg-success'}">${agreement.status || 'Current'}</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <small class="text-muted">Agreement ID</small>
+                                    <p class="mb-0 fw-bold">${agreement.agreement_id || 'N/A'}</p>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Past Due Amount</small>
+                                    <p class="mb-0 fw-bold text-danger">$${(typeof agreement.amount_owed === 'number' ? agreement.amount_owed : parseFloat(agreement.amount_owed || 0) || 0).toFixed(2)}</p>
+                                </div>
+                            </div>
+                            
+                            ${totalVal && (totalVal.totalValue || totalVal.value) ? `
+                            <div class="row mb-3">
+                                <div class="col-12">
+                                    <small class="text-muted">Total Package Value</small>
+                                    <p class="mb-0 fw-bold text-success">$${(totalVal.totalValue || totalVal.value).toFixed ? (totalVal.totalValue || totalVal.value).toFixed(2) : totalVal.totalValue || totalVal.value}</p>
+                                </div>
+                            </div>
+                            ` : ''}
+                            
+                            ${v2?.packageAgreement?.sessionsRemaining != null ? `
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <small class="text-muted">Sessions Remaining</small>
+                                    <p class="mb-0 fw-bold text-info">${v2.packageAgreement.sessionsRemaining}</p>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">Package Price</small>
+                                    <p class="mb-0 fw-bold">$${v2.packageAgreement.packagePrice || 'N/A'}</p>
+                                </div>
+                            </div>
+                            ` : ''}
+                            
+                            ${v2?.packageAgreement?.startDate || v2?.packageAgreement?.endDate ? `
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <small class="text-muted">Start Date</small>
+                                    <p class="mb-0">${escapeHtml(v2.packageAgreement.startDate || 'N/A')}</p>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">End Date</small>
+                                    <p class="mb-0">${escapeHtml(v2.packageAgreement.endDate || 'N/A')}</p>
+                                </div>
+                            </div>
+                            ` : ''}
+                            
+                                                         <!-- Invoice Information -->
+                             <div class="mb-3">
+                                 <h6 class="text-muted mb-2">
+                                     <i class="fas fa-file-invoice me-1"></i>
+                                     Invoice Details
+                                 </h6>
+                                 ${(() => {
+                                     try {
+                                         // Get invoices from V2 data - this is where ClubOS stores them
+                                         const v2 = agreement.v2 || {};
+                                         let invoices = [];
+                                         
+                                         // Check different possible locations for invoices
+                                         if (v2.include && Array.isArray(v2.include.invoices)) {
+                                             invoices = v2.include.invoices;
+                                         } else if (Array.isArray(v2.invoices)) {
+                                             invoices = v2.invoices;
+                                         }
+                                         
+                                         if (invoices.length === 0) {
+                                             return '<div class="text-muted small">No invoice data available from ClubOS</div>';
+                                         }
+                                         
+                                         // Calculate past due amount using ClubOS SPA logic
+                                         const pastDueInvoices = invoices.filter(inv => {
+                                             const status = (inv.status || '').toLowerCase();
+                                             return status === 'delinquent' || status === 'pay now';
+                                         });
+                                         
+                                         const totalPastDue = pastDueInvoices.reduce((sum, inv) => {
+                                             const amt = parseFloat(inv.invoice_total || inv.remainingTotal || inv.total || 0);
+                                             return sum + (isNaN(amt) ? 0 : amt);
+                                         }, 0);
+                                         
+                                         let invoiceHtml = '';
+                                         
+                                         if (totalPastDue > 0) {
+                                             invoiceHtml += `
+                                                 <div class="alert alert-danger mb-2">
+                                                     <strong>Total Past Due: $${totalPastDue.toFixed(2)}</strong>
+                                                 </div>
+                                             `;
+                                         }
+                                         
+                                         // Show all invoices with status indicators
+                                         invoiceHtml += invoices.map(inv => {
+                                             const amount = parseFloat(inv.invoice_total || inv.remainingTotal || inv.total || 0);
+                                             const status = (inv.status || '').toLowerCase();
+                                             const isPastDue = status === 'delinquent' || status === 'pay now';
+                                             const isPaid = status === 'paid';
+                                             
+                                             let statusBadge = '';
+                                             if (isPastDue) {
+                                                 statusBadge = '<span class="badge bg-danger ms-2">Past Due</span>';
+                                             } else if (isPaid) {
+                                                 statusBadge = '<span class="badge bg-success ms-2">Paid</span>';
+                                             } else {
+                                                 statusBadge = '<span class="badge bg-warning ms-2">' + (status || 'Unknown') + '</span>';
+                                             }
+                                             
+                                             return `
+                                                 <div class="d-flex justify-content-between align-items-center mb-1 p-2 border rounded">
+                                                     <div>
+                                                         <i class="fas fa-file-invoice me-1"></i>
+                                                         Invoice #${inv.id || 'N/A'}
+                                                         ${statusBadge}
+                                                     </div>
+                                                     <div class="text-end">
+                                                         <div class="fw-bold">$${amount.toFixed(2)}</div>
+                                                         <small class="text-muted">${inv.invoice_date || inv.billingDate || inv.date || 'No date'}</small>
+                                                     </div>
+                                                 </div>
+                                             `;
+                                         }).join('');
+                                         
+                                         return invoiceHtml;
+                                     } catch (e) {
+                                         console.error('Error processing invoice data:', e);
+                                         return '<div class="text-muted small">Error loading invoice data</div>';
+                                     }
+                                 })()}
+                             </div>
+                            
+                            ${sales ? `
+                            <div class="mb-3">
+                                <small class="text-muted">Salespeople</small>
+                                <p class="mb-0">${Array.isArray(sales) ? sales.map(s => escapeHtml(s.name || s.salespersonName || 'Unknown')).join(', ') : ''}</p>
+                            </div>
+                            ` : ''}
+                            
+                            ${billingStatuses ? `
+                            <hr>
+                            <div class="mb-3">
+                                <h6 class="text-muted">Billing Status Breakdown</h6>
+                                ${(() => {
+                                    try {
+                                        const bs = billingStatuses;
+                                        const parts = [];
+                                        if (bs.past) {
+                                            const p = bs.past;
+                                            const amt = (p.amount || p.total || p.totalDue || p.balance || 0);
+                                            parts.push(`<span class="badge bg-danger me-1">Past Due</span> $${(parseFloat(amt) || 0).toFixed(2)}`);
+                                        }
+                                        if (bs.current) {
+                                            const c = bs.current;
+                                            const amt = (c.amount || c.total || c.due || 0);
+                                            parts.push(`<span class="badge bg-success me-1">Current</span> $${(parseFloat(amt) || 0).toFixed(2)}`);
+                                        }
+                                        return parts.length ? `<div>${parts.join(' &nbsp; ')}</div>` : '<div class="text-muted">No billing status available</div>';
+                                    } catch { return '<div class="text-muted">Error parsing billing status</div>'; }
+                                })()}
+                            </div>
+                            ` : ''}
+                            
+                                                         <div class="mt-3">
+                                 <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}" aria-expanded="false" aria-controls="${collapseId}">
+                                     <i class="fas fa-code me-1"></i> View Raw Data
+                                 </button>
+                                 <div class="collapse mt-2" id="${collapseId}">
+                                     <pre class="small bg-light p-2 border" style="max-height: 240px; overflow:auto;">${escapeHtml(JSON.stringify(bare, null, 2))}</pre>
+                                 </div>
+                                 
+                                 <!-- Debug: Show V2 data structure for invoices -->
+                                 <button class="btn btn-sm btn-outline-info ms-2" type="button" data-bs-toggle="collapse" data-bs-target="#v2Debug-${agreement.agreement_id || index}" aria-expanded="false">
+                                     <i class="fas fa-bug me-1"></i> Debug V2 Data
+                                 </button>
+                                 <div class="collapse mt-2" id="v2Debug-${agreement.agreement_id || index}">
+                                     <div class="alert alert-info">
+                                         <h6>V2 Data Structure:</h6>
+                                         <pre class="small" style="max-height: 200px; overflow:auto;">${escapeHtml(JSON.stringify(agreement.v2 || {}, null, 2))}</pre>
+                                     </div>
+                                 </div>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `
+            </div>
+        `;
+    }
+    
+    html += `
+            </div>
+        </div>
+    `;
+    
+    content.innerHTML = html;
+}
+
+// Helper functions for financial calculations
+function calculateTotalPastDue(agreements) {
+    let total = 0;
+    agreements.forEach(ag => {
+        try {
+            // Get invoices from V2 data
+            const v2 = ag.v2 || {};
+            let invoices = [];
+            
+            // Check different possible locations for invoices
+            if (v2.include && Array.isArray(v2.include.invoices)) {
+                invoices = v2.include.invoices;
+            } else if (Array.isArray(v2.invoices)) {
+                invoices = v2.invoices;
+            }
+            
+            // Calculate past due from actual invoice data
+            const pastDueInvoices = invoices.filter(inv => {
+                const status = (inv.status || '').toLowerCase();
+                return status === 'delinquent' || status === 'pay now';
+            });
+            
+            const agreementPastDue = pastDueInvoices.reduce((sum, inv) => {
+                const amt = parseFloat(inv.invoice_total || inv.remainingTotal || inv.total || 0);
+                return sum + (isNaN(amt) ? 0 : amt);
+            }, 0);
+            
+            total += agreementPastDue;
+        } catch (e) {
+            // Fallback to old method if invoice calculation fails
+            if (ag.invoice_past_due && ag.invoice_past_due.amount) {
+                total += ag.invoice_past_due.amount;
+            } else if (ag.amount_owed) {
+                total += parseFloat(ag.amount_owed) || 0;
+            }
+        }
+    });
+    return total;
+}
+
+function calculateTotalSessions(agreements) {
+    let total = 0;
+    agreements.forEach(ag => {
+        const sessions = ag?.v2?.packageAgreement?.sessionsRemaining || 0;
+        total += sessions;
+    });
+    return total;
+}
+
+function calculateTotalValue(agreements) {
+    let total = 0;
+    agreements.forEach(ag => {
+        const value = ag?.agreement_total_value?.totalValue || ag?.agreement_total_value?.value || 0;
+        total += parseFloat(value) || 0;
+    });
+    return total;
+}
+
+function getBasicClientInfo(client) {
+    return `
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">Client Information</h6>
+                <p><strong>Name:</strong> ${client.member_name}</p>
+                <p><strong>Trainer:</strong> ${client.trainer_name || 'Jeremy Mayo'}</p>
+                <p><strong>Status:</strong> ${client.status || 'Active'}</p>
+                <p><strong>Sessions Remaining:</strong> ${client.sessions_remaining || 'N/A'}</p>
+            </div>
+        </div>
+    `;
 }
 
 // Invoice functions
@@ -707,222 +1473,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('clientSearch').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             searchClients();
-        }
-    });
-});
-</script>
-{% endblock %}
-                            <th>Session Type</th>
-                            <th>Sessions Left</th>
-                            <th>Last Session</th>
-                            <th>Funding Status</th>
-                            <th>Agreement</th>
-                        </tr>
-                    </thead>
-                    <tbody id="training-clients-tbody">
-                        <!-- Training clients will be loaded here -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- No Training Clients Found -->
-        <div id="no-training-clients" style="display: none;">
-            <div class="text-center py-4">
-                <i class="fas fa-user-friends fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">No training clients found</h5>
-                <p class="text-muted">No personal training clients available from ClubOS.</p>
-                <button class="btn btn-primary" onclick="refreshTrainingClients()">
-                    <i class="fas fa-sync-alt me-2"></i>Try Again
-                </button>
-            </div>
-        </div>
-
-        <!-- Error State -->
-        <div id="training-clients-error" style="display: none;">
-            <div class="alert alert-danger">
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                <span id="error-message">Error loading training clients</span>
-                <button class="btn btn-sm btn-outline-danger ms-2" onclick="refreshTrainingClients()">
-                    <i class="fas fa-retry me-1"></i>Retry
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-// Load training clients asynchronously
-let allTrainingClients = [];
-let filteredClients = [];
-
-async function loadTrainingClients() {
-    console.log('🏋️ Loading training clients from ClubOS API...');
-    
-    const loadingElement = document.getElementById('training-clients-loading');
-    const containerElement = document.getElementById('training-clients-container');
-    const noClientsElement = document.getElementById('no-training-clients');
-    const errorElement = document.getElementById('training-clients-error');
-    
-    // Show loading state
-    loadingElement.style.display = 'block';
-    containerElement.style.display = 'none';
-    noClientsElement.style.display = 'none';
-    errorElement.style.display = 'none';
-    
-    try {
-        const response = await fetch('/api/training-clients/all');
-        const data = await response.json();
-        
-        // Hide loading state
-        loadingElement.style.display = 'none';
-        
-        if (data.success && data.training_clients && data.training_clients.length > 0) {
-            console.log(`✅ Loaded ${data.training_clients.length} training clients from ClubOS`);
-            
-            allTrainingClients = data.training_clients;
-            filteredClients = [...allTrainingClients];
-            
-            displayTrainingClients(filteredClients);
-            updateClientCount(filteredClients.length, data.data_source || 'clubos');
-            
-            containerElement.style.display = 'block';
-        } else {
-            console.log('ℹ️ No training clients found or API returned empty result');
-            noClientsElement.style.display = 'block';
-            updateClientCount(0, data.data_source || 'unknown');
-        }
-    } catch (error) {
-        console.error('❌ Error loading training clients:', error);
-        
-        // Hide loading state
-        loadingElement.style.display = 'none';
-        
-        // Show error message
-        document.getElementById('error-message').textContent = `Error loading training clients: ${error.message}`;
-        errorElement.style.display = 'block';
-        updateClientCount(0, 'error');
-    }
-}
-
-function displayTrainingClients(clients) {
-    const tbody = document.getElementById('training-clients-tbody');
-    
-    let html = '';
-    clients.forEach(client => {
-        const sessionsRemaining = client.sessions_remaining || 0;
-        const sessionsBadgeClass = sessionsRemaining > 5 ? 'bg-success' : 
-                                   sessionsRemaining > 2 ? 'bg-warning' : 'bg-danger';
-        
-        html += `
-            <tr>
-                <td>
-                    <strong>${client.member_name || 'Unknown Member'}</strong>
-                    <br>
-                    <small class="text-muted">ID: ${client.id || 'N/A'}</small>
-                    ${client.clubos_member_id ? `<br><small class="text-muted">ClubOS: ${client.clubos_member_id}</small>` : ''}
-                </td>
-                <td>${client.trainer_name || 'Not Assigned'}</td>
-                <td>
-                    ${client.session_type ? 
-                        `<span class="badge badge-purple">${client.session_type}</span>` : 
-                        `<span class="badge bg-secondary">Not Specified</span>`
-                    }
-                </td>
-                <td>
-                    <span class="badge ${sessionsBadgeClass}">
-                        ${sessionsRemaining}
-                    </span>
-                </td>
-                <td>${client.last_session || 'Never'}</td>
-                <td>
-                    <span class="badge bg-${client.funding_status_class || 'secondary'}">
-                        <i class="${client.funding_status_icon || 'fas fa-question-circle'} me-1"></i>
-                        ${client.funding_status || 'Unknown'}
-                    </span>
-                </td>
-                <td>
-                    ${client.agreement_name ? `
-                        <div>
-                            <strong>${client.agreement_name}</strong>
-                            ${client.agreement_expiration_date ? `<br><small class="text-muted">Expires: ${client.agreement_expiration_date}</small>` : ''}
-                        </div>
-                    ` : '<span class="text-muted">No Agreement</span>'}
-                </td>
-            </tr>
-        `;
-    });
-    
-    tbody.innerHTML = html;
-}
-
-function updateClientCount(count, source) {
-    const badge = document.getElementById('client-count-badge');
-    let sourceText = '';
-    
-    switch(source) {
-        case 'clubos_live_api':
-            sourceText = ' (Live)';
-            badge.className = 'badge bg-success';
-            break;
-        case 'database_fallback':
-            sourceText = ' (Cached)';
-            badge.className = 'badge bg-warning';
-            break;
-        case 'error':
-            sourceText = ' (Error)';
-            badge.className = 'badge bg-danger';
-            break;
-        default:
-            badge.className = 'badge bg-primary';
-    }
-    
-    badge.textContent = `${count} total${sourceText}`;
-}
-
-function filterClients() {
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-    
-    if (searchTerm === '') {
-        filteredClients = [...allTrainingClients];
-    } else {
-        filteredClients = allTrainingClients.filter(client => {
-            const memberName = (client.member_name || '').toLowerCase();
-            const trainerName = (client.trainer_name || '').toLowerCase();
-            const sessionType = (client.session_type || '').toLowerCase();
-            
-            return memberName.includes(searchTerm) || 
-                   trainerName.includes(searchTerm) || 
-                   sessionType.includes(searchTerm);
-        });
-    }
-    
-    displayTrainingClients(filteredClients);
-    updateClientCount(filteredClients.length, 'filtered');
-}
-
-function clearSearch() {
-    document.getElementById('searchInput').value = '';
-    filteredClients = [...allTrainingClients];
-    displayTrainingClients(filteredClients);
-    updateClientCount(filteredClients.length, 'all');
-}
-
-async function refreshTrainingClients() {
-    console.log('🔄 Refreshing training clients data...');
-    await loadTrainingClients();
-}
-
-// Load training clients when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Training clients page loaded - starting async data load');
-    loadTrainingClients();
-    
-    // Add enter key support for search
-    document.getElementById('searchInput').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            filterClients();
         }
     });
 });

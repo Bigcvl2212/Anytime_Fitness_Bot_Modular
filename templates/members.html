@@ -30,20 +30,56 @@
     .member-card {
         transition: transform 0.2s ease-in-out;
         cursor: pointer;
-        border: 1px solid #dee2e6;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
     }
     
     .member-card:hover {
-        transform: translateY(-3px);
+        transform:         html += `
+            <div class="col-md-6 col-lg-        // Generate a proper full name
+        let displayName = 'Unknown Name';
+        if (member.full_name && member.full_name.trim() !== '') {
+            displayName = member.full_name;
+        } else if (member.first_name || member.last_name) {
+            displayName = `${member.first_name || ''} ${member.last_name || ''}`.trim();
+        } else if (member.email && member.email.includes('@')) {
+            // Try to extract a name from email
+            const emailName = member.email.split('@')[0];
+            const cleanedName = emailName.replace(/[^a-zA-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
+            if (cleanedName) {
+                displayName = cleanedName.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
+                displayName += ' (from email)';
+            }
+        }
+        
+        html += `
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card ${cardClass}" style="cursor: pointer;" onclick="openMemberProfile(${member.id}, '${displayName.replace(/'/g, "\\'")}', '${member.email ? member.email.replace(/'/g, "\\'") : ''}')">
+                    <div class="card-body">
+                        <h6 class="card-title">${displayName}</h6>
+                        <p class="card-text">
+                            <small class="text-muted">${member.email || 'No email'}</small><br>
+                            <span class="badge ${badgeClass}">${member.status_text}</span>
+                        </p>
+                        ${member.mobile_phone ? `<small class="text-muted">📞 ${member.mobile_phone}</small>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;            <div class="card ${cardClass}" style="cursor: pointer;" onclick="openMemberProfile(${member.id}, '${member.full_name ? member.full_name.replace(/'/g, "\\'") : ''}', '${member.email ? member.email.replace(/'/g, "\\'") : ''}')">
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            ${member.full_name || (member.first_name && member.last_name ? 
+                              `${member.first_name} ${member.last_name}` : 
+                              (member.first_name || member.last_name || 'Unknown Name'))}
+                        </h6>
+                        <p class="card-text">
+                            <small class="text-muted">${member.email || 'No email'}</small><br>
+                            <span class="badge ${badgeClass}">${member.status_text}</span>
+                        </p>
+                        ${member.mobile_phone ? `<small class="text-muted">📞 ${member.mobile_phone}</small>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;x);
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        border-color: #0d6efd;
-    }
-    
-    .member-card.selected {
-        border-color: #0d6efd;
-        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
     }
     
     .stats-card {
@@ -57,941 +93,6 @@
         font-weight: bold;
         margin-bottom: 0.5rem;
     }
-    
-    .status-badge {
-        font-size: 0.75rem;
-        padding: 0.25rem 0.5rem;
-    }
-    
-    .member-detail-sidebar {
-        position: fixed;
-        top: 0;
-        right: -500px;
-        width: 500px;
-        height: 100vh;
-        background: white;
-        box-shadow: -3px 0 15px rgba(0,0,0,0.1);
-        z-index: 1050;
-        transition: right 0.3s ease;
-        overflow-y: auto;
-    }
-    
-    .member-detail-sidebar.show {
-        right: 0;
-    }
-    
-    .sidebar-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background: rgba(0,0,0,0.5);
-        z-index: 1040;
-        display: none;
-    }
-    
-    .sidebar-overlay.show {
-        display: block;
-    }
-    
-    .message-thread {
-        border-left: 3px solid #0d6efd;
-        padding-left: 1rem;
-        margin-bottom: 1rem;
-    }
-    
-    .message-bubble {
-        max-width: 80%;
-        padding: 0.75rem 1rem;
-        border-radius: 1rem;
-        margin-bottom: 0.5rem;
-    }
-    
-    .message-outbound {
-        background: #0d6efd;
-        color: white;
-        margin-left: auto;
-        border-bottom-right-radius: 0.25rem;
-    }
-    
-    .message-inbound {
-        background: #f8f9fa;
-        color: #212529;
-        border-bottom-left-radius: 0.25rem;
-    }
-    
-    .funding-status-funded {
-        background: #d1e7dd;
-        color: #0f5132;
-        border: 1px solid #badbcc;
-    }
-    
-    .funding-status-past-due {
-        background: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c2c7;
-    }
-    
-    .funding-status-unknown {
-        background: #e2e3e5;
-        color: #41464b;
-        border: 1px solid #c4c8cc;
-    }
-</style>
-{% endblock %}
-
-{% block content %}
-<div class="container-fluid">
-    <!-- Header Section -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h3 mb-0">
-                        <i class="fas fa-users me-2 text-primary"></i>
-                        Member Management
-                    </h1>
-                    <p class="text-muted mb-0">Manage and view all club members with enhanced filtering</p>
-                </div>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-outline-primary" onclick="startBulkCheckIn()">
-                        <i class="fas fa-sign-in-alt me-1"></i>
-                        Bulk Check-In
-                    </button>
-                    <button class="btn btn-primary" onclick="refreshMemberData()">
-                        <i class="fas fa-sync-alt me-1"></i>
-                        Refresh Data
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Filter and Search Section -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="form-label">Search Members</label>
-                            <div class="input-group">
-                                <input type="text" id="memberSearch" class="form-control" placeholder="Name, email, or phone...">
-                                <button class="btn btn-outline-secondary" onclick="searchMembers()">
-                                    <i class="fas fa-search"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Status Filter</label>
-                            <select id="statusFilter" class="form-select" onchange="filterMembers()">
-                                <option value="">All Members</option>
-                                <option value="active">Active</option>
-                                <option value="ppv">Pay Per Visit</option>
-                                <option value="comp">Complimentary</option>
-                                <option value="frozen">Frozen/Hold</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Page Size</label>
-                            <select id="pageSize" class="form-select" onchange="loadMembers()">
-                                <option value="25">25 per page</option>
-                                <option value="50" selected>50 per page</option>
-                                <option value="100">100 per page</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">&nbsp;</label>
-                            <div>
-                                <button class="btn btn-success w-100" onclick="showBatchInvoiceModal()">
-                                    <i class="fas fa-file-invoice-dollar me-1"></i>
-                                    Batch Invoice
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Stats Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card stats-card">
-                <div class="card-body text-center">
-                    <div class="count-display" id="totalMembersCount">-</div>
-                    <div>Total Members</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-success text-white">
-                <div class="card-body text-center">
-                    <div class="count-display" id="activeMembersCount">-</div>
-                    <div>Active Members</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-dark">
-                <div class="card-body text-center">
-                    <div class="count-display" id="pastDueMembersCount">-</div>
-                    <div>Past Due</div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card bg-info text-white">
-                <div class="card-body text-center">
-                    <div class="count-display" id="frozenMembersCount">-</div>
-                    <div>Frozen/Hold</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Members List -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="fas fa-list me-2"></i>
-                        Members Directory
-                    </h5>
-                    <div id="membersLoadingIndicator" style="display: none;">
-                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-                        <span class="ms-2">Loading...</span>
-                    </div>
-                </div>
-                <div class="card-body">
-                    <!-- Members Container -->
-                    <div id="membersContainer">
-                        <div class="text-center py-5">
-                            <div class="spinner-border text-primary" role="status"></div>
-                            <p class="text-muted mt-3">Loading members...</p>
-                        </div>
-                    </div>
-                    
-                    <!-- Pagination -->
-                    <div id="membersPagination" class="d-flex justify-content-between align-items-center mt-4" style="display: none !important;">
-                        <div>
-                            <span id="membersResultsInfo" class="text-muted"></span>
-                        </div>
-                        <div>
-                            <nav>
-                                <ul class="pagination mb-0" id="membersPaginationList">
-                                    <!-- Pagination buttons will be inserted here -->
-                                </ul>
-                            </nav>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Member Detail Sidebar -->
-<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMemberDetail()"></div>
-<div class="member-detail-sidebar" id="memberDetailSidebar">
-    <div class="p-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4 class="mb-0" id="memberDetailName">Member Details</h4>
-            <button class="btn btn-outline-secondary btn-sm" onclick="closeMemberDetail()">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        
-        <div id="memberDetailContent">
-            <div class="text-center py-5">
-                <div class="spinner-border text-primary" role="status"></div>
-                <p class="text-muted mt-3">Loading member details...</p>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Bulk Check-In Status Modal -->
-<div class="modal fade" id="bulkCheckInModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-sign-in-alt me-2"></i>
-                    Bulk Member Check-In
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div id="bulkCheckInStatus">
-                    <div class="text-center py-3">
-                        <button class="btn btn-primary btn-lg" onclick="startBulkCheckInProcess()">
-                            <i class="fas fa-play me-2"></i>
-                            Start Bulk Check-In
-                        </button>
-                        <p class="text-muted mt-3">This will check in all eligible members (excluding PPV, comp, and frozen members)</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Batch Invoice Modal -->
-<div class="modal fade" id="batchInvoiceModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-file-invoice-dollar me-2"></i>
-                    Batch Invoice Creation
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="batchInvoiceForm">
-                    <div class="mb-3">
-                        <label class="form-label">Target Members</label>
-                        <select class="form-select" name="target_type">
-                            <option value="members">All Members</option>
-                            <option value="training_clients">Training Clients</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Filter Criteria</label>
-                        <select class="form-select" name="filter">
-                            <option value="past_due">Past Due Only</option>
-                            <option value="all">All Selected Members</option>
-                        </select>
-                    </div>
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        This will create Square invoices for all matching members. Please confirm you want to proceed.
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-warning" onclick="processBatchInvoices()">
-                    <i class="fas fa-file-invoice me-1"></i>
-                    Create Invoices
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-let currentPage = 1;
-let currentFilter = '';
-let currentSearch = '';
-let membersData = [];
-let bulkCheckInInterval = null;
-
-// Initialize page
-document.addEventListener('DOMContentLoaded', function() {
-    loadMembers();
-    loadMemberStats();
-    
-    // Auto-refresh bulk check-in status if modal is open
-    $('#bulkCheckInModal').on('shown.bs.modal', function() {
-        checkBulkCheckInStatus();
-    });
-    
-    $('#bulkCheckInModal').on('hidden.bs.modal', function() {
-        if (bulkCheckInInterval) {
-            clearInterval(bulkCheckInInterval);
-            bulkCheckInInterval = null;
-        }
-    });
-});
-
-// Load members with pagination and filtering
-async function loadMembers(page = 1) {
-    currentPage = page;
-    const container = document.getElementById('membersContainer');
-    const loadingIndicator = document.getElementById('membersLoadingIndicator');
-    
-    loadingIndicator.style.display = 'block';
-    
-    try {
-        const params = new URLSearchParams({
-            page: page,
-            per_page: document.getElementById('pageSize').value,
-            status: currentFilter,
-            search: currentSearch
-        });
-        
-        const response = await fetch(`/api/members/list?${params}`);
-        const data = await response.json();
-        
-        if (data.success) {
-            membersData = data.members;
-            renderMembers(data.members);
-            renderPagination(data.pagination);
-        } else {
-            container.innerHTML = `<div class="alert alert-danger">Error loading members: ${data.error}</div>`;
-        }
-    } catch (error) {
-        container.innerHTML = `<div class="alert alert-danger">Network error: ${error.message}</div>`;
-    } finally {
-        loadingIndicator.style.display = 'none';
-    }
-}
-
-// Render members list
-function renderMembers(members) {
-    const container = document.getElementById('membersContainer');
-    
-    if (!members || members.length === 0) {
-        container.innerHTML = `
-            <div class="text-center py-5">
-                <i class="fas fa-users fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">No members found</h5>
-                <p class="text-muted">Try adjusting your search or filter criteria</p>
-            </div>
-        `;
-        return;
-    }
-    
-    const membersHtml = members.map(member => `
-        <div class="member-card card mb-3" onclick="showMemberDetail(${member.id})">
-            <div class="card-body">
-                <div class="row align-items-center">
-                    <div class="col-md-4">
-                        <h6 class="mb-1">${escapeHtml(member.full_name || 'Unknown Name')}</h6>
-                        <p class="text-muted mb-0 small">
-                            <i class="fas fa-envelope me-1"></i>
-                            ${escapeHtml(member.email || 'No email')}
-                        </p>
-                    </div>
-                    <div class="col-md-3">
-                        <p class="mb-0 small">
-                            <i class="fas fa-phone me-1"></i>
-                            ${escapeHtml(member.mobile_phone || 'No phone')}
-                        </p>
-                    </div>
-                    <div class="col-md-3">
-                        ${renderMemberStatus(member)}
-                    </div>
-                    <div class="col-md-2 text-end">
-                        <div class="btn-group btn-group-sm">
-                            <button class="btn btn-outline-primary" onclick="event.stopPropagation(); showMemberDetail(${member.id})">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            <button class="btn btn-outline-success" onclick="event.stopPropagation(); createSingleInvoice(${member.id})">
-                                <i class="fas fa-file-invoice"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `).join('');
-    
-    container.innerHTML = membersHtml;
-}
-
-// Render member status badge
-function renderMemberStatus(member) {
-    let badgeClass = 'bg-secondary';
-    let statusText = 'Unknown';
-    
-    if (member.trial) {
-        badgeClass = 'bg-info';
-        statusText = 'Trial';
-    } else if (member.status === 1) {
-        badgeClass = 'bg-success';
-        statusText = 'Active';
-    } else if (member.status === 2 || member.status === 3) {
-        badgeClass = 'bg-warning text-dark';
-        statusText = 'Frozen';
-    } else {
-        badgeClass = 'bg-danger';
-        statusText = 'Inactive';
-    }
-    
-    return `<span class="badge ${badgeClass} status-badge">${statusText}</span>`;
-}
-
-// Render pagination
-function renderPagination(pagination) {
-    const paginationContainer = document.getElementById('membersPagination');
-    const infoElement = document.getElementById('membersResultsInfo');
-    const listElement = document.getElementById('membersPaginationList');
-    
-    if (!pagination || pagination.pages <= 1) {
-        paginationContainer.style.display = 'none';
-        return;
-    }
-    
-    paginationContainer.style.display = 'flex';
-    
-    // Update results info
-    const start = ((pagination.page - 1) * pagination.per_page) + 1;
-    const end = Math.min(pagination.page * pagination.per_page, pagination.total);
-    infoElement.textContent = `Showing ${start}-${end} of ${pagination.total} members`;
-    
-    // Generate pagination buttons
-    let paginationHtml = '';
-    
-    // Previous button
-    if (pagination.page > 1) {
-        paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="loadMembers(${pagination.page - 1})">Previous</a></li>`;
-    }
-    
-    // Page numbers
-    const startPage = Math.max(1, pagination.page - 2);
-    const endPage = Math.min(pagination.pages, pagination.page + 2);
-    
-    for (let i = startPage; i <= endPage; i++) {
-        const active = i === pagination.page ? 'active' : '';
-        paginationHtml += `<li class="page-item ${active}"><a class="page-link" href="#" onclick="loadMembers(${i})">${i}</a></li>`;
-    }
-    
-    // Next button
-    if (pagination.page < pagination.pages) {
-        paginationHtml += `<li class="page-item"><a class="page-link" href="#" onclick="loadMembers(${pagination.page + 1})">Next</a></li>`;
-    }
-    
-    listElement.innerHTML = paginationHtml;
-}
-
-// Load member statistics
-async function loadMemberStats() {
-    try {
-        // Load counts for different member types
-        const activeResponse = await fetch('/api/members/list?status=active&per_page=1');
-        const activeData = await activeResponse.json();
-        if (activeData.success) {
-            document.getElementById('activeMembersCount').textContent = activeData.pagination.total;
-        }
-        
-        // Similar calls for other stats...
-        const totalResponse = await fetch('/api/members/list?per_page=1');
-        const totalData = await totalResponse.json();
-        if (totalData.success) {
-            document.getElementById('totalMembersCount').textContent = totalData.pagination.total;
-        }
-    } catch (error) {
-        console.error('Error loading member stats:', error);
-    }
-}
-
-// Search and filter functions
-function searchMembers() {
-    currentSearch = document.getElementById('memberSearch').value;
-    loadMembers(1);
-}
-
-function filterMembers() {
-    currentFilter = document.getElementById('statusFilter').value;
-    loadMembers(1);
-}
-
-function refreshMemberData() {
-    loadMembers(currentPage);
-    loadMemberStats();
-}
-
-// Member detail functions
-async function showMemberDetail(memberId) {
-    const sidebar = document.getElementById('memberDetailSidebar');
-    const overlay = document.getElementById('sidebarOverlay');
-    const content = document.getElementById('memberDetailContent');
-    
-    // Show sidebar
-    sidebar.classList.add('show');
-    overlay.classList.add('show');
-    
-    // Load member details
-    try {
-        const response = await fetch(`/api/members/${memberId}`);
-        const data = await response.json();
-        
-        if (data.success) {
-            renderMemberDetail(data.member);
-        } else {
-            content.innerHTML = `<div class="alert alert-danger">Error loading member details: ${data.error}</div>`;
-        }
-    } catch (error) {
-        content.innerHTML = `<div class="alert alert-danger">Network error: ${error.message}</div>`;
-    }
-}
-
-function closeMemberDetail() {
-    document.getElementById('memberDetailSidebar').classList.remove('show');
-    document.getElementById('sidebarOverlay').classList.remove('show');
-}
-
-function renderMemberDetail(member) {
-    const content = document.getElementById('memberDetailContent');
-    const nameElement = document.getElementById('memberDetailName');
-    
-    nameElement.textContent = member.full_name || 'Unknown Member';
-    
-    content.innerHTML = `
-        <div class="member-detail-content">
-            <!-- Basic Info -->
-            <div class="card mb-3">
-                <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-user me-2"></i>Basic Information</h6>
-                </div>
-                <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-12">
-                            <strong>Email:</strong> ${escapeHtml(member.email || 'N/A')}
-                        </div>
-                        <div class="col-12">
-                            <strong>Phone:</strong> ${escapeHtml(member.mobile_phone || 'N/A')}
-                        </div>
-                        <div class="col-12">
-                            <strong>Status:</strong> ${renderMemberStatus(member)}
-                        </div>
-                        <div class="col-12">
-                            <strong>Member Since:</strong> ${formatDate(member.created_at)}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Funding Status -->
-            ${renderFundingStatus(member.funding_status)}
-            
-            <!-- Recent Transactions -->
-            ${renderTransactionHistory(member.transactions)}
-            
-            <!-- Messaging -->
-            ${renderMessagingHistory(member.message_threads)}
-            
-            <!-- Actions -->
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-cogs me-2"></i>Actions</h6>
-                </div>
-                <div class="card-body">
-                    <div class="d-grid gap-2">
-                        <button class="btn btn-success" onclick="createSingleInvoice(${member.id})">
-                            <i class="fas fa-file-invoice me-2"></i>Create Invoice
-                        </button>
-                        <button class="btn btn-info" onclick="sendMessage(${member.id})">
-                            <i class="fas fa-envelope me-2"></i>Send Message
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-function renderFundingStatus(funding) {
-    if (!funding) {
-        return `
-            <div class="card mb-3">
-                <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-credit-card me-2"></i>Funding Status</h6>
-                </div>
-                <div class="card-body">
-                    <span class="badge funding-status-unknown">No funding data available</span>
-                </div>
-            </div>
-        `;
-    }
-    
-    const statusClass = funding.payment_status === 'Current' ? 'funding-status-funded' : 
-                       funding.payment_status === 'Past Due' ? 'funding-status-past-due' : 'funding-status-unknown';
-    
-    return `
-        <div class="card mb-3">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="fas fa-credit-card me-2"></i>Funding Status</h6>
-            </div>
-            <div class="card-body">
-                <span class="badge ${statusClass} mb-2">${funding.payment_status || 'Unknown'}</span>
-                <div class="small text-muted">
-                    Last Updated: ${formatDate(funding.last_updated)}
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-function renderTransactionHistory(transactions) {
-    if (!transactions || transactions.length === 0) {
-        return `
-            <div class="card mb-3">
-                <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-history me-2"></i>Transaction History</h6>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted mb-0">No recent transactions</p>
-                </div>
-            </div>
-        `;
-    }
-    
-    const transactionsList = transactions.slice(0, 5).map(tx => `
-        <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
-            <div>
-                <div class="fw-medium">${escapeHtml(tx.description || tx.type)}</div>
-                <small class="text-muted">${formatDate(tx.created_at)}</small>
-            </div>
-            <div class="text-end">
-                <div class="fw-medium">$${(tx.amount || 0).toFixed(2)}</div>
-                <small class="badge ${tx.status === 'paid' ? 'bg-success' : tx.status === 'sent' ? 'bg-warning' : 'bg-secondary'}">${tx.status}</small>
-            </div>
-        </div>
-    `).join('');
-    
-    return `
-        <div class="card mb-3">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="fas fa-history me-2"></i>Recent Transactions</h6>
-            </div>
-            <div class="card-body">
-                ${transactionsList}
-            </div>
-        </div>
-    `;
-}
-
-function renderMessagingHistory(threads) {
-    if (!threads || threads.length === 0) {
-        return `
-            <div class="card mb-3">
-                <div class="card-header">
-                    <h6 class="mb-0"><i class="fas fa-comments me-2"></i>Messages</h6>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted mb-0">No recent messages</p>
-                </div>
-            </div>
-        `;
-    }
-    
-    const threadsList = threads.slice(0, 3).map(thread => `
-        <div class="message-thread">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-                <strong>${escapeHtml(thread.thread_subject || thread.thread_type)}</strong>
-                <small class="text-muted">${formatDate(thread.last_message_at)}</small>
-            </div>
-            ${thread.recent_messages ? thread.recent_messages.slice(0, 2).map(msg => `
-                <div class="message-bubble ${msg.direction === 'outbound' ? 'message-outbound' : 'message-inbound'}">
-                    ${escapeHtml(msg.message_content || '')}
-                </div>
-            `).join('') : ''}
-        </div>
-    `).join('');
-    
-    return `
-        <div class="card mb-3">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="fas fa-comments me-2"></i>Recent Messages</h6>
-            </div>
-            <div class="card-body">
-                ${threadsList}
-            </div>
-        </div>
-    `;
-}
-
-// Bulk operations
-function startBulkCheckIn() {
-    const modal = new bootstrap.Modal(document.getElementById('bulkCheckInModal'));
-    modal.show();
-}
-
-async function startBulkCheckInProcess() {
-    try {
-        const response = await fetch('/api/bulk-checkin', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await response.json();
-        
-        if (data.success) {
-            // Start monitoring progress
-            bulkCheckInInterval = setInterval(checkBulkCheckInStatus, 2000);
-            checkBulkCheckInStatus();
-        } else {
-            alert('Error starting bulk check-in: ' + data.error);
-        }
-    } catch (error) {
-        alert('Network error: ' + error.message);
-    }
-}
-
-async function checkBulkCheckInStatus() {
-    try {
-        const response = await fetch('/api/bulk-checkin-status');
-        const data = await response.json();
-        
-        if (data.success) {
-            updateBulkCheckInUI(data.status);
-            
-            if (!data.status.is_running) {
-                if (bulkCheckInInterval) {
-                    clearInterval(bulkCheckInInterval);
-                    bulkCheckInInterval = null;
-                }
-            }
-        }
-    } catch (error) {
-        console.error('Error checking bulk check-in status:', error);
-    }
-}
-
-function updateBulkCheckInUI(status) {
-    const container = document.getElementById('bulkCheckInStatus');
-    
-    if (!status.is_running && !status.completed_at) {
-        // Not started yet
-        return;
-    }
-    
-    const progressPercent = status.progress || 0;
-    const statusMessage = status.message || 'Processing...';
-    
-    container.innerHTML = `
-        <div class="text-center">
-            <div class="progress mb-3" style="height: 30px;">
-                <div class="progress-bar progress-bar-striped ${status.is_running ? 'progress-bar-animated' : ''}" 
-                     role="progressbar" style="width: ${progressPercent}%">
-                    ${progressPercent}%
-                </div>
-            </div>
-            <p class="mb-3">${escapeHtml(statusMessage)}</p>
-            <div class="row text-center">
-                <div class="col-3">
-                    <strong>${status.total_members || 0}</strong><br>
-                    <small class="text-muted">Total</small>
-                </div>
-                <div class="col-3">
-                    <strong>${status.processed_members || 0}</strong><br>
-                    <small class="text-muted">Processed</small>
-                </div>
-                <div class="col-3">
-                    <strong>${status.total_checkins || 0}</strong><br>
-                    <small class="text-muted">Checked In</small>
-                </div>
-                <div class="col-3">
-                    <strong>${(status.ppv_excluded || 0) + (status.comp_excluded || 0) + (status.frozen_excluded || 0)}</strong><br>
-                    <small class="text-muted">Excluded</small>
-                </div>
-            </div>
-            ${status.completed_at ? `
-                <div class="alert alert-success mt-3">
-                    <i class="fas fa-check-circle me-2"></i>
-                    Bulk check-in completed successfully!
-                </div>
-            ` : ''}
-        </div>
-    `;
-}
-
-// Invoice functions
-function showBatchInvoiceModal() {
-    const modal = new bootstrap.Modal(document.getElementById('batchInvoiceModal'));
-    modal.show();
-}
-
-async function processBatchInvoices() {
-    const form = document.getElementById('batchInvoiceForm');
-    const formData = new FormData(form);
-    
-    try {
-        const response = await fetch('/api/invoices/batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(Object.fromEntries(formData))
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            alert(`Batch invoicing completed. ${data.summary.successful} invoices created successfully.`);
-            const modal = bootstrap.Modal.getInstance(document.getElementById('batchInvoiceModal'));
-            modal.hide();
-        } else {
-            alert('Error creating batch invoices: ' + data.error);
-        }
-    } catch (error) {
-        alert('Network error: ' + error.message);
-    }
-}
-
-async function createSingleInvoice(memberId) {
-    const amount = prompt('Enter invoice amount:');
-    if (!amount || isNaN(amount)) return;
-    
-    const description = prompt('Enter invoice description:', 'Training Package Payment');
-    if (!description) return;
-    
-    try {
-        const response = await fetch('/api/invoices/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                member_id: memberId,
-                amount: parseFloat(amount),
-                description: description
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            alert('Invoice created successfully!');
-            if (document.getElementById('memberDetailSidebar').classList.contains('show')) {
-                showMemberDetail(memberId); // Refresh member details
-            }
-        } else {
-            alert('Error creating invoice: ' + data.error);
-        }
-    } catch (error) {
-        alert('Network error: ' + error.message);
-    }
-}
-
-// Utility functions
-function escapeHtml(unsafe) {
-    if (!unsafe) return '';
-    return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-
-function formatDate(dateString) {
-    if (!dateString) return 'N/A';
-    try {
-        return new Date(dateString).toLocaleDateString();
-    } catch {
-        return 'Invalid Date';
-    }
-}
-
-function sendMessage(memberId) {
-    alert('Messaging feature coming soon!');
-}
-
-// Enable search on enter key
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('memberSearch').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            searchMembers();
-        }
-    });
-});
-</script>
-{% endblock %}
     
     .loading-spinner {
         border: 4px solid #f3f3f3;
@@ -1153,7 +254,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <input type="text" class="form-control search-input" placeholder="Search members by name, email, or phone..." id="memberSearch">
                         </div>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-4">
                         <select class="form-select search-input" id="statusFilter">
                             <option value="">All Status</option>
                             <option value="active">Active</option>
@@ -1162,20 +263,65 @@ document.addEventListener('DOMContentLoaded', function() {
                             <option value="frozen">Frozen</option>
                         </select>
                     </div>
-                    <div class="col-md-2 mt-3 mt-md-0">
-                        <select class="form-select search-input" id="priorityFilter">
-                            <option value="">All Outlook</option>
-                            <option value="red">Past Due (Red)</option>
-                            <option value="yellow">Due Soon (Yellow)</option>
-                            <option value="ppv">PPV</option>
-                            <option value="none">Active/Other</option>
-                        </select>
-                    </div>
                 </div>
             </div>
 
             <!-- Members Grid -->
-            <div class="row" id="membersContainer"></div>
+            <div class="row" id="membersContainer">
+                {% for member in members %}
+                <div class="col-xl-3 col-lg-4 col-md-6 mb-4 member-item" 
+                     data-name="{{ member.full_name|default(member.firstName ~ ' ' ~ member.lastName, true)|lower }}" 
+                     data-email="{{ member.email|default(member.Email, true)|lower }}" 
+                     data-status="{{ member.status|default(member.Status, true)|lower }}">
+                    <div class="card member-card h-100" onclick="openMemberProfile({{ member.id|default(member.prospectId, true) }}, '{{ member.full_name|default(member.firstName ~ ' ' ~ member.lastName, true) }}', '{{ member.email|default(member.Email, true) }}')">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h6 class="card-title mb-0">
+                                {% if member.full_name %}
+                                    {{ member.full_name }}
+                                {% elif member.firstName is defined and member.lastName is defined %}
+                                    {{ member.firstName }} {{ member.lastName }}
+                                {% elif member.first_name is defined and member.last_name is defined %}
+                                    {{ member.first_name }} {{ member.last_name }}
+                                {% elif member.firstName is defined %}
+                                    {{ member.firstName }}
+                                {% elif member.first_name is defined %}
+                                    {{ member.first_name }}
+                                {% elif member.lastName is defined %}
+                                    {{ member.lastName }}
+                                {% elif member.last_name is defined %}
+                                    {{ member.last_name }}
+                                {% else %}
+                                    Unknown Name
+                                {% endif %}
+                                </h6>
+                                <span class="badge bg-primary">{{ member.status|default(member.Status, true) or 'Active' }}</span>
+                            </div>
+                            <p class="card-text text-muted small mb-2">
+                                <i class="fas fa-envelope me-1"></i>{{ member.email|default(member.Email, true) or 'No email' }}
+                            </p>
+                            {% if member.mobile_phone or member.mobilePhone %}
+                            <p class="card-text text-muted small mb-2">
+                                <i class="fas fa-phone me-1"></i>{{ member.mobile_phone|default(member.mobilePhone, true) }}
+                            </p>
+                            {% endif %}
+                            <div class="d-flex justify-content-between align-items-end">
+                                <small class="text-muted">
+                                    ID: {{ member.id|default(member.prospectId, true) }}
+                                </small>
+                                <small class="text-muted">
+                                    {% if member.membership_start or member.membershipStart %}
+                                        Since: {{ (member.membership_start|default(member.membershipStart, true))[:10] }}
+                                    {% elif member.created_at %}
+                                        Since: {{ member.created_at[:10] }}
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
 
             {% if not members %}
             <div class="empty-state">
@@ -2324,21 +1470,16 @@ async function loadAllMembers(page = 1, search = '', statusFilter = '') {
                     }
                 }
                 
-                const priority = member.priority_status || '';
-                const badgeClass = member.payment_status_class || (priority === 'red' ? 'danger' : priority === 'yellow' ? 'warning' : (priority === 'ppv' ? 'info' : 'primary'));
-                const statusText = member.status_text || member.status || 'Active';
-
                 html += `
                     <div class="col-xl-3 col-lg-4 col-md-6 mb-4 member-item" 
                          data-name="${(displayName || '').toLowerCase()}" 
                          data-email="${(member.email || '').toLowerCase()}" 
-                         data-status="${(member.status || '').toLowerCase()}"
-                         data-priority="${priority}">
+                         data-status="${(member.status || '').toLowerCase()}">
                         <div class="card member-card h-100" onclick="openMemberProfile(${member.id}, '${displayName}', '${member.email || ''}')">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
                                     <h6 class="card-title mb-0">${displayName}</h6>
-                                    <span class="badge bg-${badgeClass}">${statusText}</span>
+                                    <span class="badge bg-${member.payment_status_class || 'primary'}">${member.status || 'Active'}</span>
                                 </div>
                                 <p class="card-text text-muted small mb-2">
                                     <i class="fas fa-envelope me-1"></i>${member.email || 'No email'}
@@ -2401,7 +1542,6 @@ async function loadAllMembers(page = 1, search = '', statusFilter = '') {
 // Function to update status filter options
 function updateStatusFilterOptions(statuses) {
     const statusFilter = document.getElementById('statusFilter');
-    const priorityFilter = document.getElementById('priorityFilter');
     if (statusFilter && statuses.length > 0) {
         const currentValue = statusFilter.value;
         statusFilter.innerHTML = '<option value="">All Status</option>';
@@ -2433,19 +1573,17 @@ document.addEventListener('DOMContentLoaded', function() {
     function filterMembers() {
         const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
         const statusTerm = statusFilter ? statusFilter.value.toLowerCase() : '';
-    const memberItems = document.querySelectorAll('.member-item');
+        const memberItems = document.querySelectorAll('.member-item');
         
         memberItems.forEach(item => {
             const name = item.dataset.name || '';
             const email = item.dataset.email || '';
             const status = item.dataset.status || '';
-            const priority = item.dataset.priority || '';
             
             const matchesSearch = name.includes(searchTerm) || email.includes(searchTerm);
             const matchesStatus = !statusTerm || status.includes(statusTerm);
-            const matchesPriority = !(priorityFilter && priorityFilter.value) || (priority === (priorityFilter.value || '')) || (priorityFilter.value === 'none' && (!priority || priority === ''));
             
-            if (matchesSearch && matchesStatus && matchesPriority) {
+            if (matchesSearch && matchesStatus) {
                 item.style.display = 'block';
             } else {
                 item.style.display = 'none';
@@ -2459,9 +1597,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (statusFilter) {
         statusFilter.addEventListener('change', filterMembers);
-    }
-    if (priorityFilter) {
-        priorityFilter.addEventListener('change', filterMembers);
     }
 
     // Tab switching functionality

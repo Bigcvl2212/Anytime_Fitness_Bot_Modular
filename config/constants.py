@@ -93,8 +93,8 @@ SQUARE_ACCESS_TOKEN_SECRET = get_square_access_token_secret()
 SQUARE_LOCATION_ID_SECRET = get_square_location_id_secret()
 
 # Payment Configuration
-LATE_FEE_AMOUNT = 25.00
-PROCESSING_FEE_PERCENTAGE = 0.029  # 2.9% processing fee
+LATE_FEE_AMOUNT = 19.50
+PROCESSING_FEE_PERCENTAGE = 0.03  # 3.0% processing fee
 
 # =============================================================================
 # GOOGLE CLOUD CONFIGURATION
@@ -120,7 +120,7 @@ STAFF_NAMES = ["Gym-Bot AI", "Jeremy", "Staff"]
 
 # Message limits
 TEXT_MESSAGE_CHARACTER_LIMIT = 300
-PROSPECT_DAILY_LIMIT = 60
+PROSPECT_DAILY_LIMIT = 100
 PPV_MEMBER_DAILY_LIMIT = 10
 
 # Note configuration
