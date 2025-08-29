@@ -40,12 +40,18 @@ venv.bak/
 logs/
 *.log
 
-# Sensitive data
+# Sensitive data and environment files
 secrets.py
 *.env
 .env
+.env.local
+.env.production
+.env.staging
 config/secrets.py
 gym_bot/config/secrets.py
+
+# Keep template files
+!.env.example
 
 # Charles session files
 *.chls
@@ -129,4 +135,3 @@ api_keys.json
 *.sqlite
 gym_bot.db
 archive/
-.env.example

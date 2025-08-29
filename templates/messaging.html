@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Messaging Center - {{ super() }}{% endblock %}
+
+{% block title %}Messaging Center - Anytime Fitness Management{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -8,113 +9,163 @@
         min-height: 600px;
     }
     
-    .threads-panel {
-        border-right: 1px solid #dee2e6;
-        height: 100%;
-        overflow-y: auto;
+    .campaign-panel {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 1rem;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
     }
     
-    .thread-item {
-        padding: 1rem;
-        border-bottom: 1px solid #f8f9fa;
+    .message-thread {
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+        transition: transform 0.2s ease-in-out;
         cursor: pointer;
-        transition: background-color 0.2s ease;
     }
     
-    .thread-item:hover {
-        background-color: #f8f9fa;
+    .message-thread:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        border-color: #0d6efd;
     }
     
-    .thread-item.active {
-        background-color: #e3f2fd;
-        border-left: 4px solid #1976d2;
-    }
-    
-    .thread-item.unread {
+    .message-thread.unread {
         background-color: #fff3e0;
         border-left: 4px solid #ff9800;
     }
     
-    .conversation-panel {
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .conversation-header {
-        padding: 1rem;
-        border-bottom: 1px solid #dee2e6;
-        background: #f8f9fa;
-    }
-    
-    .messages-container {
-        flex: 1;
-        overflow-y: auto;
-        padding: 1rem;
-        background: #fafafa;
-    }
-    
-    .message-item {
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: flex-start;
-    }
-    
-    .message-item.outbound {
-        justify-content: flex-end;
-    }
-    
-    .message-bubble {
-        max-width: 70%;
-        padding: 0.75rem 1rem;
-        border-radius: 1rem;
-        position: relative;
-    }
-    
-    .message-bubble.inbound {
+    .campaign-form {
         background: white;
-        border: 1px solid #dee2e6;
-        border-bottom-left-radius: 0.25rem;
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
     
-    .message-bubble.outbound {
-        background: #0d6efd;
-        color: white;
-        border-bottom-right-radius: 0.25rem;
+    .category-selector {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin: 1rem 0;
     }
     
-    .message-meta {
-        font-size: 0.75rem;
-        margin-top: 0.25rem;
-        opacity: 0.7;
-    }
-    
-    .compose-panel {
+    .category-card {
+        border: 2px solid #e9ecef;
+        border-radius: 0.5rem;
         padding: 1rem;
-        border-top: 1px solid #dee2e6;
-        background: white;
-    }
-    
-    .daily-report-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-    }
-    
-    .report-metric {
         text-align: center;
-        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
     }
     
-    .report-metric .metric-value {
+    .category-card:hover {
+        border-color: #0d6efd;
+        background-color: #f8f9fa;
+    }
+    
+    .category-card.selected {
+        border-color: #0d6efd;
+        background-color: #e3f2fd;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin: 1rem 0;
+    }
+    
+    .stat-card {
+        background: rgba(255,255,255,0.1);
+        border-radius: 0.5rem;
+        padding: 1rem;
+        text-align: center;
+        border: 1px solid rgba(255,255,255,0.2);
+    }
+    
+    .stat-number {
         font-size: 2rem;
         font-weight: bold;
         display: block;
     }
     
-    .report-metric .metric-label {
-        font-size: 0.875rem;
-        opacity: 0.9;
+    .progress-container {
+        background: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        margin: 1rem 0;
+        display: none;
+    }
+    
+    .message-thread {
+        transition: all 0.2s ease;
+    }
+    
+    .message-thread:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .message-thread.border-primary {
+        border-left: 4px solid #0d6efd !important;
+    }
+    
+    .clickable-message {
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .clickable-message:hover {
+        border-color: #007bff;
+        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15);
+        transform: translateY(-1px);
+    }
+    
+    .clickable-message:hover h6 {
+        color: #007bff;
+    }
+    
+    /* ClubOS-style inbox improvements */
+    .messages-container {
+        max-height: 600px;
+        overflow-y: auto;
+        padding: 1rem;
+    }
+    
+    .message-thread .p-3 {
+        padding: 1rem !important;
+    }
+    
+    .message-thread h6 {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 0.5rem;
+    }
+    
+    .message-thread p {
+        color: #6c757d;
+        line-height: 1.5;
+        margin-bottom: 0.5rem;
+    }
+    
+    .message-thread small {
+        font-size: 0.8rem;
+        color: #868e96;
+    }
+    
+    .messages-container {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+    
+    .message-summary {
+        position: sticky;
+        top: 0;
+        background: white;
+        z-index: 10;
+        border-bottom: 1px solid #dee2e6;
     }
 </style>
 {% endblock %}
@@ -130,59 +181,107 @@
                         <i class="fas fa-comments me-2 text-primary"></i>
                         Messaging Center
                     </h1>
-                    <p class="text-muted mb-0">Unified messaging inbox with daily reporting</p>
+                    <p class="text-muted mb-0">ClubOS message sync and campaign management</p>
                 </div>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-info" onclick="showDailyReport()">
-                        <i class="fas fa-chart-line me-1"></i>
-                        Daily Report
+                    <button class="btn btn-info" onclick="syncClubOSMessages()">
+                        <i class="fas fa-sync me-1"></i>
+                        Sync ALL ClubOS
                     </button>
-                    <button class="btn btn-success" onclick="composeNewMessage()">
-                        <i class="fas fa-plus me-1"></i>
-                        New Message
+                    <button class="btn btn-success" onclick="showCampaignModal()">
+                        <i class="fas fa-bullhorn me-1"></i>
+                        New Campaign
                     </button>
-                    <button class="btn btn-primary" onclick="refreshInbox()">
-                        <i class="fas fa-sync-alt me-1"></i>
+                    <button class="btn btn-primary" onclick="refreshMessages()">
+                        <i class="fas fa-refresh me-1"></i>
                         Refresh
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="loadAllMessages()">
+                        <i class="fas fa-list me-1"></i>
+                        Load All
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Main Messaging Interface -->
+    <!-- Campaign Quick Launch Panel -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="campaign-panel">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h4 class="mb-2">
+                            <i class="fas fa-bullhorn me-2"></i>
+                            Quick Campaign Launch
+                        </h4>
+                        <p class="mb-0">Send targeted messages to member groups instantly</p>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <span class="stat-number" id="totalMembers">-</span>
+                                <small>Total Members</small>
+                            </div>
+                            <div class="stat-card">
+                                <span class="stat-number" id="campaignsSent">-</span>
+                                <small>Campaigns Sent</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Row -->
     <div class="row messaging-container">
-        <!-- Threads Panel -->
-        <div class="col-md-4 threads-panel p-0">
+        <!-- Messages Panel -->
+        <div class="col-md-6">
             <div class="card h-100">
                 <div class="card-header">
                     <div class="d-flex justify-content-between align-items-center">
                         <h6 class="mb-0">
                             <i class="fas fa-inbox me-2"></i>
-                            Inbox
+                            ClubOS Messages
                         </h6>
-                        <span id="unreadCount" class="badge bg-primary">0</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <span id="messageCount" class="badge bg-primary">0</span>
+                            <small class="text-muted" id="messageInfo">Click Sync to load</small>
+                        </div>
                     </div>
                 </div>
-                <div class="card-body p-0">
-                    <div id="threadsContainer">
+                <div class="card-body">
+                    <div id="messagesContainer" class="messages-container">
                         <div class="text-center py-5">
-                            <div class="spinner-border text-primary" role="status"></div>
-                            <p class="text-muted mt-3">Loading conversations...</p>
+                            <i class="fas fa-envelope fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No messages loaded</h5>
+                            <p class="text-muted">Click "Sync ALL ClubOS" to load all messages</p>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Conversation Panel -->
-        <div class="col-md-8 p-0">
+        <!-- Campaign History Panel -->
+        <div class="col-md-6">
             <div class="card h-100">
-                <div id="conversationArea">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="fas fa-history me-2"></i>
+                            Campaign History
+                        </h6>
+                        <span id="campaignCount" class="badge bg-success">0</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="campaignHistoryContainer">
                     <div class="text-center py-5">
-                        <i class="fas fa-comments fa-4x text-muted mb-3"></i>
-                        <h5 class="text-muted">Select a conversation to start messaging</h5>
-                        <p class="text-muted">Choose a thread from the inbox to view messages</p>
+                            <i class="fas fa-bullhorn fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No campaigns yet</h5>
+                            <p class="text-muted">Create your first campaign to see history</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -190,79 +289,94 @@
     </div>
 </div>
 
-<!-- Daily Report Modal -->
-<div class="modal fade" id="dailyReportModal" tabindex="-1">
+<!-- Campaign Creation Modal -->
+<div class="modal fade" id="campaignModal" tabindex="-1">
     <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header daily-report-card">
-                <h5 class="modal-title">
-                    <i class="fas fa-chart-line me-2"></i>
-                    Daily Activity Report
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div id="dailyReportContent">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-primary" role="status"></div>
-                        <p class="text-muted mt-3">Generating daily report...</p>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" onclick="exportReport()">
-                    <i class="fas fa-download me-1"></i>Export Report
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Compose Message Modal -->
-<div class="modal fade" id="composeModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
-                    <i class="fas fa-envelope me-2"></i>
-                    Compose New Message
+                    <i class="fas fa-bullhorn me-2"></i>
+                    Create Messaging Campaign
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="composeForm">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Member</label>
-                            <select class="form-select" id="composeMember" name="member_id" required>
-                                <option value="">Select member...</option>
-                                <!-- Populated dynamically -->
-                            </select>
-                        </div>
+                <form id="campaignForm">
+                    <div class="row g-4">
+                        <!-- Message Type Selection -->
                         <div class="col-md-6">
                             <label class="form-label">Message Type</label>
-                            <select class="form-select" id="composeType" name="message_type" required>
-                                <option value="email">Email</option>
-                                <option value="sms">SMS</option>
-                                <option value="system">System Notification</option>
-                            </select>
-                        </div>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="messageType" id="typeSMS" value="sms" checked>
+                                <label class="btn btn-outline-primary" for="typeSMS">
+                                    <i class="fas fa-sms me-1"></i>SMS
+                                </label>
+                                <input type="radio" class="btn-check" name="messageType" id="typeEmail" value="email">
+                                <label class="btn btn-outline-primary" for="typeEmail">
+                                    <i class="fas fa-envelope me-1"></i>Email
+                                </label>
+                    </div>
+                </div>
+
+                        <!-- Max Recipients -->
+                        <div class="col-md-6">
+                            <label class="form-label">Maximum Recipients</label>
+                            <input type="number" class="form-control" id="maxRecipients" value="100" min="1" max="1000">
+            </div>
+
+                        <!-- Email Subject (hidden by default) -->
+                        <div class="col-12" id="emailSubjectRow" style="display: none;">
+                            <label class="form-label">Email Subject</label>
+                            <input type="text" class="form-control" id="emailSubject" placeholder="Enter email subject...">
+            </div>
+
+                        <!-- Message Content -->
                         <div class="col-12">
-                            <label class="form-label">Subject</label>
-                            <input type="text" class="form-control" id="composeSubject" name="subject" placeholder="Message subject...">
-                        </div>
+                            <label class="form-label">Message Content</label>
+                            <textarea class="form-control" id="messageContent" rows="4" placeholder="Enter your message..."></textarea>
+                            <small class="form-text text-muted">
+                                <span id="charCount">0</span>/160 characters (SMS limit)
+                            </small>
+        </div>
+
+                        <!-- Member Categories Selection -->
                         <div class="col-12">
-                            <label class="form-label">Message</label>
-                            <textarea class="form-control" id="composeMessage" name="message_content" rows="6" placeholder="Type your message here..." required></textarea>
+                            <label class="form-label">Target Member Categories</label>
+                            <div class="category-selector" id="categoriesContainer">
+                                <!-- Categories will be loaded here -->
+    </div>
+</div>
+
+                        <!-- Preview Section -->
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Campaign Preview</h6>
+            </div>
+                                <div class="card-body">
+                                    <div id="campaignPreview">
+                                        <p class="text-muted">Select categories and enter message to see preview</p>
+                        </div>
+                        </div>
+                        </div>
                         </div>
                     </div>
                 </form>
+
+                <!-- Progress Container -->
+                <div class="progress-container" id="progressContainer">
+                    <h6>Sending Campaign...</h6>
+                    <div class="progress mb-2">
+                        <div class="progress-bar" id="campaignProgress" style="width: 0%"></div>
+                    </div>
+                    <small class="text-muted" id="progressText">Preparing...</small>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="sendNewMessage()">
-                    <i class="fas fa-paper-plane me-1"></i>Send Message
+                <button type="button" class="btn btn-success" onclick="sendCampaign()">
+                    <i class="fas fa-paper-plane me-1"></i>
+                    Send Campaign
                 </button>
             </div>
         </div>
@@ -272,500 +386,563 @@
 
 {% block extra_js %}
 <script>
-let messageThreads = [];
-let currentThreadId = null;
-let currentMemberId = null;
+let memberCategories = [];
+let selectedCategories = [];
 
-// Initialize messaging interface
+// Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    loadInbox();
-    loadMembersForCompose();
+    console.log('📱 Messaging center initialized');
+    loadMemberCategories();
+    loadCampaignHistory();
+    updateStats();
+    
+    // Auto-sync messages on page load
+    console.log('🔄 Auto-syncing messages on page load...');
+    autoSyncMessages();
+    
+    // Also load existing messages immediately for faster display
+    console.log('📨 Loading existing messages immediately...');
+    loadMessages();
+    
+    // Set up event listeners
+    document.getElementById('messageContent').addEventListener('input', updateCharCount);
+    document.querySelectorAll('input[name="messageType"]').forEach(radio => {
+        radio.addEventListener('change', toggleEmailSubject);
+    });
 });
 
-// Load inbox with recent threads
-async function loadInbox() {
-    try {
-        const response = await fetch('/api/messaging/inbox/recent');
-        const data = await response.json();
-        
+// Auto-sync messages on page load (silent, no UI updates)
+function autoSyncMessages() {
+    console.log('🔄 Auto-syncing messages from ClubOS...');
+    
+    fetch('/api/messages/sync', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            owner_id: '187032782'  // Jeremy Mayo's ClubOS user ID
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
         if (data.success) {
-            messageThreads = data.threads || [];
-            renderThreads();
-            updateUnreadCount();
+            console.log(`✅ Auto-sync complete: ${data.stored_count} messages`);
+            loadMessages();
+            updateStats();
         } else {
-            console.error('Failed to load inbox:', data.error);
-            showInboxError('Error loading inbox: ' + data.error);
+            console.error('❌ Auto-sync failed:', data.error);
+            // Fallback: try to load existing messages
+            loadMessages();
         }
-    } catch (error) {
-        console.error('Network error loading inbox:', error);
-        showInboxError('Network error loading inbox');
-    }
+    })
+    .catch(error => {
+        console.error('❌ Auto-sync error:', error);
+        // Fallback: try to load existing messages
+        loadMessages();
+    });
 }
 
-// Render message threads
-function renderThreads() {
-    const container = document.getElementById('threadsContainer');
+// Manual sync messages from ClubOS (with UI feedback)
+function syncClubOSMessages() {
+    console.log('🔄 Syncing ALL messages from ClubOS...');
     
-    if (!messageThreads || messageThreads.length === 0) {
+    const button = document.querySelector('button[onclick="syncClubOSMessages()"]');
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Syncing ALL...';
+    button.disabled = true;
+    
+    // Show progress indicator
+    const progressContainer = document.getElementById('progressContainer');
+    progressContainer.style.display = 'block';
+    progressContainer.innerHTML = `
+        <h6>🔄 Syncing ALL ClubOS Messages...</h6>
+        <div class="progress mb-2">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
+        </div>
+        <small class="text-muted">This may take a few minutes to fetch all messages...</small>
+    `;
+    
+    fetch('/api/messages/sync', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            owner_id: '187032782'  // Jeremy Mayo's ClubOS user ID
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        progressContainer.style.display = 'none';
+        
+        if (data.success) {
+            alert(`✅ Successfully synced ${data.stored_count} messages from ClubOS (Total: ${data.total_messages})`);
+            loadMessages();
+            updateStats();
+        } else {
+            alert('❌ Error syncing messages: ' + data.error);
+        }
+    })
+    .catch(error => {
+        progressContainer.style.display = 'none';
+        console.error('Error:', error);
+        alert('❌ Network error syncing messages');
+    })
+    .finally(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    });
+}
+
+// Load messages from database (with optional limit)
+function loadMessages(limit = null) {
+    let url = '/api/messages';
+    if (limit) {
+        url += `?limit=${limit}`;
+    }
+    
+    fetch(url)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayMessages(data.messages);
+            console.log(`📨 Loaded ${data.messages.length} messages from database`);
+        } else {
+            console.error('Error loading messages:', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+}
+
+// Load all messages without limit
+function loadAllMessages() {
+    console.log('📨 Loading ALL messages from database...');
+    loadMessages(); // No limit parameter = get all messages
+}
+
+// Display messages in the container
+function displayMessages(messages) {
+    const container = document.getElementById('messagesContainer');
+    const countBadge = document.getElementById('messageCount');
+    const messageInfo = document.getElementById('messageInfo');
+    
+    if (!messages || messages.length === 0) {
         container.innerHTML = `
             <div class="text-center py-5">
-                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                <h6 class="text-muted">No conversations yet</h6>
-                <p class="text-muted small">Start a new conversation to get started</p>
+                <i class="fas fa-envelope fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No messages found</h5>
+                <p class="text-muted">Try syncing with ClubOS</p>
             </div>
         `;
+        countBadge.textContent = '0';
+        messageInfo.textContent = 'Click Sync to load';
         return;
     }
     
-    const threadsHtml = messageThreads.map(thread => {
-        const latestMessage = thread.latest_message;
-        const isUnread = thread.status === 'unread' || (latestMessage && latestMessage.status === 'sent');
+    countBadge.textContent = messages.length;
+    messageInfo.textContent = `${messages.length} messages loaded`;
+    
+    // Add a sticky summary header
+    const summaryHtml = `
+        <div class="alert alert-info mb-3 message-summary">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>${messages.length}</strong> messages loaded from ClubOS
+            <small class="d-block mt-1">Last sync: ${formatDateTime(messages[0]?.timestamp)}</small>
+        </div>
+    `;
+        
+    const messagesHtml = messages.map((message, index) => {
+        // Extract member name from message content for clickable functionality
+        const memberName = extractMemberName(message.content);
+        const displayName = memberName || message.from_user || 'System';
+        const isClickable = memberName && memberName !== 'Unknown';
         
         return `
-            <div class="thread-item ${isUnread ? 'unread' : ''}" onclick="selectThread(${thread.id}, ${thread.member_id})">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div class="flex-grow-1">
-                        <h6 class="mb-1">${escapeHtml(thread.member_full_name || thread.member_name || 'Unknown Member')}</h6>
-                        <p class="mb-1 text-muted small">
-                            ${escapeHtml(thread.thread_subject || getThreadTypeLabel(thread.thread_type))}
-                        </p>
-                        ${latestMessage ? `
-                            <p class="mb-0 text-muted small">
-                                ${escapeHtml((latestMessage.message_content || '').substring(0, 60))}${latestMessage.message_content && latestMessage.message_content.length > 60 ? '...' : ''}
-                            </p>
-                        ` : ''}
-                    </div>
-                    <div class="text-end">
-                        <small class="text-muted">${formatTimeAgo(thread.last_message_at)}</small>
-                        <div class="mt-1">
-                            <span class="badge ${getThreadTypeBadge(thread.thread_type)}">${getThreadTypeLabel(thread.thread_type)}</span>
-                            ${isUnread ? '<span class="badge bg-primary">New</span>' : ''}
+            <div class="message-thread ${index < 5 ? 'border-primary' : ''} ${isClickable ? 'clickable-message' : ''}" 
+                 ${isClickable ? `onclick="goToMemberProfile('${memberName}')"` : ''}
+                 style="${isClickable ? 'cursor: pointer;' : ''}">
+                <div class="p-3">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">
+                                ${displayName}
+                                ${index < 5 ? '<span class="badge bg-primary ms-2">Recent</span>' : ''}
+                                ${isClickable ? '<i class="fas fa-external-link-alt ms-2 text-muted" title="Click to view member profile"></i>' : ''}
+                            </h6>
+                            <p class="mb-1">${message.content || 'No content'}</p>
+                            <small class="text-muted">
+                                ${formatDateTime(message.timestamp)}
+                                ${message.message_type ? ` • ${message.message_type}` : ''}
+                            </small>
                         </div>
+                        <span class="badge bg-${getStatusColor(message.status)} ms-2">${message.status || 'info'}</span>
                     </div>
                 </div>
             </div>
         `;
-    }).join('');
+    }).reverse().join('');
     
-    container.innerHTML = threadsHtml;
+    container.innerHTML = summaryHtml + messagesHtml;
 }
 
-// Select and load thread conversation
-async function selectThread(threadId, memberId) {
-    currentThreadId = threadId;
-    currentMemberId = memberId;
-    
-    // Update UI state
-    document.querySelectorAll('.thread-item').forEach(item => item.classList.remove('active'));
-    event.currentTarget.classList.add('active');
-    
-    // Load full conversation
-    try {
-        const response = await fetch(`/api/messaging/thread?memberId=${memberId}`);
-        const data = await response.json();
-        
+// Load member categories for campaign targeting
+function loadMemberCategories() {
+    fetch('/api/members/categories')
+    .then(response => response.json())
+    .then(data => {
         if (data.success) {
-            renderConversation(data.threads, memberId);
+            memberCategories = data.categories;
+            displayCategorySelector();
         } else {
-            showConversationError('Error loading conversation: ' + data.error);
+            console.error('Error loading categories:', data.error);
         }
-    } catch (error) {
-        console.error('Error loading conversation:', error);
-        showConversationError('Network error loading conversation');
-    }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
 }
 
-// Render conversation
-function renderConversation(threads, memberId) {
-    const conversationArea = document.getElementById('conversationArea');
+// Display category selector in modal
+function displayCategorySelector() {
+    const container = document.getElementById('categoriesContainer');
     
-    // Find the member info
-    const memberThread = messageThreads.find(t => t.member_id == memberId);
-    const memberName = memberThread ? (memberThread.member_full_name || memberThread.member_name) : 'Unknown Member';
-    
-    // Combine all messages from all threads for this member
-    let allMessages = [];
-    threads.forEach(thread => {
-        if (thread.messages) {
-            allMessages.push(...thread.messages.map(msg => ({
-                ...msg,
-                thread_type: thread.thread_type
-            })));
-        }
-    });
-    
-    // Sort messages by timestamp
-    allMessages.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-    
-    const messagesHtml = allMessages.map(message => `
-        <div class="message-item ${message.direction || 'inbound'}">
-            <div class="message-bubble ${message.direction || 'inbound'}">
-                <div class="message-content">
-                    ${escapeHtml(message.message_content || '')}
-                </div>
-                <div class="message-meta">
-                    <span class="badge badge-sm ${getThreadTypeBadge(message.thread_type)}">${getThreadTypeLabel(message.thread_type)}</span>
-                    <span class="ms-2">${formatDateTime(message.created_at)}</span>
-                    ${message.sender_name ? `<span class="ms-2">by ${escapeHtml(message.sender_name)}</span>` : ''}
-                </div>
-            </div>
+    const categoriesHtml = memberCategories.map(category => `
+        <div class="category-card" onclick="toggleCategory('${category.name}')" data-category="${category.name}">
+            <h6 class="mb-1">${category.label}</h6>
+            <span class="badge bg-primary">${category.count} members</span>
         </div>
     `).join('');
     
-    conversationArea.innerHTML = `
-        <div class="conversation-panel">
-            <div class="conversation-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h5 class="mb-1">${escapeHtml(memberName)}</h5>
-                        <small class="text-muted">${memberThread ? escapeHtml(memberThread.member_email || '') : ''}</small>
-                    </div>
-                    <div>
-                        <button class="btn btn-sm btn-outline-primary" onclick="viewMemberProfile(${memberId})">
-                            <i class="fas fa-user me-1"></i>View Profile
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="messages-container" id="messagesContainer">
-                ${allMessages.length > 0 ? messagesHtml : `
-                    <div class="text-center py-5">
-                        <i class="fas fa-comment fa-3x text-muted mb-3"></i>
-                        <h6 class="text-muted">No messages yet</h6>
-                        <p class="text-muted">Start the conversation below</p>
-                    </div>
-                `}
-            </div>
-            <div class="compose-panel">
-                <div class="row g-2">
-                    <div class="col-md-3">
-                        <select class="form-select form-select-sm" id="quickReplyType">
-                            <option value="email">Email</option>
-                            <option value="sms">SMS</option>
-                            <option value="system">System</option>
-                        </select>
-                    </div>
-                    <div class="col-md-7">
-                        <input type="text" class="form-control form-control-sm" id="quickReplyMessage" 
-                               placeholder="Type your message..." onkeypress="handleQuickReplyEnter(event)">
-                    </div>
-                    <div class="col-md-2">
-                        <button class="btn btn-primary btn-sm w-100" onclick="sendQuickReply()">
-                            <i class="fas fa-paper-plane"></i> Send
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // Scroll to bottom of messages
-    setTimeout(() => {
-        const messagesContainer = document.getElementById('messagesContainer');
-        if (messagesContainer) {
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
-    }, 100);
+    container.innerHTML = categoriesHtml;
 }
 
-// Daily report functions
-async function showDailyReport() {
-    const modal = new bootstrap.Modal(document.getElementById('dailyReportModal'));
-    modal.show();
+// Toggle category selection
+function toggleCategory(categoryName) {
+    const card = document.querySelector(`[data-category="${categoryName}"]`);
     
-    try {
-        const today = new Date().toISOString().split('T')[0];
-        const response = await fetch(`/api/daily-report?date=${today}`);
-        const data = await response.json();
-        
-        if (data.success && data.report) {
-            renderDailyReport(data.report);
+    if (selectedCategories.includes(categoryName)) {
+        selectedCategories = selectedCategories.filter(c => c !== categoryName);
+        card.classList.remove('selected');
         } else {
-            showReportError('Error loading daily report');
-        }
-    } catch (error) {
-        console.error('Error loading daily report:', error);
-        showReportError('Network error loading report');
+        selectedCategories.push(categoryName);
+        card.classList.add('selected');
     }
+    
+    updateCampaignPreview();
 }
 
-function renderDailyReport(report) {
-    const content = document.getElementById('dailyReportContent');
+// Extract member name from message content
+function extractMemberName(content) {
+    if (!content) return null;
     
-    content.innerHTML = `
-        <div class="row mb-4">
-            <div class="col-md-12">
-                <h6 class="mb-3">Daily Activity Summary - ${formatDate(report.report_date)}</h6>
-            </div>
-        </div>
-        
-        <div class="row g-3">
-            <div class="col-md-3">
-                <div class="card bg-primary text-white">
-                    <div class="card-body report-metric">
-                        <span class="metric-value">${report.bulk_checkins_count || 0}</span>
-                        <span class="metric-label">Bulk Check-ins</span>
+    // Look for patterns like "Michael Stephens", "Windy Watson", etc.
+    const lines = content.split('\n');
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed && trimmed.length > 3 && trimmed.length < 50) {
+            // Check if it looks like a name (starts with capital, has space, no special chars)
+            if (/^[A-Z][a-z]+ [A-Z][a-z]+$/.test(trimmed)) {
+                return trimmed;
+            }
+            // Also check for names with middle initials or longer names
+            if (/^[A-Z][a-z]+ [A-Z][a-z\s]+$/.test(trimmed) && trimmed.split(' ').length >= 2) {
+                return trimmed;
+            }
+        }
+    }
+    
+    // If no name found in first line, try to extract from the beginning of content
+    if (content && content.length > 10) {
+        const firstPart = content.substring(0, 100);
+        const nameMatch = firstPart.match(/^([A-Z][a-z]+ [A-Z][a-z\s]+)/);
+        if (nameMatch) {
+            return nameMatch[1].trim();
+        }
+    }
+    
+    // Try to find names within the content (not just at the beginning)
+    const namePattern = /([A-Z][a-z]+ [A-Z][a-z]+)/g;
+    const matches = content.match(namePattern);
+    if (matches && matches.length > 0) {
+        // Return the first name that looks like a real person (not system words)
+        for (const match of matches) {
+            if (!/^(System|ClubOS|Confirm|Cancel|Reminder|Notification)/i.test(match)) {
+                return match;
+            }
+        }
+    }
+    
+    return null;
+}
+
+// Navigate to member profile page
+function goToMemberProfile(memberName) {
+    console.log(`🔗 Navigating to profile for: ${memberName}`);
+    
+    // First try to find the member by name
+    fetch(`/api/members/search?q=${encodeURIComponent(memberName)}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.members && data.members.length > 0) {
+            // Found member, navigate to their specific profile
+            const member = data.members[0];
+            console.log(`✅ Found member: ${member.name} (ID: ${member.id})`);
+            window.location.href = `/members?search=${encodeURIComponent(memberName)}&highlight=${member.id}`;
+        } else {
+            // Fallback to general search
+            console.log(`⚠️ Member not found, using general search`);
+            window.location.href = `/members?search=${encodeURIComponent(memberName)}`;
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error searching for member:', error);
+        // Fallback to general search
+        window.location.href = `/members?search=${encodeURIComponent(memberName)}`;
+    });
+}
+
+// Update campaign preview
+function updateCampaignPreview() {
+    const messageType = document.querySelector('input[name="messageType"]:checked').value;
+    const messageContent = document.getElementById('messageContent').value;
+    const maxRecipients = document.getElementById('maxRecipients').value;
+    const emailSubject = document.getElementById('emailSubject').value;
+    
+    const totalMembers = selectedCategories.reduce((sum, categoryName) => {
+        const category = memberCategories.find(c => c.name === categoryName);
+        return sum + (category ? category.count : 0);
+    }, 0);
+    
+    const actualRecipients = Math.min(totalMembers, maxRecipients);
+    
+    const preview = document.getElementById('campaignPreview');
+    
+    if (selectedCategories.length === 0 || !messageContent) {
+        preview.innerHTML = '<p class="text-muted">Select categories and enter message to see preview</p>';
+        return;
+    }
+    
+    preview.innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Campaign Details</h6>
+                <ul class="list-unstyled">
+                    <li><strong>Type:</strong> ${messageType.toUpperCase()}</li>
+                    ${messageType === 'email' && emailSubject ? `<li><strong>Subject:</strong> ${emailSubject}</li>` : ''}
+                    <li><strong>Categories:</strong> ${selectedCategories.join(', ')}</li>
+                    <li><strong>Recipients:</strong> ${actualRecipients} of ${totalMembers} members</li>
+                </ul>
                     </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card bg-success text-white">
-                    <div class="card-body report-metric">
-                        <span class="metric-value">${report.invoices_created || 0}</span>
-                        <span class="metric-label">Invoices Created</span>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card bg-warning text-dark">
-                    <div class="card-body report-metric">
-                        <span class="metric-value">${report.invoices_paid || 0}</span>
-                        <span class="metric-label">Invoices Paid</span>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card bg-info text-white">
-                    <div class="card-body report-metric">
-                        <span class="metric-value">$${(report.revenue_collected || 0).toFixed(0)}</span>
-                        <span class="metric-label">Revenue Collected</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="row g-3 mt-3">
-            <div class="col-md-3">
-                <div class="card">
-                    <div class="card-body report-metric">
-                        <span class="metric-value">${report.campaigns_sent || 0}</span>
-                        <span class="metric-label">Campaigns Sent</span>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card">
-                    <div class="card-body report-metric">
-                        <span class="metric-value">${report.replies_received || 0}</span>
-                        <span class="metric-label">Replies Received</span>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card">
-                    <div class="card-body report-metric">
-                        <span class="metric-value">${report.appointments_completed || 0}</span>
-                        <span class="metric-label">Appointments</span>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card">
-                    <div class="card-body report-metric">
-                        <span class="metric-value">${report.new_members || 0}</span>
-                        <span class="metric-label">New Members</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle me-2"></i>
-                    Report generated on ${formatDateTime(report.created_at)} and last updated ${formatDateTime(report.updated_at)}
+            <div class="col-md-6">
+                <h6>Message Preview</h6>
+                <div class="border rounded p-2 bg-light">
+                    ${messageContent}
                 </div>
             </div>
         </div>
     `;
 }
 
-// Compose new message
-function composeNewMessage() {
-    const modal = new bootstrap.Modal(document.getElementById('composeModal'));
+// Update character count
+function updateCharCount() {
+    const messageContent = document.getElementById('messageContent').value;
+    const charCount = document.getElementById('charCount');
+    charCount.textContent = messageContent.length;
+    
+    if (messageContent.length > 160) {
+        charCount.parentElement.classList.add('text-warning');
+    } else {
+        charCount.parentElement.classList.remove('text-warning');
+    }
+    
+    updateCampaignPreview();
+}
+
+// Toggle email subject field
+function toggleEmailSubject() {
+    const messageType = document.querySelector('input[name="messageType"]:checked').value;
+    const emailSubjectRow = document.getElementById('emailSubjectRow');
+    
+    if (messageType === 'email') {
+        emailSubjectRow.style.display = 'block';
+    } else {
+        emailSubjectRow.style.display = 'none';
+    }
+    
+    updateCampaignPreview();
+}
+
+// Show campaign modal
+function showCampaignModal() {
+    const modal = new bootstrap.Modal(document.getElementById('campaignModal'));
     modal.show();
 }
 
-async function loadMembersForCompose() {
-    try {
-        const response = await fetch('/api/members/list?per_page=100');
-        const data = await response.json();
+// Send campaign
+function sendCampaign() {
+    const messageType = document.querySelector('input[name="messageType"]:checked').value;
+    const messageContent = document.getElementById('messageContent').value.trim();
+    const maxRecipients = parseInt(document.getElementById('maxRecipients').value);
+    const emailSubject = document.getElementById('emailSubject').value.trim();
+    
+    if (!messageContent) {
+        alert('Please enter a message');
+        return;
+    }
+    
+    if (selectedCategories.length === 0) {
+        alert('Please select at least one member category');
+        return;
+    }
+    
+    if (messageType === 'email' && !emailSubject) {
+        alert('Please enter an email subject');
+        return;
+    }
+    
+    // Show progress
+    const progressContainer = document.getElementById('progressContainer');
+    progressContainer.style.display = 'block';
+    
+    const campaignData = {
+        message: messageContent,
+        type: messageType,
+        subject: emailSubject,
+        categories: selectedCategories,
+        max_recipients: maxRecipients
+    };
+    
+    fetch('/api/campaigns/send', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(campaignData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        progressContainer.style.display = 'none';
         
         if (data.success) {
-            const select = document.getElementById('composeMember');
-            const options = data.members.map(member => 
-                `<option value="${member.id}">${escapeHtml(member.full_name || 'Unknown')} (${escapeHtml(member.email || 'No email')})</option>`
-            ).join('');
-            
-            select.innerHTML = '<option value="">Select member...</option>' + options;
+            alert(`✅ ${data.message}`);
+            const modal = bootstrap.Modal.getInstance(document.getElementById('campaignModal'));
+            modal.hide();
+            loadCampaignHistory();
+            updateStats();
+        } else {
+            alert('❌ Error sending campaign: ' + data.error);
         }
-    } catch (error) {
-        console.error('Error loading members for compose:', error);
+    })
+    .catch(error => {
+        progressContainer.style.display = 'none';
+        console.error('Error:', error);
+        alert('❌ Network error sending campaign');
+    });
+}
+
+// Load campaign history
+function loadCampaignHistory() {
+    fetch('/api/campaigns/history')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayCampaignHistory(data.campaigns);
+        } else {
+            console.error('Error loading campaign history:', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+}
+
+// Display campaign history
+function displayCampaignHistory(campaigns) {
+    const container = document.getElementById('campaignHistoryContainer');
+    const countBadge = document.getElementById('campaignCount');
+    
+    if (!campaigns || campaigns.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-bullhorn fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No campaigns yet</h5>
+                <p class="text-muted">Create your first campaign</p>
+        </div>
+    `;
+        countBadge.textContent = '0';
+        return;
     }
+    
+    countBadge.textContent = campaigns.length;
+    
+    const campaignsHtml = campaigns.map(campaign => `
+        <div class="card mb-2">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="mb-1">${campaign.message_type.toUpperCase()} Campaign</h6>
+                        <p class="mb-1 small">${campaign.message_text.substring(0, 100)}${campaign.message_text.length > 100 ? '...' : ''}</p>
+                        <small class="text-muted">
+                            ${formatDateTime(campaign.created_at)} • 
+                            ${campaign.successful_sends}/${campaign.total_recipients} sent
+                        </small>
+                    </div>
+                    <span class="badge bg-${campaign.successful_sends === campaign.total_recipients ? 'success' : 'warning'}">
+                        ${Math.round((campaign.successful_sends / campaign.total_recipients) * 100)}%
+                    </span>
+            </div>
+        </div>
+        </div>
+    `).join('');
+    
+    container.innerHTML = campaignsHtml;
+}
+
+// Update stats
+function updateStats() {
+    // This would typically fetch real stats from the API
+    document.getElementById('totalMembers').textContent = memberCategories.reduce((sum, cat) => sum + cat.count, 0);
+    
+    // Get campaign count from campaign history
+    fetch('/api/campaigns/history?limit=1000')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('campaignsSent').textContent = data.campaigns.length;
+        }
+    })
+    .catch(error => {
+        console.error('Error loading stats:', error);
+    });
+}
+
+// Refresh messages
+function refreshMessages() {
+    loadMessages();
+    loadCampaignHistory();
+    updateStats();
 }
 
 // Utility functions
-function updateUnreadCount() {
-    const unreadCount = messageThreads.filter(thread => 
-        thread.status === 'unread' || (thread.latest_message && thread.latest_message.status === 'sent')
-    ).length;
-    
-    document.getElementById('unreadCount').textContent = unreadCount;
-}
-
-function getThreadTypeLabel(type) {
-    const labels = {
-        'clubos': 'ClubOS',
-        'sms': 'SMS',
-        'email': 'Email',
-        'bot': 'Bot',
-        'system': 'System'
-    };
-    return labels[type] || 'Message';
-}
-
-function getThreadTypeBadge(type) {
-    const badges = {
-        'clubos': 'bg-primary',
-        'sms': 'bg-success',
-        'email': 'bg-info',
-        'bot': 'bg-warning',
-        'system': 'bg-secondary'
-    };
-    return badges[type] || 'bg-secondary';
-}
-
-function refreshInbox() {
-    loadInbox();
-}
-
-function showInboxError(message) {
-    document.getElementById('threadsContainer').innerHTML = `
-        <div class="alert alert-danger m-3">
-            <i class="fas fa-exclamation-triangle me-2"></i>
-            ${escapeHtml(message)}
-        </div>
-    `;
-}
-
-function showConversationError(message) {
-    document.getElementById('conversationArea').innerHTML = `
-        <div class="text-center py-5">
-            <div class="alert alert-danger">
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                ${escapeHtml(message)}
-            </div>
-        </div>
-    `;
-}
-
-function showReportError(message) {
-    document.getElementById('dailyReportContent').innerHTML = `
-        <div class="alert alert-danger">
-            <i class="fas fa-exclamation-triangle me-2"></i>
-            ${escapeHtml(message)}
-        </div>
-    `;
-}
-
-function handleQuickReplyEnter(event) {
-    if (event.key === 'Enter') {
-        sendQuickReply();
-    }
-}
-
-function sendQuickReply() {
-    // Placeholder for quick reply functionality
-    alert('Quick reply functionality will be implemented in the next phase');
-}
-
-function sendNewMessage() {
-    // Placeholder for new message functionality
-    alert('New message functionality will be implemented in the next phase');
-}
-
-function viewMemberProfile(memberId) {
-    // This could open the member detail sidebar from members.html
-    alert(`Opening profile for member ${memberId} - integration with members page coming soon`);
-}
-
-function exportReport() {
-    alert('Report export functionality coming soon');
-}
-
-// Utility functions for formatting
-function formatTimeAgo(dateString) {
-    if (!dateString) return '';
-    try {
-        const date = new Date(dateString);
-        const now = new Date();
-        const diffMinutes = Math.floor((now - date) / (1000 * 60));
-        
-        if (diffMinutes < 1) return 'Just now';
-        if (diffMinutes < 60) return `${diffMinutes}m ago`;
-        if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
-        return `${Math.floor(diffMinutes / 1440)}d ago`;
-    } catch {
-        return 'Unknown';
-    }
-}
-
 function formatDateTime(dateString) {
-    if (!dateString) return '';
+    if (!dateString) return 'Unknown';
     try {
         return new Date(dateString).toLocaleString();
     } catch {
-        return 'Invalid Date';
+        return dateString;
     }
 }
 
-function formatDate(dateString) {
-    if (!dateString) return '';
-    try {
-        return new Date(dateString).toLocaleDateString();
-    } catch {
-        return 'Invalid Date';
+function getStatusColor(status) {
+    switch(status) {
+        case 'sent': return 'success';
+        case 'failed': return 'danger';
+        case 'pending': return 'warning';
+        default: return 'secondary';
     }
-}
-
-function escapeHtml(unsafe) {
-    if (!unsafe) return '';
-    return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-</script>
-{% endblock %}
-                <div class="card-header">
-                    <h5 class="mb-0">Quick Templates</h5>
-                </div>
-                <div class="card-body">
-                    <div class="d-grid gap-2">
-                        <button class="btn btn-outline-purple btn-sm" onclick="setMessage('Welcome to Anytime Fitness! We\'re excited to have you as part of our fitness family.')">
-                            Welcome Message
-                        </button>
-                        <button class="btn btn-outline-purple btn-sm" onclick="setMessage('Hi! Just checking in to see how your fitness journey is going. Let us know if you need any support!')">
-                            Check-in Message
-                        </button>
-                        <button class="btn btn-outline-purple btn-sm" onclick="setMessage('Don\'t forget about your upcoming training session. We\'re here to help you reach your goals!')">
-                            Reminder Message
-                        </button>
-                        <button class="btn btn-outline-purple btn-sm" onclick="setMessage('Thank you for being a valued member of Anytime Fitness. Your commitment to health and fitness inspires us!')">
-                            Thank You Message
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-function setMessage(text) {
-    document.getElementById('message').value = text;
 }
 </script>
 {% endblock %}

@@ -767,46 +767,812 @@ function escapeHtml(unsafe) {
 }
 </script>
 {% endblock %}
-                                    <tr>
-                                        <td>{{ event.id if event.id else 'N/A' }}</td>
-                                        <td>{{ event }}</td>
-                                        <td>
-                                            {% if event.id %}
-                                            <form method="POST" action="/calendar/delete/{{ event.id }}" 
-                                                  style="display: inline;">
-                                                <button type="submit" class="btn btn-sm btn-danger"
-                                                        onclick="return confirm('Delete event {{ event.id }}?')">
-                                                    <i class="fas fa-trash me-1"></i>Delete
-                                                </button>
-                                            </form>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    {% else %}
-                        <div class="text-center py-5">
-                            {% if connection_status == 'Connected' %}
-                                <i class="fas fa-calendar-check fa-3x text-muted mb-3"></i>
-                                <h5>No Events Found</h5>
-                                <p class="text-muted">No calendar events to display</p>
-                            {% else %}
-                                <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
-                                <h5>ClubOS Disconnected</h5>
-                                <p class="text-muted">Please authenticate to view calendar events</p>
-                                <form method="POST" action="/calendar/sync">
-                                    <button type="submit" class="btn btn-purple">
-                                        <i class="fas fa-plug me-2"></i>Connect to ClubOS
-                                    </button>
-                                </form>
-                            {% endif %}
-                        </div>
-                    {% endif %}
+                `<div class="calendar-event" style="background: #6c757d;">+${dayEvents.length - 3} more</div>` : '';
+
+            
+
+            calendarHtml += `
+
+                <div class="calendar-day ${!isCurrentMonth ? 'other-month' : ''} ${isToday ? 'today' : ''}" 
+
+                     onclick="createEventForDate('${currentCalendarDate.toISOString().split('T')[0]}')">
+
+                    <div class="fw-bold">${currentCalendarDate.getDate()}</div>
+
+                    ${eventsHtml}
+
+                    ${moreEventsHtml}
+
                 </div>
+
+            `;
+
+        }
+
+    }
+
+    
+
+    calendarGrid.innerHTML = calendarHtml;
+
+}
+
+
+
+// Render list view
+
+function renderListView() {
+
+    const container = document.getElementById('eventsListContainer');
+
+    
+
+    if (!events || events.length === 0) {
+
+        container.innerHTML = `
+
+            <div class="text-center py-5">
+
+                <i class="fas fa-calendar fa-3x text-muted mb-3"></i>
+
+                <h5 class="text-muted">No events found</h5>
+
+                <p class="text-muted">Create your first event to get started</p>
+
             </div>
+
+        `;
+
+        return;
+
+    }
+
+    
+
+    const sortedEvents = [...events].sort((a, b) => 
+
+        new Date(a.start_time || a.start) - new Date(b.start_time || b.start)
+
+    );
+
+    
+
+    const eventsHtml = sortedEvents.map(event => `
+
+        <div class="event-card card mb-3" onclick="showEventDetail('${event.id}')">
+
+            <div class="card-body">
+
+                <div class="row align-items-center">
+
+                    <div class="col-md-6">
+
+                        <h6 class="mb-1">${escapeHtml(event.title || event.summary || 'Untitled Event')}</h6>
+
+                        <p class="text-muted mb-0 small">
+
+                            ${escapeHtml(event.description || 'No description')}
+
+                        </p>
+
+                    </div>
+
+                    <div class="col-md-3">
+
+                        <div class="small">
+
+                            <i class="fas fa-clock me-1"></i>
+
+                            ${formatEventTime(event.start_time || event.start)} - ${formatEventTime(event.end_time || event.end)}
+
+                        </div>
+
+                        <div class="small text-muted">
+
+                            <i class="fas fa-calendar me-1"></i>
+
+                            ${formatEventDate(event.start_time || event.start)}
+
+                        </div>
+
+                    </div>
+
+                    <div class="col-md-3 text-end">
+
+                        <div class="btn-group btn-group-sm">
+
+                            <button class="btn btn-outline-primary" onclick="event.stopPropagation(); editEvent('${event.id}')">
+
+                                <i class="fas fa-edit"></i>
+
+                            </button>
+
+                            <button class="btn btn-outline-danger" onclick="event.stopPropagation(); confirmDelete('${event.id}')">
+
+                                <i class="fas fa-trash"></i>
+
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
         </div>
+
+    `).join('');
+
+    
+
+    container.innerHTML = eventsHtml;
+
+}
+
+
+
+// View switching
+
+function switchView(view) {
+
+    currentView = view;
+
+    
+
+    // Update button states
+
+    document.getElementById('monthViewBtn').classList.toggle('active', view === 'month');
+
+    document.getElementById('listViewBtn').classList.toggle('active', view === 'list');
+
+    
+
+    // Show/hide view containers
+
+    document.getElementById('monthView').style.display = view === 'month' ? 'block' : 'none';
+
+    document.getElementById('listView').style.display = view === 'list' ? 'block' : 'none';
+
+    
+
+    renderCalendar();
+
+}
+
+
+
+// Navigation
+
+function changeMonth(delta) {
+
+    currentDate.setMonth(currentDate.getMonth() + delta);
+
+    updateMonthLabel();
+
+    loadCalendarEvents();
+
+}
+
+
+
+function updateMonthLabel() {
+
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+
+        'July', 'August', 'September', 'October', 'November', 'December'];
+
+    
+
+    document.getElementById('currentMonthLabel').textContent = 
+
+        `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+
+}
+
+
+
+function refreshCalendar() {
+
+    loadCalendarEvents();
+
+    updateConnectionStatus('Syncing...');
+
+}
+
+
+
+// Event management
+
+function createNewEvent() {
+
+    selectedEventId = null;
+
+    resetEventForm();
+
+    document.getElementById('eventModalTitle').innerHTML = '<i class="fas fa-calendar-plus me-2"></i>Create New Event';
+
+    document.getElementById('deleteEventBtn').style.display = 'none';
+
+    
+
+    const modal = new bootstrap.Modal(document.getElementById('eventModal'));
+
+    modal.show();
+
+}
+
+
+
+function createEventForDate(dateString) {
+
+    createNewEvent();
+
+    
+
+    // Set default start time to the clicked date at 9 AM
+
+    const eventDate = new Date(dateString + 'T09:00');
+
+    const endDate = new Date(dateString + 'T10:00');
+
+    
+
+    document.getElementById('eventStartTime').value = eventDate.toISOString().slice(0, 16);
+
+    document.getElementById('eventEndTime').value = endDate.toISOString().slice(0, 16);
+
+}
+
+
+
+function editEvent(eventId) {
+
+    const event = events.find(e => e.id == eventId);
+
+    if (!event) return;
+
+    
+
+    selectedEventId = eventId;
+
+    populateEventForm(event);
+
+    document.getElementById('eventModalTitle').innerHTML = '<i class="fas fa-calendar-edit me-2"></i>Edit Event';
+
+    document.getElementById('deleteEventBtn').style.display = 'block';
+
+    
+
+    const modal = new bootstrap.Modal(document.getElementById('eventModal'));
+
+    modal.show();
+
+}
+
+
+
+function editCurrentEvent() {
+
+    if (selectedEventId) {
+
+        const detailModal = bootstrap.Modal.getInstance(document.getElementById('eventDetailModal'));
+
+        detailModal.hide();
+
+        editEvent(selectedEventId);
+
+    }
+
+}
+
+
+
+function resetEventForm() {
+
+    document.getElementById('eventForm').reset();
+
+    document.getElementById('eventId').value = '';
+
+}
+
+
+
+function populateEventForm(event) {
+
+    document.getElementById('eventId').value = event.id;
+
+    document.getElementById('eventTitle').value = event.title || event.summary || '';
+
+    document.getElementById('eventDescription').value = event.description || '';
+
+    
+
+    if (event.start_time || event.start) {
+
+        const startDate = new Date(event.start_time || event.start);
+
+        document.getElementById('eventStartTime').value = startDate.toISOString().slice(0, 16);
+
+    }
+
+    
+
+    if (event.end_time || event.end) {
+
+        const endDate = new Date(event.end_time || event.end);
+
+        document.getElementById('eventEndTime').value = endDate.toISOString().slice(0, 16);
+
+    }
+
+    
+
+    // Populate trainer and client if available
+
+    if (event.trainer_id) {
+
+        document.getElementById('eventTrainer').value = event.trainer_id;
+
+    }
+
+    if (event.client_id) {
+
+        document.getElementById('eventClient').value = event.client_id;
+
+    }
+
+}
+
+
+
+async function saveEvent() {
+
+    const form = document.getElementById('eventForm');
+
+    const formData = new FormData(form);
+
+    const eventData = Object.fromEntries(formData);
+
+    
+
+    try {
+
+        const isEditing = !!selectedEventId;
+
+        const url = isEditing ? `/api/calendar/events/${selectedEventId}` : '/api/calendar/events';
+
+        const method = isEditing ? 'PUT' : 'POST';
+
+        
+
+        const response = await fetch(url, {
+
+            method: method,
+
+            headers: { 'Content-Type': 'application/json' },
+
+            body: JSON.stringify(eventData)
+
+        });
+
+        
+
+        const data = await response.json();
+
+        
+
+        if (data.success) {
+
+            const modal = bootstrap.Modal.getInstance(document.getElementById('eventModal'));
+
+            modal.hide();
+
+            loadCalendarEvents(); // Refresh calendar
+
+            
+
+            alert(isEditing ? 'Event updated successfully!' : 'Event created successfully!');
+
+        } else {
+
+            alert('Error saving event: ' + data.error);
+
+        }
+
+    } catch (error) {
+
+        alert('Network error: ' + error.message);
+
+    }
+
+}
+
+
+
+function confirmDelete(eventId) {
+
+    selectedEventId = eventId;
+
+    const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+
+    modal.show();
+
+}
+
+
+
+function deleteEvent() {
+
+    const modal = bootstrap.Modal.getInstance(document.getElementById('eventModal'));
+
+    modal.hide();
+
+    confirmDelete(selectedEventId);
+
+}
+
+
+
+async function confirmDeleteEvent() {
+
+    if (!selectedEventId) return;
+
+    
+
+    try {
+
+        const response = await fetch(`/api/calendar/events/${selectedEventId}`, {
+
+            method: 'DELETE',
+
+            headers: { 'Content-Type': 'application/json' },
+
+            body: JSON.stringify({ confirmed: true })
+
+        });
+
+        
+
+        const data = await response.json();
+
+        
+
+        if (data.success) {
+
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
+
+            modal.hide();
+
+            loadCalendarEvents(); // Refresh calendar
+
+            
+
+            alert('Event deleted successfully!');
+
+        } else {
+
+            alert('Error deleting event: ' + data.error);
+
+        }
+
+    } catch (error) {
+
+        alert('Network error: ' + error.message);
+
+    }
+
+}
+
+
+
+function showEventDetail(eventId) {
+
+    const event = events.find(e => e.id == eventId);
+
+    if (!event) return;
+
+    
+
+    selectedEventId = eventId;
+
+    
+
+    const content = document.getElementById('eventDetailContent');
+
+    content.innerHTML = `
+
+        <div class="event-detail">
+
+            <h5 class="mb-3">${escapeHtml(event.title || event.summary || 'Untitled Event')}</h5>
+
+            
+
+            <div class="row g-3">
+
+                <div class="col-12">
+
+                    <strong>Date & Time:</strong><br>
+
+                    <i class="fas fa-clock me-1 text-muted"></i>
+
+                    ${formatEventDateTime(event.start_time || event.start)} - ${formatEventDateTime(event.end_time || event.end)}
+
+                </div>
+
+                
+
+                ${event.description ? `
+
+                <div class="col-12">
+
+                    <strong>Description:</strong><br>
+
+                    ${escapeHtml(event.description)}
+
+                </div>
+
+                ` : ''}
+
+                
+
+                ${event.trainer_name ? `
+
+                <div class="col-md-6">
+
+                    <strong>Trainer:</strong><br>
+
+                    <i class="fas fa-user-tie me-1 text-muted"></i>
+
+                    ${escapeHtml(event.trainer_name)}
+
+                </div>
+
+                ` : ''}
+
+                
+
+                ${event.client_name ? `
+
+                <div class="col-md-6">
+
+                    <strong>Client:</strong><br>
+
+                    <i class="fas fa-user me-1 text-muted"></i>
+
+                    ${escapeHtml(event.client_name)}
+
+                </div>
+
+                ` : ''}
+
+            </div>
+
+        </div>
+
+    `;
+
+    
+
+    const modal = new bootstrap.Modal(document.getElementById('eventDetailModal'));
+
+    modal.show();
+
+}
+
+
+
+// Status updates
+
+function updateConnectionStatus(status) {
+
+    const element = document.getElementById('connectionStatus');
+
+    const timeElement = document.getElementById('lastSyncTime');
+
+    
+
+    element.className = 'badge';
+
+    
+
+    switch (status) {
+
+        case 'Connected':
+
+            element.classList.add('bg-success');
+
+            timeElement.textContent = 'Just now';
+
+            break;
+
+        case 'Syncing...':
+
+            element.classList.add('bg-info');
+
+            break;
+
+        case 'Error':
+
+            element.classList.add('bg-danger');
+
+            break;
+
+        default:
+
+            element.classList.add('bg-secondary');
+
+    }
+
+    
+
+    element.textContent = status;
+
+}
+
+
+
+// Utility functions
+
+function formatEventTime(dateString) {
+
+    if (!dateString) return '';
+
+    try {
+
+        return new Date(dateString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    } catch {
+
+        return 'Invalid Time';
+
+    }
+
+}
+
+
+
+function formatEventDate(dateString) {
+
+    if (!dateString) return '';
+
+    try {
+
+        return new Date(dateString).toLocaleDateString();
+
+    } catch {
+
+        return 'Invalid Date';
+
+    }
+
+}
+
+
+
+function formatEventDateTime(dateString) {
+
+    if (!dateString) return '';
+
+    try {
+
+        const date = new Date(dateString);
+
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    } catch {
+
+        return 'Invalid Date/Time';
+
+    }
+
+}
+
+
+
+function escapeHtml(unsafe) {
+
+    if (!unsafe) return '';
+
+    return unsafe
+
+        .replace(/&/g, "&amp;")
+
+        .replace(/</g, "&lt;")
+
+        .replace(/>/g, "&gt;")
+
+        .replace(/"/g, "&quot;")
+
+        .replace(/'/g, "&#039;");
+
+}
+
+</script>
+
+                                    <tr>
+
+                                        <td>{{ event.id if event.id else 'N/A' }}</td>
+
+                                        <td>{{ event }}</td>
+
+                                        <td>
+
+                                            {% if event.id %}
+
+                                            <form method="POST" action="/calendar/delete/{{ event.id }}" 
+
+                                                  style="display: inline;">
+
+                                                <button type="submit" class="btn btn-sm btn-danger"
+
+                                                        onclick="return confirm('Delete event {{ event.id }}?')">
+
+                                                    <i class="fas fa-trash me-1"></i>Delete
+
+                                                </button>
+
+                                            </form>
+
+                                            {% endif %}
+
+                                        </td>
+
+                                    </tr>
+
+                                    {% endfor %}
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    {% else %}
+
+                        <div class="text-center py-5">
+
+                            {% if connection_status == 'Connected' %}
+
+                                <i class="fas fa-calendar-check fa-3x text-muted mb-3"></i>
+
+                                <h5>No Events Found</h5>
+
+                                <p class="text-muted">No calendar events to display</p>
+
+                            {% else %}
+
+                                <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+
+                                <h5>ClubOS Disconnected</h5>
+
+                                <p class="text-muted">Please authenticate to view calendar events</p>
+
+                                <form method="POST" action="/calendar/sync">
+
+                                    <button type="submit" class="btn btn-purple">
+
+                                        <i class="fas fa-plug me-2"></i>Connect to ClubOS
+
+                                    </button>
+
+                                </form>
+
+                            {% endif %}
+
+                        </div>
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+        </div>
+
     </div>
+
 </div>
+
 {% endblock %}

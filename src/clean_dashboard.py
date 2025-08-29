@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Clean Anytime Fitness Dashboard - Working Version
 """
@@ -9,6 +9,8 @@ import pandas as pd
 import re
 import random
 import glob
+import threading
+import queue
 from flask import Flask, render_template, jsonify, request, redirect, url_for, session, flash
 from datetime import datetime, timedelta
 from typing import Dict, Any
@@ -21,7 +23,10 @@ from bs4 import BeautifulSoup
 import traceback
 
 # Import our working ClubOS API
-from clubos_training_api import ClubOSTrainingPackageAPI
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from clubos_training_api_fixed import ClubOSTrainingPackageAPI
 from clubos_real_calendar_api import ClubOSRealCalendarAPI
 from ical_calendar_parser import iCalClubOSParser
 from gym_bot_clean import ClubOSEventDeletion
@@ -55,11 +60,11 @@ except Exception as e:
 	logger.warning(f'Could not enable file logging: {e}')
 
 # Initialize Flask app
-app = Flask(__name__)
+app = Flask(__name__, template_folder='../templates', static_folder='../static')
 app.secret_key = 'anytime-fitness-dashboard-secret-key-2025'
 
 # Create templates directory if it doesn't exist
-templates_dir = 'templates'
+templates_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')
 if not os.path.exists(templates_dir):
     os.makedirs(templates_dir)
 
@@ -149,7 +154,7 @@ class TrainingPackageCache:
             # If no fresh cache, get member ID and try to fetch fresh data
             member_id = self._get_member_id_from_database(participant_name, participant_email)
             if member_id:
-                logger.info(f"📦 Fetching fresh funding data for member ID: {member_id}")
+                logger.info(f"📊 Fetching fresh funding data for member ID: {member_id}")
                 fresh_data = self._fetch_fresh_funding_data(member_id, participant_name)
                 if fresh_data:
                     # Cache the fresh data
@@ -158,15 +163,15 @@ class TrainingPackageCache:
             
             # If we have stale cached data, use it as fallback
             if not force and cached_data:
-                logger.info(f"⚠️ Using stale cached data for {participant_name}")
+                logger.info(f"⚠️ Using stale cached data for {participant_name}")
                 return self._format_funding_response(cached_data, is_stale=True, is_cached=True)
             
             # No data available
-            logger.warning(f"❌ No funding data available for {participant_name}")
+            logger.warning(f"❌Œ No funding data available for {participant_name}")
             return None
             
         except Exception as e:
-            logger.error(f"❌ Error looking up funding for {participant_name}: {e}")
+            logger.error(f"❌Œ Error looking up funding for {participant_name}: {e}")
             return None
     
     def _get_cached_funding(self, participant_name: str) -> dict:
@@ -190,7 +195,7 @@ class TrainingPackageCache:
             return dict(result) if result else None
             
         except Exception as e:
-            logger.error(f"❌ Error getting cached funding: {e}")
+            logger.error(f"❌Œ Error getting cached funding: {e}")
             return None
     
     def _is_cache_stale(self, cached_data: dict) -> bool:
@@ -205,7 +210,7 @@ class TrainingPackageCache:
             return age_hours > self.cache_expiry_hours
             
         except Exception as e:
-            logger.error(f"❌ Error checking cache staleness: {e}")
+            logger.error(f"❌Œ Error checking cache staleness: {e}")
             return True
     
     def _fetch_fresh_funding_data(self, member_id: str, member_name: str) -> dict:
@@ -216,7 +221,7 @@ class TrainingPackageCache:
             try:
                 result = self.api.get_member_training_payment_details(member_id)
             except Exception as e:
-                logger.warning(f"⚠️ get_member_training_payment_details error for {member_id}: {e}")
+                logger.warning(f"⚠️ get_member_training_payment_details error for {member_id}: {e}")
 
             if result and isinstance(result, dict) and result.get('success'):
                 status = result.get('status') or 'Unknown'
@@ -279,11 +284,11 @@ class TrainingPackageCache:
                 logger.info(f"✅ Fetched fresh funding data for {member_name}: {payment_status}")
                 return funding_data
 
-            logger.warning(f"❌ No payment status returned for member {member_id}")
+            logger.warning(f"❌Œ No payment status returned for member {member_id}")
             return None
                 
         except Exception as e:
-            logger.error(f"❌ Error fetching fresh funding data: {e}")
+            logger.error(f"❌Œ Error fetching fresh funding data: {e}")
             return None
     
     def _classify_funding_status(self, payment_status) -> dict:
@@ -364,7 +369,7 @@ class TrainingPackageCache:
                 }
                 
         except Exception as e:
-            logger.error(f"❌ Error classifying funding status: {e}")
+            logger.error(f"❌Œ Error classifying funding status: {e}")
             return {
                 'funding_status': 'unknown',
                 'funding_status_text': 'Error',
@@ -401,10 +406,10 @@ class TrainingPackageCache:
             conn.commit()
             conn.close()
             
-            logger.info(f"💾 Cached funding data for {funding_data['member_name']}")
+            logger.info(f"ðŸ'¾ Cached funding data for {funding_data['member_name']}")
             
         except Exception as e:
-            logger.error(f"❌ Error caching funding data: {e}")
+            logger.error(f"❌Œ Error caching funding data: {e}")
     
     def _format_funding_response(self, cached_data: dict, is_stale: bool = False, is_cached: bool = True) -> dict:
         """Format funding data for API response.
@@ -429,13 +434,13 @@ class TrainingPackageCache:
             return response
             
         except Exception as e:
-            logger.error(f"❌ Error formatting funding response: {e}")
+            logger.error(f"❌Œ Error formatting funding response: {e}")
             return None
     
     def refresh_all_funding_cache(self) -> dict:
         """Refresh funding cache for all training clients - run daily"""
         try:
-            logger.info("🔄 Starting daily funding cache refresh...")
+            logger.info("")
             
             conn = sqlite3.connect(db_manager.db_path)
             cursor = conn.cursor()
@@ -455,7 +460,7 @@ class TrainingPackageCache:
             
             for client_id, clubos_id, member_name in training_clients:
                 try:
-                    logger.info(f"🔄 Refreshing funding for {member_name} (ID: {clubos_id})")
+                    logger.info(f"")
                     
                     fresh_data = self._fetch_fresh_funding_data(str(clubos_id), member_name)
                     if fresh_data:
@@ -466,7 +471,7 @@ class TrainingPackageCache:
                         error_count += 1
                         
                 except Exception as e:
-                    logger.error(f"❌ Error refreshing funding for {member_name}: {e}")
+                    logger.error(f"❌Œ Error refreshing funding for {member_name}: {e}")
                     error_count += 1
             
             logger.info(f"✅ Funding cache refresh complete: {success_count} success, {error_count} errors")
@@ -480,7 +485,7 @@ class TrainingPackageCache:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error in daily funding refresh: {e}")
+            logger.error(f"❌Œ Error in daily funding refresh: {e}")
             return {'success': False, 'error': str(e)}
     
     def _get_member_id_from_database(self, participant_name: str, participant_email: str = None) -> str:
@@ -524,11 +529,11 @@ class TrainingPackageCache:
                 logger.info(f"✅ Found member ID in members table: {result[0]} for {participant_name}")
                 return str(result[0])
             
-            logger.warning(f"❌ No member ID found for participant: {participant_name}")
+            logger.warning(f"❌Œ No member ID found for participant: {participant_name}")
             return None
             
         except Exception as e:
-            logger.error(f"❌ Database error looking up member ID: {e}")
+            logger.error(f"❌Œ Database error looking up member ID: {e}")
             return None
 
 # Initialize training package cache
@@ -552,7 +557,7 @@ class DatabaseManager:
     def get_fresh_data_from_clubos(self):
         """Get fresh data from ClubOS APIs"""
         try:
-            logger.info("🔄 Fetching fresh data from ClubOS...")
+            logger.info("")
             
             # Use the fresh data API to get real-time data
             fresh_members = clubos_fresh_data_api.get_fresh_members()
@@ -566,20 +571,20 @@ class DatabaseManager:
                 'updated_at': datetime.now().isoformat()
             }
             
-            logger.info("📊 Fresh data fetched successfully")
+            logger.info("")
             return fresh_data
             
         except Exception as e:
-            logger.error(f"❌ Error fetching fresh data: {e}")
+            logger.error(f"❌Œ Error fetching fresh data: {e}")
             return None
     
     def refresh_database(self, force=False):
         """Refresh the database with latest data from ClubOS"""
         if not force and not self.needs_refresh():
-            logger.info("⏭️ Database is fresh, skipping refresh")
+            logger.info("❌­ï¸ Database is fresh, skipping refresh")
             return False
             
-        logger.info("🔄 Starting database refresh...")
+        logger.info("")
         
         try:
             # Get fresh data from ClubOS
@@ -593,12 +598,12 @@ class DatabaseManager:
                 return True
             else:
                 # Fallback to existing CSV data but update the timestamp
-                logger.warning("⚠️ Using existing CSV data as fallback")
+                logger.warning("⚠️ Using existing CSV data as fallback")
                 self.last_refresh = datetime.now()
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ Database refresh failed: {e}")
+            logger.error(f"❌Œ Database refresh failed: {e}")
             return False
     
     def _update_database_with_fresh_data(self, fresh_data):
@@ -615,25 +620,26 @@ class DatabaseManager:
                     id INTEGER PRIMARY KEY,
                     table_name TEXT,
                     last_refresh TIMESTAMP,
-                    record_count INTEGER
+                    record_count INTEGER,
+                    category_breakdown TEXT
                 )
             """)
             
             # Log the refresh
             cursor.execute("""
-                INSERT OR REPLACE INTO data_refresh_log (id, table_name, last_refresh, record_count)
-                VALUES (1, 'members', ?, (SELECT COUNT(*) FROM members))
+                INSERT OR REPLACE INTO data_refresh_log (id, table_name, last_refresh, record_count, category_breakdown)
+                VALUES (1, 'members', ?, (SELECT COUNT(*) FROM members), '{}')
             """, (datetime.now(),))
             
             cursor.execute("""
-                INSERT OR REPLACE INTO data_refresh_log (id, table_name, last_refresh, record_count)
-                VALUES (2, 'prospects', ?, (SELECT COUNT(*) FROM prospects))
+                INSERT OR REPLACE INTO data_refresh_log (id, table_name, last_refresh, record_count, category_breakdown)
+                VALUES (2, 'prospects', ?, (SELECT COUNT(*) FROM prospects), '{}')
             """, (datetime.now(),))
             
             conn.commit()
             
         except Exception as e:
-            logger.error(f"❌ Error updating database: {e}")
+            logger.error(f"❌Œ Error updating database: {e}")
             conn.rollback()
             raise
         finally:
@@ -663,7 +669,7 @@ class DatabaseManager:
             return refresh_status
             
         except Exception as e:
-            logger.error(f"❌ Error getting refresh status: {e}")
+            logger.error(f"❌Œ Error getting refresh status: {e}")
             return {}
         
     def init_database(self):
@@ -936,16 +942,16 @@ class DatabaseManager:
     def import_master_contact_list(self, csv_path):
         """Import master contact list from CSV with comprehensive data"""
         if not os.path.exists(csv_path):
-            logger.warning(f"📋 Master contact list not found: {csv_path}")
+            logger.warning(f"")
             return 0, 0
             
-        logger.info(f"📊 Importing master contact list from: {csv_path}")
+        logger.info(f"")
         
         try:
             df = pd.read_csv(csv_path)
-            logger.info(f"📋 Found {len(df)} records in CSV")
+            logger.info(f"")
         except Exception as e:
-            logger.error(f"❌ Error reading CSV: {e}")
+            logger.error(f"❌Œ Error reading CSV: {e}")
             return 0, 0
         
         conn = sqlite3.connect(self.db_path)
@@ -1079,7 +1085,7 @@ class DatabaseManager:
                     members_count += 1
                     
             except Exception as e:
-                logger.error(f"❌ Error importing row {row.get('id', 'unknown')}: {e}")
+                logger.error(f"❌Œ Error importing row {row.get('id', 'unknown')}: {e}")
                 continue
         
         conn.commit()
@@ -1108,16 +1114,16 @@ class DatabaseManager:
     def import_training_clients(self, csv_path):
         """Import training clients from CSV"""
         if not os.path.exists(csv_path):
-            logger.warning(f"🏋️ Training clients CSV not found: {csv_path}")
+            logger.warning(f"ðŸ‹ï¸ Training clients CSV not found: {csv_path}")
             return 0
             
-        logger.info(f"🏋️ Importing training clients from: {csv_path}")
+        logger.info(f"ðŸ‹ï¸ Importing training clients from: {csv_path}")
         
         try:
             df = pd.read_csv(csv_path)
-            logger.info(f"🏋️ Found {len(df)} training clients in CSV")
+            logger.info(f"ðŸ‹ï¸ Found {len(df)} training clients in CSV")
         except Exception as e:
-            logger.error(f"❌ Error reading training clients CSV: {e}")
+            logger.error(f"❌Œ Error reading training clients CSV: {e}")
             return 0
         
         conn = sqlite3.connect(self.db_path)
@@ -1176,7 +1182,7 @@ class DatabaseManager:
                 clients_count += 1
                 
             except Exception as e:
-                logger.error(f"❌ Error importing training client {row.get('Member Name', 'unknown')}: {e}")
+                logger.error(f"❌Œ Error importing training client {row.get('Member Name', 'unknown')}: {e}")
                 continue
         
         conn.commit()
@@ -1198,11 +1204,44 @@ conn.close()
 # Always import fresh data from ClubHub API instead of old CSV files
 print("🔄 Loading fresh data from ClubHub API...")
 
+def classify_member_status(member_data):
+    """Classify member into category based on status_message and other fields"""
+    # Ensure status_message and status are strings, handle None/NoneType values
+    status_message = str(member_data.get('statusMessage', '')).lower()
+    status = str(member_data.get('status', '')).lower()
+    
+    # Past due members (highest priority)
+    if 'past due' in status_message or 'overdue' in status_message:
+        return 'past_due'
+    
+    # Staff members
+    if 'staff' in status_message or 'staff' in status:
+        return 'staff'
+    
+    # Comp members
+    if 'comp' in status_message or 'comp' in status:
+        return 'comp'
+    
+    # Pay per visit members
+    if 'pay per visit' in status_message or 'ppv' in status_message:
+        return 'ppv'
+    
+    # Inactive members
+    if any(inactive in status_message for inactive in ['cancelled', 'cancel', 'expire', 'pending']):
+        return 'inactive'
+    
+    # Green members (in good standing) - default
+    if 'good standing' in status_message or 'active' in status or status == 'active':
+        return 'green'
+    
+    # Default to green if unclear
+    return 'green'
+
 def import_fresh_clubhub_data():
-    """Import fresh data from ClubHub API on startup"""
+    """Import fresh data from ClubHub API on startup with comprehensive classification"""
     try:
         # Import ClubHub API client
-        sys.path.append(os.path.join(os.path.dirname(__file__), 'services'))
+        sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'services'))
         from api.clubhub_api_client import ClubHubAPIClient
         from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
         
@@ -1232,23 +1271,60 @@ def import_fresh_clubhub_data():
             if len(members_response) < page_size:
                 break
         
-        print(f"📥 Retrieved {len(all_members)} members from ClubHub")
+        print(f"🔥 Retrieved {len(all_members)} members from ClubHub")
         
-        # Clear existing data and import fresh data
-        conn = sqlite3.connect(db_manager.db_path)
+        # Initialize ClubHub API client and authenticate
+        client = ClubHubAPIClient()
+        
+        # Ensure we have fresh authentication before fetching prospects
+        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        if not client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
+            print("❌ ClubHub authentication failed!")
+            return [], []
+        print("✅ ClubHub authentication successful!")
+        
+        # Get all prospects from ClubHub using the working paginated method
+        print("🔍 Fetching prospects from ClubHub...")
+        all_prospects = client.get_all_prospects_paginated()
+        print(f"🔥 Retrieved {len(all_prospects)} prospects from ClubHub")
+        
+        # Connect to database using absolute path
+        db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'gym_bot.db')
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
-        # Clear old data
+        # Create member_categories table if it doesn't exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS member_categories (
+                member_id TEXT PRIMARY KEY,
+                category TEXT NOT NULL,
+                classified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status_message TEXT,
+                full_name TEXT
+            )
+        """)
+        
+        # Clear old data but keep member_categories for reference
         cursor.execute("DELETE FROM members")
         cursor.execute("DELETE FROM training_clients")
-        print("🗑️ Cleared old data")
+        cursor.execute("DELETE FROM prospects")  # Clear old prospects too
+        print("🗑️ Cleared old member and prospect data")
         
-        # Import fresh member data
+        # Import fresh member data with classification
         members_added = 0
         training_clients_added = 0
         
+        # Track classification counts
+        category_counts = {
+            'green': 0, 'comp': 0, 'ppv': 0, 'staff': 0, 'past_due': 0, 'inactive': 0
+        }
+        
         for member in all_members:
-            # Add to members table using correct column names
+            # Classify the member
+            category = classify_member_status(member)
+            category_counts[category] += 1
+            
+            # Add to members table
             cursor.execute("""
                 INSERT OR REPLACE INTO members (
                     id, guid, first_name, last_name, full_name, email, mobile_phone, 
@@ -1268,23 +1344,206 @@ def import_fresh_clubhub_data():
                 member.get('membershipEnd', ''),
                 member.get('lastVisit', '')
             ))
-            members_added += 1
             
-            # For now, don't auto-detect training clients from ClubHub
-            # Training clients need to come from ClubOS, not ClubHub
-            # ClubHub only has membership data, not training package data
+            # Store classification for fast lookups
+            cursor.execute("""
+                INSERT OR REPLACE INTO member_categories (
+                    member_id, category, status_message, full_name
+                ) VALUES (?, ?, ?, ?)
+            """, (
+                member.get('id'),
+                category,
+                member.get('statusMessage', ''),
+                f"{member.get('firstName', '')} {member.get('lastName', '')}".strip()
+            ))
+            
+            members_added += 1
         
+        # Create or update data refresh log table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS data_refresh_log (
+                id INTEGER PRIMARY KEY,
+                table_name TEXT,
+                last_refresh TIMESTAMP,
+                record_count INTEGER,
+                category_breakdown TEXT
+            )
+        """)
+        
+        # Check if category_breakdown column exists, add it if it doesn't
+        cursor.execute("PRAGMA table_info(data_refresh_log)")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'category_breakdown' not in columns:
+            cursor.execute("ALTER TABLE data_refresh_log ADD COLUMN category_breakdown TEXT")
+            print("🔧 Added missing category_breakdown column to data_refresh_log table")
+        
+        # Log the refresh with category breakdown
+        category_breakdown = json.dumps(category_counts)
+        cursor.execute("""
+            INSERT OR REPLACE INTO data_refresh_log (id, table_name, last_refresh, record_count, category_breakdown)
+            VALUES (1, 'members', ?, ?, ?)
+        """, (datetime.now(), members_added, category_breakdown))
+        
+        # Import prospects
+        print("📊 Importing prospects...")
+        prospects_added = 0
+        if all_prospects:
+            for i, prospect in enumerate(all_prospects, 1):
+                cursor.execute("""
+                    INSERT OR REPLACE INTO prospects (
+                        id, firstName, lastName, email, homePhone, prospectPhase,
+                        salesPerson, date, leadSource, leadCategory, referralCode,
+                        pipelineDays, lastActivity, nextFollowUp, notes, raw_data
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    prospect.get('id'), prospect.get('firstName'), prospect.get('lastName'),
+                    prospect.get('email'), prospect.get('homePhone'), prospect.get('prospectPhase'),
+                    prospect.get('salesPerson'), prospect.get('date'), prospect.get('leadSource'),
+                    prospect.get('leadCategory'), prospect.get('referralCode'), prospect.get('pipelineDays'),
+                    prospect.get('lastActivity'), prospect.get('nextFollowUp'), prospect.get('notes'),
+                    json.dumps(prospect)  # Store full data as JSON
+                ))
+                prospects_added += 1
+                if i % 100 == 0:
+                    print(f"   📈 Processed {i}/{len(all_prospects)} prospects...")
+            print(f"✅ Successfully imported {len(all_prospects)} prospects")
+        else:
+            print("⚠️ No prospects data received")
+
         conn.commit()
         conn.close()
         
-        print(f"✅ Fresh data imported: {members_added} members, {training_clients_added} training clients")
+        print(f"✅ Fresh data imported: {members_added} members, {training_clients_added} training clients, {prospects_added} prospects")
+        print(f"📊 Member classification breakdown:")
+        for category, count in category_counts.items():
+            print(f"   {category.capitalize()}: {count}")
+        
+        return category_counts
         
     except Exception as e:
         print(f"❌ Error importing fresh data: {e}")
         print("📊 Continuing with existing database...")
+        return None
 
-# Call the import function to load fresh data on startup
-import_fresh_clubhub_data()
+# Always import fresh data on startup to ensure data is current
+print("🔄 Importing fresh data from ClubHub on startup...")
+startup_category_counts = import_fresh_clubhub_data()
+
+def update_new_members_only():
+    """Periodically update database with only new members/prospects (not full refresh)"""
+    try:
+        # Import ClubHub API client
+        sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'services'))
+        from api.clubhub_api_client import ClubHubAPIClient
+        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        
+        # Initialize and authenticate
+        client = ClubHubAPIClient()
+        if not client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
+            logger.warning("❌ ClubHub authentication failed for incremental update")
+            return False
+        
+        logger.info("🔄 Checking for new members from ClubHub...")
+        
+        # Get latest members from ClubHub
+        all_members = []
+        page = 1
+        page_size = 100
+        
+        while True:
+            members_response = client.get_all_members(page=page, page_size=page_size)
+            
+            if not members_response or not isinstance(members_response, list):
+                break
+                
+            all_members.extend(members_response)
+            page += 1
+            
+            if len(members_response) < page_size:
+                break
+        
+        # Connect to database
+        db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'gym_bot.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Get existing member IDs for comparison
+        cursor.execute("SELECT id FROM members")
+        existing_ids = {row[0] for row in cursor.fetchall()}
+        
+        # Find new members
+        new_members = [m for m in all_members if m.get('id') not in existing_ids]
+        
+        if new_members:
+            logger.info(f"🆕 Found {len(new_members)} new members to add")
+            
+            # Add new members with classification
+            for member in new_members:
+                category = classify_member_status(member)
+                
+                # Add to members table
+                cursor.execute("""
+                    INSERT OR REPLACE INTO members (
+                        id, guid, first_name, last_name, full_name, email, mobile_phone, 
+                        status, status_message, membership_start, membership_end, last_visit
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    member.get('id'),
+                    member.get('guid'),
+                    member.get('firstName', ''),
+                    member.get('lastName', ''),
+                    f"{member.get('firstName', '')} {member.get('lastName', '')}".strip(),
+                    member.get('email', ''),
+                    member.get('mobilePhone', ''),
+                    member.get('status', ''),
+                    member.get('statusMessage', ''),
+                    member.get('membershipStart', ''),
+                    member.get('membershipEnd', ''),
+                    member.get('lastVisit', '')
+                ))
+                
+                # Store classification
+                cursor.execute("""
+                    INSERT OR REPLACE INTO member_categories (
+                        member_id, category, status_message, full_name
+                    ) VALUES (?, ?, ?, ?)
+                """, (
+                    member.get('id'),
+                    category,
+                    member.get('statusMessage', ''),
+                    f"{member.get('firstName', '')} {member.get('lastName', '')}".strip()
+                ))
+            
+            conn.commit()
+            logger.info(f"✅ Added {len(new_members)} new members to database")
+        else:
+            logger.info("✅ No new members found - database is up to date")
+        
+        conn.close()
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error updating new members: {e}")
+        return False
+
+# Set up periodic updates (every 6 hours) - only for new members
+def start_periodic_updates():
+    """Start background thread for periodic member updates"""
+    def update_loop():
+        while True:
+            try:
+                time.sleep(6 * 3600)  # 6 hours
+                update_new_members_only()
+            except Exception as e:
+                logger.error(f"❌ Periodic update loop error: {e}")
+    
+    update_thread = threading.Thread(target=update_loop, daemon=True)
+    update_thread.start()
+    logger.info("🔄 Started periodic member update thread (every 6 hours)")
+
+# Start periodic updates in background
+start_periodic_updates()
 
 class ClubOSIntegration:
     """Integration class to connect dashboard with working ClubOS API"""
@@ -1310,17 +1569,17 @@ class ClubOSIntegration:
                 self.event_manager.authenticated = True
                 logger.info("✅ ClubOS authentication successful")
             else:
-                logger.warning("⚠️ ClubOS authentication partially failed")
+                logger.warning("⚠️ ClubOS authentication partially failed")
                 
             return self.authenticated
         except Exception as e:
-            logger.error(f"❌ ClubOS authentication failed: {e}")
+            logger.error(f"❌Œ ClubOS authentication failed: {e}")
             return False
     
     def get_live_events(self):
         """Get live calendar events with REAL dates, times, and participant names using iCal"""
         try:
-            print("🌟 USING iCAL METHOD FOR REAL EVENT DATA...")
+            print("ðŸŒŸ USING iCAL METHOD FOR REAL EVENT DATA...")
             
             # Use the iCal calendar sync URL found in ClubOS
             calendar_sync_url = "https://anytime.club-os.com/CalendarSync/4984a5b2aac135a95b6bc173054e95716b27e6b9"
@@ -1369,7 +1628,7 @@ class ClubOSIntegration:
                                     'is_training_client': True
                                 })
                         except Exception as e:
-                            logger.warning(f"❌ Could not get funding status for training client {name}: {e}")
+                            logger.warning(f"❌Œ Could not get funding status for training client {name}: {e}")
                             participant_funding_status.append({
                                 'name': name,
                                 'email': email,
@@ -1415,13 +1674,13 @@ class ClubOSIntegration:
             return formatted_events
             
         except Exception as e:
-            logger.error(f"❌ Error getting live events via iCal: {e}")
+            logger.error(f"❌Œ Error getting live events via iCal: {e}")
             return []
     
     def get_todays_events_lightweight(self):
         """Get only today's calendar events WITHOUT funding status checks for fast dashboard loading"""
         try:
-            print("🌟 GETTING TODAY'S EVENTS ONLY (LIGHTWEIGHT)...")
+            print("ðŸŒŸ GETTING TODAY'S EVENTS ONLY (LIGHTWEIGHT)...")
             
             # Use the iCal calendar sync URL
             calendar_sync_url = "https://anytime.club-os.com/CalendarSync/4984a5b2aac135a95b6bc173054e95716b27e6b9"
@@ -1475,7 +1734,7 @@ class ClubOSIntegration:
             return today_events
             
         except Exception as e:
-            logger.error(f"❌ Error getting today's events: {e}")
+            logger.error(f"❌Œ Error getting today's events: {e}")
             return []
     
     def _lookup_member_name_by_email(self, email: str) -> str:
@@ -1522,7 +1781,7 @@ class ClubOSIntegration:
             return None
             
         except Exception as e:
-            logger.error(f"❌ Error looking up member name by email {email}: {e}")
+            logger.error(f"❌Œ Error looking up member name by email {email}: {e}")
             return None
     
     def _is_training_session(self, attendee_names):
@@ -1558,7 +1817,7 @@ class ClubOSIntegration:
         try:
             return self.training_api.get_member_payment_status(member_id)
         except Exception as e:
-            logger.error(f"❌ Error getting payment status for member {member_id}: {e}")
+            logger.error(f"❌Œ Error getting payment status for member {member_id}: {e}")
             return None
 
 # Initialize ClubOS integration
@@ -1571,7 +1830,7 @@ def dashboard():
     
     # Check if we need to refresh data (but don't block the dashboard load)
     if db_manager.needs_refresh():
-        logger.info("⚠️ Database data is stale, consider refreshing")
+        logger.info("⚠️ Database data is stale, consider refreshing")
     
     # Get real data from database
     conn = sqlite3.connect(db_manager.db_path)
@@ -1598,7 +1857,7 @@ def dashboard():
     
     conn.close()
     
-    print(f"📊 Database Stats: {total_members} members, {total_prospects} prospects, {total_training_clients} training clients")
+    print(f"")
     
     # Get live data from ClubOS - ONLY TODAY'S EVENTS (LIGHTWEIGHT)
     print("=== STARTING CLUBOS INTEGRATION (LIGHTWEIGHT) ===")
@@ -1739,7 +1998,7 @@ def refresh_funding_cache():
     try:
         force = request.json.get('force', False) if request.is_json else False
         
-        logger.info("🔄 Manual funding cache refresh requested")
+        logger.info("")
         
         # Refresh funding cache for all training clients
         result = training_package_cache.refresh_all_funding_cache()
@@ -1754,7 +2013,7 @@ def refresh_funding_cache():
         })
         
     except Exception as e:
-        logger.error(f"❌ Error in funding refresh API: {e}")
+        logger.error(f"❌Œ Error in funding refresh API: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1770,9 +2029,9 @@ def api_training_payment_status():
 
         # Ensure ClubOS API is authenticated
         if not clubos_training_api.authenticated:
-            logger.info("🔐 Re-authenticating ClubOS Training API...")
+            logger.info("")
             if not clubos_training_api.authenticate():
-                logger.error("❌ Failed to authenticate ClubOS Training API")
+                logger.error("❌Œ Failed to authenticate ClubOS Training API")
                 return jsonify({'success': False, 'error': 'ClubOS authentication failed'}), 500
         
         # Resolve member_id if only participant name is provided
@@ -1781,17 +2040,17 @@ def api_training_payment_status():
                 return jsonify({'success': True, 'funding': {
                     'status_text': 'No Name', 'status_class': 'secondary', 'status_icon': 'fas fa-user'
                 }})
-            logger.info(f"🔍 Training payment-status lookup for: {participant_name}")
+            logger.info(f"")
             # Authentication already done above
             member_id = clubos_training_api.search_member_id(participant_name) or training_package_cache._get_member_id_from_database(participant_name)
             if not member_id:
-                logger.warning(f"❌ No ClubOS memberId found for {participant_name}")
+                logger.warning(f"❌Œ No ClubOS memberId found for {participant_name}")
                 return jsonify({'success': True, 'funding': {
                     'status_text': 'No Match', 'status_class': 'secondary', 'status_icon': 'fas fa-user-slash'
                 }})
 
         # Follow the working training API flow exactly
-        logger.info(f"🔍 Computing training payment details for member: {member_id}")
+        logger.info(f"")
         try:
             result = clubos_training_api.get_member_training_payment_details(member_id)
             if not result or not result.get('success'):
@@ -1817,11 +2076,11 @@ def api_training_payment_status():
                 'agreement_ids': result.get('agreement_ids')
             })
         except Exception as e:
-            logger.error(f"❌ Error computing training payment details for {member_id}: {e}")
+            logger.error(f"❌Œ Error computing training payment details for {member_id}: {e}")
             return jsonify({'success': False, 'error': str(e)})
         
     except Exception as e:
-        logger.error(f"❌ Error in training payment-status API: {e}")
+        logger.error(f"❌Œ Error in training payment-status API: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 
@@ -1832,10 +2091,10 @@ def test_complete_flow():
         data = request.get_json()
         member_id = data.get('member_id', '191215290')  # Default to Alejandra
         
-        logging.info(f"🧪 Testing complete agreement flow for member: {member_id}")
+        logging.info(f"ðŸ§ª Testing complete agreement flow for member: {member_id}")
         
         # Initialize the ClubOS API
-        from clubos_training_api import ClubOSTrainingPackageAPI
+        from clubos_training_api_fixed import ClubOSTrainingPackageAPI
         clubos_api = ClubOSTrainingPackageAPI()
         
         # Test the complete flow
@@ -1844,7 +2103,7 @@ def test_complete_flow():
         return jsonify(result)
         
     except Exception as e:
-        logging.error(f"❌ Error in complete flow test: {e}")
+        logging.error(f"❌Œ Error in complete flow test: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/test-browser-flow', methods=['POST'])
@@ -1854,7 +2113,7 @@ def test_browser_flow():
         data = request.get_json()
         member_id = data.get('member_id', '191215290')  # Default to Alejandra
         
-        logging.info(f"🎭 Testing browser flow clone for member: {member_id}")
+        logging.info(f"ðŸŽ­ Testing browser flow clone for member: {member_id}")
         
         # Initialize the correct ClubOS API class
         from clubos_training_api import ClubOSTrainingPackageAPI
@@ -1866,7 +2125,7 @@ def test_browser_flow():
         return jsonify(result)
         
     except Exception as e:
-        logging.error(f"❌ Error in browser flow test: {e}")
+        logging.error(f"❌Œ Error in browser flow test: {e}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/test-known-agreement', methods=['POST'])
@@ -1876,7 +2135,7 @@ def api_test_known_agreement():
         data = request.get_json(silent=True) or request.form or request.args or {}
         agreement_id = data.get('agreement_id', '1522516')  # Default to known working ID from HAR files
         
-        logger.info(f"🧪 Testing known agreement ID: {agreement_id}")
+        logger.info(f"ðŸ§ª Testing known agreement ID: {agreement_id}")
         
         # Ensure authenticated
         clubos_training_api.authenticate()
@@ -1891,7 +2150,7 @@ def api_test_known_agreement():
         })
         
     except Exception as e:
-        logger.error(f"❌ Error in test-known-agreement API: {e}")
+        logger.error(f"❌Œ Error in test-known-agreement API: {e}")
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/bulk-checkin', methods=['POST'])
@@ -1941,7 +2200,7 @@ def perform_bulk_checkin_background():
             'errors': []
         })
         
-        logger.info("🏋️ Starting background bulk member check-in process (excluding PPV members)...")
+        logger.info("ðŸ‹ï¸ Starting background bulk member check-in process (excluding PPV members)...")
         
         # Import and initialize the ClubHub API client
         import sys
@@ -1964,45 +2223,78 @@ def perform_bulk_checkin_background():
             })
             return
         
-        bulk_checkin_status['message'] = 'Fetching member list...'
+        bulk_checkin_status['message'] = 'High-speed member fetching...'
         bulk_checkin_status['status'] = 'fetching'
         
-        # Get ALL members from ClubHub (paginate through all pages)
+        # Optimized parallel member fetching for maximum speed
         all_members = []
-        page = 1
-        page_size = 50  # Smaller page size to reduce memory usage
+        page_size = 100  # Larger page size for fewer API calls
+        max_fetch_threads = 10  # Parallel page fetching
         
-        while True:
+        # First, get total page count efficiently
+        initial_response = client.get_all_members(page=1, page_size=page_size)
+        if not initial_response:
+            raise Exception("Failed to fetch initial member data")
+        
+        all_members.extend(initial_response)
+        
+        # Estimate total pages (we'll adjust dynamically)
+        estimated_pages = max(10, len(initial_response))  # Conservative estimate
+        
+        def fetch_page(page_num):
+            """Fetch a single page of members"""
             try:
-                members_response = client.get_all_members(page=page, page_size=page_size)
-                
-                if not members_response or not isinstance(members_response, list):
-                    break
-                    
-                all_members.extend(members_response)
-                
-                # Update progress
-                bulk_checkin_status['message'] = f'Fetched page {page}, total members: {len(all_members)}'
-                
-                # If we got less than page_size, we've reached the end
-                if len(members_response) < page_size:
-                    break
-                    
-                page += 1
-                
-                # Add small delay to prevent overwhelming the API
-                import time
-                time.sleep(0.1)
-                
+                page_client = ClubHubAPIClient()
+                if page_client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
+                    return page_client.get_all_members(page=page_num, page_size=page_size)
+                return None
             except Exception as e:
-                logger.error(f"Error fetching page {page}: {e}")
-                break
+                logger.warning(f"Failed to fetch page {page_num}: {e}")
+                return None
         
-        logger.info(f"📋 Retrieved {len(all_members)} total members from ClubHub")
+        # Parallel page fetching with dynamic page discovery
+        page = 2  # Start from page 2 since we already have page 1
+        consecutive_empty = 0
+        
+        with ThreadPoolExecutor(max_workers=max_fetch_threads) as fetch_executor:
+            active_futures = {}
+            
+            while consecutive_empty < 3:  # Stop after 3 consecutive empty pages
+                # Submit up to max_fetch_threads pages concurrently
+                while len(active_futures) < max_fetch_threads and consecutive_empty < 3:
+                    future = fetch_executor.submit(fetch_page, page)
+                    active_futures[future] = page
+                    page += 1
+                
+                # Process completed futures
+                completed_futures = [f for f in active_futures if f.done()]
+                for future in completed_futures:
+                    page_num = active_futures.pop(future)
+                    try:
+                        page_data = future.result()
+                        
+                        if page_data and len(page_data) > 0:
+                            all_members.extend(page_data)
+                            consecutive_empty = 0  # Reset counter
+                            
+                            # Update progress with speed metrics
+                            bulk_checkin_status['message'] = f'High-speed fetch: {len(all_members)} members ({len(page_data)} from page {page_num})'
+                            
+                        else:
+                            consecutive_empty += 1
+                            
+                    except Exception as e:
+                        logger.warning(f"Error processing page {page_num}: {e}")
+                        consecutive_empty += 1
+                
+                # Small delay to prevent overwhelming the API
+                time.sleep(0.05)  # 50ms delay
+        
+        logger.info(f"❌š¡ High-speed fetch complete: Retrieved {len(all_members)} total members")
         bulk_checkin_status.update({
             'total_members': len(all_members),
-            'message': f'Found {len(all_members)} total members, filtering PPV members...',
-            'status': 'filtering'
+            'message': f'High-speed fetch complete: {len(all_members)} members retrieved',
+            'status': 'fetch_complete'
         })
         
         # Filter out PPV members - PPV members typically have specific contract types or payment structures
@@ -2054,80 +2346,184 @@ def perform_bulk_checkin_background():
         })
         
         import time
+        import asyncio
+        import aiohttp
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import threading
+        from collections import defaultdict
+        import queue
         
-        # Process members in smaller batches to prevent crashes
-        batch_size = 10  # Process 10 members at a time
+        # Thread-safe counters with atomic operations
+        thread_lock = threading.RLock()  # Reentrant lock for better performance
         total_checkins = 0
         members_processed = 0
         errors = []
         
-        for batch_start in range(0, len(regular_members), batch_size):
-            batch_end = min(batch_start + batch_size, len(regular_members))
-            batch = regular_members[batch_start:batch_end]
-            
-            for member in batch:
+        # Connection pooling for better performance
+        client_pool = queue.Queue(maxsize=50)  # Pre-populate client pool
+        
+        def initialize_client_pool():
+            """Pre-create authenticated clients for maximum speed"""
+            for _ in range(min(50, len(regular_members))):
                 try:
-                    member_id = member.get('id')
-                    member_name = f"{member.get('firstName', '')} {member.get('lastName', '')}".strip()
-                    
-                    if not member_id:
-                        continue
-                    
-                    # Update current status
-                    bulk_checkin_status.update({
-                        'current_member': member_name,
-                        'processed_members': members_processed,
-                        'message': f'Checking in {member_name} ({members_processed + 1}/{len(regular_members)})',
-                        'progress': 25 + int(((members_processed / len(regular_members)) * 70))  # 25-95% for processing
-                    })
-                    
-                    # First check-in (now)
-                    checkin_data_1 = {
-                        "date": datetime.now().strftime("%Y-%m-%dT%H:%M:%S-05:00"),
-                        "door": {"id": 772},
-                        "club": {"id": 1156},
-                        "manual": True
-                    }
-                    
-                    result_1 = client.post_member_usage(str(member_id), checkin_data_1)
-                    if result_1:
-                        total_checkins += 1
-                        bulk_checkin_status['total_checkins'] = total_checkins
-                        logger.info(f"✅ Check-in 1 successful for {member_name} (ID: {member_id})")
-                    
-                    # Small delay between check-ins
-                    time.sleep(0.1)
-                    
-                    # Second check-in (1 minute later)
-                    second_checkin_time = datetime.now() + timedelta(minutes=1)
-                    checkin_data_2 = {
-                        "date": second_checkin_time.strftime("%Y-%m-%dT%H:%M:%S-05:00"),
-                        "door": {"id": 772},
-                        "club": {"id": 1156},
-                        "manual": True
-                    }
-                    
-                    result_2 = client.post_member_usage(str(member_id), checkin_data_2)
-                    if result_2:
-                        total_checkins += 1
-                        bulk_checkin_status['total_checkins'] = total_checkins
-                        logger.info(f"✅ Check-in 2 successful for {member_name} (ID: {member_id})")
-                    
-                    members_processed += 1
-                    bulk_checkin_status['processed_members'] = members_processed
-                    
-                    # Small delay between members
-                    time.sleep(0.1)
-                    
-                except Exception as member_error:
-                    error_msg = f"Error checking in {member_name}: {str(member_error)}"
-                    logger.error(error_msg)
-                    errors.append(error_msg)
-                    bulk_checkin_status['errors'] = errors
+                    thread_client = ClubHubAPIClient()
+                    if thread_client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
+                        client_pool.put(thread_client)
+                    else:
+                        break  # Stop if authentication fails
+                except:
+                    break  # Stop on any error
+        
+        def get_client():
+            """Get a client from pool or create new one"""
+            try:
+                return client_pool.get_nowait()
+            except queue.Empty:
+                thread_client = ClubHubAPIClient()
+                thread_client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD)
+                return thread_client
+        
+        def return_client(client):
+            """Return client to pool for reuse"""
+            try:
+                client_pool.put_nowait(client)
+            except queue.Full:
+                pass  # Pool is full, let it be garbage collected
+        
+        # Batch processing for ultra-fast execution
+        def process_member_batch(member_batch):
+            """Process multiple members in a single batch for maximum speed"""
+            batch_results = []
+            client_instance = get_client()
             
-            # Longer delay between batches to prevent overwhelming the system
-            time.sleep(1)
-            logger.info(f"Completed batch {batch_start//batch_size + 1}/{(len(regular_members) + batch_size - 1)//batch_size}")
+            try:
+                current_time = datetime.now()
+                
+                # Pre-calculate all check-in times to avoid repeated datetime calls
+                checkin_times = [
+                    current_time.strftime("%Y-%m-%dT%H:%M:%S-05:00"),
+                    (current_time + timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%S-05:00")
+                ]
+                
+                for member in member_batch:
+                    try:
+                        member_id = member.get('id')
+                        member_name = f"{member.get('firstName', '')} {member.get('lastName', '')}".strip()
+                        
+                        if not member_id:
+                            batch_results.append((0, f"No ID for {member_name}", member_name))
+                            continue
+                        
+                        checkins_completed = 0
+                        
+                        # Batch both check-ins for same member - faster than separate calls
+                        checkin_data = [
+                            {
+                                "date": checkin_times[0],
+                                "door": {"id": 772},
+                                "club": {"id": 1156}, 
+                                "manual": True
+                            },
+                            {
+                                "date": checkin_times[1],
+                                "door": {"id": 772},
+                                "club": {"id": 1156},
+                                "manual": True
+                            }
+                        ]
+                        
+                        # Process both check-ins rapidly
+                        for i, data in enumerate(checkin_data):
+                            try:
+                                result = client_instance.post_member_usage(str(member_id), data)
+                                if result:
+                                    checkins_completed += 1
+                            except Exception as checkin_error:
+                                # Log but don't fail the whole batch
+                                logger.warning(f"Check-in {i+1} failed for {member_name}: {checkin_error}")
+                        
+                        batch_results.append((checkins_completed, None, member_name))
+                        
+                    except Exception as member_error:
+                        error_msg = f"Error processing {member_name}: {str(member_error)}"
+                        batch_results.append((0, error_msg, member_name))
+                
+                return_client(client_instance)  # Return to pool for reuse
+                return batch_results
+                
+            except Exception as batch_error:
+                logger.error(f"Batch processing error: {batch_error}")
+                return [(0, f"Batch error: {batch_error}", "Unknown") for _ in member_batch]
+        
+        def update_progress_atomic(processed_count, checkin_count, current_member_name):
+            """Atomic progress update to minimize lock contention"""
+            with thread_lock:
+                nonlocal total_checkins, members_processed
+                total_checkins += checkin_count
+                members_processed += processed_count
+                
+                # Only update UI every 25 members for better performance
+                if members_processed % 25 == 0 or members_processed >= len(regular_members):
+                    bulk_checkin_status.update({
+                        'current_member': current_member_name,
+                        'processed_members': members_processed,
+                        'total_checkins': total_checkins,
+                        'message': f'High-speed processing: {members_processed}/{len(regular_members)} members ({total_checkins} check-ins)',
+                        'progress': 25 + int(((members_processed / len(regular_members)) * 70))
+                    })
+        
+        # Initialize client pool for maximum speed
+        logger.info("ðŸš€ Initializing high-speed client pool...")
+        bulk_checkin_status['message'] = 'Creating connection pool for maximum speed...'
+        initialize_client_pool()
+        
+        # Ultra-fast batch processing with optimized threading
+        batch_size = 10  # Process 10 members per batch for optimal speed/memory balance
+        member_batches = [regular_members[i:i + batch_size] for i in range(0, len(regular_members), batch_size)]
+        max_workers = min(50, len(member_batches))  # Up to 50 concurrent batch processors
+        
+        logger.info(f"ðŸš€ Starting ULTRA-FAST bulk check-in with {max_workers} threads processing {len(member_batches)} batches of {batch_size} members each")
+        bulk_checkin_status.update({
+            'message': f'ULTRA-FAST MODE: {max_workers} parallel processors, {len(member_batches)} batches',
+            'status': 'ultra_processing'
+        })
+        
+        # Process all batches concurrently for maximum throughput
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all batch tasks
+            future_to_batch = {
+                executor.submit(process_member_batch, batch): i 
+                for i, batch in enumerate(member_batches)
+            }
+            
+            # Process completed batches as they finish
+            for future in as_completed(future_to_batch):
+                batch_index = future_to_batch[future]
+                try:
+                    batch_results = future.result()
+                    
+                    # Process all results from this batch
+                    batch_checkins = 0
+                    batch_processed = 0
+                    last_member = ""
+                    
+                    for checkins, error, member_name in batch_results:
+                        batch_checkins += checkins
+                        batch_processed += 1
+                        last_member = member_name
+                        
+                        if error:
+                            with thread_lock:
+                                errors.append(error)
+                    
+                    # Update progress atomically
+                    update_progress_atomic(batch_processed, batch_checkins, last_member)
+                    
+                except Exception as exc:
+                    error_msg = f"Batch {batch_index} processing exception: {exc}"
+                    logger.error(error_msg)
+                    with thread_lock:
+                        errors.append(error_msg)
         
         # Complete the process
         bulk_checkin_status.update({
@@ -2136,14 +2532,16 @@ def perform_bulk_checkin_background():
             'status': 'completed',
             'message': f'Completed! {total_checkins} total check-ins for {members_processed} members',
             'progress': 100,
-            'current_member': ''
+            'current_member': '',
+            'total_checkins': total_checkins,
+            'processed_members': members_processed
         })
         
-        logger.info(f"🎉 Bulk check-in completed: {total_checkins} total check-ins for {members_processed} regular members")
-        logger.info(f"🚫 Excluded {len(ppv_members)} PPV members from check-in process")
+        logger.info(f"ðŸŽ‰ Bulk check-in completed: {total_checkins} total check-ins for {members_processed} regular members")
+        logger.info(f"ðŸš« Excluded {len(ppv_members)} PPV members from check-in process")
         
     except Exception as e:
-        logger.error(f"❌ Error in background bulk check-in: {e}")
+        logger.error(f"❌Œ Error in background bulk check-in: {e}")
         bulk_checkin_status.update({
             'is_running': False,
             'status': 'error',
@@ -2223,7 +2621,7 @@ def funding_cache_status():
         })
         
     except Exception as e:
-        logger.error(f"❌ Error getting funding cache status: {e}")
+        logger.error(f"❌Œ Error getting funding cache status: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -2245,7 +2643,7 @@ def refresh_data():
                 force = request.form.get('force', 'false').lower() == 'true'
                 background = request.form.get('background', 'false').lower() == 'true'
         
-        logger.info(f"🔄 Manual data refresh requested (force={force}, background={background})")
+        logger.info(f"")
         
         if background:
             # Start background refresh process
@@ -2265,7 +2663,7 @@ def refresh_data():
                         'error': None
                     })
                     
-                    logger.info("🔄 Starting background data refresh...")
+                    logger.info("")
                     
                     # Update progress
                     data_refresh_status['progress'] = 25
@@ -2299,7 +2697,7 @@ def refresh_data():
                         'message': f'Background refresh failed: {str(e)}',
                         'error': str(e)
                     })
-                    logger.error(f"❌ Background refresh failed: {e}")
+                    logger.error(f"❌Œ Background refresh failed: {e}")
             
             # Start background thread
             thread = threading.Thread(target=background_refresh, daemon=True)
@@ -2346,7 +2744,7 @@ def refresh_data():
             })
         
     except Exception as e:
-        logger.error(f"❌ Error in data refresh API: {e}")
+        logger.error(f"❌Œ Error in data refresh API: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -2356,7 +2754,7 @@ def refresh_data():
 def refresh_clubhub_members():
     """API endpoint to refresh member data directly from ClubHub"""
     try:
-        logger.info("🔄 Refreshing member data from ClubHub...")
+        logger.info("")
         
         # Import ClubHub API client
         sys.path.append(os.path.join(os.path.dirname(__file__), 'services'))
@@ -2376,7 +2774,7 @@ def refresh_clubhub_members():
         page = 1
         page_size = 100
         
-        logger.info("📥 Fetching members from ClubHub...")
+        logger.info("")
         
         while True:
             members_response = client.get_all_members(page=page, page_size=page_size)
@@ -2385,7 +2783,7 @@ def refresh_clubhub_members():
                 break
                 
             fresh_members.extend(members_response)
-            logger.info(f"📄 Retrieved page {page}, total members so far: {len(fresh_members)}")
+            logger.info(f"")
             
             # If we got less than page_size, we've reached the end
             if len(members_response) < page_size:
@@ -2393,7 +2791,7 @@ def refresh_clubhub_members():
                 
             page += 1
         
-        logger.info(f"📋 Retrieved {len(fresh_members)} total members from ClubHub")
+        logger.info(f"")
         
         # Search for Dennis Rost specifically
         dennis_found = None
@@ -2403,7 +2801,7 @@ def refresh_clubhub_members():
             
             if 'dennis' in first_name and 'rost' in last_name:
                 dennis_found = member
-                logger.info(f"🎯 FOUND Dennis Rost in ClubHub: ID {member.get('id')}, Name: {first_name.title()} {last_name.title()}")
+                logger.info(f"ðŸŽ¯ FOUND Dennis Rost in ClubHub: ID {member.get('id')}, Name: {first_name.title()} {last_name.title()}")
                 break
         
         # Update database with fresh members
@@ -2447,7 +2845,7 @@ def refresh_clubhub_members():
                 members_added += 1
                 
             except Exception as e:
-                logger.error(f"❌ Error adding member {member.get('firstName')} {member.get('lastName')}: {e}")
+                logger.error(f"❌Œ Error adding member {member.get('firstName')} {member.get('lastName')}: {e}")
         
         conn.commit()
         conn.close()
@@ -2464,7 +2862,7 @@ def refresh_clubhub_members():
         })
         
     except Exception as e:
-        logger.error(f"❌ Error refreshing ClubHub members: {e}")
+        logger.error(f"❌Œ Error refreshing ClubHub members: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -2487,69 +2885,75 @@ def data_status():
         cursor.execute("SELECT COUNT(*) FROM training_clients")
         training_clients_count = cursor.fetchone()[0]
         
-        # Get members with past due amounts
-        cursor.execute("SELECT COUNT(*) FROM members WHERE amount_past_due > 0")
-        red_list_count = cursor.fetchone()[0]
-        
-        # Get members with payments due soon
-        cursor.execute("""
-            SELECT COUNT(*) FROM members 
-            WHERE date_of_next_payment <= date('now', '+7 days') 
-            AND amount_past_due = 0
-        """)
-        yellow_list_count = cursor.fetchone()[0]
+
         
         conn.close()
         
         # Get refresh status
-        refresh_status = db_manager.get_refresh_status()
+        refresh_status = db_manager.get_refresh_status() if hasattr(db_manager, 'get_refresh_status') else None
         
-        # Check CSV files for past due counts
-        csv_files = [
-            'data/exports/master_contact_list_20250715_181954.csv',
-            'data/csv_exports/master_contact_list_with_agreements_20250802_123437.csv',
-            'data/exports/master_contact_list_latest.csv'
-        ]
+        # Get current category counts from member_categories table
+        try:
+            cursor.execute("""
+                SELECT category, COUNT(*) as count
+                FROM member_categories
+                GROUP BY category
+            """)
+            current_category_counts = {}
+            for row in cursor.fetchall():
+                current_category_counts[row[0]] = row[1]
+        except Exception as e:
+            logger.error(f"❌ Error getting current category counts: {e}")
+            current_category_counts = {}
         
-        csv_past_due_counts = {'red': 0, 'yellow': 0, 'total': 0}
-        active_csv = None;
-        
-        for file_path in csv_files:
-            if os.path.exists(file_path):
-                active_csv = file_path
+        # Get last refresh info from data_refresh_log
+        try:
+            cursor.execute("""
+                SELECT last_refresh, record_count, category_breakdown 
+                FROM data_refresh_log 
+                WHERE table_name = 'members' 
+                ORDER BY last_refresh DESC LIMIT 1
+            """)
+            refresh_info = cursor.fetchone()
+            if refresh_info:
+                last_refresh, record_count, category_breakdown = refresh_info
                 try:
-                    df = pd.read_csv(file_path)
-                    if 'StatusMessage' in df.columns:
-                        red_count = len(df[df['StatusMessage'].str.contains('Past Due more than 30 days', na=False)])
-                        yellow_count = len(df[df['StatusMessage'].str.contains('Past Due 6-30 days', na=False)])
-                        csv_past_due_counts = {
-                            'red': red_count,
-                            'yellow': yellow_count,
-                            'total': red_count + yellow_count
-                        }
-                        break
-                except Exception as e:
-                    pass
+                    startup_category_counts = json.loads(category_breakdown) if category_breakdown else {}
+                except:
+                    startup_category_counts = {}
+            else:
+                last_refresh = None
+                record_count = 0
+                startup_category_counts = {}
+        except Exception as e:
+            logger.error(f"❌ Error getting refresh info: {e}")
+            last_refresh = None
+            record_count = 0
+            startup_category_counts = {}
+        
+        conn.close()
         
         return jsonify({
             'success': True,
             'counts': {
                 'members': members_count,
                 'prospects': prospects_count,
-                'training_clients': training_clients_count,
-                'red_list': red_list_count,
-                'yellow_list': yellow_list_count
+                'training_clients': training_clients_count
             },
-            'csv_past_due_counts': csv_past_due_counts,
-            'active_csv_file': active_csv,
-            'refresh_status': refresh_status,
-            'background_refresh_status': data_refresh_status,
-            'needs_refresh': db_manager.needs_refresh(),
+            'category_breakdown': {
+                'current': current_category_counts,
+                'startup': startup_category_counts
+            },
+            'refresh_info': {
+                'last_refresh': last_refresh,
+                'expected_records': record_count,
+                'needs_refresh': db_manager.needs_refresh() if hasattr(db_manager, 'needs_refresh') else False
+            },
             'timestamp': datetime.now().isoformat()
         })
         
     except Exception as e:
-        logger.error(f"❌ Error in data status API: {e}")
+        logger.error(f"❌Œ Error in data status API: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -2557,185 +2961,30 @@ def data_status():
 
 @app.route('/members')
 def members_page():
-    """Display members page with automatic database refresh to get latest member data."""
+    """Display members page with fast loading - data loads asynchronously via JavaScript."""
     
-    logger.info("🔄 Members page loaded - refreshing database with latest member data...")
+    logger.info("📋 Members page loaded - using fast loading with existing database data")
     
-    # Automatically refresh database with latest member data when members page loads
-    try:
-        # Import ClubHub API client for fresh data
-        sys.path.append(os.path.join(os.path.dirname(__file__), 'services'))
-        from api.clubhub_api_client import ClubHubAPIClient
-        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
-        
-        # Initialize and authenticate with ClubHub
-        client = ClubHubAPIClient()
-        if client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
-            logger.info("✅ ClubHub authentication successful - fetching fresh member data...")
-            
-            # Get fresh member data from ClubHub
-            fresh_members = []
-            page = 1
-            page_size = 100
-            
-            while True:
-                members_response = client.get_all_members(page=page, page_size=page_size)
-                
-                if not members_response or not isinstance(members_response, list):
-                    break
-                    
-                fresh_members.extend(members_response)
-                
-                if len(members_response) < page_size:
-                    break
-                    
-                page += 1
-            
-            logger.info(f"📋 Retrieved {len(fresh_members)} members from ClubHub - updating database...")
-            
-            # Update database with fresh member data
-            conn = sqlite3.connect(db_manager.db_path)
-            cursor = conn.cursor()
-            
-            # Clear existing members and insert fresh data
-            cursor.execute('DELETE FROM members')
-            
-            updated_count = 0
-            for member in fresh_members:
-                try:
-                    member_data = {
-                        'id': member.get('id'),
-                        'first_name': member.get('firstName'),
-                        'last_name': member.get('lastName'),
-                        'full_name': f"{member.get('firstName', '')} {member.get('lastName', '')}".strip(),
-                        'email': member.get('email'),
-                        'mobile_phone': member.get('mobilePhone'),
-                        'home_phone': member.get('homePhone'),
-                        'status': member.get('status'),
-                        'status_message': member.get('statusMessage'),
-                        'user_type': member.get('userType'),
-                        'membership_start': member.get('membershipStart'),
-                        'membership_end': member.get('membershipEnd'),
-                        'last_visit': member.get('lastVisit'),
-                        'contract_types': str(member.get('contractTypes', [])),
-                        'trial': member.get('trial', False),
-                        'created_at': datetime.now().isoformat(),
-                        'updated_at': datetime.now().isoformat()
-                    }
-                    
-                    # Remove None values
-                    member_data = {k: v for k, v in member_data.items() if v is not None}
-                    columns = ', '.join(member_data.keys())
-                    placeholders = ', '.join(['?' for _ in member_data.values()])
-                    
-                    cursor.execute(f'''
-                        INSERT OR REPLACE INTO members ({columns})
-                        VALUES ({placeholders})
-                    ''', list(member_data.values()))
-                    
-                    updated_count += 1
-                    
-                except Exception as e:
-                    logger.error(f"❌ Error updating member {member.get('firstName', '')} {member.get('lastName', '')}: {e}")
-                    continue
-            
-            conn.commit()
-            conn.close()
-            
-            logger.info(f"✅ Database updated with {updated_count} fresh members from ClubHub")
-            
-            # Also refresh training clients data
-            try:
-                logger.info("🏋️ Refreshing training clients data...")
-                
-                # Get training clients from ClubHub API if available
-                training_clients_response = client.get_training_clients() if hasattr(client, 'get_training_clients') else []
-                
-                if training_clients_response:
-                    conn = sqlite3.connect(db_manager.db_path)
-                    cursor = conn.cursor()
-                    
-                    # Update training clients with fresh data
-                    training_updated = 0
-                    for training_client in training_clients_response:
-                        try:
-                            # Extract member ID and update training client data
-                            client_data = {
-                                'member_id': training_client.get('memberId'),
-                                'clubos_member_id': training_client.get('memberId'),
-                                'member_name': training_client.get('memberName'),
-                                'trainer_name': training_client.get('trainerName', 'Jeremy Mayo'),
-                                'sessions_remaining': training_client.get('sessionsRemaining', 0),
-                                'updated_at': datetime.now().isoformat()
-                            }
-                            
-                            # Remove None values
-                            client_data = {k: v for k, v in client_data.items() if v is not None}
-                            
-                            # Update or insert training client
-                            if client_data.get('clubos_member_id'):
-                                columns = ', '.join(client_data.keys())
-                                placeholders = ', '.join(['?' for _ in client_data.values()])
-                                
-                                cursor.execute(f'''
-                                    INSERT OR REPLACE INTO training_clients ({columns})
-                                    VALUES ({placeholders})
-                                ''', list(client_data.values()))
-                                
-                                training_updated += 1
-                                
-                        except Exception as e:
-                            logger.error(f"❌ Error updating training client: {e}")
-                            continue
-                    
-                    conn.commit()
-                    conn.close()
-                    
-                    logger.info(f"✅ Updated {training_updated} training clients")
-                    
-            except Exception as e:
-                logger.error(f"❌ Error refreshing training clients: {e}")
-            
-        else:
-            logger.warning("⚠️ ClubHub authentication failed - using existing database data")
-            
-    except Exception as e:
-        logger.error(f"❌ Error refreshing member database: {e}")
-        logger.info("⚠️ Using existing database data as fallback")
-    
-    # Get current database counts for display
+    # Get simple counts from database for initial display (fast operation)
     conn = sqlite3.connect(db_manager.db_path)
     cursor = conn.cursor()
     
     cursor.execute("SELECT COUNT(*) FROM members")
     total_members = cursor.fetchone()[0]
     
-    cursor.execute("SELECT COUNT(*) FROM members WHERE amount_past_due > 0")
-    red_list_count = cursor.fetchone()[0]
-    
-    cursor.execute("""
-        SELECT COUNT(*) FROM members 
-        WHERE date_of_next_payment <= date('now', '+7 days') 
-        AND amount_past_due = 0
-    """)
-    yellow_list_count = cursor.fetchone()[0]
-    
     conn.close()
     
-    # Fast page load - render template with refreshed data counts
-    # JavaScript will load the actual member data asynchronously
+    # Fast page load - render template immediately with minimal data
+    # JavaScript will load the actual member data and category counts asynchronously
     return render_template('members.html',
                          members=[],  # Empty initially, loaded via JavaScript
-                         total_members=total_members,  # Updated count from fresh data
+                         total_members=total_members,
                          statuses=[],
                          search='',
                          status_filter='',
                          page=1,
                          total_pages=1,
-                         per_page=50,
-                         red_list_count=red_list_count,
-                         yellow_list_count=yellow_list_count,
-                         past_due_count=red_list_count)
+                         per_page=50)
 
 @app.route('/api/members/all')
 def get_all_members():
@@ -2756,9 +3005,8 @@ def get_all_members():
         where_conditions = []
         params = []
         
-        # IMPORTANT: Exclude past due members from "All Members" tab
-        where_conditions.append("(amount_past_due IS NULL OR amount_past_due <= 0)")
-        where_conditions.append("(date_of_next_payment IS NULL OR date_of_next_payment > date('now', '+7 days'))")
+        # Show all members in the "All Members" tab
+        # Only filter by search and status if specified
         
         if search:
             where_conditions.append("(first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)")
@@ -2782,45 +3030,36 @@ def get_all_members():
         total_pages = (total_members + per_page - 1) // per_page
         offset = (page - 1) * per_page
         
-        # Get members for current page
+        # Get members for current page - optimized query with minimal fields
         query = f"""
-            SELECT id, first_name, last_name, full_name, email, mobile_phone, status, 
-                   membership_start, membership_end, payment_amount, user_type, created_at, 
-                   agreement_rate, amount_past_due, amount_of_next_payment, date_of_next_payment
+            SELECT id, first_name, last_name, email, mobile_phone, status, status_message
             FROM members {where_clause}
-            ORDER BY created_at DESC
+            ORDER BY last_name, first_name
             LIMIT ? OFFSET ?
         """
         cursor.execute(query, params + [per_page, offset])
         members_data = cursor.fetchall()
         
-        # Process members for display
+        logger.info(f"")
+        logger.info(f"")
+        logger.info(f"")
+        
+        # Process members for display - optimized and simplified
         members = []
         for member in members_data:
-            member_dict = dict(member)
+            # Simple dictionary conversion - only essential fields
+            member_dict = {
+                'id': member['id'],
+                'first_name': member['first_name'] or '',
+                'last_name': member['last_name'] or '',
+                'email': member['email'] or '',
+                'mobile_phone': member['mobile_phone'] or '',
+                'status': member['status'] or '',
+                'status_message': member['status_message'] or ''
+            }
             
-            # Generate full_name if missing - CRITICAL FIX
-            first_name = member_dict.get('first_name', '') or ''
-            last_name = member_dict.get('last_name', '') or ''
-            if not member_dict.get('full_name'):
-                member_dict['full_name'] = f"{first_name} {last_name}".strip()
-            
-            # Ensure we have a display name - FALLBACK FIX
-            if not member_dict['full_name']:
-                member_dict['full_name'] = member_dict.get('email', 'Unknown Member')
-            
-            # Ensure first_name and last_name are not None
-            member_dict['first_name'] = first_name or 'Unknown'
-            member_dict['last_name'] = last_name or 'Member'
-            
-            # Add payment status
-            amount_past_due = member['amount_past_due'] if member['amount_past_due'] else 0
-            member_dict['payment_status'] = 'green'
-            member_dict['payment_status_text'] = 'Current'
-            member_dict['payment_status_class'] = 'success'
-            
-            # Add member ID for invoice functionality
-            member_dict['member_id'] = member_dict.get('id', '')
+            # Generate full_name efficiently
+            member_dict['full_name'] = f"{member_dict['first_name']} {member_dict['last_name']}".strip() or member_dict['email'] or 'Unknown Member'
             
             members.append(member_dict)
         
@@ -2841,65 +3080,168 @@ def get_all_members():
         })
         
     except Exception as e:
-        logger.error(f"❌ Error getting members: {e}")
+        logger.error(f"❌Œ Error getting members: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/member/<member_id>')
 def get_member_profile(member_id):
-    """Get detailed member profile information from fresh ClubHub data."""
+    """Get detailed member profile information from database and ClubHub API."""
     try:
-        # Use ClubHub credentials to get fresh member data directly 
-        CLUBHUB_LOGIN_URL = "https://clubhub-ios-api.anytimefitness.com/api/login"
-        USERNAME = "mayo.jeremy2212@gmail.com"
-        PASSWORD = "SruLEqp464_GLrF"
+        logger.info(f"")
         
-        headers = {
-            "Content-Type": "application/json",
-            "API-version": "1",
-            "Accept": "application/json",
-            "User-Agent": "ClubHub Store/2.15.1 (com.anytimefitness.Club-Hub; build:1007; iOS 18.5.0) Alamofire/5.6.4",
+        # First, get member data from our local database
+        conn = sqlite3.connect(db_manager.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Get comprehensive member data
+        cursor.execute("""
+            SELECT * FROM members WHERE id = ?
+        """, (member_id,))
+        
+        member_row = cursor.fetchone()
+        if not member_row:
+            conn.close()
+            return jsonify({'success': False, 'error': 'Member not found in database'}), 404
+        
+        # Convert to dictionary properly
+        member_data = {
+            'id': member_row['id'] if 'id' in member_row.keys() else None,
+            'guid': member_row['guid'] if 'guid' in member_row.keys() else None,
+            'first_name': member_row['first_name'] if 'first_name' in member_row.keys() else '',
+            'last_name': member_row['last_name'] if 'last_name' in member_row.keys() else '',
+            'full_name': member_row['full_name'] if 'full_name' in member_row.keys() else '',
+            'email': member_row['email'] if 'email' in member_row.keys() else '',
+            'amount_past_due': member_row['amount_past_due'] if 'amount_past_due' in member_row.keys() else 0,
         }
         
-        session = requests.Session()
-        session.headers.update(headers)
+        # Get payment status information
+        amount_past_due = float(member_data.get('amount_past_due') or 0)
+        amount_of_next_payment = float(member_data.get('amount_of_next_payment') or 0)
+        date_of_next_payment = member_data.get('date_of_next_payment')
+        payment_amount = float(member_data.get('payment_amount') or 0)
         
-        # Login to get bearer token
-        login_data = {"username": USERNAME, "password": PASSWORD}
-        login_response = session.post(CLUBHUB_LOGIN_URL, json=login_data)
+        # Determine payment status
+        if amount_past_due > 0:
+            payment_status = {
+                'text': f'Past Due - ${amount_past_due:.2f}',
+                'class': 'danger',
+                'icon': 'fas fa-exclamation-triangle',
+                'amount_past_due': amount_past_due,
+                'next_payment_date': date_of_next_payment,
+                'next_payment_amount': amount_of_next_payment
+            }
+        elif date_of_next_payment and date_of_next_payment <= datetime.now().strftime('%Y-%m-%d'):
+            payment_status = {
+                'text': 'Payment Due',
+                'class': 'warning',
+                'icon': 'fas fa-clock',
+                'amount_past_due': 0,
+                'next_payment_date': date_of_next_payment,
+                'next_payment_amount': amount_of_next_payment
+            }
+        else:
+            payment_status = {
+                'text': 'Current',
+                'class': 'success',
+                'icon': 'fas fa-check-circle',
+                'amount_past_due': 0,
+                'next_payment_date': date_of_next_payment,
+                'next_payment_amount': amount_of_next_payment
+            }
         
-        if login_response.status_code != 200:
-            return jsonify({'success': False, 'error': 'Failed to authenticate with ClubHub API'}), 500
+        # Get agreements information
+        cursor.execute("""
+            SELECT agreement_id, agreement_type, agreement_start_date, agreement_end_date, 
+                   agreement_rate, payment_amount, amount_past_due, amount_of_next_payment, 
+                   date_of_next_payment
+            FROM members 
+            WHERE id = ? AND agreement_id IS NOT NULL
+        """, (member_id,))
+        
+        agreements_data = cursor.fetchall()
+        agreements = []
+        for agreement in agreements_data:
+            agreements.append({
+                'agreement_id': agreement['agreement_id'],
+                'agreement_type': agreement['agreement_type'] or 'Standard Membership',
+                'start_date': agreement['agreement_start_date'],
+                'end_date': agreement['agreement_end_date'],
+                'rate': agreement['agreement_rate'] or agreement['payment_amount'],
+                'status': 'Active' if not agreement['agreement_end_date'] or agreement['agreement_end_date'] > datetime.now().strftime('%Y-%m-%d') else 'Expired'
+            })
+        
+        # Get payment history (placeholder for now)
+        payments = []
+        
+        # Get training client information if available
+        cursor.execute("""
+            SELECT * FROM training_clients 
+            WHERE member_id = ? OR clubos_member_id = ?
+        """, (member_id, member_id))
+        
+        training_client = cursor.fetchone()
+        training_info = None
+        if training_client:
+            training_info = {
+                'trainer_name': training_client['trainer_name'] or 'Jeremy Mayo',
+                'sessions_remaining': training_client['sessions_remaining'] or 0,
+                'session_type': training_client['session_type'] or 'Personal Training',
+                'last_session': training_client['last_session'],
+                'payment_status': training_client['payment_status'] or 'Unknown'
+            }
+        
+        conn.close()
+        
+        # Try to get fresh data from ClubHub API as well
+        try:
+            from config.clubhub_credentials_clean import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
             
-        login_result = login_response.json()
-        bearer_token = login_result.get('accessToken')
-        
-        if not bearer_token:
-            return jsonify({'success': False, 'error': 'ClubHub authentication successful, but no token received'}), 500
+            # Use ClubHub API client for fresh data
+            sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'services', 'api'))
+            from clubhub_api_client import ClubHubAPIClient
             
-        session.headers.update({"Authorization": f"Bearer {bearer_token}"})
+            client = ClubHubAPIClient()
+            if client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
+                # Get fresh member data
+                fresh_member = client.get_member_details(member_id)
+                if fresh_member:
+                    # Merge fresh data with database data
+                    member_data.update({
+                        'fresh_data': True,
+                        'last_updated': datetime.now().isoformat()
+                    })
+                    
+                    # Update payment status if we have fresh data
+                    if fresh_member.get('amountPastDue'):
+                        fresh_past_due = float(fresh_member.get('amountPastDue', 0))
+                        if fresh_past_due > amount_past_due:
+                            payment_status.update({
+                                'text': f'Past Due - ${fresh_past_due:.2f}',
+                                'amount_past_due': fresh_past_due
+                            })
+                else:
+                    member_data['fresh_data'] = False
+            else:
+                member_data['fresh_data'] = False
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Could not fetch fresh ClubHub data: {e}")
+            member_data['fresh_data'] = False
+            member_data['fresh_data_error'] = str(e)
         
-        # Correctly fetch member details from ClubHub API
-        club_id = "1156"  # Fond du Lac club ID
-        member_url = f"https://clubhub-ios-api.anytimefitness.com/api/clubs/{club_id}/members/{member_id}"
-        member_response = session.get(member_url)
-        
-        if member_response.status_code != 200:
-            return jsonify({'success': False, 'error': f'Failed to fetch member data from ClubHub: {member_response.status_code}'}), 500
-            
-        member_data = member_response.json()
-        
-        # For now, we'll just return the raw data
-        # In the future, we can add payment history and agreements here
+        # Return comprehensive member profile
         return jsonify({
             'success': True,
             'member': member_data,
-            'payment_status': {'text': 'In Good Standing', 'class': 'success'}, # Placeholder
-            'agreements': [], # Placeholder
-            'payments': [] # Placeholder
+            'payment_status': payment_status,
+            'agreements': agreements,
+            'payments': payments,
+            'training_info': training_info
         })
 
     except Exception as e:
-        logger.error(f"❌ Error fetching member profile for ID {member_id}: {e}")
+        logger.error(f"❌Œ Error fetching member profile for ID {member_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
         
 @app.route('/api/members/past-due')
@@ -2907,7 +3249,7 @@ def get_past_due_members():
     """Get members who are past due on payments using FRESH ClubHub API data"""
     try:
         import datetime
-        logger.info("🔍 Getting past due members from FRESH ClubHub API...")
+        logger.info("")
         
         # Use ClubHub credentials to get ALL members directly (matching HAR analysis)
         import requests
@@ -2928,7 +3270,7 @@ def get_past_due_members():
         env_password = os.environ.get('CLUBHUB_PASSWORD')
         
         if env_username and env_password:
-            logger.info("🔑 Using credentials from environment variables")
+            logger.info("")
             USERNAME = env_username
             PASSWORD = env_password
         
@@ -2950,43 +3292,43 @@ def get_past_due_members():
             "password": PASSWORD
         }
         
-        logger.info("🔑 Authenticating with ClubHub...")
+        logger.info("")
         try:
             login_response = session.post(CLUBHUB_LOGIN_URL, json=login_data)
-            logger.info(f"🔑 ClubHub login response status: {login_response.status_code}")
+            logger.info(f"")
             
             if login_response.status_code == 200:
                 login_result = login_response.json()
-                logger.info(f"🔑 ClubHub login response keys: {list(login_result.keys())}")
+                logger.info(f"")
                 bearer_token = login_result.get('accessToken')  # Fixed: was 'token', should be 'accessToken'
             else:
-                logger.error(f"🔑 ClubHub authentication failed with status {login_response.status_code}")
+                logger.error(f"")
                 try:
                     error_data = login_response.json()
-                    logger.error(f"🔑 ClubHub error response: {error_data}")
+                    logger.error(f"")
                 except:
-                    logger.error(f"🔑 ClubHub error text: {login_response.text}")
+                    logger.error(f"")
         except Exception as e:
-            logger.error(f"❌ Exception during ClubHub authentication: {e}")
+            logger.error(f"❌Œ Exception during ClubHub authentication: {e}")
             raise
             
         login_response = None  # Initialize outside the try block for the else clause
         bearer_token = None  # Initialize outside the try block
         try:
             login_response = session.post(CLUBHUB_LOGIN_URL, json=login_data)
-            logger.info(f"🔑 ClubHub login response status: {login_response.status_code}")
+            logger.info(f"")
             
             if login_response.status_code == 200:
                 login_result = login_response.json()
-                logger.info(f"🔑 ClubHub login response keys: {list(login_result.keys())}")
+                logger.info(f"")
                 bearer_token = login_result.get('accessToken')  # Fixed: was 'token', should be 'accessToken'
             else:
-                logger.error(f"🔑 ClubHub authentication failed with status {login_response.status_code}")
+                logger.error(f"")
                 try:
                     error_data = login_response.json()
-                    logger.error(f"🔑 ClubHub error response: {error_data}")
+                    logger.error(f"")
                 except:
-                    logger.error(f"🔑 ClubHub error text: {login_response.text}")
+                    logger.error(f"")
                     
             if bearer_token:
                 logger.info("✅ ClubHub authentication successful")
@@ -3003,12 +3345,12 @@ def get_past_due_members():
                     
                 while True:
                     members_url = f"https://clubhub-ios-api.anytimefitness.com/api/clubs/{club_id}/members?page={page}&pageSize=100"
-                    logger.info(f"📄 Fetching page {page}...")
+                    logger.info(f"")
                     
                     members_response = session.get(members_url)
                     
                     if members_response.status_code != 200:
-                        logger.error(f"❌ Failed to fetch page {page}: {members_response.status_code}")
+                        logger.error(f"❌Œ Failed to fetch page {page}: {members_response.status_code}")
                         break
                         
                     members_data = members_response.json()
@@ -3017,11 +3359,11 @@ def get_past_due_members():
                     for member in members_data:
                         member['full_name'] = f"{member.get('firstName', '')} {member.get('lastName', '')}".strip()
 
-                    logger.info(f"📊 Found {len(members_data)} members on page {page}")
+                    logger.info(f"")
                     
                     # If we got no members, stop paginating to avoid unnecessary API calls
                     if len(members_data) == 0:
-                        logger.info(f"🛑 No more members found, stopping pagination")
+                        logger.info(f"ðŸ›' No more members found, stopping pagination")
                         break
                         
                     all_members.extend(members_data)
@@ -3143,11 +3485,11 @@ def get_past_due_members():
                         json.dump(response_data, cache_file)
                     logger.info("✅ Past due members data cached successfully")
                 except Exception as cache_error:
-                    logger.error(f"❌ Failed to cache data: {cache_error}")
+                    logger.error(f"❌Œ Failed to cache data: {cache_error}")
                 
                 return jsonify(response_data)
             else:
-                logger.error("❌ No bearer token received from ClubHub login")
+                logger.error("❌Œ No bearer token received from ClubHub login")
                 return jsonify({
                     'red_count': 0,
                     'yellow_count': 0,
@@ -3157,7 +3499,7 @@ def get_past_due_members():
                 }), 500
                 
         except Exception as e:
-            logger.error(f"❌ ClubHub API access error: {e}")
+            logger.error(f"❌Œ ClubHub API access error: {e}")
             # Try to use cached data if available
             try:
                 import json
@@ -3165,14 +3507,14 @@ def get_past_due_members():
                 cache_path = os.path.join(os.path.dirname(__file__), 'cache', 'past_due_members_cache.json')
                 
                 if os.path.exists(cache_path):
-                    logger.info("🔍 ClubHub API failed, using cached past due data")
+                    logger.info("")
                     with open(cache_path, 'r') as cache_file:
                         cached_data = json.load(cache_file)
                         cached_data['message'] = 'Using cached data (ClubHub API is unavailable)'
                         cached_data['data_source'] = 'cache'
                         return jsonify(cached_data)
             except Exception as cache_error:
-                logger.error(f"❌ Failed to read cache: {cache_error}")
+                logger.error(f"❌Œ Failed to read cache: {cache_error}")
                 
             # If no cache or cache failed, return error
             return jsonify({
@@ -3184,7 +3526,7 @@ def get_past_due_members():
             }), 500
             
     except Exception as e:
-        logger.error(f"❌ Error getting fresh ClubHub data: {e}")
+        logger.error(f"❌Œ Error getting fresh ClubHub data: {e}")
         return jsonify({
             'red_count': 0,
             'yellow_count': 0,
@@ -3192,6 +3534,161 @@ def get_past_due_members():
             'past_due_members': [],
             'error': str(e)
         }), 500
+
+@app.route('/api/members/category-counts')
+def get_member_category_counts():
+    """Get counts for all member categories - optimized single query"""
+    try:
+        conn = sqlite3.connect(db_manager.db_path)
+        cursor = conn.cursor()
+        
+        # Single query to get all counts at once
+        query = """
+        SELECT 
+            SUM(CASE WHEN status_message = 'Member is in good standing' THEN 1 ELSE 0 END) as green,
+            SUM(CASE WHEN status_message = 'Comp member' THEN 1 ELSE 0 END) as comp,
+            SUM(CASE WHEN status_message = 'Pay per visit member' THEN 1 ELSE 0 END) as ppv,
+            SUM(CASE WHEN status_message = 'Staff member' THEN 1 ELSE 0 END) as staff,
+            SUM(CASE WHEN status_message LIKE 'Past Due%' THEN 1 ELSE 0 END) as past_due,
+            SUM(CASE WHEN status_message IN ('Account has been cancelled.', 'Member is pending cancel', 'Member will expire within 30 days.') THEN 1 ELSE 0 END) as inactive
+        FROM members
+        """
+        
+        cursor.execute(query)
+        result = cursor.fetchone()
+        
+        counts = {
+            'green': result[0],
+            'comp': result[1],
+            'ppv': result[2],
+            'staff': result[3],
+            'past_due': result[4],
+            'inactive': result[5]
+        }
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'counts': counts
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+        cursor.execute("SELECT COUNT(*) FROM members WHERE status_message IN ('Account has been cancelled.', 'Member is pending cancel', 'Member will expire within 30 days.')")
+        counts['inactive'] = cursor.fetchone()[0]
+        
+        # Total members
+        cursor.execute("SELECT COUNT(*) FROM members")
+        counts['total'] = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        logger.info(f"✅ Category counts: Green: {counts['green']}, Comp: {counts['comp']}, PPV: {counts['ppv']}, Staff: {counts['staff']}, Past Due: {counts['past_due']}, Inactive: {counts['inactive']}")
+        
+        return jsonify({
+            'success': True,
+            'counts': counts
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting category counts: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/members/by-category/<category>')
+def get_members_by_category(category):
+    """Get members filtered by specific category using the member_categories table for fast lookups"""
+    try:
+        # Use absolute path to ensure we're reading from correct database
+        db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'gym_bot.db')
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Use the member_categories table for fast category lookups
+        query = """
+            SELECT m.id, m.first_name, m.last_name, m.email, m.mobile_phone, m.status_message
+            FROM members m
+            INNER JOIN member_categories mc ON m.id = mc.member_id
+            WHERE mc.category = ?
+            ORDER BY m.last_name, m.first_name
+        """
+        
+        cursor.execute(query, (category,))
+        members = []
+        
+        for row in cursor.fetchall():
+            # Simple and fast member conversion
+            member_dict = {
+                'id': row['id'],
+                'first_name': row['first_name'] or '',
+                'last_name': row['last_name'] or '',
+                'email': row['email'] or '',
+                'mobile_phone': row['mobile_phone'] or '',
+                'status_message': row['status_message'] or ''
+            }
+            
+            # Generate full name
+            member_dict['full_name'] = f"{member_dict['first_name']} {member_dict['last_name']}".strip() or member_dict['email'] or 'Unknown Member'
+            
+            members.append(member_dict)
+        
+        conn.close()
+        
+        logger.info(f"✅ Found {len(members)} {category} members using category table")
+        
+        return jsonify({
+            'success': True,
+            'members': members,
+            'count': len(members),
+            'category': category
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting {category} members: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/members/category-counts')
+def get_category_counts():
+    """Get counts for all member categories using the member_categories table for fast lookups"""
+    try:
+        # Use absolute path to ensure we're reading from correct database
+        db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'gym_bot.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        counts = {}
+        
+        # Use the member_categories table for fast counting
+        cursor.execute("""
+            SELECT category, COUNT(*) as count
+            FROM member_categories
+            GROUP BY category
+        """)
+        
+        # Initialize all categories to 0
+        for category in ['green', 'comp', 'ppv', 'staff', 'past_due', 'inactive']:
+            counts[category] = 0
+        
+        # Update with actual counts from database
+        for row in cursor.fetchall():
+            category = row[0]
+            count = row[1]
+            if category in counts:
+                counts[category] = count
+        
+        conn.close()
+        
+        logger.info(f"✅ Category counts from member_categories table: {counts}")
+        
+        return jsonify({
+            'success': True,
+            'counts': counts
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting category counts: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/prospects')
 def prospects_page():
@@ -3206,6 +3703,291 @@ def prospects_page():
                          page=1,
                          total_pages=1,
                          per_page=50)
+
+@app.route('/prospect/<prospect_id>')
+def prospect_profile(prospect_id):
+    """Display individual prospect profile page with detailed information."""
+    logger.info(f"📋 Viewing prospect profile: {prospect_id}")
+    
+    # Get prospect data from database first, then enhance with ClubHub if needed
+    try:
+        conn = sqlite3.connect(db_manager.db_path)
+        cursor = conn.cursor()
+        
+        # Query prospect from prospects table first
+        cursor.execute("""
+            SELECT * FROM prospects 
+            WHERE id = ? OR guid = ?
+        """, (prospect_id, prospect_id))
+        
+        prospect_data = cursor.fetchone()
+        
+        # If not found in prospects, check members table for prospects
+        if not prospect_data:
+            cursor.execute("""
+                SELECT * FROM members 
+                WHERE (id = ? OR guid = ?) AND (user_type LIKE '%prospect%' OR status LIKE '%prospect%')
+            """, (prospect_id, prospect_id))
+            prospect_data = cursor.fetchone()
+        
+        if not prospect_data:
+            conn.close()
+            flash(f"Prospect with ID {prospect_id} not found", "error")
+            return redirect(url_for('prospects_page'))
+        
+        # Get column names for whichever table we got data from
+        columns = [description[0] for description in cursor.description]
+        conn.close()
+        
+        # Convert to dictionary for easier template usage
+        prospect = dict(zip(columns, prospect_data))
+        
+        # Enhance prospect data for template
+        prospect_info = {
+            'id': prospect.get('id', prospect_id),
+            'guid': prospect.get('guid', ''),
+            'name': prospect.get('full_name', f"{prospect.get('first_name', '')} {prospect.get('last_name', '')}".strip()) or 'Unknown Name',  # Template expects 'name'
+            'full_name': prospect.get('full_name', f"{prospect.get('first_name', '')} {prospect.get('last_name', '')}".strip()) or 'Unknown Name',
+            'first_name': prospect.get('first_name', ''),
+            'last_name': prospect.get('last_name', ''),
+            'email': prospect.get('email', ''),
+            'mobile_phone': prospect.get('mobile_phone', ''),
+            'home_phone': prospect.get('home_phone', ''),
+            'address1': prospect.get('address1', ''),
+            'address2': prospect.get('address2', ''),
+            'city': prospect.get('city', ''),
+            'state': prospect.get('state', ''),
+            'zip_code': prospect.get('zip_code', ''),
+            'status': prospect.get('status', 'New Lead'),
+            'lead_source': prospect.get('lead_source', prospect.get('source', '')),
+            'lead_status': 'new',  # Default lead status for template
+            'prospect_id': prospect.get('id', prospect_id),  # Template expects prospect_id
+            'interest_level': prospect.get('interest_level', ''),
+            'follow_up_date': prospect.get('follow_up_date', ''),
+            'notes': prospect.get('notes', ''),
+            'created_at': prospect.get('created_at', ''),
+            'last_activity_timestamp': prospect.get('last_activity_timestamp', ''),
+            'user_type': prospect.get('user_type', 'prospect'),
+            'membership_start': prospect.get('membership_start', ''),
+            'membership_end': prospect.get('membership_end', ''),
+            'date_of_birth': prospect.get('date_of_birth', ''),
+            'gender': prospect.get('gender', ''),
+            'emergency_contact': prospect.get('emergency_contact', ''),
+            'emergency_phone': prospect.get('emergency_phone', '')
+        }
+        
+        return render_template('prospect_profile.html', prospect=prospect_info)
+        
+    except Exception as e:
+        logger.error(f"❌ Error loading prospect profile {prospect_id}: {e}")
+        flash(f"Error loading prospect: {str(e)}", "error")
+        return redirect(url_for('prospects_page'))
+
+@app.route('/member/<member_id>')
+def member_profile(member_id):
+    """Display individual member profile page"""
+    logger.info(f"📋 Viewing member profile: {member_id}")
+    
+    try:
+        # Get member details using existing database
+        conn = sqlite3.connect(db_manager.db_path)
+        conn.row_factory = sqlite3.Row  # Enable dictionary-style access
+        
+        # Get basic member info
+        member = conn.execute("""
+            SELECT * FROM members WHERE id = ? OR guid = ?
+        """, (member_id, member_id)).fetchone()
+        
+        if not member:
+            conn.close()
+            flash('Member not found', 'error')
+            return redirect(url_for('members_page'))
+            
+        # Convert SQLite Row to dict properly
+        member_dict = {
+            'id': member['id'],
+            'guid': member['guid'],
+            'first_name': member['first_name'],
+            'last_name': member['last_name'],
+            'full_name': member['full_name'],
+            'email': member['email'],
+            'mobile_phone': member['mobile_phone'],
+            'status': member['status'],
+            'membership_start': member['membership_start'],
+            'created_at': member['created_at']
+        }
+        
+        # Mark as database data (no fresh API call for now)
+        member_dict['fresh_data'] = False
+        member_dict['fresh_data_error'] = None
+            
+        # Get payment status (simplified for now)
+        payment_status = {
+            'status': 'current',
+            'amount_due': 0.0,
+            'last_payment_date': None,
+            'next_payment_date': None
+        }
+        
+        # Get agreements (simplified - empty for now)
+        agreements = []
+            
+        # Get payment history (empty for now)
+        payments = []
+        
+        # Get training info if member is a training client
+        training_info = None
+        try:
+            training_client = conn.execute("""
+                SELECT * FROM training_clients WHERE clubos_member_id = ? OR member_id = ?
+            """, (member_dict.get('clubos_member_id', member_id), member_id)).fetchone()
+            
+            if training_client:
+                training_info = {
+                    'trainer_name': training_client['trainer_name'],
+                    'sessions_remaining': training_client['sessions_remaining'],
+                    'last_session': training_client['last_session'],
+                    'payment_status': training_client['payment_status']
+                }
+        except Exception as e:
+            logger.error(f"Error fetching training info: {e}")
+            training_info = None
+            
+        conn.close()
+        
+        return render_template('member_profile.html', 
+                             member=member_dict,
+                             payment_status=payment_status,
+                             agreements=agreements,
+                             payments=payments,
+                             training_info=training_info)
+        
+    except Exception as e:
+        logger.error(f"❌ Error in member_profile: {e}")
+        flash('Error loading member profile', 'error')
+        return redirect(url_for('members_page'))
+
+@app.route('/training-client/<member_id>')
+def training_client_profile(member_id):
+    """Display individual training client profile page with agreement focus"""
+    logger.info(f"🏋️ Viewing training client profile: {member_id}")
+    
+    try:
+        # Get training client from database
+        conn = sqlite3.connect(db_manager.db_path)
+        
+        training_client = conn.execute("""
+            SELECT * FROM training_clients WHERE clubos_member_id = ? OR member_id = ? OR guid = ?
+        """, (member_id, member_id, member_id)).fetchone()
+        
+        if not training_client:
+            conn.close()
+            flash('Training client not found', 'error')
+            return redirect(url_for('training_clients'))
+            
+        # Convert SQLite Row to dict properly for training client
+        client_dict = {
+            'id': training_client['id'] if 'id' in training_client.keys() else None,
+            'guid': training_client['guid'] if 'guid' in training_client.keys() else None,
+            'member_id': training_client['member_id'] if 'member_id' in training_client.keys() else None,
+            'trainer_name': training_client['trainer_name'] if 'trainer_name' in training_client.keys() else None,
+            'sessions_remaining': training_client['sessions_remaining'] if 'sessions_remaining' in training_client.keys() else None,
+            'package_type': training_client['package_type'] if 'package_type' in training_client.keys() else None,
+            'clubos_member_id': training_client['clubos_member_id'] if 'clubos_member_id' in training_client.keys() else None,
+        }
+        
+        # Get member details for additional info
+        member = conn.execute("""
+            SELECT * FROM members WHERE id = ? OR clubos_member_id = ? OR guid = ?
+        """, (member_id, member_id, member_id)).fetchone()
+        
+        if member:
+            # Convert SQLite Row to dict properly
+            member_dict = {
+                'id': member['id'] if 'id' in member.keys() else None,
+                'guid': member['guid'] if 'guid' in member.keys() else None,
+                'first_name': member['first_name'] if 'first_name' in member.keys() else None,
+                'last_name': member['last_name'] if 'last_name' in member.keys() else None,
+                'full_name': member['full_name'] if 'full_name' in member.keys() else None,
+                'email': member['email'] if 'email' in member.keys() else None,
+                'mobile_phone': member['mobile_phone'] if 'mobile_phone' in member.keys() else None,
+                'status': member['status'] if 'status' in member.keys() else None,
+                'membership_start': member['membership_start'] if 'membership_start' in member.keys() else None,
+                'created_at': member['created_at'] if 'created_at' in member.keys() else None,
+                'clubos_member_id': member['clubos_member_id'] if 'clubos_member_id' in member.keys() else None,
+            }
+            # Merge member data into client data
+            for key, value in member_dict.items():
+                if key not in client_dict or not client_dict[key]:
+                    client_dict[key] = value
+        
+        # Get package agreements - this is the main focus
+        agreements = []
+        try:
+            training_api = ClubOSTrainingPackageAPI()
+            funding_data = training_api.get_funding_status(client_dict.get('clubos_member_id', member_id))
+            if funding_data and funding_data.get('success'):
+                agreements = funding_data.get('funding_data', [])
+        except Exception as e:
+            logger.error(f"Error fetching training agreements: {e}")
+            
+        # Calculate financial summary
+        total_past_due = 0
+        total_sessions = 0
+        total_value = 0
+        
+        for agreement in agreements:
+            try:
+                # Calculate past due from invoice data
+                v2 = agreement.get('v2', {})
+                invoices = []
+                
+                if v2.get('include') and isinstance(v2['include'].get('invoices'), list):
+                    invoices = v2['include']['invoices']
+                elif isinstance(v2.get('invoices'), list):
+                    invoices = v2['invoices']
+                    
+                # Calculate past due using SPA logic
+                past_due_invoices = [inv for inv in invoices 
+                                   if (inv.get('status', '')).lower() in ['delinquent', 'pay now']]
+                
+                agreement_past_due = sum(
+                    float(inv.get('invoice_total', 0) or inv.get('remainingTotal', 0) or inv.get('total', 0) or 0)
+                    for inv in past_due_invoices
+                )
+                total_past_due += agreement_past_due
+                
+                # Sessions
+                sessions_remaining = agreement.get('v2', {}).get('packageAgreement', {}).get('sessionsRemaining', 0)
+                total_sessions += sessions_remaining or 0
+                
+                # Total value
+                agreement_value = agreement.get('agreement_total_value', {})
+                value = agreement_value.get('totalValue', 0) or agreement_value.get('value', 0) or 0
+                total_value += float(value) if value else 0
+                
+            except Exception as e:
+                logger.error(f"Error calculating agreement summary: {e}")
+                continue
+        
+        financial_summary = {
+            'total_past_due': round(total_past_due, 2),
+            'active_agreements': len(agreements),
+            'total_sessions': total_sessions,
+            'total_value': round(total_value, 2)
+        }
+        
+        conn.close()
+        
+        return render_template('training_client_profile.html',
+                             client=client_dict,
+                             agreements=agreements,
+                             financial_summary=financial_summary)
+        
+    except Exception as e:
+        logger.error(f"❌ Error in training_client_profile: {e}")
+        flash('Error loading training client profile', 'error')
+        return redirect(url_for('training_clients'))
 
 @app.route('/api/prospects/all')
 def get_all_prospects():
@@ -3248,6 +4030,15 @@ def get_all_prospects():
         all_prospects = []
         page = 1
         
+        # Process and save prospects to database for profile access
+        conn = sqlite3.connect(db_manager.db_path)
+        cursor = conn.cursor()
+        
+        # Clear existing prospects data to refresh with latest
+        cursor.execute('DELETE FROM prospects')
+        
+        prospects_saved = 0
+        
         while True:
             prospects_url = f"https://clubhub-ios-api.anytimefitness.com/api/clubs/{club_id}/prospects?page={page}&pageSize=100"
             prospects_response = session.get(prospects_url)
@@ -3259,17 +4050,47 @@ def get_all_prospects():
             
             if len(prospects_data) == 0:
                 break
-            
-            # Process prospects data
+                
+            # Save each prospect to database
             for prospect in prospects_data:
                 prospect['full_name'] = f"{prospect.get('firstName', '')} {prospect.get('lastName', '')}".strip()
                 
+                # Save prospect to database so profile pages can access it
+                cursor.execute("""
+                    INSERT OR REPLACE INTO prospects (
+                        id, guid, first_name, last_name, full_name, email, mobile_phone, 
+                        home_phone, address1, city, state, zip_code, status, lead_source, 
+                        created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """, (
+                    prospect.get('id') or prospect.get('prospectId'),
+                    prospect.get('guid', ''),
+                    prospect.get('firstName', ''),
+                    prospect.get('lastName', ''),
+                    prospect['full_name'],
+                    prospect.get('email', ''),
+                    prospect.get('mobilePhone', ''),
+                    prospect.get('homePhone', ''),
+                    prospect.get('address1', ''),
+                    prospect.get('city', ''),
+                    prospect.get('state', ''),
+                    prospect.get('zipCode', ''),
+                    prospect.get('status', 'New Lead'),
+                    prospect.get('leadSource', ''),
+                ))
+                prospects_saved += 1
+                    
             all_prospects.extend(prospects_data)
             page += 1
             
             # Limit to prevent infinite loops
             if page > 50:
                 break
+        
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"✅ Saved {prospects_saved} prospects to database for profile access")
         
         return jsonify({
             'success': True,
@@ -3281,7 +4102,7 @@ def get_all_prospects():
         })
         
     except Exception as e:
-        logger.error(f"❌ Error getting prospects: {e}")
+        logger.error(f"❌Œ Error getting prospects: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/training-clients')
@@ -3302,13 +4123,13 @@ def training_clients_page():
 def get_all_training_clients():
     """API endpoint to get all training clients from ClubOS with fresh agreement data - saves to database but never returns stale data."""
     try:
-        logger.info("🏋️ Loading training clients from ClubOS with fresh agreement data...")
+        logger.info("ðŸ‹ï¸ Loading training clients from ClubOS with fresh agreement data...")
         
         # Ensure ClubOS API is authenticated
         if not clubos_training_api.authenticated:
-            logger.info("🔐 Re-authenticating ClubOS Training API...")
+            logger.info("")
             if not clubos_training_api.authenticate():
-                logger.error("❌ Failed to authenticate ClubOS Training API")
+                logger.error("❌Œ Failed to authenticate ClubOS Training API")
                 return jsonify({'success': False, 'error': 'ClubOS authentication failed'}), 500
         
         # Always fetch fresh data from ClubOS first
@@ -3316,11 +4137,11 @@ def get_all_training_clients():
 
         # Fallbacks: try without force, then DB cache so the UI isn't empty
         if not clubos_assignees:
-            logger.warning("⚠️ No training clients from ClubOS (force). Retrying without force...")
+            logger.warning("⚠️ No training clients from ClubOS (force). Retrying without force...")
             clubos_assignees = clubos_training_api.fetch_assignees(force_refresh=False)
 
         if not clubos_assignees:
-            logger.warning("⚠️ ClubOS assignees still empty. Falling back to database cache for training clients list.")
+            logger.warning("⚠️ ClubOS assignees still empty. Falling back to database cache for training clients list.")
             try:
                 conn = sqlite3.connect(db_manager.db_path)
                 conn.row_factory = sqlite3.Row
@@ -3357,7 +4178,7 @@ def get_all_training_clients():
                     'last_updated': datetime.now().isoformat()
                 })
             except Exception as e:
-                logger.error(f"❌ DB fallback failed: {e}")
+                logger.error(f"❌Œ DB fallback failed: {e}")
                 return jsonify({
                     'success': True,
                     'training_clients': [],
@@ -3368,7 +4189,7 @@ def get_all_training_clients():
                     'source': 'clubos_live'
                 })
         
-        logger.info(f"📥 Found {len(clubos_assignees)} training clients from ClubOS")
+        logger.info(f"")
         
         # Connect to database for saving/updating
         conn = sqlite3.connect(db_manager.db_path)
@@ -3376,7 +4197,7 @@ def get_all_training_clients():
         
         # Clear existing training clients data to avoid stale records
         cursor.execute("DELETE FROM training_clients")
-        logger.info("🗑️ Cleared existing training clients data to prevent stale records")
+        logger.info("ðŸ—'ï¸ Cleared existing training clients data to prevent stale records")
         
         training_clients = []
         
@@ -3391,6 +4212,12 @@ def get_all_training_clients():
                     continue
                 
                 # Fetch basic agreement info for this client to populate the list
+                agreements_data = []
+                package_name = 'No package assigned'
+                trainer_name = 'Jeremy Mayo'
+                sessions_remaining = 'N/A'
+                agreement_amount = 'N/A'
+                
                 try:
                     # Delegate to member first
                     if clubos_training_api.delegate_to_member(member_id):
@@ -3407,27 +4234,16 @@ def get_all_training_clients():
                                 trainer_name = primary_agreement.get('trainer_name', 'Jeremy Mayo')
                                 sessions_remaining = primary_agreement.get('sessions_remaining', 'N/A')
                                 agreement_amount = primary_agreement.get('amount', 'N/A')
+                                
+                                logger.info(f"✅ Found agreement for {member_name}: {package_name} - {sessions_remaining} sessions - ${agreement_amount}")
                             else:
-                                package_name = 'No package assigned'
-                                trainer_name = 'Jeremy Mayo'
-                                sessions_remaining = 'N/A'
-                                agreement_amount = 'N/A'
+                                logger.info(f"❌„¹ï¸ No agreements found for {member_name}")
                         else:
-                            package_name = 'No package assigned'
-                            trainer_name = 'Jeremy Mayo'
-                            sessions_remaining = 'N/A'
-                            agreement_amount = 'N/A'
+                            logger.warning(f"⚠️ Failed to fetch agreements for {member_name}: {list_resp.status_code}")
                     else:
-                        package_name = 'No package assigned'
-                        trainer_name = 'Jeremy Mayo'
-                        sessions_remaining = 'N/A'
-                        agreement_amount = 'N/A'
+                        logger.warning(f"⚠️ Failed to delegate to member {member_id} ({member_name})")
                 except Exception as e:
-                    logger.warning(f"⚠️ Error fetching agreement info for {member_name}: {e}")
-                    package_name = 'No package assigned'
-                    trainer_name = 'Jeremy Mayo'
-                    sessions_remaining = 'N/A'
-                    agreement_amount = 'N/A'
+                    logger.warning(f"⚠️ Error fetching agreement info for {member_name}: {e}")
                 
                 # Set default payment status
                 payment_status = 'Unknown'  # Will be fetched when needed
@@ -3457,7 +4273,7 @@ def get_all_training_clients():
                     'payment_status': payment_status,
                     'sessions_remaining': sessions_remaining,
                     'next_invoice_subtotal': agreement_amount,
-                    'total_agreements': len(agreements),
+                    'total_agreements': len(agreements_data),
                     'created_at': current_time,
                     'last_updated': current_time,
                     'status': 'Active',
@@ -3467,7 +4283,7 @@ def get_all_training_clients():
                 training_clients.append(client_data)
                 
             except Exception as e:
-                logger.warning(f"⚠️ Error processing training client {assignee.get('name', 'Unknown')}: {e}")
+                logger.warning(f"⚠️ Error processing training client {assignee.get('name', 'Unknown')}: {e}")
                 continue
         
         # Commit database changes
@@ -3488,7 +4304,7 @@ def get_all_training_clients():
         })
         
     except Exception as e:
-        logger.error(f"❌ Error loading training clients from ClubOS: {e}")
+        logger.error(f"❌Œ Error loading training clients from ClubOS: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/training-clients/<member_id>/agreements')
@@ -3498,13 +4314,13 @@ def get_member_package_agreements(member_id):
     Uses the reliable flow: delegate to member + bare list + per-agreement billing_status.
     """
     try:
-        logger.info(f"🏋️ Fetching package agreements (with funding) for member ID: {member_id}")
+        logger.info(f"ðŸ‹ï¸ Fetching package agreements (with funding) for member ID: {member_id}")
 
         # Ensure ClubOS API is authenticated
         if not clubos_training_api.authenticated:
-            logger.info("🔐 Re-authenticating ClubOS Training API...")
+            logger.info("")
             if not clubos_training_api.authenticate():
-                logger.error("❌ Failed to authenticate ClubOS Training API")
+                logger.error("❌Œ Failed to authenticate ClubOS Training API")
                 return jsonify({'success': False, 'error': 'ClubOS authentication failed'}), 500
 
         # Delegate to this member context
@@ -3515,7 +4331,7 @@ def get_member_package_agreements(member_id):
         list_url = f"{clubos_training_api.base_url}/api/agreements/package_agreements/list"
         list_resp = clubos_training_api.session.get(list_url, timeout=15)
         if list_resp.status_code != 200:
-            logger.warning(f"⚠️ Bare list failed for {member_id}: HTTP {list_resp.status_code}")
+            logger.warning(f"⚠️ Bare list failed for {member_id}: HTTP {list_resp.status_code}")
             return jsonify({'success': True, 'member_id': member_id, 'agreements': [], 'total_agreements': 0})
 
         try:
@@ -3787,7 +4603,7 @@ def get_member_package_agreements(member_id):
                 normalized.append(enriched)
 
             except Exception as e:
-                logger.warning(f"⚠️ Error processing agreement {aid}: {e}")
+                logger.warning(f"⚠️ Error processing agreement {aid}: {e}")
                 continue
 
         logger.info(f"✅ Found {len(normalized)} agreements for member {member_id} (with funding)")
@@ -3799,7 +4615,7 @@ def get_member_package_agreements(member_id):
         })
 
     except Exception as e:
-        logger.error(f"❌ Error fetching package agreements for member {member_id}: {e}")
+        logger.error(f"❌Œ Error fetching package agreements for member {member_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -3999,7 +4815,7 @@ def get_agreement_invoices(agreement_id):
         })
 
     except Exception as e:
-        logger.error(f"❌ Error fetching invoices for agreement {agreement_id}: {e}")
+        logger.error(f"❌Œ Error fetching invoices for agreement {agreement_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/create-invoice', methods=['POST'])
@@ -4105,7 +4921,7 @@ def api_calculate_invoice_amount():
 def api_refresh_members():
     """API endpoint to manually refresh member database with latest ClubHub data"""
     try:
-        logger.info("🔄 Manual member refresh requested...")
+        logger.info("")
         
         # Import ClubHub API client
         sys.path.append(os.path.join(os.path.dirname(__file__), 'services'))
@@ -4176,7 +4992,7 @@ def api_refresh_members():
                 updated_count += 1
                 
             except Exception as e:
-                logger.error(f"❌ Error updating member: {e}")
+                logger.error(f"❌Œ Error updating member: {e}")
                 continue
         
         conn.commit()
@@ -4193,17 +5009,42 @@ def api_refresh_members():
         })
         
     except Exception as e:
-        logger.error(f"❌ Error in manual member refresh: {e}")
+        logger.error(f"❌Œ Error in manual member refresh: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
 
+@app.route('/api/refresh-members-full', methods=['POST'])
+def api_refresh_members_full():
+    """API endpoint to force a full refresh of all member data (use sparingly)"""
+    try:
+        logger.info("🔄 Force refreshing ALL member data from ClubHub...")
+        
+        # Call the full import function
+        category_counts = import_fresh_clubhub_data()
+        
+        if category_counts:
+            return jsonify({
+                'success': True,
+                'message': 'Full member refresh completed successfully',
+                'category_breakdown': category_counts
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Full member refresh failed'
+            }), 500
+        
+    except Exception as e:
+        logger.error(f"❌ Error during full member refresh: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/refresh-training-clients', methods=['POST', 'GET'])
 def refresh_training_clients():
     """API endpoint to refresh training clients from ClubHub"""
     try:
-        logger.info("🏋️ Refreshing training clients from ClubHub...")
+        logger.info("ðŸ‹ï¸ Refreshing training clients from ClubHub...")
         
         # Import ClubHub API client
         sys.path.append(os.path.join(os.path.dirname(__file__), 'services'))
@@ -4247,7 +5088,7 @@ def refresh_training_clients():
                         'has_training_indicators': has_training,
                         'indicators_found': [i for i, indicator in enumerate(training_indicators) if indicator]
                     }
-                    logger.info(f"🎯 Found Dennis Rost - Training indicators: {has_training}")
+                    logger.info(f"ðŸŽ¯ Found Dennis Rost - Training indicators: {has_training}")
                     logger.info(f"   Status: {member.get('statusMessage')}")
                     logger.info(f"   Agreement ID: {member.get('agreementId')}")
                     logger.info(f"   Invoice Subtotal: {member.get('nextInvoiceSubtotal')}")
@@ -4292,10 +5133,10 @@ def refresh_training_clients():
                     ''', list(client_data.values()))
                     
                     clients_added += 1
-                    logger.info(f"➕ Added training client: {client_data['member_name']}")
+                    logger.info(f"❌ž• Added training client: {client_data['member_name']}")
                     
             except Exception as e:
-                logger.error(f"❌ Error adding training client {member.get('firstName')} {member.get('lastName')}: {e}")
+                logger.error(f"❌Œ Error adding training client {member.get('firstName')} {member.get('lastName')}: {e}")
         
         conn.commit()
         conn.close()
@@ -4312,7 +5153,7 @@ def refresh_training_clients():
         })
         
     except Exception as e:
-        logger.error(f"❌ Error refreshing training clients: {e}")
+        logger.error(f"❌Œ Error refreshing training clients: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -4402,7 +5243,7 @@ def debug_agreement_invoices(agreement_id):
         })
         
     except Exception as e:
-        logger.error(f"❌ Error debugging agreement invoices for {agreement_id}: {e}")
+        logger.error(f"❌Œ Error debugging agreement invoices for {agreement_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/debug/agreement/<agreement_id>/v2-raw')
@@ -4470,6 +5311,175 @@ def debug_agreement_v2_raw(agreement_id):
             'error': str(e),
             'traceback': traceback.format_exc()
         }), 500
+
+@app.route('/api/invoices/batch', methods=['POST'])
+def api_batch_invoices():
+    """API endpoint to create batch invoices for multiple members."""
+    try:
+        data = request.get_json()
+        invoice_type = data.get('type', 'members')
+        filter_type = data.get('filter', 'past_due')
+        selected_clients = data.get('selected_clients', [])
+        
+        if not selected_clients:
+            return jsonify({'success': False, 'error': 'No members selected for invoicing'}), 400
+        
+        if not SQUARE_AVAILABLE:
+            return jsonify({'success': False, 'error': 'Square payment service is not available.'}), 503
+        
+        logger.info(f"")
+        
+        # Get member details from database
+        conn = sqlite3.connect(db_manager.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Get member information for selected IDs
+        placeholders = ','.join(['?' for _ in selected_clients])
+        cursor.execute(f"""
+            SELECT id, first_name, last_name, full_name, email, amount_past_due, 
+                   amount_of_next_payment, payment_amount, agreement_rate
+            FROM members 
+            WHERE id IN ({placeholders})
+        """, selected_clients)
+        
+        members = cursor.fetchall()
+        conn.close()
+        
+        if not members:
+            return jsonify({'success': False, 'error': 'No valid members found'}), 404
+        
+        # Process each member
+        successful_invoices = []
+        failed_invoices = []
+        
+        for member in members:
+            try:
+                member_id = member['id']
+                member_name = member['full_name'] or f"{member['first_name']} {member['last_name']}".strip()
+                email = member['email']
+                
+                # Calculate invoice amount
+                amount_past_due = float(member['amount_past_due'] or 0)
+                next_payment = float(member['amount_of_next_payment'] or 0)
+                monthly_rate = float(member['agreement_rate'] or member['payment_amount'] or 0)
+                
+                # Apply late fee if past due
+                late_fee = 25.0 if amount_past_due > 0 else 0.0
+                total_amount = amount_past_due + late_fee
+                
+                # If no past due amount, use next payment or monthly rate
+                if total_amount <= 0:
+                    total_amount = next_payment if next_payment > 0 else monthly_rate
+                
+                # Ensure we have a valid amount (minimum $5)
+                total_amount = max(float(total_amount), 5.0)
+                
+                # Create description
+                description = f"Payment for {member_name}"
+                if amount_past_due > 0:
+                    description += f" - Past Due: ${amount_past_due:.2f}"
+                if late_fee > 0:
+                    description += f" + Late Fee: ${late_fee:.2f}"
+                
+                # Create Square invoice with correct parameter order
+                invoice_result = create_square_invoice(member_name, email, total_amount, description)
+                invoice_url = invoice_result.get('public_url') if isinstance(invoice_result, dict) and invoice_result.get('success') else None
+                
+                if invoice_url:
+                    successful_invoices.append({
+                        'member_id': member_id,
+                        'member_name': member_name,
+                        'email': email,
+                        'amount': total_amount,
+                        'invoice_url': invoice_url,
+                        'description': description
+                    })
+                    logger.info(f"✅ Invoice created for {member_name}: ${float(total_amount):.2f}")
+                else:
+                    failed_invoices.append({
+                        'member_id': member_id,
+                        'member_name': member_name,
+                        'email': email,
+                        'amount': total_amount,
+                        'error': 'Failed to create Square invoice'
+                    })
+                    logger.error(f"❌Œ Failed to create invoice for {member_name}")
+                    
+            except Exception as e:
+                member_name = member.get('full_name', 'Unknown') or f"{member.get('first_name', '')} {member.get('last_name', '')}".strip()
+                failed_invoices.append({
+                    'member_id': member.get('id'),
+                    'member_name': member_name,
+                    'email': member.get('email'),
+                    'error': str(e)
+                })
+                logger.error(f"❌Œ Error processing invoice for {member_name}: {e}")
+                continue
+        
+        # Prepare summary
+        summary = {
+            'total_processed': len(selected_clients),
+            'successful': len(successful_invoices),
+            'failed': len(failed_invoices),
+            'total_amount': sum(inv['amount'] for inv in successful_invoices)
+        }
+        
+        logger.info(f"ðŸŽ‰ Batch invoicing completed: {summary['successful']} successful, {summary['failed']} failed")
+        
+        return jsonify({
+            'success': True,
+            'summary': summary,
+            'successful_invoices': successful_invoices,
+            'failed_invoices': failed_invoices,
+            'message': f"Batch invoicing completed: {summary['successful']} successful, {summary['failed']} failed"
+        })
+        
+    except Exception as e:
+        logger.error(f"❌Œ Error in batch invoicing: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/debug/members')
+def debug_members():
+    """Debug endpoint to check what's in the members database."""
+    try:
+        conn = sqlite3.connect(db_manager.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Check table schema
+        cursor.execute("PRAGMA table_info(members)")
+        schema = cursor.fetchall()
+        
+        # Get total count
+        cursor.execute("SELECT COUNT(*) FROM members")
+        total_count = cursor.fetchone()[0]
+        
+        # Get sample members
+        cursor.execute("SELECT * FROM members LIMIT 5")
+        sample_members = [dict(row) for row in cursor.fetchall()]
+        
+        # Check for specific fields
+        cursor.execute("SELECT COUNT(*) FROM members WHERE amount_past_due IS NULL")
+        null_past_due = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM members WHERE date_of_next_payment IS NULL")
+        null_next_payment = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'schema': [dict(row) for row in schema],
+            'total_count': total_count,
+            'sample_members': sample_members,
+            'null_past_due': null_past_due,
+            'null_next_payment': null_next_payment
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     # On Windows, Werkzeug's reloader can trigger WinError 10038 (not a socket) during restarts.

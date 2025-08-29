@@ -12,9 +12,8 @@ logger = logging.getLogger(__name__)
 
 # Try to import Square SDK
 try:
-    # Prefer modern SDK names; fall back gracefully
-    from square.client import Client as SquareClient  # type: ignore
-    from square.environment import Environment as SquareEnvironment  # type: ignore
+    # Correct imports for the installed Square SDK
+    from square import Square as SquareClient  # type: ignore
     SQUARE_AVAILABLE = True
 except ImportError:
     SQUARE_AVAILABLE = False
@@ -70,20 +69,25 @@ def get_square_client():
     Get configured Square client instance.
     
     Returns:
-        SquareClient: Configured Square client or None if failed
+        Square: Configured Square client or None if failed
     """
     if not SQUARE_AVAILABLE:
         logger.error("Square SDK not available")
         return None
     try:
+        from square.environment import SquareEnvironment
+        
         creds = get_square_credentials()
         access_token = creds.get('access_token')
         if not access_token:
             logger.error("Missing Square access token")
             return None
-        # Square SDK expects environment as 'production' or 'sandbox'
+            
+        # Set environment
         env = str(creds.get('environment', 'sandbox')).lower()
-        return SquareClient(access_token=access_token, environment=env)
+        environment = SquareEnvironment.PRODUCTION if env == 'production' else SquareEnvironment.SANDBOX
+        
+        return SquareClient(token=access_token, environment=environment)
     except Exception as e:
         logger.error(f"Failed to create Square client: {e}")
         return None
@@ -119,83 +123,112 @@ def create_square_invoice(member_name: str, member_email: Optional[str] = None, 
         if not location_id:
             return {'success': False, 'error': 'Missing Square location ID'}
 
-        # Prepare invoice data
-        invoice_request: Dict[str, Any] = {
-            "request_method": "EMAIL" if member_email else "SHARE_MANUALLY",
-            "request_type": "BALANCE",
-            "due_date": (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d"),
-            "primary_recipient": {"name": member_name},
-            "payment_requests": [
-                {
-                    "request_method": "EMAIL" if member_email else "SHARE_MANUALLY",
-                    "request_type": "BALANCE",
-                }
-            ],
-            "description": description,
-            "invoice_number": f"AF-{datetime.now().strftime('%Y%m%d')}-{member_name.replace(' ', '')[:10]}",
-            "title": "Anytime Fitness Payment",
-            "text": f"Payment for {description}",
-            "location_id": location_id,
-        }
+        # Step 1: Create or find customer
+        name_parts = member_name.split(' ', 1)
+        given_name = name_parts[0]
+        family_name = name_parts[1] if len(name_parts) > 1 else ""
+        
+        # Use a default email if none provided (use valid domain)
         if member_email:
-            invoice_request["primary_recipient"]["email_address"] = member_email
+            email = member_email
+        else:
+            # Generate a valid-looking email for Square
+            safe_name = given_name.lower().replace(' ', '') + '.' + family_name.lower().replace(' ', '')
+            email = f"{safe_name}@members.anytimefitness.club"
+        
+        try:
+            customer_result = client.customers.create(
+                given_name=given_name,
+                family_name=family_name,
+                email_address=email
+            )
+            customer = customer_result.customer
+            customer_id = customer.id
+            logger.info(f"Created customer: {customer_id}")
+        except Exception as e:
+            logger.error(f"Error creating customer: {e}")
+            return {'success': False, 'error': f"Customer creation failed: {str(e)}"}
 
-        # Create order for the invoice
+        # Step 2: Create order for the invoice
         order_request = {
             "location_id": location_id,
             "line_items": [
                 {
                     "name": description,
                     "quantity": "1",
-                    "item_type": "ITEM_VARIATION",
                     "base_price_money": {"amount": int(amount * 100), "currency": "USD"},
                 }
             ],
         }
-        orders_api = client.orders
-        order_result = orders_api.create_order(body={"order": order_request})
-        if order_result.is_error():
-            logger.error(f"Error creating Square order: {order_result.errors}")
-            return {'success': False, 'error': f"Order creation failed: {order_result.errors}"}
+        
+        try:
+            order_result = client.orders.create(order=order_request)
+            order = order_result.order
+            order_id = order.id
+            logger.info(f"Created order: {order_id}")
+        except Exception as e:
+            logger.error(f"Error creating Square order: {e}")
+            return {'success': False, 'error': f"Order creation failed: {str(e)}"}
 
-        order = order_result.body.get("order", {})
-        order_id = order.get("id")
+        # Step 3: Create invoice
+        invoice_request_data = {
+            "location_id": location_id,
+            "order_id": order_id,
+            "primary_recipient": {
+                "customer_id": customer_id
+            },
+            "payment_requests": [
+                {
+                    "request_method": "EMAIL" if member_email else "SHARE_MANUALLY",
+                    "request_type": "BALANCE",
+                    "due_date": (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d"),
+                }
+            ],
+            "accepted_payment_methods": {
+                "card": True,
+                "square_gift_card": False,
+                "bank_account": False,
+                "buy_now_pay_later": False
+            },
+            "description": description,
+            "invoice_number": f"AF-{datetime.now().strftime('%Y%m%d%H%M%S')}-{given_name[:5]}",
+            "title": "Anytime Fitness Payment"
+        }
+        
+        try:
+            create_result = client.invoices.create(invoice=invoice_request_data)
+            invoice = create_result.invoice
+            invoice_id = invoice.id
+            invoice_version = invoice.version
+            logger.info(f"Created invoice: {invoice_id}")
+        except Exception as e:
+            logger.error(f"Error creating Square invoice: {e}")
+            return {'success': False, 'error': f"Invoice creation failed: {str(e)}"}
 
-        # Attach order to invoice
-        invoice_request["order"] = {"location_id": location_id, "order_id": order_id}
-
-        # Create the invoice
-        invoices_api = client.invoices
-        create_result = invoices_api.create_invoice(body={"invoice": invoice_request})
-        if create_result.is_error():
-            logger.error(f"Error creating Square invoice: {create_result.errors}")
-            return {'success': False, 'error': f"Invoice creation failed: {create_result.errors}"}
-
-        invoice = create_result.body.get("invoice", {})
-        invoice_id = invoice.get("id")
-
-        # Publish the invoice
-        publish_result = invoices_api.publish_invoice(
-            invoice_id=invoice_id,
-            body={"request_method": "EMAIL" if member_email else "SHARE_MANUALLY"},
-        )
-        if publish_result.is_error():
-            logger.error(f"Error publishing Square invoice: {publish_result.errors}")
-            return {'success': False, 'error': f"Invoice publishing failed: {publish_result.errors}"}
-
-        published_invoice = publish_result.body.get("invoice", {})
-        public_url = published_invoice.get("public_url")
+        # Step 4: Publish the invoice
+        try:
+            publish_result = client.invoices.publish(
+                invoice_id=invoice_id,
+                version=invoice_version
+            )
+            published_invoice = publish_result.invoice
+            public_url = getattr(published_invoice, 'public_url', None)
+            logger.info(f"Published invoice with URL: {public_url}")
+        except Exception as e:
+            logger.error(f"Error publishing Square invoice: {e}")
+            return {'success': False, 'error': f"Invoice publishing failed: {str(e)}"}
 
         logger.info(f"✅ Square invoice created successfully: {invoice_id}")
         return {
             'success': True,
             'invoice_id': invoice_id,
             'order_id': order_id,
+            'customer_id': customer_id,
             'public_url': public_url,
             'amount': amount,
             'currency': 'USD',
-            'due_date': invoice_request['due_date'],
-            'square_data': {'invoice': invoice, 'order': order, 'environment': creds.get('environment')},
+            'due_date': (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d"),
+            'square_data': {'invoice': invoice, 'order': order, 'customer': customer, 'environment': creds.get('environment')},
         }
     except Exception as e:
         logger.error(f"Exception creating Square invoice: {e}")

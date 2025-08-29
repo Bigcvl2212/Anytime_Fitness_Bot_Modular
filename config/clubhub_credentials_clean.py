@@ -1,11 +1,15 @@
-"""
-ClubHub credentials configuration
-This file should be added to .gitignore to keep credentials secure
-"""
+#!/usr/bin/env python3
+"""ClubHub credentials config placeholder.
+Loads credentials from environment variables to avoid hardcoding."""
+import os
 
-# ClubHub login credentials
-CLUBHUB_EMAIL = "mayo.jeremy2212@gmail.com"
-CLUBHUB_PASSWORD = "SruLEqp464_GLrF"
+CLUBHUB_EMAIL = os.getenv('CLUBHUB_EMAIL', '')
+CLUBHUB_PASSWORD = os.getenv('CLUBHUB_PASSWORD', '')
+
+# Fallback warning
+if not CLUBHUB_EMAIL or not CLUBHUB_PASSWORD:
+    import logging
+    logging.getLogger(__name__).warning('CLUBHUB_EMAIL or CLUBHUB_PASSWORD not set in env vars')
 
 # ClubOS login credentials
 CLUBOS_USERNAME = "j.mayo"

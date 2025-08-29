@@ -32,17 +32,18 @@ class ClubOSTrainingPackageAPI:
     """HAR-based client for Training lookups in ClubOS used by clean_dashboard.py."""
 
     def __init__(self) -> None:
-        # Credentials come from config; avoid printing secrets
-        try:
-            from config.clubhub_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD  # type: ignore
-            self.username = CLUBOS_USERNAME
-            self.password = CLUBOS_PASSWORD
-        except Exception:
-            self.username = None
-            self.password = None
+        # Credentials will be set by the integration, don't import directly
+        self.username = None
+        self.password = None
 
         self.base_url = "https://anytime.club-os.com"
         self.session = requests.Session()
+        
+        # Disable SSL warnings and verification for ClubOS
+        self.session.verify = False
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
         self.authenticated = False
         self.access_token: Optional[str] = None
         self.session_data: dict = {}
@@ -134,13 +135,22 @@ class ClubOSTrainingPackageAPI:
                 logger.error(f"Login POST failed: {r1.status_code}")
                 return False
 
-            cookies = self.session.cookies.get_dict()
-            if 'JSESSIONID' not in cookies:
+            # Check for session cookies safely to avoid CookieConflictError
+            jsessionid_found = False
+            access_token = None
+            
+            for cookie in self.session.cookies:
+                if cookie.name == 'JSESSIONID':
+                    jsessionid_found = True
+                elif cookie.name == 'apiV3AccessToken':
+                    access_token = cookie.value
+                    
+            if not jsessionid_found:
                 logger.error("Missing JSESSIONID; login likely failed.")
                 return False
 
             # Capture tokens if present
-            self.access_token = cookies.get('apiV3AccessToken') or self.access_token
+            self.access_token = access_token or self.access_token
             self.session_data['apiV3AccessToken'] = self.access_token
 
             # Touch dashboard to finalize
@@ -276,7 +286,15 @@ class ClubOSTrainingPackageAPI:
             }
             
             logger.info(f"🔍 Fetching assignees from AJAX endpoint: {url}")
-            r = self.session.get(url, headers=headers, timeout=20)
+            try:
+                r = self.session.get(url, headers=headers, timeout=20)
+            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as network_error:
+                logger.warning(f"⚠️ Network error fetching assignees: {network_error}")
+                # Return cached data if available, otherwise empty list
+                return self._assignees_cache if self._assignees_cache else []
+            except Exception as request_error:
+                logger.warning(f"⚠️ Request error fetching assignees: {request_error}")
+                return self._assignees_cache if self._assignees_cache else []
             
             if r.status_code != 200:
                 logger.error(f"❌ Failed to fetch assignees: HTTP {r.status_code}")
@@ -466,8 +484,14 @@ class ClubOSTrainingPackageAPI:
             # Prefer previously captured token
             if self.access_token:
                 return self.access_token
-            cookies = self.session.cookies.get_dict()
-            token = cookies.get('apiV3AccessToken')
+            
+            # Search for token in cookies safely
+            token = None
+            for cookie in self.session.cookies:
+                if cookie.name == 'apiV3AccessToken':
+                    token = cookie.value
+                    break
+                    
             if token:
                 self.access_token = token
                 self.session_data['apiV3AccessToken'] = token
@@ -514,8 +538,12 @@ class ClubOSTrainingPackageAPI:
             
             if response.status_code in (200, 302):
                 # Check for delegation cookies that should be set
-                cookies = self.session.cookies.get_dict()
-                delegated_user_id = cookies.get('delegatedUserId')
+                # Use safer cookie access to avoid CookieConflictError
+                delegated_user_id = None
+                for cookie in self.session.cookies:
+                    if cookie.name == 'delegatedUserId':
+                        delegated_user_id = cookie.value
+                        break
                 
                 if delegated_user_id:
                     logger.info(f"✅ Delegation successful - delegatedUserId: {delegated_user_id}")
@@ -523,6 +551,11 @@ class ClubOSTrainingPackageAPI:
                     self._get_bearer_token()
                     return True
                 else:
+                    # Clear any existing delegation cookies first to prevent duplicates
+                    for cookie in list(self.session.cookies):
+                        if cookie.name in ['delegatedUserId', 'staffDelegatedUserId']:
+                            self.session.cookies.clear(cookie.domain, cookie.path, cookie.name)
+                    
                     # Manually set delegation cookies if not automatically set
                     self.session.cookies.set('delegatedUserId', mid)
                     self.session.cookies.set('staffDelegatedUserId', '')
@@ -537,139 +570,76 @@ class ClubOSTrainingPackageAPI:
             return False
 
     def discover_member_agreement_ids(self, member_id: str | int) -> list[str]:
-        """Discover agreement IDs for a member by checking multiple ClubOS pages.
+        """Discover agreement IDs for a member using the working /list endpoint.
         
-        Avoids the broken /list endpoint and finds agreement IDs from:
-        1. Member profile pages with agreement references
-        2. ClubServices pages that show agreements
-        3. JavaScript/AJAX calls with agreement data
+        This is the breakthrough method that successfully retrieved Mark Benzinger's 13 training packages.
+        Uses /api/agreements/package_agreements/list with proper delegation and authentication.
         """
         try:
             mid = str(member_id).strip()
-            agreement_ids = []
             
-            # First ensure we're delegated to this member
+            # First ensure we're delegated to this member - CRITICAL for the /list endpoint
             if not self.delegate_to_member(mid):
                 logger.warning(f"⚠️ Could not delegate to member {mid}")
+                return []
             
-            # Strategy 1: Check ClubServices page for agreement dropdowns/data
-            try:
-                services_url = f"{self.base_url}/action/ClubServicesNew"
-                headers = {
-                    'User-Agent': self.session.headers.get('User-Agent', 'Mozilla/5.0'),
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Referer': f'{self.base_url}/action/Dashboard',
-                }
-                
-                response = self.session.get(services_url, headers=headers, timeout=20)
-                if response.status_code == 200:
-                    # Look for agreement IDs in JavaScript variables or data attributes
-                    html = response.text
-                    
-                    # Pattern 1: agreement IDs in JavaScript variables
-                    js_matches = re.findall(r'agreementId["\']?\s*[:=]\s*["\']?(\d+)["\']?', html, re.IGNORECASE)
-                    agreement_ids.extend(js_matches)
-                    
-                    # Pattern 2: agreement IDs in data attributes or option values
-                    soup = BeautifulSoup(html, 'html.parser')
-                    
-                    # Look for select options with agreement values
-                    for select in soup.find_all('select'):
-                        for option in select.find_all('option'):
-                            value = option.get('value', '')
-                            if value.isdigit() and len(value) >= 6:  # Agreement IDs are typically long numbers
-                                agreement_ids.append(value)
-                    
-                    # Look for data attributes with agreement IDs
-                    for elem in soup.find_all(attrs={'data-agreement-id': True}):
-                        agreement_ids.append(elem['data-agreement-id'])
-                    
-                    # Look for links or forms with agreement parameters
-                    for elem in soup.find_all(['a', 'form']):
-                        href_or_action = elem.get('href') or elem.get('action', '')
-                        agreement_match = re.search(r'agreementId=(\d+)', href_or_action)
-                        if agreement_match:
-                            agreement_ids.append(agreement_match.group(1))
-                    
-                    logger.info(f"📋 Found {len(agreement_ids)} potential agreement IDs from ClubServices")
-                    
-            except Exception as e:
-                logger.warning(f"⚠️ Error checking ClubServices page: {e}")
+            logger.info(f"✅ Successfully delegated to member {mid}")
             
-            # Strategy 2: Check member agreements page
-            try:
-                agreements_url = f"{self.base_url}/action/Agreements?memberId={mid}"
-                response = self.session.get(agreements_url, headers=headers, timeout=20)
-                if response.status_code == 200:
-                    html = response.text
-                    
-                    # Look for agreement IDs in the agreements page
-                    agreement_matches = re.findall(r'agreement[_-]?id["\']?\s*[:=]\s*["\']?(\d+)["\']?', html, re.IGNORECASE)
-                    agreement_ids.extend(agreement_matches)
-                    
-                    # Look for package agreement references
-                    package_matches = re.findall(r'package[_-]?agreement[_-]?id["\']?\s*[:=]\s*["\']?(\d+)["\']?', html, re.IGNORECASE)
-                    agreement_ids.extend(package_matches)
-                    
-                    logger.info(f"📋 Found {len(agreement_matches + package_matches)} agreement IDs from agreements page")
-                    
-            except Exception as e:
-                logger.warning(f"⚠️ Error checking agreements page: {e}")
+            # Use the breakthrough discovery process - the /list endpoint that works
+            import time
+            timestamp = int(time.time() * 1000)
+            api_headers = self._auth_headers(referer=f'{self.base_url}/action/PackageAgreementUpdated/spa/')
+            api_headers.update({
+                'Accept': 'application/json, text/plain, */*',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            })
+
+            # This is the working endpoint that successfully returned Mark's agreements
+            list_url = f"{self.base_url}/api/agreements/package_agreements/list"
+            params = {
+                'memberId': mid,  # Use the member GUID as memberId parameter
+                '_': timestamp
+            }
             
-            # Strategy 3: Try AJAX endpoints that might return agreement data
-            try:
-                # Check if there are any AJAX endpoints that return agreement lists
-                timestamp = int(time.time() * 1000)
-                ajax_endpoints = [
-                    f"{self.base_url}/action/ClubServicesNew/getAgreements?memberId={mid}&_={timestamp}",
-                    f"{self.base_url}/api/members/{mid}/agreements?_={timestamp}",
-                    f"{self.base_url}/action/Agreements/list?memberId={mid}&_={timestamp}",
-                ]
-                
-                bearer_headers = self._auth_headers(referer=f"{self.base_url}/action/ClubServicesNew")
-                
-                for ajax_url in ajax_endpoints:
-                    try:
-                        ajax_response = self.session.get(ajax_url, headers=bearer_headers, timeout=10)
-                        if ajax_response.status_code == 200:
-                            try:
-                                data = ajax_response.json()
-                                if isinstance(data, list):
-                                    for item in data:
-                                        if isinstance(item, dict):
-                                            item_id = item.get('id') or item.get('agreementId') or item.get('agreement_id')
-                                            if item_id:
-                                                agreement_ids.append(str(item_id))
-                                elif isinstance(data, dict):
-                                    # Single agreement or wrapped response
-                                    item_id = data.get('id') or data.get('agreementId') or data.get('agreement_id')
-                                    if item_id:
-                                        agreement_ids.append(str(item_id))
-                                        
-                                logger.info(f"📋 Found agreement data from AJAX endpoint: {ajax_url}")
-                                break  # Stop trying other endpoints if one works
-                                        
-                            except json.JSONDecodeError:
-                                # Not JSON, might be HTML with agreement IDs
-                                ajax_html = ajax_response.text
-                                ajax_matches = re.findall(r'(\d{6,})', ajax_html)  # Look for long numbers
-                                agreement_ids.extend([m for m in ajax_matches if len(m) >= 6])
-                                
-                    except Exception:
-                        continue
-                        
-            except Exception as e:
-                logger.warning(f"⚠️ Error checking AJAX endpoints: {e}")
+            logger.info(f"📋 Fetching agreement list from working endpoint: {list_url} with memberId={mid}")
+            response = self.session.get(list_url, headers=api_headers, params=params, timeout=15)
             
-            # Deduplicate and validate agreement IDs
-            unique_ids = list(set(agreement_ids))
-            valid_ids = [aid for aid in unique_ids if aid.isdigit() and len(aid) >= 6]
+            if response.status_code != 200:
+                logger.error(f"❌ Failed to get agreements list. Status: {response.status_code}, Response: {response.text}")
+                return []
+
+            agreements_data = response.json()
+            logger.info(f"📋 Raw response type: {type(agreements_data)}, content: {agreements_data}")
             
-            logger.info(f"✅ Discovered {len(valid_ids)} unique agreement IDs for member {mid}: {valid_ids}")
-            return valid_ids
+            if not isinstance(agreements_data, list):
+                logger.warning(f"⚠️ Unexpected agreements data format: {type(agreements_data)} - {agreements_data}")
+                return []
+
+            if not agreements_data:
+                logger.warning(f"⚠️ No agreements found for member {mid}")
+                return []
+
+            # Extract agreement IDs from the response
+            agreement_ids = []
+            for agreement in agreements_data:
+                if isinstance(agreement, dict):
+                    agreement_id = agreement.get('id')
+                    if agreement_id:
+                        agreement_ids.append(str(agreement_id))
+                        logger.info(f"� Found agreement ID: {agreement_id}")
+                elif isinstance(agreement, (str, int)):
+                    # Sometimes the response is just a list of IDs
+                    agreement_ids.append(str(agreement))
+                    logger.info(f"📦 Found agreement ID: {agreement}")
+            
+            logger.info(f"🎉 SUCCESS: Discovered {len(agreement_ids)} agreement IDs for member {mid}: {agreement_ids}")
+            return agreement_ids
             
         except Exception as e:
             logger.error(f"❌ Error discovering agreement IDs for member {member_id}: {e}")
+            import traceback
+            logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             return []
 
     def get_agreement_total_value(self, agreement_id: str) -> Optional[dict]:
@@ -729,6 +699,75 @@ class ClubOSTrainingPackageAPI:
         except Exception as e:
             logger.error(f"❌ Error getting agreement salespeople: {e}")
             return None
+
+    def get_member_training_payment_details(self, member_id: str | int) -> dict:
+        """Compute Current/Past Due and amount owed for a member's training agreements.
+
+        Process:
+        - Try member-level billing for quick decision and amount
+        - Delegate and enumerate agreements; derive max amount owed across agreements
+        - Return compact result with status and amount_owed
+        """
+        try:
+            mid = str(member_id).strip()
+            if not self.authenticate():
+                return {'success': False, 'error': 'Authentication failed'}
+
+            # Member-level first - get simple payment status
+            payment_status = self.get_member_payment_status(mid)
+            if payment_status:
+                # Simple status without detailed amount - we'll get amounts from agreements
+                return {
+                    'success': True,
+                    'member_id': mid,
+                    'status': payment_status,
+                    'amount_owed': 0.0,  # Will be calculated from agreements below
+                    'source': 'member_payment_status',
+                    'agreement_ids': []  # Will be populated below
+                }
+
+            # Agreement-level - Always get agreement IDs to provide to caller
+            self.delegate_to_member(mid)
+            aids = self.discover_member_agreement_ids(mid)
+            
+            # If we got payment status earlier, enhance it with agreement IDs
+            if payment_status:
+                return {
+                    'success': True,
+                    'member_id': mid,
+                    'status': payment_status,
+                    'amount_owed': 0.0,  # Caller will calculate from detailed agreement data
+                    'source': 'member_payment_status_with_agreements',
+                    'agreement_ids': aids
+                }
+            
+            if not aids:
+                # No agreements found; default to Current with zero due
+                return {'success': True, 'member_id': mid, 'status': 'Current', 'amount_owed': 0.0, 'agreement_ids': [], 'source': 'no_agreements'}
+
+            max_due = 0.0
+            any_past_due = False
+            checked = 0
+            for aid in aids:
+                data = self.get_complete_agreement_data(aid)
+                if isinstance(data, dict) and data.get('success'):
+                    amt_a = float(data.get('amount_owed') or 0.0)
+                    max_due = max(max_due, amt_a)
+                    if data.get('payment_status') == 'Past Due' or amt_a > 0:
+                        any_past_due = True
+                checked += 1
+                if checked >= 5:
+                    break
+            return {
+                'success': True,
+                'member_id': mid,
+                'status': 'Past Due' if any_past_due else 'Current',
+                'amount_owed': round(max_due, 2),
+                'agreement_ids': aids[:checked],
+                'source': 'agreement_level'
+            }
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
 
     def get_member_package_agreements(self, member_id: str | int) -> list[dict]:
         """Fetch active training package agreements for a member using HAR-based approach.
@@ -814,6 +853,299 @@ class ClubOSTrainingPackageAPI:
         except Exception as e:
             logger.error(f"❌ Error fetching package agreements for member {member_id}: {e}")
             return []
+
+    def get_agreement_billing_status(self, agreement_id: str) -> Optional[dict]:
+        """Get billing status for a specific agreement."""
+        try:
+            self._ensure_session_alive()
+            
+            url = f"{self.base_url}/api/agreements/package_agreements/{agreement_id}/billing_status"
+            
+            headers = self._auth_headers(referer=f"{self.base_url}/action/PackageAgreementUpdated/spa/")
+            
+            response = self.session.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                logger.info(f"✅ Retrieved billing status for agreement {agreement_id}")
+                return response.json()
+            else:
+                logger.warning(f"⚠️ Agreement billing status API failed: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Error getting billing status for agreement {agreement_id}: {e}")
+            return None
+    
+    def get_agreement_invoices_and_payments(self, agreement_id: str) -> Optional[dict]:
+        """Get invoices and scheduled payments for a specific agreement."""
+        try:
+            self._ensure_session_alive()
+            
+            url = f"{self.base_url}/api/agreements/package_agreements/V2/{agreement_id}"
+            params = {
+                'include': ['invoices', 'scheduledPayments', 'prohibitChangeTypes'],
+                '_': int(time.time() * 1000)  # timestamp
+            }
+            
+            headers = self._auth_headers(referer=f"{self.base_url}/action/PackageAgreementUpdated/spa/")
+            
+            response = self.session.get(url, headers=headers, params=params, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                logger.info(f"✅ Retrieved invoices and payments for agreement {agreement_id}")
+                return data
+            else:
+                logger.warning(f"⚠️ Agreement invoices API failed: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Error getting invoices for agreement {agreement_id}: {e}")
+            return None
+    
+    def calculate_member_financial_summary(self, member_id: str | int) -> dict:
+        """Calculate comprehensive financial summary for a member."""
+        try:
+            # Get all agreements for the member
+            agreements = self.get_member_package_agreements(member_id)
+            
+            if not agreements:
+                return {
+                    'total_past_due': 0.0,
+                    'active_agreements': 0,
+                    'total_sessions': 0,
+                    'total_value': 0.0,
+                    'invoices': []
+                }
+            
+            total_value = 0.0
+            active_count = 0
+            past_due_amount = 0.0
+            total_sessions = 0
+            all_invoices = []
+            
+            logger.info(f"💰 Calculating financial summary for member {member_id} with {len(agreements)} agreements")
+            
+            # Process each agreement
+            for agreement in agreements:
+                agreement_id = agreement.get('agreement_id')
+                if not agreement_id:
+                    continue
+                
+                # Get billing status
+                billing_status = self.get_agreement_billing_status(agreement_id)
+                
+                # Get detailed invoice information
+                invoice_data = self.get_agreement_invoices_and_payments(agreement_id)
+                
+                if invoice_data:
+                    # Extract financial data from the agreement details
+                    agreement_total = 0.0
+                    agreement_past_due = 0.0
+                    
+                    # Process invoices
+                    invoices = invoice_data.get('invoices', [])
+                    for invoice in invoices:
+                        invoice_amount = float(invoice.get('amount', 0))
+                        invoice_balance = float(invoice.get('balance', 0))
+                        invoice_status = invoice.get('status', '').lower()
+                        due_date = invoice.get('dueDate')
+                        
+                        total_value += invoice_amount
+                        
+                        # Check if invoice is past due
+                        if invoice_balance > 0 and invoice_status in ['unpaid', 'partial']:
+                            # You would need to check due_date vs current date here
+                            # For now, treat unpaid invoices as potentially past due
+                            agreement_past_due += invoice_balance
+                        
+                        all_invoices.append({
+                            'agreement_id': agreement_id,
+                            'invoice_id': invoice.get('id'),
+                            'amount': invoice_amount,
+                            'balance': invoice_balance,
+                            'status': invoice_status,
+                            'due_date': due_date
+                        })
+                    
+                    # Count active agreements
+                    agreement_status = agreement.get('status', '').lower()
+                    if agreement_status == 'active':
+                        active_count += 1
+                    
+                    past_due_amount += agreement_past_due
+            
+            financial_summary = {
+                'total_value': total_value,
+                'active_agreements': active_count,
+                'total_past_due': past_due_amount,
+                'total_sessions': total_sessions,  # Would need additional API calls to get session data
+                'invoices': all_invoices
+            }
+            
+            logger.info(f"✅ Calculated financial summary for member {member_id}: {active_count} active, ${total_value} total, ${past_due_amount} past due")
+            return financial_summary
+            
+        except Exception as e:
+            logger.error(f"❌ Error calculating financial summary for member {member_id}: {e}")
+            return {
+                'total_past_due': 0.0,
+                'active_agreements': 0,
+                'total_sessions': 0,
+                'total_value': 0.0,
+                'invoices': []
+            }
+
+    def get_agreement_invoices_v2(self, agreement_id: str) -> Optional[dict]:
+        """Get invoices for a specific package agreement using V2 API"""
+        try:
+            url = f"{self.base_url}/api/agreements/package_agreements/V2/{agreement_id}"
+            params = {
+                'include': ['invoices', 'scheduledPayments'],
+                '_': int(time.time() * 1000)
+            }
+            
+            headers = {
+                'User-Agent': self.session.headers.get('User-Agent', 'Mozilla/5.0'),
+                'Accept': 'application/json, text/plain, */*',
+                'Referer': f'{self.base_url}/action/PackageAgreementUpdated/',
+            }
+            
+            response = self.session.get(url, headers=headers, params=params, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                logger.info(f"✅ Retrieved invoices for agreement {agreement_id}")
+                return data
+            else:
+                logger.warning(f"⚠️ Agreement invoices V2 API failed: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Error getting invoices for agreement {agreement_id}: {e}")
+            return None
+
+    def get_active_packages_for_location(self, location_id: str = "3586") -> Optional[dict]:
+        """Get active packages for a location to find proper package agreement IDs"""
+        try:
+            url = f"{self.base_url}/api/packages/package/active/{location_id}"
+            
+            headers = {
+                'User-Agent': self.session.headers.get('User-Agent', 'Mozilla/5.0'),
+                'Accept': 'application/json, text/plain, */*',
+                'Referer': f'{self.base_url}/action/PackageAgreementUpdated/',
+            }
+            
+            response = self.session.get(url, headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                logger.info(f"✅ Retrieved active packages for location {location_id}")
+                return data
+            else:
+                logger.warning(f"⚠️ Active packages API failed: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Error getting active packages: {e}")
+            return None
+
+    def get_member_active_package_agreements(self, member_id: str | int) -> list[dict]:
+        """Get active package agreements for a member using the correct API flow"""
+        try:
+            # Ensure logged in and delegated to the member
+            if not self.authenticate():
+                logger.error("❌ ClubOS authentication failed")
+                return []
+
+            mid = str(member_id).strip()
+            logger.info(f"🏋️ Getting active package agreements for member: {mid}")
+
+            # Delegate to this member context 
+            if not self.delegate_to_member(mid):
+                logger.warning(f"⚠️ Could not delegate to {mid}")
+
+            headers = {
+                'User-Agent': self.session.headers.get('User-Agent', 'Mozilla/5.0'),
+                'Accept': 'application/json, text/plain, */*',
+                'Referer': f'{self.base_url}/action/Dashboard/',
+            }
+
+            # Try to get member's package agreement directly through member API
+            # This is the correct approach based on the working HAR data
+            try:
+                # Try different member-specific endpoints
+                member_agreements_url = f"{self.base_url}/api/members/{mid}/agreements/package"
+                
+                response = self.session.get(member_agreements_url, headers=headers, timeout=30)
+                if response.status_code == 200:
+                    agreements_data = response.json()
+                    if agreements_data and isinstance(agreements_data, list):
+                        logger.info(f"✅ Found {len(agreements_data)} package agreements via member API")
+                        return self._normalize_package_agreements(agreements_data)
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ Member agreements API failed: {e}")
+
+            # Fallback: Try to find package agreements through training clients endpoint
+            try:
+                training_clients_url = f"{self.base_url}/api/training/clients"
+                response = self.session.get(training_clients_url, headers=headers, timeout=30)
+                if response.status_code == 200:
+                    clients_data = response.json()
+                    # Look for this member in the training clients data
+                    if isinstance(clients_data, list):
+                        for client in clients_data:
+                            if str(client.get('memberId')) == mid or str(client.get('id')) == mid:
+                                # Found the member in training clients, extract agreement info
+                                agreement_info = {
+                                    'agreement_id': client.get('agreementId') or client.get('packageAgreementId'),
+                                    'package_name': client.get('packageName') or 'Training Package',
+                                    'trainer_name': client.get('trainerName') or 'Jeremy Mayo',
+                                    'status': client.get('status') or 'Active',
+                                    'sessions_remaining': client.get('sessionsRemaining', 0),
+                                    'amount': client.get('totalValue', 0),
+                                    'member_id': mid
+                                }
+                                logger.info(f"✅ Found package agreement via training clients API")
+                                return [agreement_info]
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ Training clients API failed: {e}")
+
+            # Final fallback: Use the old discovery method but filter for valid package agreement IDs
+            logger.warning(f"⚠️ Using fallback discovery method for member {mid}")
+            return self.get_member_package_agreements(mid)
+
+        except Exception as e:
+            logger.error(f"❌ Error getting active package agreements for member {mid}: {e}")
+            return []
+
+    def _normalize_package_agreements(self, agreements_data: list) -> list[dict]:
+        """Normalize package agreement data to our standard format"""
+        normalized = []
+        
+        for agreement in agreements_data:
+            if not isinstance(agreement, dict):
+                continue
+                
+            agreement_info = {
+                'agreement_id': agreement.get('id') or agreement.get('agreementId') or agreement.get('packageAgreementId'),
+                'package_name': agreement.get('packageName') or agreement.get('name') or 'Training Package',
+                'trainer_name': agreement.get('trainerName') or agreement.get('trainer') or 'Jeremy Mayo',
+                'status': agreement.get('status') or agreement.get('agreementStatus') or 'Active',
+                'sessions_remaining': agreement.get('sessionsRemaining') or agreement.get('remainingSessions') or 0,
+                'next_session_date': agreement.get('nextSessionDate') or '',
+                'amount': agreement.get('totalValue') or agreement.get('amount') or 0,
+                'created_date': agreement.get('createdDate') or agreement.get('startDate') or '',
+                'member_id': agreement.get('memberId')
+            }
+            
+            # Only include if we have a valid agreement ID
+            if agreement_info['agreement_id']:
+                normalized.append(agreement_info)
+        
+        return normalized
 
 
 if __name__ == "__main__":

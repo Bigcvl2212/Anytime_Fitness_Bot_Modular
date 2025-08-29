@@ -12,8 +12,8 @@
         Refresh Funding
     </button>
     <button id="bulk-checkin-btn" class="outlook-btn outlook-btn-success">
-        <i class="fas fa-dumbbell"></i>
-        Bulk Check-in ALL Members (Excludes PPV)
+        <i class="fas fa-bolt"></i>
+        ULTRA-FAST Bulk Check-in ALL Members (Excludes PPV)
     </button>
     <a href="/calendar" class="outlook-btn outlook-btn-primary">
         <i class="fas fa-plus"></i>
@@ -126,13 +126,35 @@
         <div class="col-md-8">
             <div class="outlook-card h-100">
                 <div class="p-3 border-bottom" style="background: var(--af-gray-50);">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <h5 class="fw-bold mb-0">
+                                    <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center">
+                        <h5 class="fw-bold mb-0 me-3">
                             <i class="fas fa-calendar-check me-2" style="color: var(--af-purple-primary);"></i>
-                            Today's Schedule
+                            {% if day_offset == 0 %}
+                                Today's Schedule
+                            {% elif day_offset == 1 %}
+                                Tomorrow's Schedule
+                            {% elif day_offset == -1 %}
+                                Yesterday's Schedule
+                            {% else %}
+                                {{ day_name }}'s Schedule
+                            {% endif %}
+                            <small class="text-muted d-block">{{ date_formatted }}</small>
                         </h5>
-                        <span class="outlook-badge outlook-badge-info">{{ recent_events|length }} sessions</span>
+                        <div class="d-flex gap-2">
+                            <a href="/{{ day_offset - 1 }}" class="outlook-btn outlook-btn-outline outlook-btn-sm">
+                                <i class="fas fa-chevron-left"></i> Previous Day
+                            </a>
+                            <a href="/" class="outlook-btn outlook-btn-outline outlook-btn-sm">
+                                Today
+                            </a>
+                            <a href="/{{ day_offset + 1 }}" class="outlook-btn outlook-btn-outline outlook-btn-sm">
+                                Next Day <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </div>
                     </div>
+                    <span class="outlook-badge outlook-badge-info">{{ recent_events|length }} sessions</span>
+                </div>
                 </div>
 
                 <!-- Schedule Header -->
@@ -762,7 +784,7 @@ function pollBulkCheckinStatus(bulkBtn, originalText, progressContainer) {
             if (data.success && data.status) {
                 const status = data.status;
                 
-                // Update progress bar
+                // Update progress bar with smooth animations
                 const progressBar = document.getElementById('bulk-progress-bar');
                 const statusText = document.getElementById('bulk-status-text');
                 const membersCount = document.getElementById('members-count');
@@ -776,16 +798,36 @@ function pollBulkCheckinStatus(bulkBtn, originalText, progressContainer) {
                 if (progressBar) {
                     progressBar.style.width = `${status.progress}%`;
                     progressBar.textContent = `${status.progress}%`;
+                    
+                    // Add speed indicators based on status
+                    if (status.status === 'ultra_processing') {
+                        progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-success';
+                    } else if (status.status === 'filtering' || status.status === 'fetching') {
+                        progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-info';
+                    }
                 }
                 
-                if (statusText) statusText.textContent = status.message;
+                // Enhanced status messages with speed indicators
+                let displayMessage = status.message;
+                if (status.status === 'ultra_processing') {
+                    displayMessage = `⚡ ${status.message} (ULTRA-FAST MODE)`;
+                } else if (status.status === 'fetching') {
+                    displayMessage = `🚀 ${status.message} (HIGH-SPEED FETCH)`;
+                } else if (status.status === 'filtering') {
+                    displayMessage = `⚡ ${status.message} (VECTORIZED FILTERING)`;
+                }
+                
+                if (statusText) statusText.textContent = displayMessage;
                 if (membersCount) membersCount.textContent = status.total_members.toLocaleString();
                 if (processedCount) processedCount.textContent = status.processed_members.toLocaleString();
                 if (checkinsCount) checkinsCount.textContent = status.total_checkins.toLocaleString();
                 if (ppvCount) ppvCount.textContent = status.ppv_excluded.toLocaleString();
                 
+                // Show current member with processing speed
                 if (currentMember && status.current_member) {
-                    currentMember.innerHTML = `<i class="fas fa-user"></i> Currently processing: <strong>${status.current_member}</strong>`;
+                    const processingRate = status.processed_members > 0 ? 
+                        Math.round((status.total_checkins / status.processed_members) * 60) : 0;
+                    currentMember.innerHTML = `<i class="fas fa-bolt"></i> Processing: <strong>${status.current_member}</strong> <span class="text-info">(~${processingRate} check-ins/min)</span>`;
                 } else if (currentMember) {
                     currentMember.innerHTML = '';
                 }
@@ -798,21 +840,25 @@ function pollBulkCheckinStatus(bulkBtn, originalText, progressContainer) {
                     bulkErrors.style.display = 'none';
                 }
                 
-                // Update button based on status
+                // Update button based on status with enhanced messaging
                 if (status.status === 'completed') {
                     clearInterval(statusInterval);
-                    bulkBtn.innerHTML = `<i class="fas fa-check"></i> Completed! ${status.total_checkins} check-ins (${status.processed_members} members, ${status.ppv_excluded} PPV excluded)`;
+                    const totalTime = status.completed_at && status.started_at ? 
+                        Math.round((new Date(status.completed_at) - new Date(status.started_at)) / 1000) : 0;
+                    const avgSpeed = totalTime > 0 ? Math.round(status.total_checkins / totalTime) : 0;
+                    
+                    bulkBtn.innerHTML = `<i class="fas fa-check"></i> ULTRA-FAST Complete! ${status.total_checkins} check-ins in ${totalTime}s (${avgSpeed}/s avg) - ${status.processed_members} members, ${status.ppv_excluded} PPV excluded`;
                     bulkBtn.className = 'outlook-btn outlook-btn-success';
                     
                     setTimeout(() => {
                         bulkBtn.innerHTML = originalText;
                         bulkBtn.disabled = false;
                         progressContainer.style.display = 'none';
-                    }, 10000); // Show success for 10 seconds
+                    }, 15000); // Show success for 15 seconds
                     
                 } else if (status.status === 'error') {
                     clearInterval(statusInterval);
-                    bulkBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error Occurred';
+                    bulkBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error in Ultra-Fast Processing';
                     bulkBtn.className = 'outlook-btn outlook-btn-danger';
                     
                     setTimeout(() => {
@@ -823,24 +869,25 @@ function pollBulkCheckinStatus(bulkBtn, originalText, progressContainer) {
                     }, 5000);
                     
                 } else {
-                    // Still running - update status
+                    // Still running - update status with speed indicators
                     const statusMessages = {
-                        'starting': 'Initializing...',
-                        'authenticating': 'Authenticating with ClubHub...',
-                        'fetching': 'Fetching member list...',
-                        'filtering': 'Filtering PPV members...',
-                        'processing': 'Processing check-ins...'
+                        'starting': '🚀 Initializing Ultra-Fast Engine...',
+                        'authenticating': '🔐 High-Speed Authentication...',
+                        'fetching': '⚡ High-Speed Member Fetch...',
+                        'filtering': '⚡ Vectorized PPV Filtering...',
+                        'ready_processing': '🚀 Ready for Ultra-Fast Processing...',
+                        'ultra_processing': '⚡ ULTRA-FAST Processing Mode...'
                     };
                     
                     const displayMessage = statusMessages[status.status] || status.message;
-                    bulkBtn.innerHTML = `<i class="fas fa-cog fa-spin"></i> ${displayMessage}`;
+                    bulkBtn.innerHTML = `<i class="fas fa-bolt fa-spin"></i> ${displayMessage}`;
                 }
             }
         })
         .catch(error => {
             console.error('❌ Error polling status:', error);
         });
-    }, 2000); // Poll every 2 seconds
+    }, 1000); // Poll every 1 second for faster updates
 }
 
 function checkAllFundingStatusesAsync() {

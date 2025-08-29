@@ -16,20 +16,35 @@
 
 <!-- Search and Controls -->
 <div class="row mb-4">
-    <div class="col-md-8">
-        <form method="GET" class="d-flex">
-            <input type="text" name="search" class="form-control search-bar me-2" 
+    <div class="col-md-6">
+        <div class="input-group">
+            <input type="text" id="searchInput" class="form-control search-bar" 
                    placeholder="Search prospects by name, email, or phone..." 
-                   value="{{ search }}">
-            <button type="submit" class="btn btn-purple">
+                   value="">
+            <button type="button" id="searchButton" class="btn btn-purple">
                 <i class="fas fa-search"></i>
             </button>
-        </form>
+        </div>
     </div>
-    <div class="col-md-4 text-end">
+    <div class="col-md-3">
+        <select id="perPageSelect" class="form-select">
+            <option value="25">25 per page</option>
+            <option value="50" selected>50 per page</option>
+            <option value="100">100 per page</option>
+            <option value="200">200 per page</option>
+        </select>
+    </div>
+    <div class="col-md-3 text-end">
         <a href="/prospect/new" class="btn btn-purple">
             <i class="fas fa-plus me-2"></i>Add New Prospect
         </a>
+    </div>
+</div>
+
+<!-- Results Count -->
+<div class="row mb-3">
+    <div class="col-12">
+        <p id="resultsCount" class="text-muted mb-0">Loading prospects...</p>
     </div>
 </div>
 
@@ -84,7 +99,7 @@ async function loadProspects() {
                 
                 html += `
                     <div class="col-md-6 col-lg-4 mb-4">
-                        <div class="card prospect-card h-100">
+                        <div class="card prospect-card h-100" style="cursor: pointer;" onclick="window.location.href='/prospect/${prospectId}'">
                             <div class="card-body">
                                 <h5 class="text-purple mb-2">
                                     <i class="fas fa-user-plus me-2"></i>
@@ -134,8 +149,8 @@ async function loadProspects() {
                                 <div class="d-flex justify-content-between align-items-center">
                                     <span class="badge bg-info">${prospect.status || 'New Lead'}</span>
                                     <div>
-                                        <a href="/prospect/${prospectId}" class="btn btn-sm btn-purple">
-                                            <i class="fas fa-eye"></i>
+                                        <a href="/prospect/${prospectId}" class="btn btn-sm btn-purple" style="text-decoration: none;" onclick="event.stopPropagation();">
+                                            <i class="fas fa-eye me-1"></i> View Profile
                                         </a>
                                     </div>
                                 </div>
@@ -187,10 +202,42 @@ async function loadProspects() {
     }
 }
 
+// Check for cached data and load it if available
+async function checkCachedData() {
+    console.log('🔍 Checking for cached prospect data...');
+    try {
+        const response = await fetch('/api/prospects/all');
+        const data = await response.json();
+        
+        if (data.success && data.source === 'cache') {
+            console.log('✅ Using cached prospect data:', data.prospects.length, 'prospects');
+            // Cache the data locally for faster access
+            window.cachedProspects = data.prospects;
+        } else if (data.success) {
+            console.log('📊 Using database prospect data:', data.prospects.length, 'prospects');
+            // Cache the data locally for faster access
+            window.cachedProspects = data.prospects;
+        } else {
+            console.log('⚠️ No prospect data available');
+        }
+    } catch (error) {
+        console.error('❌ Error checking cached data:', error);
+    }
+}
+
 // Load prospects when page loads
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Prospects page loaded - starting async data load');
+    console.log('🚀 Prospects page loaded');
+    
+    // Check for cached data first
+    console.log('🔍 Checking for cached prospect data...');
+    checkCachedData();
+    
+    // Load prospects data
     loadProspects();
+    
+    // Set up search functionality
+    setupSearch();
 });
 </script>
 

@@ -144,13 +144,16 @@ class ClubHubAPIClient:
         return self._make_request("GET", url, params=params)
     
     def get_all_prospects(self, page: int = 1, page_size: int = 100, extra_params=None, club_id: str = None) -> Optional[Dict[str, Any]]:
-        """Get all prospects (ClubHub API, v1.0)"""
+        """Get all prospects (ClubHub API, v1.0) with extended history (10k days) - like working legacy script"""
         target_club_id = club_id or self.club_id
         url = f"{self.base_url}/api/v1.0/clubs/{target_club_id}/prospects"
         params = {
             "page": str(page),
             "pageSize": str(page_size),
-            "recent": "true"
+            "days": "10000",  # Go back 10,000 days like working legacy script
+            "includeInactive": "true",
+            "includeAll": "true",
+            "status": "all"
         }
         if extra_params:
             params.update(extra_params)

@@ -1,42 +1,56 @@
 #!/usr/bin/env python3
 """
-Test script to debug ClubOS Training API
+Test script to verify ClubOS training API functionality
 """
 
 import sys
 import os
-sys.path.append(os.path.dirname(__file__))
 
-from clubos_training_api import ClubOSTrainingPackageAPI
+# Add the current directory to Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-def test_training_api():
-    print("🔐 Testing ClubOS Training API...")
+try:
+    from clubos_training_api_fixed import ClubOSTrainingPackageAPI
+    print("✅ ClubOS Training API imported successfully")
     
-    # Initialize API
+    # Create API instance
     api = ClubOSTrainingPackageAPI()
+    print(f"✅ API instance created, username: {api.username}, password: {'*' * len(api.password) if api.password else 'None'}")
     
-    # Test authentication
-    print("🔑 Attempting authentication...")
-    if api.authenticate():
-        print("✅ Authentication successful!")
-        print(f"🔗 Base URL: {api.base_url}")
-        print(f"🔑 Authenticated: {api.authenticated}")
-        
-        # Test fetching assignees
+    # Set credentials manually
+    api.username = "j.mayo"
+    api.password = "j@SD4fjhANK5WNA"
+    print(f"✅ Credentials set, username: {api.username}, password: {'*' * len(api.password) if api.password else 'None'}")
+    
+    # Try to authenticate
+    print("🔐 Attempting authentication...")
+    auth_result = api.authenticate()
+    print(f"✅ Authentication result: {auth_result}")
+    print(f"✅ Authenticated: {api.authenticated}")
+    
+    if auth_result:
+        # Try to fetch assignees
         print("📋 Fetching assignees...")
-        assignees = api.fetch_assignees(force_refresh=True)
+        assignees = api.fetch_assignees()
+        print(f"✅ Assignees fetched: {len(assignees) if assignees else 0}")
         
-        if assignees:
-            print(f"✅ Found {len(assignees)} training clients:")
-            for i, client in enumerate(assignees[:5]):  # Show first 5
-                print(f"  {i+1}. {client.get('name', 'Unknown')} (ID: {client.get('id', 'Unknown')})")
-        else:
-            print("❌ No assignees found")
+        if assignees and len(assignees) > 0:
+            # Try to get payment details for the first assignee
+            first_assignee = assignees[0]
+            member_id = first_assignee.get('id')
+            print(f"🔍 Testing payment details for member: {member_id}")
             
+            if member_id:
+                payment_details = api.get_member_training_payment_details(member_id)
+                print(f"✅ Payment details: {payment_details}")
+            else:
+                print("⚠️ No member ID found in first assignee")
+        else:
+            print("⚠️ No assignees found")
     else:
-        print("❌ Authentication failed!")
-        print(f"🔑 Username: {api.username}")
-        print(f"🔑 Password: {'*' * len(api.password) if api.password else 'None'}")
-
-if __name__ == "__main__":
-    test_training_api()
+        print("❌ Authentication failed")
+        
+except Exception as e:
+    print(f"❌ Error: {e}")
+    import traceback
+    traceback.print_exc()

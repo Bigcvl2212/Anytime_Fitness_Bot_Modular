@@ -615,8 +615,87 @@ function populatePayments(payments) {
     paymentsContent.innerHTML = paymentsHtml;
 }
 
-function createSquareInvoice() {
-    alert('Square invoice creation will be implemented here');
+function createSquareInvoice(memberId, memberName) {
+    if (!memberId) {
+        alert('No member selected for invoice creation.');
+        return;
+    }
+    
+    // Calculate proper invoice amount
+    fetch('/api/calculate-invoice-amount', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            member_id: memberId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const amount = prompt(
+                `Enter invoice amount for ${data.member_name}:\n` +
+                `Suggested: $${data.total_amount.toFixed(2)} ` +
+                `(Past Due: $${data.past_due_amount.toFixed(2)} + Late Fee: $${data.late_fee.toFixed(2)})`,
+                data.total_amount.toFixed(2)
+            );
+            
+            if (!amount || isNaN(amount)) return;
+            
+            const description = prompt('Enter invoice description:', data.description);
+            if (!description) return;
+            
+            // Create the actual Square invoice
+            return fetch('/api/invoices/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    member_id: memberId,
+                    amount: parseFloat(amount),
+                    description: description
+                })
+            });
+        } else {
+            // Fallback to simple invoice creation
+            const amount = prompt(`Enter invoice amount for ${memberName}:`, '50.00');
+            if (!amount || isNaN(amount)) return;
+            
+            const description = prompt('Enter invoice description:', 'Membership Payment');
+            if (!description) return;
+            
+            return fetch('/api/invoices/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    member_id: memberId,
+                    amount: parseFloat(amount),
+                    description: description
+                })
+            });
+        }
+    })
+    .then(response => {
+        if (!response) return; // User cancelled
+        return response.json();
+    })
+    .then(data => {
+        if (!data) return; // User cancelled
+        if (data.success) {
+            alert(`Invoice created successfully for ${memberName}!\nInvoice URL: ${data.invoice_url}`);
+            // Optionally refresh the page or update the member's status
+        } else {
+            alert('Error creating invoice: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error creating Square invoice:', error);
+        alert('Network error: ' + error.message);
+    });
 }
 
 // Past Due Members Loading

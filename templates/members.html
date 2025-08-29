@@ -24,7 +24,7 @@
     }
     
     .tab-content {
-        padding: 2rem 0;
+        padding: 0.25rem 0;
     }
     
     .member-card {
@@ -33,52 +33,7 @@
     }
     
     .member-card:hover {
-        transform:         html += `
-            <div class="col-md-6 col-lg-        // Generate a proper full name
-        let displayName = 'Unknown Name';
-        if (member.full_name && member.full_name.trim() !== '') {
-            displayName = member.full_name;
-        } else if (member.first_name || member.last_name) {
-            displayName = `${member.first_name || ''} ${member.last_name || ''}`.trim();
-        } else if (member.email && member.email.includes('@')) {
-            // Try to extract a name from email
-            const emailName = member.email.split('@')[0];
-            const cleanedName = emailName.replace(/[^a-zA-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
-            if (cleanedName) {
-                displayName = cleanedName.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
-                displayName += ' (from email)';
-            }
-        }
-        
-        html += `
-            <div class="col-md-6 col-lg-4 mb-4">
-                <div class="card ${cardClass}" style="cursor: pointer;" onclick="openMemberProfile(${member.id}, '${displayName.replace(/'/g, "\\'")}', '${member.email ? member.email.replace(/'/g, "\\'") : ''}')">
-                    <div class="card-body">
-                        <h6 class="card-title">${displayName}</h6>
-                        <p class="card-text">
-                            <small class="text-muted">${member.email || 'No email'}</small><br>
-                            <span class="badge ${badgeClass}">${member.status_text}</span>
-                        </p>
-                        ${member.mobile_phone ? `<small class="text-muted">📞 ${member.mobile_phone}</small>` : ''}
-                    </div>
-                </div>
-            </div>
-        `;            <div class="card ${cardClass}" style="cursor: pointer;" onclick="openMemberProfile(${member.id}, '${member.full_name ? member.full_name.replace(/'/g, "\\'") : ''}', '${member.email ? member.email.replace(/'/g, "\\'") : ''}')">
-                    <div class="card-body">
-                        <h6 class="card-title">
-                            ${member.full_name || (member.first_name && member.last_name ? 
-                              `${member.first_name} ${member.last_name}` : 
-                              (member.first_name || member.last_name || 'Unknown Name'))}
-                        </h6>
-                        <p class="card-text">
-                            <small class="text-muted">${member.email || 'No email'}</small><br>
-                            <span class="badge ${badgeClass}">${member.status_text}</span>
-                        </p>
-                        ${member.mobile_phone ? `<small class="text-muted">📞 ${member.mobile_phone}</small>` : ''}
-                    </div>
-                </div>
-            </div>
-        `;x);
+        transform: translateY(-5px);
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
     
@@ -124,8 +79,8 @@
     .search-section {
         background-color: #f8f9fa;
         border-radius: 0.5rem;
-        padding: 1.5rem;
-        margin-bottom: 2rem;
+        padding: 0.5rem;
+        margin-bottom: 0.25rem;
     }
     
     .search-input {
@@ -208,7 +163,11 @@
                     </h1>
                     <p class="text-muted mb-0">Manage and view all club members</p>
                 </div>
-                <div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-info" onclick="refreshBillingData()" title="Refresh real billing data from ClubHub">
+                        <i class="fas fa-dollar-sign me-1"></i>
+                        Refresh Billing
+                    </button>
                     <button class="btn btn-primary" onclick="refreshData()">
                         <i class="fas fa-sync-alt me-1"></i>
                         Refresh Data
@@ -223,16 +182,39 @@
         <div class="col-12">
             <ul class="nav nav-tabs" id="membersTab" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="all-members-tab" data-bs-toggle="tab" data-bs-target="#all-members" type="button" role="tab" aria-controls="all-members" aria-selected="true">
-                        All Members
-                        <span class="badge bg-primary ms-2">{{ total_members }}</span>
+                    <button class="nav-link active" id="green-members-tab" data-bs-toggle="tab" data-bs-target="#green-members" type="button" role="tab" aria-controls="green-members" aria-selected="true" onclick="loadMembersByCategory('green')">
+                        Green Members
+                        <span class="badge bg-success ms-2" id="green-count-badge">-</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="comp-members-tab" data-bs-toggle="tab" data-bs-target="#comp-members" type="button" role="tab" aria-controls="comp-members" aria-selected="false" onclick="loadMembersByCategory('comp')">
+                        Comp Members
+                        <span id="comp-count-badge" class="badge bg-info ms-2">-</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="ppv-members-tab" data-bs-toggle="tab" data-bs-target="#ppv-members" type="button" role="tab" aria-controls="ppv-members" aria-selected="false" onclick="loadMembersByCategory('ppv')">
+                        Pay Per Visit
+                        <span id="ppv-count-badge" class="badge bg-secondary ms-2">-</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="staff-members-tab" data-bs-toggle="tab" data-bs-target="#staff-members" type="button" role="tab" aria-controls="staff-members" aria-selected="false" onclick="loadMembersByCategory('staff')">
+                        Staff Members
+                        <span id="staff-count-badge" class="badge bg-warning text-dark ms-2">-</span>
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="past-due-tab" data-bs-toggle="tab" data-bs-target="#past-due" type="button" role="tab" aria-controls="past-due" aria-selected="false" onclick="loadPastDueMembers()">
                         Past Due
-                        <span id="red-count-badge" class="badge bg-danger ms-2">-</span>
-                        <span id="yellow-count-badge" class="badge bg-warning text-dark ms-1">-</span>
+                        <span id="past-due-count-badge" class="badge bg-danger ms-2">-</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="inactive-members-tab" data-bs-toggle="tab" data-bs-target="#inactive-members" type="button" role="tab" aria-controls="inactive-members" aria-selected="false" onclick="loadMembersByCategory('inactive')">
+                        Inactive
+                        <span id="inactive-count-badge" class="badge bg-dark ms-2">-</span>
                     </button>
                 </li>
             </ul>
@@ -241,101 +223,26 @@
 
     <!-- Tab Content -->
     <div class="tab-content" id="membersTabContent">
-        <!-- All Members Tab -->
-        <div class="tab-pane fade show active" id="all-members" role="tabpanel" aria-labelledby="all-members-tab">
-            <!-- Search Section -->
+        <!-- Green Members Tab -->
+        <div class="tab-pane fade show active" id="green-members" role="tabpanel" aria-labelledby="green-members-tab">
             <div class="search-section">
-                <div class="row">
-                    <div class="col-md-8">
-                        <div class="input-group">
-                            <span class="input-group-text">
-                                <i class="fas fa-search"></i>
-                            </span>
-                            <input type="text" class="form-control search-input" placeholder="Search members by name, email, or phone..." id="memberSearch">
-                        </div>
-                    </div>
-                    <div class="col-md-4">
-                        <select class="form-select search-input" id="statusFilter">
-                            <option value="">All Status</option>
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                            <option value="suspended">Suspended</option>
-                            <option value="frozen">Frozen</option>
-                        </select>
-                    </div>
+                <div class="input-group mb-3">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control search-input" placeholder="Search green members..." id="greenMemberSearch">
                 </div>
             </div>
-
-            <!-- Members Grid -->
-            <div class="row" id="membersContainer">
-                {% for member in members %}
-                <div class="col-xl-3 col-lg-4 col-md-6 mb-4 member-item" 
-                     data-name="{{ member.full_name|default(member.firstName ~ ' ' ~ member.lastName, true)|lower }}" 
-                     data-email="{{ member.email|default(member.Email, true)|lower }}" 
-                     data-status="{{ member.status|default(member.Status, true)|lower }}">
-                    <div class="card member-card h-100" onclick="openMemberProfile({{ member.id|default(member.prospectId, true) }}, '{{ member.full_name|default(member.firstName ~ ' ' ~ member.lastName, true) }}', '{{ member.email|default(member.Email, true) }}')">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h6 class="card-title mb-0">
-                                {% if member.full_name %}
-                                    {{ member.full_name }}
-                                {% elif member.firstName is defined and member.lastName is defined %}
-                                    {{ member.firstName }} {{ member.lastName }}
-                                {% elif member.first_name is defined and member.last_name is defined %}
-                                    {{ member.first_name }} {{ member.last_name }}
-                                {% elif member.firstName is defined %}
-                                    {{ member.firstName }}
-                                {% elif member.first_name is defined %}
-                                    {{ member.first_name }}
-                                {% elif member.lastName is defined %}
-                                    {{ member.lastName }}
-                                {% elif member.last_name is defined %}
-                                    {{ member.last_name }}
-                                {% else %}
-                                    Unknown Name
-                                {% endif %}
-                                </h6>
-                                <span class="badge bg-primary">{{ member.status|default(member.Status, true) or 'Active' }}</span>
-                            </div>
-                            <p class="card-text text-muted small mb-2">
-                                <i class="fas fa-envelope me-1"></i>{{ member.email|default(member.Email, true) or 'No email' }}
-                            </p>
-                            {% if member.mobile_phone or member.mobilePhone %}
-                            <p class="card-text text-muted small mb-2">
-                                <i class="fas fa-phone me-1"></i>{{ member.mobile_phone|default(member.mobilePhone, true) }}
-                            </p>
-                            {% endif %}
-                            <div class="d-flex justify-content-between align-items-end">
-                                <small class="text-muted">
-                                    ID: {{ member.id|default(member.prospectId, true) }}
-                                </small>
-                                <small class="text-muted">
-                                    {% if member.membership_start or member.membershipStart %}
-                                        Since: {{ (member.membership_start|default(member.membershipStart, true))[:10] }}
-                                    {% elif member.created_at %}
-                                        Since: {{ member.created_at[:10] }}
-                                    {% endif %}
-                                </small>
-                            </div>
-                        </div>
+            <div class="row" id="green-members-container">
+                <div class="col-12 text-center py-5">
+                    <div class="loading-spinner"></div>
+                    <p class="text-muted mt-3">Loading green members...</p>
                     </div>
                 </div>
-                {% endfor %}
-            </div>
-
-            {% if not members %}
-            <div class="empty-state">
-                <i class="fas fa-users"></i>
-                <h4>No Members Found</h4>
-                <p>There are currently no members in the system.</p>
-            </div>
-            {% endif %}
         </div>
 
         <!-- Past Due Tab -->
         <div class="tab-pane fade" id="past-due" role="tabpanel" aria-labelledby="past-due-tab">
             <!-- Loading State -->
-            <div id="past-due-loading" class="text-center py-5">
+            <div id="past-due-loading" class="text-center py-3">
                 <div class="loading-spinner"></div>
                 <p class="text-muted mt-3">Loading past due members...</p>
             </div>
@@ -349,37 +256,100 @@
 
             <!-- Past Due Content -->
             <div id="past-due-content" style="display: none;">
-                <div class="row mb-4">
-                    <div class="col-12 text-end">
-                        <button class="btn btn-primary" onclick="showBatchInvoiceModal()">
+                <!-- Compact Stats and Action Row -->
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <div class="card text-white bg-danger">
+                            <div class="card-body text-center py-2">
+                                <h6 class="card-title mb-1">Critical</h6>
+                                <h4 id="red-count-display" class="mb-1">-</h4>
+                                <small class="card-text">Immediate attention</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-dark bg-warning">
+                            <div class="card-body text-center py-2">
+                                <h6 class="card-title mb-1">Attention</h6>
+                                <h4 id="yellow-count-display" class="mb-1">-</h4>
+                                <small class="card-text">Payment issues</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 d-flex align-items-center justify-content-end">
+                        <button class="btn btn-primary btn-sm" onclick="showBatchInvoiceModal()">
                             <i class="fas fa-file-invoice-dollar me-1"></i>
                             Batch Invoicing
                         </button>
                     </div>
                 </div>
-                <div class="row mb-4">
-                    <div class="col-md-6">
-                        <div class="card text-white bg-danger">
-                            <div class="card-body text-center">
-                                <h5 class="card-title">Critical</h5>
-                                <h2 id="red-count-display" class="count-display">-</h2>
-                                <p class="card-text">Members requiring immediate attention</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="card text-dark bg-warning">
-                            <div class="card-body text-center">
-                                <h5 class="card-title">Attention Needed</h5>
-                                <h2 id="yellow-count-display" class="count-display">-</h2>
-                                <p class="card-text">Members with payment issues</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 <div class="row" id="past-due-members-container">
                     <!-- Past due members will be loaded here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Comp Members Tab -->
+        <div class="tab-pane fade" id="comp-members" role="tabpanel" aria-labelledby="comp-members-tab">
+            <div class="search-section">
+                <div class="input-group mb-3">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control search-input" placeholder="Search comp members..." id="compMemberSearch">
+                </div>
+            </div>
+            <div class="row" id="comp-members-container">
+                <div class="col-12 text-center py-5">
+                    <div class="loading-spinner"></div>
+                    <p class="text-muted mt-3">Loading comp members...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pay Per Visit Members Tab -->
+        <div class="tab-pane fade" id="ppv-members" role="tabpanel" aria-labelledby="ppv-members-tab">
+            <div class="search-section">
+                <div class="input-group mb-3">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control search-input" placeholder="Search pay-per-visit members..." id="ppvMemberSearch">
+                </div>
+            </div>
+            <div class="row" id="ppv-members-container">
+                <div class="col-12 text-center py-5">
+                    <div class="loading-spinner"></div>
+                    <p class="text-muted mt-3">Loading pay-per-visit members...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Staff Members Tab -->
+        <div class="tab-pane fade" id="staff-members" role="tabpanel" aria-labelledby="staff-members-tab">
+            <div class="search-section">
+                <div class="input-group mb-3">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control search-input" placeholder="Search staff members..." id="staffMemberSearch">
+                </div>
+            </div>
+            <div class="row" id="staff-members-container">
+                <div class="col-12 text-center py-5">
+                    <div class="loading-spinner"></div>
+                    <p class="text-muted mt-3">Loading staff members...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Inactive Members Tab -->
+        <div class="tab-pane fade" id="inactive-members" role="tabpanel" aria-labelledby="inactive-members-tab">
+            <div class="search-section">
+                <div class="input-group mb-3">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control search-input" placeholder="Search inactive members..." id="inactiveMemberSearch">
+                </div>
+            </div>
+            <div class="row" id="inactive-members-container">
+                <div class="col-12 text-center py-5">
+                    <div class="loading-spinner"></div>
+                    <p class="text-muted mt-3">Loading inactive members...</p>
                 </div>
             </div>
         </div>
@@ -503,6 +473,23 @@
                             </div>
                         </div>
 
+                        <!-- Training Information -->
+                        <div class="col-md-6 mb-4">
+                            <div class="card h-100">
+                                <div class="card-header bg-warning text-dark">
+                                    <h6 class="mb-0">
+                                        <i class="fas fa-dumbbell me-2"></i>
+                                        Training Information
+                                    </h6>
+                                </div>
+                                <div class="card-body" id="training-content">
+                                    <!-- Content loaded dynamically -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
                         <!-- Payment History -->
                         <div class="col-md-6 mb-4">
                             <div class="card h-100">
@@ -517,11 +504,9 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Invoice History -->
-                    <div class="row">
-                        <div class="col-12 mb-4">
+                        <!-- Invoice History -->
+                        <div class="col-md-6 mb-4">
                             <div class="card h-100">
                                 <div class="card-header bg-secondary text-white">
                                     <h6 class="mb-0">
@@ -585,6 +570,49 @@ function refreshData() {
     });
 }
 
+function refreshBillingData() {
+    const billingButton = document.querySelector('button[onclick="refreshBillingData()"]');
+    if (billingButton) {
+        billingButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Refreshing Billing...';
+        billingButton.disabled = true;
+    }
+    
+    fetch('/api/refresh-billing-data', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Billing data refreshed successfully from ClubHub!\nUpdated Members: ${data.updated_members}\nPast Due Members: ${data.past_due_members}\nTotal Past Due: $${data.total_past_due_amount}\nTotal Late Fees: $${data.total_late_fees}`);
+            // Refresh the current tab to show updated billing info
+            const activeTab = document.querySelector('.nav-link.active');
+            if (activeTab) {
+                if (activeTab.id === 'past-due-tab') {
+                    loadPastDueMembers();
+                } else {
+                    const category = activeTab.id.replace('-tab', '').replace('-members', '');
+                    loadMembersByCategory(category);
+                }
+            }
+        } else {
+            alert('Error refreshing billing data: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error refreshing billing data. Please try again.');
+    })
+    .finally(() => {
+        if (billingButton) {
+            billingButton.innerHTML = '<i class="fas fa-dollar-sign me-1"></i>Refresh Billing';
+            billingButton.disabled = false;
+        }
+    });
+}
+
 // Auto-check data status every 5 minutes
 setInterval(function() {
     fetch('/api/data-status')
@@ -636,6 +664,7 @@ function fetchMemberDetails(memberId, memberName, memberEmail) {
                 populateContactInfo(data.member);
                 populateAgreements(data.agreements);
                 populatePayments(data.payments);
+                populateTrainingInfo(data.training_info);
             } else {
                 document.getElementById('member-profile-loading').innerHTML = `
                     <div class="text-center py-5">
@@ -786,6 +815,14 @@ function populatePersonalInfo(member, paymentStatus) {
             <label class="form-label-muted">User Type</label>
             <div class="member-detail-value">${member.user_type || member.memberType || 'N/A'}</div>
         </div>
+        <div class="mb-3">
+            <label class="form-label-muted">Contract Types</label>
+            <div class="member-detail-value">${member.contract_types || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label-muted">Trial Status</label>
+            <div class="member-detail-value">${member.trial ? 'Trial Member' : 'Regular Member'}</div>
+        </div>
     `;
 }
 
@@ -905,6 +942,52 @@ function populatePayments(payments) {
     `;
     
     paymentsContent.innerHTML = paymentsHtml;
+}
+
+function populateTrainingInfo(trainingInfo) {
+    const trainingContent = document.getElementById('training-content');
+    
+    if (!trainingInfo) {
+        trainingContent.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-dumbbell fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No training information found</p>
+                <small class="text-muted">This member is not currently enrolled in personal training</small>
+            </div>
+        `;
+        return;
+    }
+    
+    trainingContent.innerHTML = `
+        <div class="mb-3">
+            <label class="form-label-muted">Trainer</label>
+            <div class="member-detail-value">${trainingInfo.trainer_name || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label-muted">Session Type</label>
+            <div class="member-detail-value">${trainingInfo.session_type || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label-muted">Sessions Remaining</label>
+            <div class="member-detail-value">
+                <span class="badge ${trainingInfo.sessions_remaining > 0 ? 'bg-success' : 'bg-warning'}">
+                    ${trainingInfo.sessions_remaining || 0} sessions
+                </span>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label-muted">Last Session</label>
+            <div class="member-detail-value">${trainingInfo.last_session || 'No sessions recorded'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label-muted">Payment Status</label>
+            <div class="member-detail-value">
+                <span class="badge ${trainingInfo.payment_status === 'Current' ? 'bg-success' : 'bg-warning'}">
+                    ${trainingInfo.payment_status || 'Unknown'}
+                </span>
+            </div>
+        </div>
+    `;
 }
 
 function populateInvoices(invoices) {
@@ -1044,7 +1127,7 @@ function loadPastDueMembers() {
     
     console.log('📡 Fetching past due members from API...');
     
-    fetch('/api/members/past-due')
+    fetch('/api/members/by-category/past_due')
         .then(response => {
             console.log('📡 API response received:', response.status);
             if (!response.ok) {
@@ -1058,20 +1141,19 @@ function loadPastDueMembers() {
         })
         .then(data => {
             console.log('Past due data received:', data);
-            if (!data || (data.past_due_members && !Array.isArray(data.past_due_members))) {
+            if (!data || !data.success || !Array.isArray(data.members)) {
                 console.error('Invalid data format received:', data);
                 throw new Error('Invalid data format received from server');
             }
             pastDueMembersLoaded = true;
 
-            // Handle direct array response or wrapped object
-            let members = Array.isArray(data) ? data : (data.past_due_members || []);
-            let redCount = members.filter(m => m.priority_status === 'red').length;
-            let yellowCount = members.filter(m => m.priority_status === 'yellow').length;
+            // Use the members array from the database response
+            let members = data.members || [];
+            let redCount = members.filter(m => m.status_message && m.status_message.includes('Past Due more than 30')).length;
+            let yellowCount = members.filter(m => m.status_message && m.status_message.includes('Past Due 6-30')).length;
 
             // Update badges in nav tabs
-            document.getElementById('red-count-badge').textContent = redCount;
-            document.getElementById('yellow-count-badge').textContent = yellowCount;
+            document.getElementById('past-due-count-badge').textContent = members.length;
             const redDisplay = document.getElementById('red-count-display');
             const yellowDisplay = document.getElementById('yellow-count-display');
             if (redDisplay) redDisplay.textContent = redCount;
@@ -1109,14 +1191,23 @@ function displayPastDueMembers(members) {
     let html = '';
     
     members.forEach(member => {
-        // Skip rendering a card if the member ID is missing or there's no name/email
-        if (!member.id || (!member.full_name && !member.first_name && !member.last_name && !member.email)) {
+        // Skip rendering a card if we have no navigation id and no name/email
+        const navId = member.guid || member.prospect_id || member.id;
+        if (!navId || (!member.full_name && !member.first_name && !member.last_name && !member.email)) {
             console.warn('Skipping member with insufficient data:', member);
             return; // Skip this iteration
         }
 
-        const cardClass = member.priority_status === 'red' ? 'border-danger' : 'border-warning';
-        const badgeClass = member.priority_status === 'red' ? 'bg-danger' : 'bg-warning';
+        // Determine card styling based on status message
+        let cardClass = 'border-warning';
+        let badgeClass = 'bg-warning';
+        let statusText = 'Past Due';
+        
+        if (member.status_message && member.status_message.includes('Past Due more than 30')) {
+            cardClass = 'border-danger';
+            badgeClass = 'bg-danger';
+            statusText = 'Critical';
+        }
         
         // Generate a better display name
         let displayName = 'Unknown Name';
@@ -1147,20 +1238,105 @@ function displayPastDueMembers(members) {
             }
         }
         
+                                // Format dates for display (same as other categories)
+                        let memberSince = 'Unknown';
+                        if (member.membership_start) {
+                            try {
+                                const startDate = new Date(member.membership_start);
+                                memberSince = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                            } catch (e) {
+                                memberSince = member.membership_start.substring(0, 10);
+                            }
+                        }
+
+                        let lastVisit = 'Never';
+                        if (member.last_visit && member.last_visit !== '') {
+                            try {
+                                const visitDate = new Date(member.last_visit);
+                                lastVisit = visitDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                            } catch (e) {
+                                lastVisit = member.last_visit.substring(0, 10);
+                            }
+                        }
+
+                        let nextPayment = '';
+                        if (member.date_of_next_payment) {
+                            try {
+                                const payDate = new Date(member.date_of_next_payment);
+                                const amount = member.amount_of_next_payment ? `$${parseFloat(member.amount_of_next_payment).toFixed(2)}` : '';
+                                nextPayment = `${payDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${amount}`;
+                            } catch (e) {
+                                nextPayment = member.date_of_next_payment.substring(0, 10);
+            }
+        }
+        
         html += `
-            <div class="col-md-6 col-lg-4 mb-4">
-                <div class="card ${cardClass}">
+                            <div class="col-md-6 col-lg-4 mb-3">
+                                <div class="card ${cardClass} h-100 member-card" style="cursor: pointer;" onclick="window.location.href='/member/${member.guid || member.prospect_id || member.id}'">>
                     <div class="card-body">
-                        <div class="d-flex justify-content-between">
-                            <h6 class="card-title" style="cursor: pointer;" onclick="openMemberProfile(${member.id}, '${displayName.replace(/'/g, "\\'")}', '${member.email ? member.email.replace(/'/g, "\\'") : ''}')">${displayName}</h6>
-                            <input type="checkbox" class="form-check-input batch-invoice-checkbox" data-member-id="${member.id}" data-member-name="${displayName}">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h6 class="card-title mb-0">
+                                                <span class="text-decoration-none text-dark">${displayName}</span>
+                                            </h6>
+                                            <input type="checkbox" class="form-check-input batch-invoice-checkbox" data-member-id="${member.guid || member.prospect_id || member.id}" data-member-name="${displayName.replace(/'/g, "\\'")}" data-amount="${member.amount_past_due || 0}" onclick="event.stopPropagation();">
                         </div>
-                        <p class="card-text">
-                            <small class="text-muted">${member.email || 'No email'}</small><br>
-                            <span class="badge ${badgeClass}">${member.status_text}</span>
-                        </p>
-                        ${member.mobile_phone ? `<small class="text-muted">📞 ${member.mobile_phone}</small>` : ''}
+                                        <div class="mb-2">
+                            <span class="badge ${badgeClass}">${statusText}</span>
+                                            ${member.user_type ? `<span class="badge bg-outline-secondary ms-1">${member.user_type}</span>` : ''}
+                                            ${member.status ? `<span class="badge bg-secondary ms-1">${member.status}</span>` : ''}
                     </div>
+                                        <div class="small text-muted mb-2">
+                                            ${member.email ? `<div><i class="fas fa-envelope me-1"></i><span class="text-truncate" title="${member.email}">${member.email}</span></div>` : '<div class="text-warning"><i class="fas fa-envelope me-1"></i>No email</div>'}
+                                            ${member.mobile_phone ? `<div><i class="fas fa-phone me-1"></i>${member.mobile_phone}</div>` : '<div class="text-warning"><i class="fas fa-phone me-1"></i>No phone</div>'}
+                                            <div><i class="fas fa-calendar me-1"></i>Since: ${memberSince}</div>
+                                            <div><i class="fas fa-clock me-1"></i>Last visit: ${lastVisit}</div>
+                                            ${nextPayment ? `<div><i class="fas fa-credit-card me-1"></i>Next: ${nextPayment}</div>` : ''}
+                                        </div>
+                                        ${member.amount_past_due > 0 ? `
+                                            <div class="alert alert-danger py-2 px-2 mb-2 small">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <strong><i class="fas fa-exclamation-triangle me-1"></i>Past Due Details</strong>
+                                                    <span class="badge bg-danger">OVERDUE</span>
+                                                </div>
+                                                <div class="row text-center mb-2">
+                                                    <div class="col-4">
+                                                        <div class="fw-bold text-dark">$${parseFloat(member.amount_past_due).toFixed(2)}</div>
+                                                        <div style="font-size: 0.7rem;" class="text-muted">Amount Due</div>
+                                                    </div>
+                                                    <div class="col-4">
+                                                        <div class="fw-bold text-dark">${Math.max(1, Math.ceil(parseFloat(member.amount_past_due) / 50))}</div>
+                                                        <div style="font-size: 0.7rem;" class="text-muted">Missed Payments</div>
+                                                    </div>
+                                                    <div class="col-4">
+                                                        <div class="fw-bold text-dark">$${Math.min(100, Math.max(25, Math.ceil(parseFloat(member.amount_past_due) / 50) * 5)).toFixed(2)}</div>
+                                                        <div style="font-size: 0.7rem;" class="text-muted">Late Fees</div>
+                                                    </div>
+                                                </div>
+                                                ${member.status_message ? `
+                                                    <div class="mb-2 pb-1 border-bottom border-light">
+                                                        <small class="text-dark"><i class="fas fa-info-circle me-1"></i>${member.status_message}</small>
+                                                    </div>
+                                                ` : ''}
+                                                <div class="d-flex justify-content-between align-items-center pt-1 border-top border-light">
+                                                    <small class="text-dark"><strong>Total Invoice Amount:</strong></small>
+                                                    <small class="text-dark"><strong>$${(parseFloat(member.amount_past_due) + Math.min(100, Math.max(25, Math.ceil(parseFloat(member.amount_past_due) / 50) * 5))).toFixed(2)}</strong></small>
+                                                </div>
+                                            </div>
+                                        ` : ''}
+                                        <div class="mt-auto d-flex gap-1">
+                                            <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); window.location.href='/member/${member.guid || member.prospect_id || member.id}'" title="View Profile">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-warning" onclick="event.stopPropagation(); showQuickInvoiceModal('${member.id || member.guid}', '${displayName.replace(/'/g, "\\'")}', '${member.email || ''}')" title="Create Invoice">
+                                                <i class="fas fa-file-invoice-dollar"></i>
+                                            </button>
+                                            ${member.amount_past_due > 0 ? `
+                                                <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); showInvoicePreviewForMember('${member.id || member.guid}', '${displayName.replace(/'/g, "\\'")}', '${member.email || ''}', ${member.amount_past_due})" title="Send Past Due Invoice">
+                                                    <i class="fas fa-exclamation-circle"></i>
+                                                </button>
+                                            ` : ''}
+                                        </div>
+                                    </div>
                 </div>
             </div>
         `;
@@ -1224,10 +1400,7 @@ function contactSupport() {
 function sendBatchInvoices() {
     const selectedMembers = [];
     document.querySelectorAll('.batch-invoice-checkbox:checked').forEach(checkbox => {
-        selectedMembers.push({
-            id: checkbox.dataset.memberId,
-            name: checkbox.dataset.memberName
-        });
+        selectedMembers.push(checkbox.dataset.memberId);
     });
 
     if (selectedMembers.length === 0) {
@@ -1235,35 +1408,46 @@ function sendBatchInvoices() {
         return;
     }
 
-    const amount = 100.00; // Placeholder amount
-    const description = 'Membership Dues'; // Placeholder description
+    if (!confirm(`Create Square invoices for ${selectedMembers.length} members?`)) {
+        return;
+    }
 
-    selectedMembers.forEach(member => {
-        fetch('/api/create-invoice', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                member_name: member.name,
-                amount: amount,
-                description: description,
-            }),
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                console.log(`Invoice created for ${member.name}`);
-            } else {
-                console.error(`Error creating invoice for ${member.name}: ${data.error}`);
+    // Call the batch invoice API
+    fetch('/api/invoices/batch', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            type: 'members',
+            filter: 'past_due',
+            selected_clients: selectedMembers
+        }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Batch invoicing completed!\n\nTotal processed: ${data.summary.total_processed}\nSuccessful: ${data.summary.successful}\nFailed: ${data.summary.failed}`);
+            
+            // Show details if there were failures
+            if (data.failed_invoices && data.failed_invoices.length > 0) {
+                console.log('Failed invoices:', data.failed_invoices);
             }
-        })
-        .catch(error => {
-            console.error(`An error occurred while creating the invoice for ${member.name}:`, error);
-        });
+            
+            // Close modal and refresh
+            const modal = bootstrap.Modal.getInstance(document.getElementById('batchInvoiceModal'));
+            modal.hide();
+            
+            // Refresh the page to update statuses
+            location.reload();
+        } else {
+            alert('Error creating batch invoices: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error creating batch invoices:', error);
+        alert('Network error: ' + error.message);
     });
-
-    alert(`Invoices are being created for ${selectedMembers.length} members. Check the console for progress.`);
 }
 
 function showBatchInvoiceModal() {
@@ -1404,6 +1588,83 @@ function sendFinalInvoice() {
     });
 }
 
+function showQuickInvoiceModal(memberId, memberName, memberEmail) {
+    const amount = prompt(`Enter invoice amount for ${memberName}:`, '50.00');
+    if (!amount || isNaN(amount)) return;
+    
+    const description = prompt('Enter invoice description:', 'Monthly Membership Dues');
+    if (!description) return;
+    
+    fetch('/api/create-invoice', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            member_id: memberId,
+            member_name: memberName,
+            member_email: memberEmail,
+            amount: parseFloat(amount),
+            description: description
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Invoice created successfully! URL: ' + data.invoice_url);
+        } else {
+            alert('Error creating invoice: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error creating invoice');
+    });
+}
+
+function showInvoicePreviewForMember(memberId, memberName, memberEmail, pastDueAmount) {
+    if (!confirm(`Create past due invoice for ${memberName} - $${pastDueAmount.toFixed(2)}?`)) {
+        return;
+    }
+    
+    // Calculate late fees (you can adjust this logic as needed)
+    const baseAmount = parseFloat(pastDueAmount);
+    const lateFee = Math.min(baseAmount * 0.1, 25.00); // 10% late fee, max $25
+    const totalAmount = baseAmount + lateFee;
+    
+    const description = `Past Due Balance: $${baseAmount.toFixed(2)} + Late Fee: $${lateFee.toFixed(2)}`;
+    
+    fetch('/api/create-invoice', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            member_id: memberId,
+            member_name: memberName,
+            member_email: memberEmail,
+            amount: totalAmount,
+            description: description,
+            past_due_amount: baseAmount,
+            late_fee: lateFee
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Past due invoice created successfully!\nAmount: $${totalAmount.toFixed(2)}\nURL: ${data.invoice_url}`);
+            // Optionally refresh the members list
+            loadMembersByCategory('past_due');
+        } else {
+            alert('Error creating past due invoice: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error creating past due invoice');
+    });
+}
+
 // Global variables for async loading
 let allMembersLoaded = false;
 let pastDueMembersLoaded = false;
@@ -1475,18 +1736,22 @@ async function loadAllMembers(page = 1, search = '', statusFilter = '') {
                          data-name="${(displayName || '').toLowerCase()}" 
                          data-email="${(member.email || '').toLowerCase()}" 
                          data-status="${(member.status || '').toLowerCase()}">
-                        <div class="card member-card h-100" onclick="openMemberProfile(${member.id}, '${displayName}', '${member.email || ''}')">
+                        <div class="card member-card h-100">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <h6 class="card-title mb-0">${displayName}</h6>
+                                    <h6 class="card-title mb-0">
+                                        <a href="/member/${member.id}" class="text-decoration-none text-dark">${displayName}</a>
+                                    </h6>
                                     <span class="badge bg-${member.payment_status_class || 'primary'}">${member.status || 'Active'}</span>
                                 </div>
                                 <p class="card-text text-muted small mb-2">
-                                    <i class="fas fa-envelope me-1"></i>${member.email || 'No email'}
+                                    <i class="fas fa-envelope me-1"></i>
+                                    ${member.email ? `<a href="mailto:${member.email}" class="text-decoration-none">${member.email}</a>` : 'No email'}
                                 </p>
                                 ${member.mobile_phone ? `
                                 <p class="card-text text-muted small mb-2">
-                                    <i class="fas fa-phone me-1"></i>${member.mobile_phone}
+                                    <i class="fas fa-phone me-1"></i>
+                                    <a href="tel:${member.mobile_phone}" class="text-decoration-none">${member.mobile_phone}</a>
                                 </p>
                                 ` : ''}
                                 <div class="d-flex justify-content-between align-items-end">
@@ -1494,6 +1759,14 @@ async function loadAllMembers(page = 1, search = '', statusFilter = '') {
                                     ${member.membership_start ? `
                                     <small class="text-muted">Since: ${member.membership_start.substring(0, 10)}</small>
                                     ` : ''}
+                                </div>
+                                <div class="mt-2 d-flex gap-1">
+                                    <a href="/member/${member.id}" class="btn btn-sm btn-primary" title="View Profile">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <button class="btn btn-sm btn-warning" onclick="event.stopPropagation(); showQuickInvoiceModal('${member.id}', '${displayName.replace(/'/g, "\\'")}', '${member.email || ''}')" title="Create Invoice">
+                                        <i class="fas fa-file-invoice-dollar"></i>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -1559,12 +1832,283 @@ function updateStatusFilterOptions(statuses) {
     }
 }
 
+// Function to load members by category
+async function loadMembersByCategory(category) {
+    console.log(`🔄 Loading ${category} members...`);
+    
+    // Scroll to top of page to ensure members are visible
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    const containerMap = {
+        'green': 'green-members-container',
+        'comp': 'comp-members-container',
+        'ppv': 'ppv-members-container', 
+        'staff': 'staff-members-container',
+        'past_due': 'past-due-members-container',
+        'inactive': 'inactive-members-container'
+    };
+    
+    const container = document.getElementById(containerMap[category]);
+    if (!container) {
+        console.error(`❌ Container not found for category: ${category}`);
+        return;
+    }
+    
+    console.log(`✅ Found container for ${category}:`, container);
+    
+    // Show loading state
+    container.innerHTML = `
+        <div class="col-12 text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="text-muted mt-3">Loading ${category} members...</p>
+        </div>
+    `;
+    
+    try {
+        let endpoint = `/api/members/by-category/${category}`;
+        console.log(`📡 Fetching from: ${endpoint}`);
+        
+        const response = await fetch(endpoint);
+        console.log(`📡 Response status: ${response.status}`);
+        
+        const data = await response.json();
+        console.log(`📡 Response data:`, data);
+        
+        if (data.success) {
+            console.log(`✅ Loaded ${data.members?.length || 0} ${category} members`);
+            
+            let html = '';
+            const members = data.members || [];
+            
+            if (members.length === 0) {
+                html = `
+                    <div class="col-12">
+                        <div class="empty-state">
+                            <i class="fas fa-users"></i>
+                            <h4>No ${category.charAt(0).toUpperCase() + category.slice(1)} Members</h4>
+                            <p>There are currently no members in this category.</p>
+                        </div>
+                    </div>
+                `;
+            } else {
+                console.log(`📝 Generating HTML for ${members.length} members`);
+                members.forEach((member, index) => {
+                    console.log(`👤 Processing member ${index + 1}:`, member);
+                    
+                    let displayName = 'Unknown Name';
+                    if (member.full_name && member.full_name.trim() !== '') {
+                        displayName = member.full_name;
+                    } else if (member.first_name || member.last_name) {
+                        displayName = `${member.first_name || ''} ${member.last_name || ''}`.trim();
+                    }
+                    
+                    // Color coding based on category
+                    let cardClass = 'member-card';
+                    let badgeClass = 'bg-primary';
+                    let categoryLabel = category;
+                    
+                    if (category === 'past_due') {
+                        cardClass += ' border-danger';
+                        badgeClass = member.amount_past_due > 100 ? 'bg-danger' : 'bg-warning text-dark';
+                        categoryLabel = member.amount_past_due > 100 ? 'Critical' : 'Past Due';
+                    } else if (category === 'comp') {
+                        cardClass += ' border-info';
+                        badgeClass = 'bg-info';
+                        categoryLabel = 'Comp';
+                    } else if (category === 'ppv') {
+                        cardClass += ' border-secondary';
+                        badgeClass = 'bg-secondary';
+                        categoryLabel = 'Pay Per Visit';
+                    } else if (category === 'frozen') {
+                        cardClass += ' border-light';
+                        badgeClass = 'bg-light text-dark';
+                        categoryLabel = 'Frozen';
+                    } else if (category === 'inactive') {
+                        cardClass += ' border-dark';
+                        badgeClass = 'bg-dark';
+                        categoryLabel = 'Inactive';
+                    }
+                    
+                    // Format dates for display
+                    let memberSince = 'Unknown';
+                    if (member.membership_start) {
+                        try {
+                            const startDate = new Date(member.membership_start);
+                            memberSince = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        } catch (e) {
+                            memberSince = member.membership_start.substring(0, 10);
+                        }
+                    }
+
+                    let lastVisit = 'Never';
+                    if (member.last_visit && member.last_visit !== '') {
+                        try {
+                            const visitDate = new Date(member.last_visit);
+                            lastVisit = visitDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        } catch (e) {
+                            lastVisit = member.last_visit.substring(0, 10);
+                        }
+                    }
+
+                    let nextPayment = '';
+                    if (member.date_of_next_payment) {
+                        try {
+                            const payDate = new Date(member.date_of_next_payment);
+                            const amount = member.amount_of_next_payment ? `$${parseFloat(member.amount_of_next_payment).toFixed(2)}` : '';
+                            nextPayment = `${payDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ${amount}`;
+                        } catch (e) {
+                            nextPayment = member.date_of_next_payment.substring(0, 10);
+                        }
+                    }
+                    
+                    html += `
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="card ${cardClass} h-100" style="cursor: pointer;" onclick="window.location.href='/member/${member.guid || member.prospect_id || member.id}'">>
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h6 class="card-title mb-0">
+                                        <a href="/member/${member.guid || member.prospect_id || member.id}" class="text-decoration-none text-dark">${displayName}</a>
+                                    </h6>
+                                        ${category === 'past_due' ? `<input type="checkbox" class="form-check-input batch-invoice-checkbox" data-member-id="${member.guid || member.prospect_id || member.id}" data-member-name="${displayName.replace(/'/g, "\\'")}" data-amount="${member.amount_past_due || 0}">` : ''}
+                                    </div>
+                                    <div class="mb-2">
+                                        <span class="badge ${badgeClass}">${categoryLabel}</span>
+                                        ${member.user_type ? `<span class="badge bg-outline-secondary ms-1">${member.user_type}</span>` : ''}
+                                        ${member.status ? `<span class="badge bg-secondary ms-1">${member.status}</span>` : ''}
+                                    </div>
+                                    <div class="small text-muted mb-2">
+                                        ${member.email ? `<div><i class="fas fa-envelope me-1"></i><span class="text-truncate" title="${member.email}">${member.email}</span></div>` : '<div class="text-warning"><i class="fas fa-envelope me-1"></i>No email</div>'}
+                                        ${member.mobile_phone ? `<div><i class="fas fa-phone me-1"></i>${member.mobile_phone}</div>` : '<div class="text-warning"><i class="fas fa-phone me-1"></i>No phone</div>'}
+                                        <div><i class="fas fa-calendar me-1"></i>Since: ${memberSince}</div>
+                                        <div><i class="fas fa-clock me-1"></i>Last visit: ${lastVisit}</div>
+                                        ${nextPayment ? `<div><i class="fas fa-credit-card me-1"></i>Next: ${nextPayment}</div>` : ''}
+                                    </div>
+                                    ${member.amount_past_due > 0 ? `
+                                        <div class="alert alert-danger py-2 px-2 mb-2 small">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <strong><i class="fas fa-exclamation-triangle me-1"></i>Past Due Details</strong>
+                                                <span class="badge bg-danger">OVERDUE</span>
+                                            </div>
+                                            <div class="row text-center mb-2">
+                                                <div class="col-4">
+                                                    <div class="fw-bold text-dark">$${parseFloat(member.amount_past_due).toFixed(2)}</div>
+                                                    <div style="font-size: 0.7rem;" class="text-muted">Amount Due</div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <div class="fw-bold text-dark">${Math.max(1, Math.ceil(parseFloat(member.amount_past_due) / 50))}</div>
+                                                    <div style="font-size: 0.7rem;" class="text-muted">Missed Payments</div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <div class="fw-bold text-dark">$${Math.min(100, Math.max(25, Math.ceil(parseFloat(member.amount_past_due) / 50) * 5)).toFixed(2)}</div>
+                                                    <div style="font-size: 0.7rem;" class="text-muted">Late Fees</div>
+                                                </div>
+                                            </div>
+                                            ${member.status_message ? `
+                                                <div class="mb-2 pb-1 border-bottom border-light">
+                                                    <small class="text-dark"><i class="fas fa-info-circle me-1"></i>${member.status_message}</small>
+                                                </div>
+                                            ` : ''}
+                                            <div class="d-flex justify-content-between align-items-center pt-1 border-top border-light">
+                                                <small class="text-dark"><strong>Total Invoice Amount:</strong></small>
+                                                <small class="text-dark"><strong>$${(parseFloat(member.amount_past_due) + Math.min(100, Math.max(25, Math.ceil(parseFloat(member.amount_past_due) / 50) * 5))).toFixed(2)}</strong></small>
+                                            </div>
+                                        </div>
+                                    ` : ''}
+                                    <div class="mt-auto d-flex gap-1">
+                                        <a href="/member/${member.guid || member.prospect_id || member.id}" class="btn btn-sm btn-primary" title="View Profile">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <button class="btn btn-sm btn-warning" onclick="event.stopPropagation(); showQuickInvoiceModal('${member.id || member.guid}', '${displayName.replace(/'/g, "\\'")}', '${member.email || ''}')" title="Create Invoice">
+                                            <i class="fas fa-file-invoice-dollar"></i>
+                                        </button>
+                                        ${member.amount_past_due > 0 ? `
+                                            <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); showInvoicePreviewForMember('${member.id || member.guid}', '${displayName.replace(/'/g, "\\'")}', '${member.email || ''}', ${member.amount_past_due})" title="Send Past Due Invoice">
+                                                <i class="fas fa-exclamation-circle"></i>
+                                            </button>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            
+            console.log(`📝 Generated HTML length: ${html.length} characters`);
+            container.innerHTML = html;
+            console.log(`✅ HTML inserted into container`);
+            
+            // Update badge counts
+            const countBadge = document.getElementById(`${category}-count-badge`);
+            if (countBadge) {
+                countBadge.textContent = members.length;
+                console.log(`📊 Updated ${category} count badge to: ${members.length}`);
+            }
+            
+        } else {
+            throw new Error(data.error || `Failed to load ${category} members`);
+        }
+        
+    } catch (error) {
+        console.error(`❌ Error loading ${category} members:`, error);
+        container.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Error loading ${category} members: ${error.message}
+                    <button class="btn btn-sm btn-outline-danger ms-2" onclick="loadMembersByCategory('${category}')">
+                        <i class="fas fa-retry me-1"></i>Retry
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// Load category counts for all tabs
+async function loadCategoryCounts() {
+    console.log('🔢 Loading category counts...');
+    try {
+        const response = await fetch('/api/members/category-counts');
+        const data = await response.json();
+        
+        if (data.success) {
+            const counts = data.counts;
+            
+            // Update tab badges
+            document.getElementById('green-count-badge').textContent = counts.green || 0;
+            document.getElementById('comp-count-badge').textContent = counts.comp || 0;
+            document.getElementById('ppv-count-badge').textContent = counts.ppv || 0;
+            document.getElementById('staff-count-badge').textContent = counts.staff || 0;
+            document.getElementById('past-due-count-badge').textContent = counts.past_due || 0;
+            document.getElementById('inactive-count-badge').textContent = counts.inactive || 0;
+            
+            console.log('✅ Category counts updated:', counts);
+        } else {
+            console.error('❌ Failed to load category counts:', data.error);
+        }
+    } catch (error) {
+        console.error('❌ Error loading category counts:', error);
+    }
+}
+
 // Consolidated DOMContentLoaded listener for all page functionality
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Members page DOM loaded - setting up async functionality');
     
-    // Load all members immediately on page load
-    loadAllMembers();
+    // Load category counts immediately
+    console.log('📊 Loading category counts...');
+    loadCategoryCounts();
+    
+    // Load green members immediately on page load (default active tab)
+    console.log('🍃 Loading green members as default...');
+    loadMembersByCategory('green');
+    
+    // Check for cached data first
+    console.log('🔍 Checking for cached member data...');
+    checkCachedData();
     
     // Member search functionality
     const searchInput = document.getElementById('memberSearch');
@@ -1619,5 +2163,30 @@ document.addEventListener('DOMContentLoaded', function() {
     
     console.log('✅ Members page async setup complete');
 });
+
+// Check for cached data and load it if available
+async function checkCachedData() {
+    console.log('🔍 Checking for cached member data...');
+    try {
+        const response = await fetch('/api/members/all');
+        const data = await response.json();
+        
+        if (data.success && data.source === 'cache') {
+            console.log('✅ Using cached member data:', data.members.length, 'members');
+            // Cache the data locally for faster access
+            window.cachedMembers = data.members;
+        } else if (data.success) {
+            console.log('📊 Using database member data:', data.members.length, 'members');
+            // Cache the data locally for faster access
+            window.cachedMembers = data.members;
+        } else {
+            console.log('⚠️ No member data available');
+        }
+    } catch (error) {
+        console.error('❌ Error checking cached data:', error);
+    }
+}
+
+// Load category counts for all tabs
 </script>
 {% endblock %}

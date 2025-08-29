@@ -132,7 +132,7 @@ class ClubOSRealCalendarAPI:
             
             # Step 1: Get login page and extract CSRF token
             login_url = f"{self.base_url}/action/Login/view?__fsk=1221801756"
-            login_response = self.session.get(login_url)
+            login_response = self.session.get(login_url, verify=False)
             login_response.raise_for_status()
             
             from bs4 import BeautifulSoup
@@ -163,7 +163,8 @@ class ClubOSRealCalendarAPI:
                 f"{self.base_url}/action/Login",
                 data=login_data,
                 headers=login_headers,
-                allow_redirects=True
+                allow_redirects=True,
+                verify=False
             )
             
             # Step 3: Extract session information from cookies
@@ -1937,7 +1938,7 @@ def main():
     """
     # Import secrets
     try:
-        from config.secrets_local import get_secret
+        from .config.secrets_local import get_secret
         username = get_secret("clubos-username")
         password = get_secret("clubos-password")
     except:
