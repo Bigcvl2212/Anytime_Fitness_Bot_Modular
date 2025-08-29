@@ -29,8 +29,33 @@ def create_app_config(app):
             os.environ['SQUARE_LOCATION_ID'] = location_id
             os.environ['SQUARE_ENVIRONMENT'] = 'production'
             
-            # Now import the Square function
-            from ..services.payments.square_client_simple import create_square_invoice
+            # Import the REAL working Square client
+            import sys
+            import os
+            
+            # Print current directory for debugging
+            print(f"Current directory: {os.path.dirname(os.path.abspath(__file__))}")
+            
+            # Get absolute path to services directory
+            services_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../services'))
+            print(f"Services directory: {services_dir}")
+            
+            # Add services directory to path
+            if services_dir not in sys.path:
+                sys.path.insert(0, services_dir)
+                
+            # Import the working Square client
+            try:
+                from payments.square_client_working import create_square_invoice
+                print("✅ Successfully imported square_client_working")
+            except ImportError as e:
+                print(f"❌ Failed to import square_client_working: {e}")
+                # Fall back to simple implementation as last resort
+                try:
+                    from src.services.payments.square_client_simple import create_square_invoice
+                    print("⚠️ Using fallback square_client_simple")
+                except ImportError:
+                    print("❌ Failed to import any Square client")
             
             app.config['SQUARE_AVAILABLE'] = True
             app.config['SQUARE_CLIENT'] = create_square_invoice

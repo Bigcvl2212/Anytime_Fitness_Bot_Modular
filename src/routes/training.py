@@ -18,9 +18,17 @@ training_bp = Blueprint('training', __name__)
 
 
 def _get_db_connection():
-    # Prefer app db_manager (has Row factory set)
-    if hasattr(current_app, 'db_manager') and current_app.db_manager:
-        return current_app.db_manager.get_connection()
+    """Get a database connection with proper error handling for application context"""
+    from flask import current_app
+    
+    try:
+        # First try to get from current application context
+        if current_app and hasattr(current_app, 'db_manager') and current_app.db_manager:
+            return current_app.db_manager.get_connection()
+    except RuntimeError as e:
+        # Handle "Working outside of application context" error
+        logger.warning(f"⚠️ No Flask application context available, using direct database path: {e}")
+    
     # Fallback to absolute path
     db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'gym_bot.db')
     conn = sqlite3.connect(db_path)
@@ -31,6 +39,7 @@ def _get_db_connection():
 def get_active_packages_and_past_due(member_id):
     """
     Get active package names and REAL past due amount for a training client.
+    First try to get fresh data from ClubOS API, then fall back to database if that fails.
     
     Args:
         member_id (str): The clubos_member_id from training_clients table
@@ -38,11 +47,116 @@ def get_active_packages_and_past_due(member_id):
     Returns:
         tuple: (list of package names, total past due amount)
     """
+    from flask import current_app, Flask
+    
     try:
-        logger.info(f"🔍 Getting training packages for member {member_id} from database")
+        logger.info(f"🔍 Getting training packages for member {member_id}")
         
-        # Get package data from database
-        conn = _get_db_connection()
+        # Set application context if needed
+        flask_app = None
+        within_app_context = False
+        
+        try:
+            # First check if we are already in an app context
+            within_app_context = current_app._get_current_object() is not None
+        except RuntimeError:
+            # We're outside app context, create a temporary one if needed
+            import os
+            import sys
+            sys.path.append(os.path.join(os.path.dirname(__file__), '../..'))
+            from flask import Flask
+            flask_app = Flask(__name__)
+            # Set a dummy secret key
+            flask_app.secret_key = 'anytime-fitness-dashboard-temporary'
+            # Configure the app
+            from src.config.settings import create_app_config
+            create_app_config(flask_app)
+            within_app_context = False
+        
+        # Use the app context manager if we're not already in a context
+        app_context = flask_app.app_context() if flask_app else None
+        
+        if app_context and not within_app_context:
+            app_context.push()
+            logger.info(f"🔄 Created temporary application context for member {member_id}")
+        
+        try:
+            # Now we should have access to current_app safely
+            
+            # First try to get FRESH data from ClubOS API
+            if hasattr(current_app, 'clubos') and current_app.clubos:
+                try:
+                    # Get package details from API
+                    logger.info(f"🔄 Calling ClubOS API for member {member_id} package details")
+                    package_details = current_app.clubos.get_training_package_details(str(member_id))
+                    
+                    if package_details and package_details.get('success'):
+                        # Extract package names from agreements
+                        agreement_ids = package_details.get('agreement_ids', [])
+                        
+                        # If there are agreement IDs, get their details to extract package names
+                        package_names = []
+                        if agreement_ids and current_app.clubos.authenticated:
+                            for agreement_id in agreement_ids[:3]:  # Limit to 3 to avoid too many API calls
+                                try:
+                                    # Get agreement details
+                                    agreements = current_app.clubos.get_member_agreements(str(member_id))
+                                    for agreement in agreements:
+                                        # Extract package name
+                                        package_name = agreement.get('packageName') or agreement.get('name')
+                                        if package_name and package_name not in package_names:
+                                            package_names.append(package_name)
+                                except Exception as agreement_error:
+                                    logger.warning(f"⚠️ Error getting agreement details for {agreement_id}: {agreement_error}")
+                        
+                        # If no package names found, use a default
+                        if not package_names:
+                            package_names = ['Training Package']
+                        
+                        # Get past due amount from package details
+                        past_due_amount = float(package_details.get('amount_owed', 0.0))
+                        
+                        # Save to database for future use
+                        try:
+                            save_package_data_to_db(str(member_id), package_names, past_due_amount)
+                        except Exception as db_error:
+                            logger.warning(f"⚠️ Could not save package data to database: {db_error}")
+                        
+                        logger.info(f"✅ Retrieved from API: {len(package_names)} packages, ${past_due_amount} past due for member {member_id}")
+                        return package_names, past_due_amount
+                except Exception as api_error:
+                    logger.warning(f"⚠️ Could not get package details from API: {api_error}")
+            
+            # Fall back to database if API call fails
+            logger.info(f"🔍 Falling back to database for member {member_id}")
+            
+            # Safely use app context for database operations
+            db_path = None
+            
+            # First try to get database path from app context
+            try:
+                if current_app and hasattr(current_app, 'db_manager'):
+                    # Get connection directly from the app's database manager
+                    conn = current_app.db_manager.get_connection()
+                else:
+                    # Fall back to direct path
+                    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'gym_bot.db')
+                    conn = sqlite3.connect(db_path)
+                    conn.row_factory = sqlite3.Row
+            except RuntimeError:
+                # Handle "Working outside of application context" error
+                logger.warning(f"⚠️ No Flask application context available for {member_id}, using direct database path")
+                db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'gym_bot.db')
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+        finally:
+            # Clean up the temporary app context if we created one
+            if app_context and not within_app_context:
+                app_context.pop()
+                logger.info(f"🔄 Released temporary application context for member {member_id}")
+        
+        
+        # Execute database query
         cur = conn.cursor()
         cur.execute(
             """
@@ -94,6 +208,41 @@ def get_active_packages_and_past_due(member_id):
     except Exception as e:
         logger.error(f"❌ Error getting active packages and past due for {member_id}: {e}")
         return ['Training Package'], 0.0
+
+
+def save_package_data_to_db(member_id, package_names, past_due_amount):
+    """Save package data to database for future use"""
+    try:
+        conn = _get_db_connection()
+        cursor = conn.cursor()
+        
+        # Convert package names to JSON string
+        if isinstance(package_names, list):
+            package_names_json = json.dumps(package_names)
+        else:
+            package_names_json = json.dumps([str(package_names)])
+        
+        # Update the training client record
+        cursor.execute(
+            """
+            UPDATE training_clients
+            SET active_packages = ?, past_due_amount = ?, payment_status = ?
+            WHERE clubos_member_id = ?
+            """,
+            (
+                package_names_json,
+                past_due_amount,
+                'Past Due' if past_due_amount > 0 else 'Current',
+                str(member_id)
+            )
+        )
+        conn.commit()
+        conn.close()
+        logger.info(f"✅ Saved package data to database for member {member_id}")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Error saving package data to database: {e}")
+        return False
 
 
 @training_bp.route('/training-clients')

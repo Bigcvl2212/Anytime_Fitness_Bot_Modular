@@ -469,10 +469,8 @@ def api_create_invoice():
             amount = float(amount)
             
             # Create the invoice using the Square client
-            if member_email:
-                invoice_result = square_client(member_name, member_email, amount, description)
-            else:
-                invoice_result = square_client(member_name, amount, description)
+            # NOTE: email parameter is skipped as our current implementation doesn't use it
+            invoice_result = square_client(member_name, amount, description)
             
             # Handle different return types from square client
             if isinstance(invoice_result, dict):
@@ -603,10 +601,8 @@ def api_batch_invoices():
                 
                 # Create Square invoice
                 try:
-                    if email:
-                        invoice_result = square_client(member_name, email, total_amount, description)
-                    else:
-                        invoice_result = square_client(member_name, total_amount, description)
+                    # NOTE: email parameter is skipped as our current implementation doesn't use it
+                    invoice_result = square_client(member_name, total_amount, description)
                     
                     # Handle different return types
                     if isinstance(invoice_result, dict):

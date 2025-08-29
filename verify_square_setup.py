@@ -9,6 +9,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from config.secrets_local import get_secret
 
+# Token validation constants
+SQUARE_TOKEN_PREFIX = 'EAAA'
+SQUARE_TOKEN_MIN_LENGTH = 60
+
 def verify_credentials():
     """Verify credential format and structure"""
     print("🔐 CREDENTIAL VERIFICATION")
@@ -29,8 +33,8 @@ def verify_credentials():
     print(f"Sandbox Location: {sandbox_location[:10] if sandbox_location else 'None'}...")
     
     # Token format validation
-    prod_valid = prod_token and prod_token.startswith('EAAA') and len(prod_token) >= 60
-    sandbox_valid = sandbox_token and sandbox_token.startswith('EAAA') and len(sandbox_token) >= 60
+    prod_valid = prod_token and prod_token.startswith(SQUARE_TOKEN_PREFIX) and len(prod_token) >= SQUARE_TOKEN_MIN_LENGTH
+    sandbox_valid = sandbox_token and sandbox_token.startswith(SQUARE_TOKEN_PREFIX) and len(sandbox_token) >= SQUARE_TOKEN_MIN_LENGTH
     
     print(f"\nProduction token format: {'✅' if prod_valid else '❌'}")
     print(f"Sandbox token format: {'✅' if sandbox_valid else '❌'}")

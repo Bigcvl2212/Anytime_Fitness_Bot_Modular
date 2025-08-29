@@ -7,7 +7,10 @@ from datetime import datetime, timedelta
 from square.client import Square as SquareClient
 from square.environment import SquareEnvironment
 
-from ...config.constants import (
+# Fix imports to use absolute paths
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from config.constants import (
     SQUARE_ENVIRONMENT,
     SQUARE_SANDBOX_ACCESS_TOKEN_SECRET,
     SQUARE_PRODUCTION_ACCESS_TOKEN_SECRET,
@@ -15,7 +18,7 @@ from ...config.constants import (
     LATE_FEE_AMOUNT,
     YELLOW_RED_MESSAGE_TEMPLATE
 )
-from ...config.secrets import get_secret
+from config.secrets import get_secret
 
 
 def get_square_client():

@@ -171,6 +171,69 @@
         </div>
     </div>
 </div>
+
+<!-- Client Details Modal -->
+<div class="modal fade" id="clientDetailsModal" tabindex="-1" aria-labelledby="clientDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="clientDetailsModalLabel">Client Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="clientDetailsModalBody">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2">Loading client details...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="paymentModalLabel">Process Payment</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="paymentModalBody">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Payment processing will be available soon.
+                </div>
+                <div class="mb-3">
+                    <label for="paymentAmount" class="form-label">Payment Amount</label>
+                    <div class="input-group">
+                        <span class="input-group-text">$</span>
+                        <input type="number" class="form-control" id="paymentAmount" placeholder="0.00" step="0.01">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="paymentMethod" class="form-label">Payment Method</label>
+                    <select class="form-select" id="paymentMethod">
+                        <option value="credit_card">Credit Card</option>
+                        <option value="bank_transfer">Bank Transfer</option>
+                        <option value="cash">Cash</option>
+                        <option value="check">Check</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="paymentNotes" class="form-label">Notes</label>
+                    <textarea class="form-control" id="paymentNotes" rows="3"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="processPaymentBtn">Process Payment</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -194,11 +257,58 @@ async function loadTrainingClients() {
     countBadge.textContent = 'Loading...';
     
     try {
+        console.log('🔍 Fetching training clients data...');
         const response = await fetch('/api/training-clients/all');
         const data = await response.json();
         
         if (data.success) {
             trainingClients = data.training_clients;
+            
+            console.log('✅ Successfully fetched training clients:', trainingClients);
+            
+            // Preprocess clients to set agreement data
+            trainingClients.forEach((client, index) => {
+                // Extract past due amount
+                const pastDueAmount = parseFloat(client.past_due_amount || 0);
+                
+                // Process payment status
+                let paymentStatus = client.payment_status || 'Unknown';
+                let statusClass = 'success';
+                let statusIcon = 'fa-check-circle';
+                let statusText = 'Current';
+                
+                if (paymentStatus.toLowerCase().includes('past due') || pastDueAmount > 0) {
+                    statusClass = 'danger';
+                    statusIcon = 'fa-exclamation-triangle';
+                    statusText = 'Past Due';
+                } else if (paymentStatus.toLowerCase().includes('current')) {
+                    statusClass = 'success';
+                    statusIcon = 'fa-check-circle';
+                    statusText = 'Current';
+                } else if (paymentStatus.toLowerCase().includes('pending')) {
+                    statusClass = 'warning';
+                    statusIcon = 'fa-clock';
+                    statusText = 'Pending';
+                }
+                
+                // Set agreement data on client object
+                client.agreement_data = {
+                    status_class: statusClass,
+                    status_icon: statusIcon,
+                    status_text: statusText,
+                    amount_owed: pastDueAmount
+                };
+                
+                // Debug output
+                console.log(`Client ${client.member_name} (${client.id}): `, {
+                    payment_status: paymentStatus,
+                    past_due_amount: pastDueAmount,
+                    agreement_data: client.agreement_data,
+                    active_packages: client.active_packages
+                });
+            });
+            
+            // Render clients with prepared data
             renderClients(trainingClients);
             updateStats();
             countBadge.textContent = trainingClients.length;
@@ -240,24 +350,82 @@ function renderClients(clients) {
         // DEBUG: Log each client
         console.log(`🔍 DEBUG: Client ${index}:`, client);
         
-        // Use REAL cached ClubOS data instead of loading states
-        const activePackages = client.active_packages || ['Training Package'];
+        // Extract the member name
+        const memberName = client.member_name || 'Unknown Client';
+        
+        // Process agreement data if available
+        let packageName = client.package_name || 'Training Package';
+        let activePackages = [];
+        
+        try {
+            // Handle both string and array formats for active_packages
+            if (client.active_packages && Array.isArray(client.active_packages)) {
+                activePackages = client.active_packages;
+            } else if (client.active_packages && typeof client.active_packages === 'string') {
+                // Sometimes it comes as a string, try to parse it
+                try {
+                    activePackages = JSON.parse(client.active_packages);
+                } catch (e) {
+                    // If parsing fails, use it as a single item
+                    activePackages = [client.active_packages];
+                }
+            } else if (packageName) {
+                activePackages = [packageName];
+            }
+        } catch (e) {
+            console.warn(`Error processing packages for ${memberName}:`, e);
+            activePackages = [packageName];
+        }
+        
         const packageDisplay = activePackages.length > 0 ? 
             activePackages.map(pkg => escapeHtml(pkg)).join(', ') : 
             'No active packages';
         
-        // Use REAL cached past due amounts from ClubOS invoice data
-        const pastDueAmount = client.past_due_amount || 0;
+        // Get the right ID from various possible sources
+        const clientId = client.clubos_member_id || client.member_id || client.prospect_id || '';
+        
+        // Determine funding status and agreement data
+        const pastDueAmount = parseFloat(client.past_due_amount || 0);
+        
+        // Process payment status
+        let paymentStatus = client.payment_status || 'Unknown';
+        let statusClass = 'success';
+        let statusIcon = 'fa-check-circle';
+        let statusText = 'Current';
+        
+        if (paymentStatus.toLowerCase().includes('past due') || pastDueAmount > 0) {
+            statusClass = 'danger';
+            statusIcon = 'fa-exclamation-triangle';
+            statusText = 'Past Due';
+        } else if (paymentStatus.toLowerCase().includes('current')) {
+            statusClass = 'success';
+            statusIcon = 'fa-check-circle';
+            statusText = 'Current';
+        } else if (paymentStatus.toLowerCase().includes('pending')) {
+            statusClass = 'warning';
+            statusIcon = 'fa-clock';
+            statusText = 'Pending';
+        }
+        
+        // Prepare agreement data
+        client.agreement_data = {
+            status_class: statusClass,
+            status_icon: statusIcon,
+            status_text: statusText,
+            amount_owed: pastDueAmount
+        };
+        
+        // Format past due display
         const pastDueDisplay = pastDueAmount > 0 ? 
             `$${pastDueAmount.toFixed(2)} Past Due` : 
             'Current';
         
         const pastDueClass = pastDueAmount > 0 ? 'text-danger fw-bold' : 'text-success';
         
-        console.log(`✅ DEBUG: Client ${index} - Name: ${client.member_name}, Packages: ${packageDisplay}, Past Due: ${pastDueDisplay}`);
+        console.log(`✅ DEBUG: Client ${index} - Name: ${client.member_name}, Packages: ${packageDisplay}, Past Due: ${pastDueDisplay}, Agreement Data:`, client.agreement_data);
         
         return `
-        <div class="client-card card mb-3" onclick="window.location.href='/training-client/${client.member_id || client.prospect_id || client.clubos_member_id}'">
+        <div class="client-card card mb-3">
             <div class="card-body">
                 <div class="row align-items-center">
                     <div class="col-md-5">
@@ -265,9 +433,18 @@ function renderClients(clients) {
                             ${escapeHtml(client.member_name || 'Unknown Client')}
                         </h6>
                         <div class="agreement-name-display mb-2">
-                            <div class="text-primary fw-semibold">
+                            <div class="text-primary fw-semibold" style="margin-bottom: 0.5rem; background-color: #f8f9ff; padding: 0.5rem; border-radius: 0.375rem; border-left: 3px solid #0d6efd;">
                                 <i class="fas fa-file-contract me-1"></i> ${packageDisplay}
                             </div>
+                            ${client.agreement_data ? `
+                            <div class="text-muted small mt-1" style="${client.agreement_data.amount_owed > 0 ? 'background-color: #fff3f3; padding: 0.5rem; border-radius: 0.375rem; border-left: 3px solid #dc3545;' : ''}">
+                                <span class="badge bg-${client.agreement_data.status_class || 'secondary'} text-white me-1">
+                                    <i class="fas ${client.agreement_data.status_icon || 'fa-info-circle'} me-1"></i>
+                                    ${client.agreement_data.status_text || 'Unknown'}
+                                </span>
+                                ${client.agreement_data.amount_owed > 0 ? 
+                                `<span class="text-danger fw-bold">$${client.agreement_data.amount_owed.toFixed(2)} due</span>` : ''}
+                            </div>` : ''}
                         </div>
                         <div class="trainer-info small text-muted">
                             <i class="fas fa-user-tie me-1"></i>
@@ -288,17 +465,28 @@ function renderClients(clients) {
                     </div>
                     <div class="col-md-2">
                         <div class="text-center">
-                            <div class="${pastDueClass}">
+                            <div class="${pastDueClass}" style="${pastDueAmount > 0 ? 'background-color: #fff3f3; padding: 0.5rem; border-radius: 0.375rem; border-left: 3px solid #dc3545;' : ''}">
                                 <i class="fas ${pastDueAmount > 0 ? 'fa-exclamation-triangle' : 'fa-check-circle'} me-1"></i>
                                 ${pastDueDisplay}
                             </div>
+                            ${client.agreement_data && client.agreement_data.amount_owed > 0 ? 
+                             `<div class="small text-muted mt-1">
+                                <button
+                                   class="btn btn-outline-danger btn-sm mt-1 process-payment-btn" 
+                                   data-client-id="${client.id || index}"
+                                   title="Process Payment">
+                                  <i class="fas fa-credit-card"></i> Pay Now
+                                </button>
+                              </div>` : ''}
                         </div>
                     </div>
                     <div class="col-md-2 text-end">
-                        <a href="/training-client/${client.prospect_id || client.member_id || client.clubos_member_id}" 
-                           class="btn btn-outline-primary btn-sm" title="View Profile" onclick="event.stopPropagation();">
+                        <button 
+                           class="btn btn-outline-primary btn-sm view-client-details-btn" 
+                           data-client-id="${client.id || index}"
+                           title="View Profile">
                             <i class="fas fa-eye"></i> View
-                        </a>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -419,6 +607,368 @@ function escapeHtml(unsafe) {
 
 function refreshTrainingClients() {
     loadTrainingClients();
+}
+
+// Add event listeners for client card buttons
+function addClientButtonListeners() {
+    // View button
+    document.querySelectorAll('.view-client-details-btn').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const clientId = this.getAttribute('data-client-id');
+            showClientDetails(clientId);
+        });
+    });
+    
+    // Process payment button
+    document.querySelectorAll('.process-payment-btn').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const clientId = this.getAttribute('data-client-id');
+            showPaymentModal(clientId);
+        });
+    });
+    
+    // Refresh button
+    document.querySelectorAll('.refresh-client-btn').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            const clientId = this.getAttribute('data-client-id');
+            refreshClientData(clientId);
+        });
+    });
+    
+    // Make entire card clickable (to show details)
+    document.querySelectorAll('.client-card').forEach(card => {
+        card.addEventListener('click', function(e) {
+            // Don't trigger if clicking on a button
+            if (e.target.closest('button') || e.target.closest('a')) {
+                return;
+            }
+            
+            const clientId = this.querySelector('[data-client-id]')?.getAttribute('data-client-id');
+            if (clientId) {
+                showClientDetails(clientId);
+            }
+        });
+    });
+}
+
+// Show client details modal
+function showClientDetails(clientId) {
+    console.log(`Showing details for client ID: ${clientId}`);
+    
+    // Find the client by ID
+    const client = trainingClients.find(c => c.id == clientId);
+    
+    if (!client) {
+        console.error(`Client with ID ${clientId} not found`);
+        return;
+    }
+    
+    // Get modal elements
+    const modal = new bootstrap.Modal(document.getElementById('clientDetailsModal'));
+    const modalTitle = document.getElementById('clientDetailsModalLabel');
+    const modalBody = document.getElementById('clientDetailsModalBody');
+    
+    // Set modal title
+    modalTitle.textContent = `Client Details: ${client.member_name || 'Unknown Client'}`;
+    
+    // Initial modal content with loading indicator
+    modalBody.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3">Fetching real-time agreement data...</p>
+        </div>
+    `;
+    
+    // Show the modal immediately with loading state
+    modal.show();
+    
+    // Fetch fresh agreement data from API
+    const memberId = client.member_id || client.clubos_member_id;
+    
+    if (memberId) {
+        console.log(`Fetching fresh agreement data for member ID: ${memberId}`);
+        
+        // Make API call to get fresh data
+        fetch(`/api/training-clients/${memberId}/packages`)
+            .then(response => response.json())
+            .then(data => {
+                console.log('Received fresh agreement data:', data);
+                
+                // Update client object with fresh data
+                if (data.success) {
+                    client.active_packages = data.active_packages;
+                    client.past_due_amount = data.past_due_amount;
+                    client.payment_status = data.payment_status;
+                }
+                
+                // Get payment/agreement status
+                const pastDueAmount = parseFloat(client.past_due_amount || 0);
+                const paymentStatus = client.payment_status || 'Unknown';
+                
+                // Format payment status badge
+                let statusBadgeHtml = '';
+                if (paymentStatus.toLowerCase().includes('past due') || pastDueAmount > 0) {
+                    statusBadgeHtml = `<span class="badge bg-danger text-white">Past Due</span>`;
+                } else if (paymentStatus.toLowerCase().includes('current')) {
+                    statusBadgeHtml = `<span class="badge bg-success text-white">Current</span>`;
+                } else if (paymentStatus.toLowerCase().includes('pending')) {
+                    statusBadgeHtml = `<span class="badge bg-warning text-dark">Pending</span>`;
+                } else {
+                    statusBadgeHtml = `<span class="badge bg-secondary">Unknown</span>`;
+                }
+                
+                // Format active packages
+                let packageDisplay = '';
+                if (client.active_packages && client.active_packages.length > 0) {
+                    packageDisplay = Array.isArray(client.active_packages) 
+                        ? client.active_packages.join(', ') 
+                        : client.active_packages;
+                } else {
+                    packageDisplay = 'No active packages';
+                }
+                
+                // Build modal content
+                modalBody.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header bg-light">
+                                    <h5 class="mb-0">Client Information</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Name:</strong> ${escapeHtml(client.member_name || 'N/A')}</p>
+                                    <p><strong>Email:</strong> ${escapeHtml(client.email || 'N/A')}</p>
+                                    <p><strong>Phone:</strong> ${escapeHtml(client.phone || 'N/A')}</p>
+                                    <p><strong>Trainer:</strong> ${escapeHtml(client.trainer_name || 'Not assigned')}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header bg-light">
+                                    <h5 class="mb-0">Membership Status</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>Status:</strong> ${statusBadgeHtml}</p>
+                                    <p><strong>Sessions Remaining:</strong> ${client.sessions_remaining || 0}</p>
+                                    <p><strong>Last Session:</strong> ${escapeHtml(client.last_session || 'Never')}</p>
+                                    ${pastDueAmount > 0 ? `
+                                    <div class="alert alert-danger mt-3">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        <strong>Past Due Amount:</strong> $${pastDueAmount.toFixed(2)}
+                                    </div>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mb-3">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Active Packages</h5>
+                            <span class="badge bg-primary">LIVE DATA</span>
+                        </div>
+                        <div class="card-body">
+                            <p>${packageDisplay}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">System Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Client ID:</strong> ${client.id || 'N/A'}</p>
+                            <p><strong>Member ID:</strong> ${client.member_id || 'N/A'}</p>
+                            <p><strong>Prospect ID:</strong> ${client.prospect_id || 'N/A'}</p>
+                        </div>
+                    </div>
+                `;
+            })
+            .catch(error => {
+                console.error('Error fetching agreement data:', error);
+                
+                // Show error message in modal
+                modalBody.innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        <strong>Error:</strong> Could not fetch fresh agreement data.
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">Client Information (Cached)</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Name:</strong> ${escapeHtml(client.member_name || 'N/A')}</p>
+                            <p><strong>Email:</strong> ${escapeHtml(client.email || 'N/A')}</p>
+                            <p><strong>Phone:</strong> ${escapeHtml(client.phone || 'N/A')}</p>
+                            <p><strong>Trainer:</strong> ${escapeHtml(client.trainer_name || 'Not assigned')}</p>
+                        </div>
+                    </div>
+                `;
+            });
+    } else {
+        // No member ID, show cached data
+        // Get payment/agreement status
+        const pastDueAmount = parseFloat(client.past_due_amount || 0);
+        const paymentStatus = client.payment_status || 'Unknown';
+        
+        // Format payment status badge
+        let statusBadgeHtml = '';
+        if (paymentStatus.toLowerCase().includes('past due') || pastDueAmount > 0) {
+            statusBadgeHtml = `<span class="badge bg-danger text-white">Past Due</span>`;
+        } else if (paymentStatus.toLowerCase().includes('current')) {
+            statusBadgeHtml = `<span class="badge bg-success text-white">Current</span>`;
+        } else if (paymentStatus.toLowerCase().includes('pending')) {
+            statusBadgeHtml = `<span class="badge bg-warning text-dark">Pending</span>`;
+        } else {
+            statusBadgeHtml = `<span class="badge bg-secondary">Unknown</span>`;
+        }
+        
+        // Format active packages
+        let packageDisplay = '';
+        if (client.active_packages && client.active_packages.length > 0) {
+            packageDisplay = Array.isArray(client.active_packages) 
+                ? client.active_packages.join(', ') 
+                : client.active_packages;
+        } else {
+            packageDisplay = 'No active packages';
+        }
+        
+        // Build modal content
+        modalBody.innerHTML = `
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>Warning:</strong> No member ID found. Showing cached data.
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">Client Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Name:</strong> ${escapeHtml(client.member_name || 'N/A')}</p>
+                            <p><strong>Email:</strong> ${escapeHtml(client.email || 'N/A')}</p>
+                            <p><strong>Phone:</strong> ${escapeHtml(client.phone || 'N/A')}</p>
+                            <p><strong>Trainer:</strong> ${escapeHtml(client.trainer_name || 'Not assigned')}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <h5 class="mb-0">Membership Status</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Status:</strong> ${statusBadgeHtml}</p>
+                            <p><strong>Sessions Remaining:</strong> ${client.sessions_remaining || 0}</p>
+                            <p><strong>Last Session:</strong> ${escapeHtml(client.last_session || 'Never')}</p>
+                            ${pastDueAmount > 0 ? `
+                            <div class="alert alert-danger mt-3">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>Past Due Amount:</strong> $${pastDueAmount.toFixed(2)}
+                            </div>` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-3">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">Active Packages</h5>
+                </div>
+                <div class="card-body">
+                    <p>${packageDisplay}</p>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">System Information</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Client ID:</strong> ${client.id || 'N/A'}</p>
+                    <p><strong>Member ID:</strong> ${client.member_id || 'N/A'}</p>
+                    <p><strong>Prospect ID:</strong> ${client.prospect_id || 'N/A'}</p>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// Show payment modal
+function showPaymentModal(clientId) {
+    console.log(`Showing payment modal for client ID: ${clientId}`);
+    
+    // Find the client by ID
+    const client = trainingClients.find(c => c.id == clientId);
+    
+    if (!client) {
+        console.error(`Client with ID ${clientId} not found`);
+        return;
+    }
+    
+    // Get modal elements
+    const modal = new bootstrap.Modal(document.getElementById('paymentModal'));
+    const modalTitle = document.getElementById('paymentModalLabel');
+    const paymentAmountInput = document.getElementById('paymentAmount');
+    
+    // Set modal title
+    modalTitle.textContent = `Process Payment: ${client.member_name || 'Unknown Client'}`;
+    
+    // Set default payment amount to past due amount
+    const pastDueAmount = parseFloat(client.past_due_amount || 0);
+    paymentAmountInput.value = pastDueAmount.toFixed(2);
+    
+    // Set up process payment button
+    const processPaymentBtn = document.getElementById('processPaymentBtn');
+    processPaymentBtn.onclick = function() {
+        const amount = paymentAmountInput.value;
+        const method = document.getElementById('paymentMethod').value;
+        const notes = document.getElementById('paymentNotes').value;
+        
+        // For now, just show an alert - this would normally call an API
+        alert(`Payment processing for ${client.member_name}: $${amount} via ${method}\n\nNotes: ${notes}\n\nThis feature is not yet implemented.`);
+        
+        // Close the modal
+        modal.hide();
+    };
+    
+    // Show the modal
+    modal.show();
+}
+
+// Refresh client data
+function refreshClientData(clientId) {
+    console.log(`Refreshing data for client ID: ${clientId}`);
+    
+    // Find the client card
+    const clientCard = document.querySelector(`.client-card [data-client-id="${clientId}"]`)?.closest('.client-card');
+    
+    if (!clientCard) {
+        console.error(`Client card with ID ${clientId} not found`);
+        return;
+    }
+    
+    // Show loading spinner
+    clientCard.innerHTML = `
+        <div class="card-body text-center py-4">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2">Refreshing client data...</p>
+        </div>
+    `;
+    
+    // Refresh all clients data (in a real app, we might refresh just this one client)
+    setTimeout(() => {
+        loadTrainingClients();
+    }, 500);
 }
 </script>
 {% endblock %}
