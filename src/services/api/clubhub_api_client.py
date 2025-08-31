@@ -295,92 +295,199 @@ class ClubHubAPIClient:
             return None
     
     def get_all_members_paginated(self) -> List[Dict[str, Any]]:
-        """Get all members with pagination"""
-        all_members = []
+        """Get all members with pagination - OPTIMIZED with parallel page fetching"""
+        start_time = time.time()
+        
+        # First, determine total number of pages by checking until we find the end
+        print("🔍 Determining total pages for parallel fetching...")
+        total_pages = 0
         page = 1
-        max_pages = 100  # Safety limit
+        max_pages = 100  # Safety limit to prevent infinite loops
         
         while page <= max_pages:
-            print(f"🔍 Fetching members page {page}...")
             response = self.get_all_members(page=page, page_size=100)
-            
-            if not response:
+            if response:
+                if isinstance(response, list):
+                    members = response
+                else:
+                    members = response.get('members', [])
+                
+                if members and len(members) > 0:
+                    total_pages += 1
+                    print(f"📄 Found page {page} with {len(members)} members")
+                    
+                    # If we got less than 100 members, we've reached the end
+                    if len(members) < 100:
+                        print(f"✅ Reached end of members list on page {page}")
+                        break
+                else:
+                    print(f"✅ No more members found on page {page}")
+                    break
+            else:
                 print(f"❌ Failed to fetch page {page}")
                 break
             
-            # Handle both cases: response is a dict with 'members' key, or response is a list directly
-            if isinstance(response, list):
-                members = response
-            else:
-                members = response.get('members', [])
-            
-            if not members:
-                print(f"✅ No more members found on page {page}")
-                break
-            
-            all_members.extend(members)
-            print(f"✅ Page {page}: {len(members)} members (Total: {len(all_members)})")
-            
-            if len(members) < 100:
-                print("✅ Reached end of members list")
-                break
-            
             page += 1
-            time.sleep(0.1)  # Rate limiting
         
+        if total_pages == 0:
+            print("❌ Could not determine total pages")
+            return []
+        
+        print(f"📊 Estimated {total_pages} pages to fetch, starting parallel processing...")
+        
+        # Fetch all pages in parallel
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        def fetch_members_page(page_num):
+            """Fetch a single members page"""
+            try:
+                response = self.get_all_members(page=page_num, page_size=100)
+                if response:
+                    if isinstance(response, list):
+                        members = response
+                    else:
+                        members = response.get('members', [])
+                    
+                    if members:
+                        print(f"✅ Page {page_num}: {len(members)} members")
+                        return members
+                return []
+            except Exception as e:
+                print(f"❌ Error fetching page {page_num}: {e}")
+                return []
+        
+        all_members = []
+        completed_pages = 0
+        
+        # Use ThreadPoolExecutor to fetch pages in parallel
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            # Submit all page fetching tasks
+            future_to_page = {executor.submit(fetch_members_page, page_num): page_num for page_num in range(1, total_pages + 1)}
+            
+            # Process completed tasks
+            for future in as_completed(future_to_page):
+                page_num = future_to_page[future]
+                try:
+                    members = future.result()
+                    if members:
+                        all_members.extend(members)
+                        completed_pages += 1
+                        
+                        # Progress update
+                        if completed_pages % 5 == 0:
+                            elapsed = time.time() - start_time
+                            print(f"⏱️ Progress: {completed_pages}/{total_pages} pages, {len(all_members)} members after {elapsed:.2f} seconds")
+                            
+                except Exception as e:
+                    print(f"❌ Error processing page {page_num}: {e}")
+        
+        elapsed = time.time() - start_time
+        print(f"🎉 FINAL RESULT: {len(all_members)} members fetched from {completed_pages} pages in {elapsed:.2f} seconds")
         return all_members
     
     def get_all_prospects_paginated(self) -> List[Dict[str, Any]]:
-        """Get all prospects with pagination - NO PAGE LIMIT to get all 9000+ prospects"""
-        all_prospects = []
-        page = 1
+        """Get all prospects with pagination - OPTIMIZED with parallel page fetching"""
         start_time = time.time()
         
-        while True:  # NO MAX PAGE LIMIT - just keep going until no more data
-            print(f"🔍 Fetching prospects page {page}...")
+        # First, determine total number of pages by checking until we find the end
+        print("🔍 Determining total pages for parallel fetching...")
+        total_pages = 0
+        page = 1
+        max_pages = 200  # Safety limit to prevent infinite loops
+        
+        while page <= max_pages:
             response = self.get_all_prospects(page=page, page_size=100)
-            
-            if not response:
+            if response:
+                if isinstance(response, list):
+                    prospects = response
+                elif isinstance(response, dict):
+                    prospects = response.get('prospects', [])
+                    if not prospects:
+                        for key in ['data', 'results', 'items', 'content']:
+                            if key in response:
+                                prospects = response[key]
+                                break
+                else:
+                    prospects = []
+                
+                if prospects and len(prospects) > 0:
+                    total_pages += 1
+                    print(f"📄 Found page {page} with {len(prospects)} prospects")
+                    
+                    # If we got less than 100 prospects, we've reached the end
+                    if len(prospects) < 100:
+                        print(f"✅ Reached end of prospects list on page {page}")
+                        break
+                else:
+                    print(f"✅ No more prospects found on page {page}")
+                    break
+            else:
                 print(f"❌ Failed to fetch page {page}")
                 break
             
-            # Handle both direct list response AND dict response formats
-            if isinstance(response, list):
-                prospects = response
-            elif isinstance(response, dict):
-                prospects = response.get('prospects', [])
-                if not prospects:
-                    # Try other possible key names
-                    for key in ['data', 'results', 'items', 'content']:
-                        if key in response:
-                            prospects = response[key]
-                            break
-            else:
-                prospects = []
-            
-            if not prospects or len(prospects) == 0:
-                print(f"✅ No more prospects found on page {page}")
-                break
-            
-            all_prospects.extend(prospects)
-            print(f"✅ Page {page}: {len(prospects)} prospects (Total: {len(all_prospects)})")
-            
-            # If we got less than the page size, we've reached the end
-            if len(prospects) < 100:
-                print("✅ Reached end of prospects list")
-                break
-            
             page += 1
+        
+        if total_pages == 0:
+            print("❌ Could not determine total pages")
+            return []
+        
+        print(f"📊 Estimated {total_pages} pages to fetch, starting parallel processing...")
+        
+        # Fetch all pages in parallel
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        def fetch_prospects_page(page_num):
+            """Fetch a single prospects page"""
+            try:
+                response = self.get_all_prospects(page=page_num, page_size=100)
+                if response:
+                    if isinstance(response, list):
+                        prospects = response
+                    elif isinstance(response, dict):
+                        prospects = response.get('prospects', [])
+                        if not prospects:
+                            for key in ['data', 'results', 'items', 'content']:
+                                if key in response:
+                                    prospects = response[key]
+                                    break
+                    else:
+                        prospects = []
+                    
+                    if prospects:
+                        print(f"✅ Page {page_num}: {len(prospects)} prospects")
+                        return prospects
+                return []
+            except Exception as e:
+                print(f"❌ Error fetching page {page_num}: {e}")
+                return []
+        
+        all_prospects = []
+        completed_pages = 0
+        
+        # Use ThreadPoolExecutor to fetch pages in parallel
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            # Submit all page fetching tasks
+            future_to_page = {executor.submit(fetch_prospects_page, page_num): page_num for page_num in range(1, total_pages + 1)}
             
-            # Progress update every 10 pages
-            if page % 10 == 0:
-                elapsed = time.time() - start_time
-                print(f"⏱️ Progress: {len(all_prospects)} prospects after {elapsed:.2f} seconds")
-                
-            time.sleep(0.1)  # Rate limiting
+            # Process completed tasks
+            for future in as_completed(future_to_page):
+                page_num = future_to_page[future]
+                try:
+                    prospects = future.result()
+                    if prospects:
+                        all_prospects.extend(prospects)
+                        completed_pages += 1
+                        
+                        # Progress update
+                        if completed_pages % 5 == 0:
+                            elapsed = time.time() - start_time
+                            print(f"⏱️ Progress: {completed_pages}/{total_pages} pages, {len(all_prospects)} prospects after {elapsed:.2f} seconds")
+                            
+                except Exception as e:
+                    print(f"❌ Error processing page {page_num}: {e}")
         
         elapsed = time.time() - start_time
-        print(f"🎉 FINAL RESULT: {len(all_prospects)} prospects fetched in {elapsed:.2f} seconds")
+        print(f"🎉 FINAL RESULT: {len(all_prospects)} prospects fetched from {completed_pages} pages in {elapsed:.2f} seconds")
         return all_prospects
 
 if __name__ == "__main__":

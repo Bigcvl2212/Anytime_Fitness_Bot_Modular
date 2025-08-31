@@ -201,10 +201,16 @@ def training_client_profile(member_id):
                 if not client_data.get('member_name'):
                     client_data['member_name'] = client_data.get('name') or 'Unknown Client'
                 
-                # Create financial summary from real ClubOS data
-                financial_summary = get_training_client_financial_summary(member_id)
+                # Use cached financial data instead of making fresh API calls
+                financial_summary = {
+                    'total_past_due': client_data.get('total_past_due', 0.0),
+                    'active_agreements': len(client_data.get('package_details', [])) if client_data.get('package_details') else 1,
+                    'total_sessions': client_data.get('sessions_remaining', 0),
+                    'total_value': 0.0,  # We'll calculate this from package_details if needed
+                    'payment_status': client_data.get('payment_status', 'Current')
+                }
                 
-                logger.info(f"✅ Found training client {member_id} in cache")
+                logger.info(f"✅ Found training client {member_id} in cache with past due: ${financial_summary['total_past_due']}")
                 return render_template('training_client_profile.html', 
                                      client=client_data, 
                                      training_client=client_data,
@@ -229,10 +235,16 @@ def training_client_profile(member_id):
                                         'Unknown Client')
             conn.close()
             
-            # Create financial summary from real ClubOS data
-            financial_summary = get_training_client_financial_summary(member_id)
+            # Use database financial data instead of making fresh API calls
+            financial_summary = {
+                'total_past_due': client_data.get('total_past_due', 0.0),
+                'active_agreements': len(client_data.get('package_details', [])) if client_data.get('package_details') else 1,
+                'total_sessions': client_data.get('sessions_remaining', 0),
+                'total_value': 0.0,  # We'll calculate this from package_details if needed
+                'payment_status': client_data.get('payment_status', 'Current')
+            }
             
-            logger.info(f"✅ Found training client {member_id} in database")
+            logger.info(f"✅ Found training client {member_id} in database with past due: ${financial_summary['total_past_due']}")
             return render_template('training_client_profile.html', 
                                  client=client_data, 
                                  training_client=client_data,
@@ -449,17 +461,115 @@ def get_all_training_clients():
 
 @training_bp.route('/api/training-clients/<member_id>/agreements')
 def get_member_package_agreements(member_id):
-    """Get training package agreements for a specific member."""
+    """Get training package agreements for a specific member from cached data."""
     try:
-        # Get agreements from ClubOS
-        agreements = current_app.clubos.get_member_agreements(member_id)
+        # First try to get from cached data (which has our improved calculations)
+        if hasattr(current_app, 'data_cache') and current_app.data_cache.get('training_clients'):
+            cached_clients = current_app.data_cache['training_clients']
+            client_data = None
+            
+            # Search for training client in cache by ID
+            for client in cached_clients:
+                if (str(client.get('id')) == str(member_id) or 
+                    str(client.get('member_id')) == str(member_id) or
+                    str(client.get('clubos_member_id')) == str(member_id)):
+                    client_data = client.copy()
+                    break
+            
+            if client_data and client_data.get('package_details'):
+                # Use our cached package details which have the correct past due amounts
+                agreements = []
+                package_details = client_data.get('package_details', [])
+                
+                if isinstance(package_details, str):
+                    try:
+                        import json
+                        package_details = json.loads(package_details)
+                    except:
+                        package_details = [package_details]
+                
+                for package in package_details:
+                    if isinstance(package, dict):
+                        agreement = {
+                            'agreement_id': package.get('agreement_id', 'Unknown'),
+                            'package_name': package.get('package_name', 'Training Package'),
+                            'amount_owed': package.get('amount_owed', 0.0),
+                            'payment_status': package.get('payment_status', 'Current'),
+                            'sessions_remaining': package.get('sessions_remaining', 0),
+                            'amount': package.get('amount', 0.0),
+                            'created_date': package.get('created_date', ''),
+                            'invoice_count': package.get('invoice_count', 0),
+                            'scheduled_payments_count': package.get('scheduled_payments_count', 0)
+                        }
+                        agreements.append(agreement)
+                
+                logger.info(f"✅ Retrieved {len(agreements)} agreements from cache for member {member_id}")
+                return jsonify({'success': True, 'agreements': agreements, 'source': 'cache'})
         
-        if agreements:
-            logger.info(f"✅ Retrieved {len(agreements)} agreements for member {member_id}")
-            return jsonify({'success': True, 'agreements': agreements})
-        else:
-            logger.info(f"ℹ️ No agreements found for member {member_id}")
-            return jsonify({'success': True, 'agreements': []})
+        # Fallback to database
+        conn = current_app.db_manager.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT package_details, total_past_due, payment_status, sessions_remaining
+            FROM training_clients 
+            WHERE member_id = ? OR clubos_member_id = ? OR id = ?
+        """, (member_id, member_id, member_id))
+        
+        client_record = cursor.fetchone()
+        if client_record:
+            package_details = client_record[0]  # package_details column
+            total_past_due = client_record[1]  # total_past_due column
+            payment_status = client_record[2]  # payment_status column
+            sessions_remaining = client_record[3]  # sessions_remaining column
+            
+            conn.close()
+            
+            # Parse package details and create agreements
+            agreements = []
+            if package_details:
+                try:
+                    import json
+                    if isinstance(package_details, str):
+                        package_details = json.loads(package_details)
+                    
+                    for package in package_details:
+                        if isinstance(package, dict):
+                            agreement = {
+                                'agreement_id': package.get('agreement_id', 'Unknown'),
+                                'package_name': package.get('package_name', 'Training Package'),
+                                'amount_owed': package.get('amount_owed', 0.0),
+                                'payment_status': package.get('payment_status', payment_status),
+                                'sessions_remaining': package.get('sessions_remaining', sessions_remaining),
+                                'amount': package.get('amount', 0.0),
+                                'created_date': package.get('created_date', ''),
+                                'invoice_count': package.get('invoice_count', 0),
+                                'scheduled_payments_count': package.get('scheduled_payments_count', 0)
+                            }
+                            agreements.append(agreement)
+                except Exception as e:
+                    logger.warning(f"⚠️ Error parsing package details for member {member_id}: {e}")
+                    # Fallback: create a simple agreement with total past due
+                    agreements = [{
+                        'agreement_id': 'Unknown',
+                        'package_name': 'Training Package',
+                        'amount_owed': total_past_due,
+                        'payment_status': payment_status,
+                        'sessions_remaining': sessions_remaining,
+                        'amount': 0.0,
+                        'created_date': '',
+                        'invoice_count': 0,
+                        'scheduled_payments_count': 0
+                    }]
+            
+            logger.info(f"✅ Retrieved {len(agreements)} agreements from database for member {member_id}")
+            return jsonify({'success': True, 'agreements': agreements, 'source': 'database'})
+        
+        conn.close()
+        
+        # If no data found, return empty list
+        logger.info(f"ℹ️ No agreements found for member {member_id}")
+        return jsonify({'success': True, 'agreements': [], 'source': 'none'})
             
     except Exception as e:
         logger.error(f"❌ Error getting agreements for member {member_id}: {e}")

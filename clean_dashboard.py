@@ -3196,6 +3196,66 @@ def get_past_due_members():
                             'last_visit': str(member.get('lastVisit', member.get('last_visit', member.get('LastVisit', ''))))
                         }
                         
+                        # NOW GET THE ACTUAL BILLING DATA WITH THE THREE FIELDS YOU WANT
+                        try:
+                            # Import the fresh data API to get real billing details
+                            from src.clubos_fresh_data_api import ClubOSFreshDataAPI
+                            fresh_api = ClubOSFreshDataAPI()
+                            
+                            if fresh_api.authenticate():
+                                # Get real billing data for this member
+                                billing_data = fresh_api.get_member_agreement_details(member_data['id'])
+                                
+                                if billing_data and billing_data.get('agreement'):
+                                    agreement = billing_data['agreement']
+                                    billing_details = billing_data.get('billing_details', {})
+                                    
+                                    # Extract real past due information
+                                    past_due_amount = 0.0
+                                    missed_payments = 0
+                                    late_fees = 0.0
+                                    
+                                    # Check invoices for past due amounts
+                                    invoices = billing_details.get('invoices', [])
+                                    for invoice in invoices:
+                                        if invoice.get('status') == 'past_due' or invoice.get('overdue', False):
+                                            past_due_amount += float(invoice.get('amount', 0))
+                                            missed_payments += 1
+                                    
+                                    # Calculate late fees (same logic as frontend)
+                                    if past_due_amount > 0:
+                                        payment_periods_behind = max(1, int(past_due_amount / 50))
+                                        late_fees = min(100.0, max(25.0, payment_periods_behind * 5.0))
+                                    
+                                    # Add the THREE FIELDS YOU WANT to member_data
+                                    member_data['base_amount_past_due'] = past_due_amount
+                                    member_data['missed_payments'] = missed_payments
+                                    member_data['late_fees'] = late_fees
+                                    member_data['amount_past_due'] = past_due_amount + late_fees
+                                    
+                                    logger.info(f"💰 Member {full_name}: Base: ${past_due_amount:.2f}, Missed: {missed_payments}, Late Fees: ${late_fees:.2f}, Total: ${(past_due_amount + late_fees):.2f}")
+                                else:
+                                    # No billing data available, set defaults
+                                    member_data['base_amount_past_due'] = 0.0
+                                    member_data['missed_payments'] = 0
+                                    member_data['late_fees'] = 0.0
+                                    member_data['amount_past_due'] = 0.0
+                                    logger.warning(f"⚠️ No billing data for member {full_name}")
+                            else:
+                                # Authentication failed, set defaults
+                                member_data['base_amount_past_due'] = 0.0
+                                member_data['missed_payments'] = 0
+                                member_data['late_fees'] = 0.0
+                                member_data['amount_past_due'] = 0.0
+                                logger.warning(f"⚠️ Failed to authenticate for billing data for member {full_name}")
+                        except Exception as e:
+                            # Error getting billing data, set defaults
+                            member_data['base_amount_past_due'] = 0.0
+                            member_data['missed_payments'] = 0
+                            member_data['late_fees'] = 0.0
+                            member_data['amount_past_due'] = 0.0
+                            logger.error(f"❌ Error getting billing data for member {full_name}: {e}")
+                        
                         if priority_status == 'red':
                             red_members.append(member_data)
                         elif priority_status == 'yellow':
@@ -4375,8 +4435,9 @@ def api_calculate_invoice_amount():
         next_payment = float(member['amount_of_next_payment'] or 0)
         monthly_rate = float(member['agreement_rate'] or member['payment_amount'] or 0)
         
-        # Apply late fee if past due (using a standard $25 late fee)
-        late_fee = 25.0 if past_due > 0 else 0.0
+        # Note: Late fees are now calculated properly in main_app.py using business policy formula
+        # This endpoint should use the pre-calculated amount_past_due from the database
+        late_fee = 0.0  # Late fees already included in amount_past_due
         
         # Calculate total invoice amount
         total_amount = past_due + late_fee
@@ -4396,8 +4457,7 @@ def api_calculate_invoice_amount():
             'late_fee': late_fee,
             'total_amount': total_amount,
             'description': f"Payment for {member['first_name']} {member['last_name']}" + 
-                          (f" - Past Due: ${past_due:.2f}" if past_due > 0 else "") +
-                          (f" + Late Fee: ${late_fee:.2f}" if late_fee > 0 else "")
+                          (f" - Total Amount Owed: ${total_amount:.2f} (includes late fees)" if past_due > 0 else "")
         })
         
     except Exception as e:

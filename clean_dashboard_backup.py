@@ -4180,8 +4180,9 @@ def api_calculate_invoice_amount():
         next_payment = float(member['amount_of_next_payment'] or 0)
         monthly_rate = float(member['agreement_rate'] or member['payment_amount'] or 0)
         
-        # Apply late fee if past due (using a standard $25 late fee)
-        late_fee = 25.0 if past_due > 0 else 0.0
+        # Note: Late fees are now calculated properly in main_app.py using business policy formula
+        # This endpoint should use the pre-calculated amount_past_due from the database
+        late_fee = 0.0  # Late fees already included in amount_past_due
         
         # Calculate total invoice amount
         total_amount = past_due + late_fee

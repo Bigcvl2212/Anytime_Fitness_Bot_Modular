@@ -172,6 +172,41 @@
                         <i class="fas fa-sync-alt me-1"></i>
                         Refresh Data
                     </button>
+                    <button class="btn btn-success" onclick="loadActualMemberCounts()" title="Refresh member counts">
+                        <i class="fas fa-users me-1"></i>
+                        Refresh Counts
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agreement Summary Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><strong>📊 Agreement Summary</strong></h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center" id="agreement-summary">
+                        <div class="col-md-3">
+                            <div class="h4 text-primary" id="active-agreements-count">-</div>
+                            <small class="text-muted">Green Members</small>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="h4 text-success" id="total-monthly-revenue">-</div>
+                            <small class="text-muted">Monthly Revenue</small>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="h4 text-warning" id="past-due-count">-</div>
+                            <small class="text-muted">Past Due (Y+R)</small>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="h4 text-danger" id="total-past-due">-</div>
+                            <small class="text-muted">Total Past Due $</small>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1127,7 +1162,8 @@ function loadPastDueMembers() {
     
     console.log('📡 Fetching past due members from API...');
     
-    fetch('/api/members/by-category/past_due')
+    // Force fresh data by adding timestamp to prevent caching
+    fetch('/api/members/by-category/past_due?t=' + Date.now())
         .then(response => {
             console.log('📡 API response received:', response.status);
             if (!response.ok) {
@@ -1149,6 +1185,15 @@ function loadPastDueMembers() {
 
             // Use the members array from the database response
             let members = data.members || [];
+            
+            // Debug: Log first member to see what fields are available
+            if (members.length > 0) {
+                console.log('🔍 First member data sample:', members[0]);
+                console.log('🔍 Available fields:', Object.keys(members[0]));
+                console.log('🔍 Agreement fields:', Object.keys(members[0]).filter(k => k.includes('agreement')));
+                console.log('🔍 Past due fields:', Object.keys(members[0]).filter(k => k.includes('past_due') || k.includes('late')));
+            }
+            
             let redCount = members.filter(m => m.status_message && m.status_message.includes('Past Due more than 30')).length;
             let yellowCount = members.filter(m => m.status_message && m.status_message.includes('Past Due 6-30')).length;
 
@@ -1292,37 +1337,71 @@ function displayPastDueMembers(members) {
                                             <div><i class="fas fa-clock me-1"></i>Last visit: ${lastVisit}</div>
                                             ${nextPayment ? `<div><i class="fas fa-credit-card me-1"></i>Next: ${nextPayment}</div>` : ''}
                                         </div>
-                                        ${member.amount_past_due > 0 ? `
-                                            <div class="alert alert-danger py-2 px-2 mb-2 small">
-                                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                                    <strong><i class="fas fa-exclamation-triangle me-1"></i>Past Due Details</strong>
-                                                    <span class="badge bg-danger">OVERDUE</span>
+                                        <!-- Payment Summary - Always visible -->
+                                        <div class="alert alert-info py-2 px-2 mb-2 small">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <strong><i class="fas fa-credit-card me-1"></i>Payment Summary</strong>
+                                            </div>
+                                            <div class="row text-center">
+                                                <div class="col-3">
+                                                    <div class="fw-bold text-dark">$${(parseFloat(member.base_amount_past_due || 0)).toFixed(2)}</div>
+                                                    <div style="font-size: 0.7rem;" class="text-muted">Base Amount</div>
                                                 </div>
-                                                <div class="row text-center mb-2">
-                                                    <div class="col-4">
-                                                        <div class="fw-bold text-dark">$${parseFloat(member.amount_past_due).toFixed(2)}</div>
-                                                        <div style="font-size: 0.7rem;" class="text-muted">Amount Due</div>
-                                                    </div>
-                                                    <div class="col-4">
-                                                        <div class="fw-bold text-dark">${Math.max(1, Math.ceil(parseFloat(member.amount_past_due) / 50))}</div>
-                                                        <div style="font-size: 0.7rem;" class="text-muted">Missed Payments</div>
-                                                    </div>
-                                                    <div class="col-4">
-                                                        <div class="fw-bold text-dark">$${Math.min(100, Math.max(25, Math.ceil(parseFloat(member.amount_past_due) / 50) * 5)).toFixed(2)}</div>
-                                                        <div style="font-size: 0.7rem;" class="text-muted">Late Fees</div>
-                                                    </div>
+                                                <div class="col-3">
+                                                    <div class="fw-bold text-dark">${member.missed_payments || 0}</div>
+                                                    <div style="font-size: 0.7rem;" class="text-muted">Missed Payments</div>
                                                 </div>
+                                                <div class="col-3">
+                                                    <div class="fw-bold text-dark">$${(parseFloat(member.late_fees || 0)).toFixed(2)}</div>
+                                                    <div style="font-size: 0.7rem;" class="text-muted">Late Fees</div>
+                                                </div>
+                                                <div class="col-3">
+                                                    <div class="fw-bold text-dark">$${parseFloat(member.amount_past_due || 0).toFixed(2)}</div>
+                                                    <div style="font-size: 0.7rem;" class="text-muted">Total Owed</div>
+                                                </div>
+                                            </div>
+
+                                        </div>
                                                 ${member.status_message ? `
                                                     <div class="mb-2 pb-1 border-bottom border-light">
                                                         <small class="text-dark"><i class="fas fa-info-circle me-1"></i>${member.status_message}</small>
                                                     </div>
                                                 ` : ''}
-                                                <div class="d-flex justify-content-between align-items-center pt-1 border-top border-light">
-                                                    <small class="text-dark"><strong>Total Invoice Amount:</strong></small>
-                                                    <small class="text-dark"><strong>$${(parseFloat(member.amount_past_due) + Math.min(100, Math.max(25, Math.ceil(parseFloat(member.amount_past_due) / 50) * 5))).toFixed(2)}</strong></small>
+                                        
+                                        <!-- Agreement Details Section -->
+                                        <div class="mt-3 p-2 bg-light rounded">
+                                            <h6 class="text-dark mb-2"><strong>📋 Agreement Details</strong></h6>
+                                            <div class="row g-2">
+                                                <div class="col-6">
+                                                    <small class="text-muted">Status:</small>
+                                                    <div class="fw-bold text-dark">${member.agreement_status || 'Unknown'}</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted">Type:</small>
+                                                    <div class="fw-bold text-dark">${member.agreement_type || 'Unknown'}</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted">Recurring Cost:</small>
+                                                    <div class="fw-bold text-dark">$${(parseFloat(member.agreement_recurring_cost || 0)).toFixed(2)}</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted">Billing:</small>
+                                                    <div class="fw-bold text-dark">${member.agreement_billing_frequency || 'Unknown'}</div>
+                                                </div>
+                                                <div class="col-12">
+                                                    <small class="text-muted">Agreement:</small>
+                                                    <div class="fw-bold text-dark">${member.agreement_name || 'Unknown'}</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted">Start Date:</small>
+                                                    <div class="fw-bold text-dark">${member.agreement_start_date || 'Unknown'}</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted">End Date:</small>
+                                                    <div class="fw-bold text-dark">${member.agreement_end_date || 'Unknown'}</div>
                                                 </div>
                                             </div>
-                                        ` : ''}
+                                        </div>
                                         <div class="mt-auto d-flex gap-1">
                                             <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); window.location.href='/member/${member.guid || member.prospect_id || member.id}'" title="View Profile">
                                                 <i class="fas fa-eye"></i>
@@ -1627,12 +1706,9 @@ function showInvoicePreviewForMember(memberId, memberName, memberEmail, pastDueA
         return;
     }
     
-    // Calculate late fees (you can adjust this logic as needed)
-    const baseAmount = parseFloat(pastDueAmount);
-    const lateFee = Math.min(baseAmount * 0.1, 25.00); // 10% late fee, max $25
-    const totalAmount = baseAmount + lateFee;
-    
-    const description = `Past Due Balance: $${baseAmount.toFixed(2)} + Late Fee: $${lateFee.toFixed(2)}`;
+    // Use the backend-calculated amount (already includes proper late fees)
+    const totalAmount = parseFloat(pastDueAmount);
+    const description = `Total Amount Owed: $${totalAmount.toFixed(2)} (includes late fees)`;
     
     fetch('/api/create-invoice', {
         method: 'POST',
@@ -1760,7 +1836,44 @@ async function loadAllMembers(page = 1, search = '', statusFilter = '') {
                                     <small class="text-muted">Since: ${member.membership_start.substring(0, 10)}</small>
                                     ` : ''}
                                 </div>
-                                <div class="mt-2 d-flex gap-1">
+                                
+                                <!-- Agreement Details Section -->
+                                <div class="mt-3 p-2 bg-light rounded">
+                                    <h6 class="text-dark mb-2"><strong>📋 Agreement Details</strong></h6>
+                                    <div class="row g-2">
+                                        <div class="col-6">
+                                            <small class="text-muted">Status:</small>
+                                            <div class="fw-bold text-dark">${(member.agreement_status && member.agreement_status !== 'No Agreement') ? member.agreement_status : 'No Agreement Data'}</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted">Type:</small>
+                                            <div class="fw-bold text-dark">${(member.agreement_type && member.agreement_type !== 'No Agreement') ? member.agreement_type : 'No Agreement Data'}</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted">Recurring Cost:</small>
+                                            <div class="fw-bold text-dark">$${(member.agreement_recurring_cost && member.agreement_recurring_cost > 0) ? parseFloat(member.agreement_recurring_cost).toFixed(2) : '0.00'}</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted">Billing:</small>
+                                            <div class="fw-bold text-dark">${(member.agreement_billing_frequency && member.agreement_billing_frequency !== 'No Agreement') ? member.agreement_billing_frequency : 'No Agreement Data'}</div>
+                                        </div>
+                                        <div class="col-12">
+                                            <small class="text-muted">Agreement:</small>
+                                            <div class="fw-bold text-dark">${(member.agreement_name && member.agreement_name !== 'No Agreement') ? member.agreement_name : 'No Agreement Data'}</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted">Start Date:</small>
+                                            <div class="fw-bold text-dark">${(member.agreement_start_date && member.agreement_start_date !== 'No Agreement') ? member.agreement_start_date : 'No Agreement Data'}</div>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted">End Date:</small>
+                                            <div class="fw-bold text-dark">${(member.agreement_end_date && member.agreement_end_date !== 'No Agreement') ? member.agreement_end_date : 'No Agreement Data'}</div>
+                                        </div>
+                                                                                    </div>
+
+                                            </div>
+                                            
+                                            <div class="mt-2 d-flex gap-1">
                                     <a href="/member/${member.id}" class="btn btn-sm btn-primary" title="View Profile">
                                         <i class="fas fa-eye"></i>
                                     </a>
@@ -1870,7 +1983,8 @@ async function loadMembersByCategory(category) {
         let endpoint = `/api/members/by-category/${category}`;
         console.log(`📡 Fetching from: ${endpoint}`);
         
-        const response = await fetch(endpoint);
+        // Force fresh data by adding timestamp to prevent caching
+        const response = await fetch(endpoint + '?t=' + Date.now());
         console.log(`📡 Response status: ${response.status}`);
         
         const data = await response.json();
@@ -2001,8 +2115,12 @@ async function loadMembersByCategory(category) {
                                                     <div style="font-size: 0.7rem;" class="text-muted">Missed Payments</div>
                                                 </div>
                                                 <div class="col-4">
-                                                    <div class="fw-bold text-dark">$${Math.min(100, Math.max(25, Math.ceil(parseFloat(member.amount_past_due) / 50) * 5)).toFixed(2)}</div>
+                                                    <div class="fw-bold text-dark">$${(parseFloat(member.late_fees || 0)).toFixed(2)}</div>
                                                     <div style="font-size: 0.7rem;" class="text-muted">Late Fees</div>
+                                                </div>
+                                                <div class="col-4">
+                                                    <div class="fw-bold text-dark">$${parseFloat(member.amount_past_due).toFixed(2)}</div>
+                                                    <div style="font-size: 0.7rem;" class="text-muted">Total Amount</div>
                                                 </div>
                                             </div>
                                             ${member.status_message ? `
@@ -2011,8 +2129,51 @@ async function loadMembersByCategory(category) {
                                                 </div>
                                             ` : ''}
                                             <div class="d-flex justify-content-between align-items-center pt-1 border-top border-light">
-                                                <small class="text-dark"><strong>Total Invoice Amount:</strong></small>
-                                                <small class="text-dark"><strong>$${(parseFloat(member.amount_past_due) + Math.min(100, Math.max(25, Math.ceil(parseFloat(member.amount_past_due) / 50) * 5))).toFixed(2)}</strong></small>
+                                                <small class="text-dark"><strong>Base Amount:</strong></small>
+                                                <small class="text-dark">$${(parseFloat(member.base_amount_past_due || 0)).toFixed(2)}</small>
+                                            </div>
+                                            <div class="d-flex justify-content-between align-items-center pt-1">
+                                                <small class="text-dark"><strong>Late Fees:</strong></small>
+                                                <small class="text-dark">$${(parseFloat(member.late_fees || 0)).toFixed(2)}</small>
+                                            </div>
+                                            <div class="d-flex justify-content-between align-items-center pt-1 border-top border-light">
+                                                <small class="text-dark"><strong>Total Amount Owed:</strong></small>
+                                                <small class="text-dark"><strong>$${parseFloat(member.amount_past_due).toFixed(2)}</strong></small>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Agreement Details Section -->
+                                        <div class="mt-3 p-2 bg-light rounded">
+                                            <h6 class="text-dark mb-2"><strong>📋 Agreement Details</strong></h6>
+                                            <div class="row g-2">
+                                                <div class="col-6">
+                                                    <small class="text-muted">Status:</small>
+                                                    <div class="fw-bold text-dark">${member.agreement_status || 'Unknown'}</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted">Type:</small>
+                                                    <div class="fw-bold text-dark">${member.agreement_type || 'Unknown'}</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted">Recurring Cost:</small>
+                                                    <div class="fw-bold text-dark">$${(parseFloat(member.agreement_recurring_cost || 0)).toFixed(2)}</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted">Billing:</small>
+                                                    <div class="fw-bold text-dark">${member.agreement_billing_frequency || 'Unknown'}</div>
+                                                </div>
+                                                <div class="col-12">
+                                                    <small class="text-muted">Agreement:</small>
+                                                    <div class="fw-bold text-dark">${member.agreement_name || 'Unknown'}</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted">Start Date:</small>
+                                                    <div class="fw-bold text-dark">${member.agreement_start_date || 'Unknown'}</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted">End Date:</small>
+                                                    <div class="fw-bold text-dark">${member.agreement_end_date || 'Unknown'}</div>
+                                                </div>
                                             </div>
                                         </div>
                                     ` : ''}
@@ -2164,21 +2325,40 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('✅ Members page async setup complete');
 });
 
+// Function to update agreement summary
+function updateAgreementSummary(members) {
+    if (!members || !Array.isArray(members)) return;
+    
+    const activeAgreements = members.filter(m => m.agreement_status && m.agreement_status !== 'No Agreement').length;
+    const totalMonthlyRevenue = members.reduce((sum, m) => sum + (parseFloat(m.agreement_recurring_cost || 0)), 0);
+    const pastDueCount = members.filter(m => m.amount_past_due > 0).length;
+    const totalPastDue = members.reduce((sum, m) => sum + (parseFloat(m.amount_past_due || 0)), 0);
+    
+    // Update summary display
+    const activeCountEl = document.getElementById('active-agreements-count');
+    const revenueEl = document.getElementById('total-monthly-revenue');
+    const pastDueCountEl = document.getElementById('past-due-count');
+    const totalPastDueEl = document.getElementById('total-past-due');
+    
+    if (activeCountEl) activeCountEl.textContent = activeAgreements;
+    if (revenueEl) revenueEl.textContent = `$${totalMonthlyRevenue.toFixed(2)}`;
+    if (pastDueCountEl) pastDueCountEl.textContent = pastDueCount;
+    if (totalPastDueEl) totalPastDueEl.textContent = `$${totalPastDue.toFixed(2)}`;
+}
+
 // Check for cached data and load it if available
 async function checkCachedData() {
     console.log('🔍 Checking for cached member data...');
     try {
-        const response = await fetch('/api/members/all');
+        // Force fresh data by adding timestamp to prevent caching
+        const response = await fetch('/api/members/all?t=' + Date.now());
         const data = await response.json();
         
-        if (data.success && data.source === 'cache') {
-            console.log('✅ Using cached member data:', data.members.length, 'members');
-            // Cache the data locally for faster access
-            window.cachedMembers = data.members;
-        } else if (data.success) {
+        if (data.success) {
             console.log('📊 Using database member data:', data.members.length, 'members');
             // Cache the data locally for faster access
             window.cachedMembers = data.members;
+            updateAgreementSummary(data.members);
         } else {
             console.log('⚠️ No member data available');
         }
@@ -2188,5 +2368,63 @@ async function checkCachedData() {
 }
 
 // Load category counts for all tabs
+async function loadCategoryCounts() {
+    // This function will be implemented later
+    console.log('📊 Category counts loading...');
+}
+
+// Function to load actual member counts from API
+async function loadActualMemberCounts() {
+    try {
+        const response = await fetch('/api/members/all');
+        const data = await response.json();
+        
+        if (data.success && data.members) {
+            const members = data.members;
+            
+            // Calculate counts based on status_message logic
+            const greenCount = members.filter(m => m.status_message && m.status_message.includes('Active')).length;
+            const yellowCount = members.filter(m => m.status_message && m.status_message.includes('Past Due 6-30')).length;
+            const redCount = members.filter(m => m.status_message && m.status_message.includes('Past Due more than 30')).length;
+            const frozenCount = members.filter(m => m.status_message && m.status_message.includes('Frozen')).length;
+            const pendingCount = members.filter(m => m.status_message && m.status_message.includes('Pending')).length;
+            const compCount = members.filter(m => m.user_type === 'comp' || m.status === 'comp').length;
+            const ppvCount = members.filter(m => m.user_type === 'ppv' || m.status === 'ppv').length;
+            const reactivatedCount = members.filter(m => m.status_message && m.status_message.includes('Reactivated')).length;
+            const staffCount = members.filter(m => m.user_type === 'staff' || m.status === 'staff').length;
+            const employerPaidCount = members.filter(m => m.user_type === 'employer_paid' || m.status === 'employer_paid').length;
+            
+            // Update the summary banner
+            const activeCountEl = document.getElementById('active-agreements-count');
+            const revenueEl = document.getElementById('total-monthly-revenue');
+            const pastDueCountEl = document.getElementById('past-due-count');
+            const totalPastDueEl = document.getElementById('total-past-due');
+            
+            if (activeCountEl) activeCountEl.textContent = greenCount;
+            if (revenueEl) revenueEl.textContent = `$${(members.reduce((sum, m) => sum + (parseFloat(m.agreement_recurring_cost || 0)), 0)).toFixed(2)}`;
+            if (pastDueCountEl) pastDueCountEl.textContent = yellowCount + redCount;
+            if (totalPastDueEl) totalPastDueEl.textContent = `$${(members.reduce((sum, m) => sum + (parseFloat(m.amount_past_due || 0)), 0)).toFixed(2)}`;
+            
+            console.log('📊 Actual member counts loaded:', {
+                green: greenCount,
+                yellow: yellowCount,
+                red: redCount,
+                frozen: frozenCount,
+                pending: pendingCount,
+                comp: compCount,
+                ppv: ppvCount,
+                reactivated: reactivatedCount,
+                staff: staffCount,
+                employerPaid: employerPaidCount
+            });
+        }
+    } catch (error) {
+        console.error('❌ Error loading member counts:', error);
+    }
+}
+
+// Initialize the page
+checkCachedData();
+loadActualMemberCounts();
 </script>
 {% endblock %}

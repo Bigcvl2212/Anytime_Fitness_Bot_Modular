@@ -388,7 +388,9 @@ class DatabaseManager:
                         UPDATE members SET 
                             guid = ?, first_name = ?, last_name = ?, full_name = ?, email = ?, 
                             mobile_phone = ?, status = ?, status_message = ?, user_type = ?, 
-                            amount_past_due = ?, date_of_next_payment = ?, updated_at = CURRENT_TIMESTAMP
+                            amount_past_due = ?, base_amount_past_due = ?, missed_payments = ?, 
+                            late_fees = ?, agreement_recurring_cost = ?, date_of_next_payment = ?, 
+                            updated_at = CURRENT_TIMESTAMP
                         WHERE prospect_id = ?
                         """,
                         (
@@ -402,6 +404,10 @@ class DatabaseManager:
                             status_message,
                             member_type,  # Maps to user_type column
                             float(amount_past_due) if amount_past_due not in (None, '') else 0,
+                            float(m.get('base_amount_past_due', 0)),
+                            int(m.get('missed_payments', 0)),
+                            float(m.get('late_fees', 0)),
+                            float(m.get('agreement_recurring_cost', 0)),
                             date_of_next_payment,
                             str(prospect_id)  # WHERE condition
                         ),
@@ -413,9 +419,10 @@ class DatabaseManager:
                         """
                         INSERT INTO members (
                             prospect_id, guid, first_name, last_name, full_name, email, mobile_phone,
-                            status, status_message, user_type, amount_past_due, date_of_next_payment, 
+                            status, status_message, user_type, amount_past_due, base_amount_past_due, 
+                            missed_payments, late_fees, agreement_recurring_cost, date_of_next_payment, 
                             created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """,
                         (
                             str(prospect_id),  # prospect_id column
@@ -429,6 +436,10 @@ class DatabaseManager:
                             status_message,
                             member_type,  # Maps to user_type column
                             float(amount_past_due) if amount_past_due not in (None, '') else 0,
+                            float(m.get('base_amount_past_due', 0)),
+                            int(m.get('missed_payments', 0)),
+                            float(m.get('late_fees', 0)),
+                            float(m.get('agreement_recurring_cost', 0)),
                             date_of_next_payment,
                         ),
                     )
@@ -445,16 +456,11 @@ class DatabaseManager:
                     category = 'green'
                     updated_status_message = status_message
                     
-                    # Past due members (highest priority) - check status message patterns
-                    if ('past due more than 30' in status_message_lower or 
-                        'delinquent' in status_message_lower or 
-                        past_due_amount > 100):  # Higher amounts typically = longer past due
+                    # Past due members - ONLY if they have specific ClubHub status messages
+                    if ('past due more than 30 days' in status_message_lower):
                         category = 'past_due'
                         updated_status_message = 'Past Due more than 30 days'
-                    elif ('past due 6-30' in status_message_lower or 
-                          'past due' in status_message_lower or 
-                          'overdue' in status_message_lower or
-                          (past_due_amount > 0 and past_due_amount <= 100)):
+                    elif ('past due 6-30 days' in status_message_lower):
                         category = 'past_due'
                         updated_status_message = 'Past Due 6-30 days'
                     
@@ -730,8 +736,8 @@ class DatabaseManager:
             elif category == 'past_due':
                 query = """
                     SELECT * FROM members
-                    WHERE COALESCE(amount_past_due, 0) > 0
-                    OR (status_message LIKE '%Past Due%')
+                    WHERE (status_message LIKE '%Past Due 6-30 days%' 
+                    OR status_message LIKE '%Past Due more than 30 days%')
                     ORDER BY amount_past_due DESC, created_at DESC
                 """
             elif category == 'comp':
@@ -857,7 +863,8 @@ class DatabaseManager:
             result = self.execute_query(
                 """
                 SELECT COUNT(*) as count FROM members
-                WHERE COALESCE(amount_past_due, 0) > 0 OR status_message LIKE '%Past Due%'
+                WHERE (status_message LIKE '%Past Due 6-30 days%' 
+                OR status_message LIKE '%Past Due more than 30 days%'
                 """
             )
             counts['past_due'] = result[0]['count'] if result else 0

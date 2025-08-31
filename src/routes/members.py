@@ -145,9 +145,20 @@ def get_past_due_members():
                 status,
                 status_message,
                 amount_past_due,
-                date_of_next_payment
+                base_amount_past_due,
+                missed_payments,
+                late_fees,
+                date_of_next_payment,
+                membership_start,
+                last_visit,
+                agreement_status,
+                agreement_type,
+                agreement_recurring_cost,
+                agreement_name,
+                agreement_billing_frequency
             FROM members 
-            WHERE (amount_past_due > 0) OR (status_message LIKE '%Past Due%')
+            WHERE status_message LIKE '%Past Due 6-30 days%' 
+               OR status_message LIKE '%Past Due more than 30 days%'
             ORDER BY amount_past_due DESC
         """)
         

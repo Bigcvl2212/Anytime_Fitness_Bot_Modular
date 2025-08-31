@@ -519,263 +519,340 @@ class ClubOSIntegration:
             logger.info(f"✅ STEP 2 COMPLETE: Created mapping for {len(id_to_name_mapping)} ClubOS IDs")
             
             # STEP 3 & 4 & 5: For each ClubOS ID, get agreements, filter active, get billing details
-            training_clients = []
+            logger.info(f"🚀 STEP 3-5: Processing {len(assignees)} assignees with parallel agreement data fetching...")
             
-            for assignee in assignees:
-                clubos_id = assignee.get('tfoUserId') or assignee.get('id') or assignee.get('memberId')
-                full_name = assignee.get('name', '').strip()
-                
-                if not clubos_id:
-                    logger.warning(f"⚠️ Skipping assignee with no ClubOS ID: {full_name}")
-                    continue
-                
-                logger.info(f"🔍 STEP 3: Processing {full_name} (ClubOS ID: {clubos_id})")
-                
-                # Split name for first/last
-                first_name = assignee.get('firstName', '')
-                last_name = assignee.get('lastName', '')
-                
-                if full_name and not (first_name and last_name):
-                    name_parts = full_name.split(' ', 1)
-                    if len(name_parts) >= 2:
-                        first_name = name_parts[0]
-                        last_name = name_parts[1]
-                    elif len(name_parts) == 1:
-                        first_name = name_parts[0]
-                        last_name = ''
-                
-                if not full_name:
-                    full_name = f"{first_name} {last_name}".strip()
-                
-                # STEP 3: Search for ALL agreement IDs for this ClubOS ID
-                logger.info(f"🔎 STEP 3: Searching for agreement IDs for {full_name}...")
-                
+            # Process assignees in parallel with PROPER thread-safe session management
+            training_clients = []
+            completed_count = 0
+            
+            logger.info(f"⚡ Starting parallel processing of {len(assignees)} assignees with thread-safe sessions...")
+            
+            # Create thread-local storage for ClubOS sessions
+            import threading
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            
+            # Thread-local storage for ClubOS sessions
+            thread_local = threading.local()
+            
+            def get_thread_safe_training_api():
+                """Get a thread-local authenticated training API instance"""
+                if not hasattr(thread_local, 'training_api'):
+                    # Create fresh authenticated training API for this thread
+                    from clubos_training_api_fixed import ClubOSTrainingPackageAPI
+                    thread_local.training_api = ClubOSTrainingPackageAPI()
+                    if self.username and self.password:
+                        thread_local.training_api.username = self.username
+                        thread_local.training_api.password = self.password
+                        # Authenticate this thread's API instance
+                        if not thread_local.training_api.authenticate():
+                            logger.error(f"❌ Thread {threading.get_ident()} failed to authenticate training API")
+                            return None
+                    logger.debug(f"🔐 Thread {threading.get_ident()} created authenticated training API")
+                return thread_local.training_api
+            
+            def process_assignee_thread_safe(assignee):
+                """Process a single assignee with thread-safe ClubOS API calls"""
                 try:
-                    # Use the member agreements search method
-                    all_agreements = self.training_api.get_member_package_agreements(str(clubos_id))
+                    clubos_id = assignee.get('tfoUserId') or assignee.get('id') or assignee.get('memberId')
+                    full_name = assignee.get('name', '').strip()
                     
-                    if not all_agreements:
-                        logger.info(f"ℹ️ No agreements found for {full_name} (ID: {clubos_id})")
-                        # Still add as training client with default package
-                        training_client = self._create_default_training_client(assignee, clubos_id, full_name, first_name, last_name)
-                        training_clients.append(training_client)
-                        continue
+                    if not clubos_id:
+                        logger.warning(f"⚠️ Skipping assignee with no ClubOS ID: {full_name}")
+                        return None
                     
-                    logger.info(f"✅ Found {len(all_agreements)} total agreements for {full_name}")
+                    logger.debug(f"🔍 Thread {threading.get_ident()}: Processing {full_name} (ClubOS ID: {clubos_id})")
                     
-                    # STEP 4: Filter for ACTIVE agreement IDs only
-                    logger.info(f"🎯 STEP 4: Filtering for ACTIVE agreements only...")
-                    active_agreements = []
+                    # Get thread-safe training API
+                    training_api = get_thread_safe_training_api()
+                    if not training_api:
+                        logger.error(f"❌ Thread {threading.get_ident()}: No authenticated training API available")
+                        return self._create_default_training_client(assignee, clubos_id, full_name, 
+                                                                 assignee.get('firstName', ''), assignee.get('lastName', ''))
                     
-                    for agreement in all_agreements:
-                        agreement_id = agreement.get('agreement_id') or agreement.get('id') or agreement.get('agreementId')
+                    # Split name for first/last
+                    first_name = assignee.get('firstName', '')
+                    last_name = assignee.get('lastName', '')
+                    
+                    if full_name and not (first_name and last_name):
+                        name_parts = full_name.split(' ', 1)
+                        if len(name_parts) >= 2:
+                            first_name = name_parts[0]
+                            last_name = name_parts[1]
+                        elif len(name_parts) == 1:
+                            first_name = name_parts[0]
+                            last_name = ''
+                    
+                    if not full_name:
+                        full_name = f"{first_name} {last_name}".strip()
+                    
+                    # STEP 3: Search for ALL agreement IDs for this ClubOS ID
+                    logger.debug(f"🔎 Thread {threading.get_ident()}: Searching for agreement IDs for {full_name}...")
+                    
+                    try:
+                        # Use the member agreements search method with thread-safe API
+                        all_agreements = training_api.get_member_package_agreements(str(clubos_id))
                         
-                        # Check for numeric status (ClubOS uses numeric codes)
-                        numeric_status = agreement.get('status')
-                        text_status = agreement.get('status_text', '').lower() if agreement.get('status_text') else ''
+                        if not all_agreements:
+                            logger.debug(f"ℹ️ Thread {threading.get_ident()}: No agreements found for {full_name} (ID: {clubos_id})")
+                            # Still add as training client with default package
+                            training_client = self._create_default_training_client(assignee, clubos_id, full_name, first_name, last_name)
+                            return training_client
                         
-                        # ClubOS status codes: 2 = Active, 5 = Cancelled/Inactive
-                        is_active = False
+                        logger.debug(f"✅ Thread {threading.get_ident()}: Found {len(all_agreements)} total agreements for {full_name}")
                         
-                        if isinstance(numeric_status, (int, str)) and str(numeric_status).isdigit():
-                            # Use numeric status code (2 = Active)
-                            if int(numeric_status) == 2:
-                                is_active = True
-                                logger.debug(f"✅ Active agreement (numeric status 2): {agreement_id}")
-                            else:
-                                is_active = False
-                                logger.info(f"⚠️ Skipping inactive agreement {agreement_id} (status: {numeric_status})")
-                        elif text_status:
-                            # Fallback to text-based status for older data
-                            if text_status in ['active', 'current', 'open', 'ongoing']:
-                                is_active = True
-                                logger.debug(f"✅ Active agreement (text status '{text_status}'): {agreement_id}")
-                            else:
-                                is_active = False
-                                logger.info(f"⚠️ Skipping inactive agreement {agreement_id} (text status '{text_status}')")
-                        else:
-                            # No status found - skip for safety (don't assume active)
+                        # STEP 4: Filter for ACTIVE agreement IDs only
+                        logger.debug(f"🎯 Thread {threading.get_ident()}: Filtering for ACTIVE agreements only...")
+                        active_agreements = []
+                        
+                        for agreement in all_agreements:
+                            agreement_id = agreement.get('agreement_id') or agreement.get('id') or agreement.get('agreementId')
+                            
+                            # Check for numeric status (ClubOS uses numeric codes)
+                            numeric_status = agreement.get('status')
+                            text_status = agreement.get('status_text', '').lower() if agreement.get('status_text') else ''
+                            
+                            # ClubOS status codes: 2 = Active, 5 = Cancelled/Inactive
                             is_active = False
-                            logger.warning(f"⚠️ No status found for agreement {agreement_id}, skipping for safety")
-                        
-                        if is_active:
-                            active_agreements.append(agreement)
-                    
-                    if not active_agreements:
-                        logger.info(f"ℹ️ No ACTIVE agreements found for {full_name}")
-                        # Still add as training client with default package
-                        training_client = self._create_default_training_client(assignee, clubos_id, full_name, first_name, last_name)
-                        training_clients.append(training_client)
-                        continue
-                    
-                    logger.info(f"✅ STEP 4 COMPLETE: {len(active_agreements)} ACTIVE agreements for {full_name}")
-                    
-                    # STEP 5: Get detailed agreement data with invoice/billing for each active agreement
-                    logger.info(f"💰 STEP 5: Getting billing details for ACTIVE agreements...")
-                    
-                    active_packages = []
-                    package_details = []
-                    total_past_due = 0.0
-                    
-                    for agreement in active_agreements:
-                        agreement_id = agreement.get('agreement_id') or agreement.get('id') or agreement.get('agreementId')
-                        
-                        try:
-                            logger.info(f"📄 Getting complete agreement data with invoices for agreement {agreement_id}...")
                             
-                            # Get complete agreement data with invoices for this specific active agreement
-                            v2_data = self.training_api.get_agreement_invoices_and_payments(agreement_id)
+                            if isinstance(numeric_status, (int, str)) and str(numeric_status).isdigit():
+                                # Use numeric status code (2 = Active)
+                                if int(numeric_status) == 2:
+                                    is_active = True
+                                    logger.debug(f"✅ Thread {threading.get_ident()}: Active agreement (numeric status 2): {agreement_id}")
+                                else:
+                                    is_active = False
+                                    logger.debug(f"⚠️ Thread {threading.get_ident()}: Skipping inactive agreement {agreement_id} (status: {numeric_status})")
+                            elif text_status:
+                                # Fallback to text-based status for older data
+                                if text_status in ['active', 'current', 'open', 'ongoing']:
+                                    is_active = True
+                                    logger.debug(f"✅ Thread {threading.get_ident()}: Active agreement (text status '{text_status}'): {agreement_id}")
+                                else:
+                                    is_active = False
+                                    logger.debug(f"⚠️ Thread {threading.get_ident()}: Skipping inactive agreement {agreement_id} (text status '{text_status}')")
+                            else:
+                                # No status found - skip for safety (don't assume active)
+                                is_active = False
+                                logger.warning(f"⚠️ Thread {threading.get_ident()}: No status found for agreement {agreement_id}, skipping for safety")
                             
-                            if v2_data:
-                                # Extract agreement details using the EXACT breakthrough method structure
-                                detail_data = v2_data.get('data', {})
-                                include_data = v2_data.get('include', {})
+                            if is_active:
+                                active_agreements.append(agreement)
+                        
+                        if not active_agreements:
+                            logger.debug(f"ℹ️ Thread {threading.get_ident()}: No ACTIVE agreements found for {full_name}")
+                            # Still add as training client with default package
+                            training_client = self._create_default_training_client(assignee, clubos_id, full_name, first_name, last_name)
+                            return training_client
+                        
+                        logger.debug(f"✅ Thread {threading.get_ident()}: {len(active_agreements)} ACTIVE agreements for {full_name}")
+                        
+                        # STEP 5: Get detailed agreement data with invoice/billing for each active agreement
+                        logger.debug(f"💰 Thread {threading.get_ident()}: Getting billing details for ACTIVE agreements...")
+                        
+                        active_packages = []
+                        package_details = []
+                        total_past_due = 0.0
+                        
+                        for agreement in active_agreements:
+                            agreement_id = agreement.get('agreement_id') or agreement.get('id') or agreement.get('agreementId')
+                            
+                            try:
+                                logger.debug(f"📄 Thread {threading.get_ident()}: Getting complete agreement data with invoices for agreement {agreement_id}...")
                                 
-                                # Extract package name from detail_data (not from original agreement)
-                                package_name = (
-                                    detail_data.get('name') or
-                                    detail_data.get('packageName') or 
-                                    f'Training Package {agreement_id}'
-                                )
+                                # Get complete agreement data with invoices for this specific active agreement
+                                v2_data = training_api.get_agreement_invoices_and_payments(agreement_id)
                                 
-                                # Check if agreement is active (agreementStatus == 2 means active)
-                                agreement_status = detail_data.get('agreementStatus', 0)
-                                if agreement_status != 2:
-                                    logger.info(f"⚠️ Skipping inactive agreement {agreement_id} (status: {agreement_status})")
-                                    continue
-                                
-                                # Extract billing information from invoices using breakthrough method
-                                invoices = include_data.get('invoices', [])
-                                scheduled_payments = include_data.get('scheduledPayments', [])
-                                
-                                # Calculate amount owed from past due invoices (invoiceStatus == 5)
-                                agreement_past_due = 0.0
-                                past_due_invoices = []
-                                all_invoices = []
-                                
-                                for invoice in invoices:
-                                    invoice_status = invoice.get('invoiceStatus')
-                                    invoice_amount = float(invoice.get('total', 0))
-                                    invoice_id = invoice.get('id', 'unknown')
+                                if v2_data:
+                                    # Extract agreement details using the EXACT breakthrough method structure
+                                    detail_data = v2_data.get('data', {})
+                                    include_data = v2_data.get('include', {})
                                     
-                                    all_invoices.append({
-                                        'id': invoice_id,
-                                        'status': invoice_status,
-                                        'amount': invoice_amount
+                                    # Extract package name from detail_data (not from original agreement)
+                                    package_name = (
+                                        detail_data.get('name') or
+                                        detail_data.get('packageName') or 
+                                        f'Training Package {agreement_id}'
+                                    )
+                                    
+                                    # Check if agreement is active (agreementStatus == 2 means active)
+                                    agreement_status = detail_data.get('agreementStatus', 0)
+                                    if agreement_status != 2:
+                                        logger.debug(f"⚠️ Thread {threading.get_ident()}: Skipping inactive agreement {agreement_id} (status: {agreement_status})")
+                                        continue
+                                    
+                                    # Extract billing information from invoices using breakthrough method
+                                    invoices = include_data.get('invoices', [])
+                                    scheduled_payments = include_data.get('scheduledPayments', [])
+                                    
+                                    # Calculate amount owed from past due invoices (invoiceStatus == 5)
+                                    agreement_past_due = 0.0
+                                    past_due_invoices = []
+                                    all_invoices = []
+                                    
+                                    for invoice in invoices:
+                                        invoice_status = invoice.get('invoiceStatus')
+                                        invoice_amount = float(invoice.get('total', 0))
+                                        invoice_id = invoice.get('id', 'unknown')
+                                        
+                                        all_invoices.append({
+                                            'id': invoice_id,
+                                            'status': invoice_status,
+                                            'amount': invoice_amount
+                                        })
+                                        
+                                        # Check for past due status (5 = past due, but also check other possible statuses)
+                                        if invoice_status == 5:  # Past due status from breakthrough method
+                                            agreement_past_due += invoice_amount
+                                            past_due_invoices.append({
+                                                'id': invoice_id,
+                                                'amount': invoice_amount,
+                                                'status': invoice_status
+                                            })
+                                            logger.debug(f"💰 Thread {threading.get_ident()}: Found past due invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
+                                        elif invoice_status == 4: # Check if status 4 is also past due
+                                            agreement_past_due += invoice_amount
+                                            past_due_invoices.append({
+                                                'id': invoice_id,
+                                                'amount': invoice_amount,
+                                                'status': invoice_status
+                                            })
+                                            logger.debug(f"💰 Thread {threading.get_ident()}: Found past due invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
+                                    
+                                    logger.debug(f"📊 Thread {threading.get_ident()}: Invoice analysis for {agreement_id}: {len(past_due_invoices)} past due out of {len(invoices)} total invoices")
+                                    
+                                    total_past_due += agreement_past_due
+                                    
+                                    # Determine payment status based on past due invoices
+                                    payment_status = 'Past Due' if agreement_past_due > 0 else 'Current'
+                                    
+                                    active_packages.append(package_name)
+                                    package_details.append({
+                                        'agreement_id': agreement_id,
+                                        'package_name': package_name,
+                                        'payment_status': payment_status,
+                                        'amount_owed': agreement_past_due,
+                                        'invoice_count': len(invoices),
+                                        'scheduled_payments_count': len(scheduled_payments),
+                                        'has_billing_data': True,
+                                        'has_v2_data': True
                                     })
                                     
-                                    # Check for past due status (5 = past due, but also check other possible statuses)
-                                    if invoice_status == 5:  # Past due status from breakthrough method
-                                        agreement_past_due += invoice_amount
-                                        past_due_invoices.append({
-                                            'id': invoice_id,
-                                            'amount': invoice_amount,
-                                            'status': invoice_status
-                                        })
-                                        logger.debug(f"💰 Found past due invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
-                                    elif invoice_status == 4:  # Check if status 4 is also past due
-                                        agreement_past_due += invoice_amount
-                                        past_due_invoices.append({
-                                            'id': invoice_id,
-                                            'amount': invoice_amount,
-                                            'status': invoice_status
-                                        })
-                                        logger.debug(f"💰 Found past due invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
+                                    logger.debug(f"✅ Thread {threading.get_ident()}: Package: {package_name} - ${agreement_past_due:.2f} past due - Status: {payment_status} - {len(invoices)} invoices")
                                 
-                                logger.info(f"📊 Invoice analysis for {agreement_id}: {len(past_due_invoices)} past due out of {len(invoices)} total invoices")
-                                logger.info(f"📊 Past due invoices: {past_due_invoices}")
-                                logger.info(f"📊 All invoice statuses: {[inv['status'] for inv in all_invoices]}")
-                                
-                                total_past_due += agreement_past_due
-                                
-                                # Determine payment status based on past due invoices
-                                payment_status = 'Past Due' if agreement_past_due > 0 else 'Current'
-                                
-                                active_packages.append(package_name)
-                                package_details.append({
-                                    'agreement_id': agreement_id,
-                                    'package_name': package_name,
-                                    'payment_status': payment_status,
-                                    'amount_owed': agreement_past_due,
-                                    'invoice_count': len(invoices),
-                                    'scheduled_payments_count': len(scheduled_payments),
-                                    'has_billing_data': True,
-                                    'has_v2_data': True
-                                })
-                                
-                                logger.info(f"✅ Package: {package_name} - ${agreement_past_due:.2f} past due - Status: {payment_status} - {len(invoices)} invoices")
+                                else:
+                                    logger.warning(f"⚠️ Thread {threading.get_ident()}: No complete agreement data found for agreement {agreement_id}")
+                                    # Still add the agreement with basic info
+                                    package_name = agreement.get('package_name') or agreement.get('name') or f'Training Package #{agreement_id}'
+                                    active_packages.append(package_name)
+                                    package_details.append({
+                                        'agreement_id': agreement_id,
+                                        'package_name': package_name,
+                                        'payment_status': 'Current',
+                                        'amount_owed': 0,
+                                        'invoice_count': 0,
+                                        'scheduled_payments_count': 0,
+                                        'has_billing_data': False,
+                                        'has_v2_data': False
+                                    })
+                                    
+                                    logger.debug(f"⚠️ Thread {threading.get_ident()}: Added basic package info for {agreement_id} (no billing data)")
                             
-                            else:
-                                logger.warning(f"⚠️ No complete agreement data found for agreement {agreement_id}")
+                            except Exception as e:
+                                logger.warning(f"⚠️ Thread {threading.get_ident()}: Error getting billing details for agreement {agreement_id}: {e}")
                                 # Still add the agreement with basic info
                                 package_name = agreement.get('package_name') or agreement.get('name') or f'Training Package #{agreement_id}'
                                 active_packages.append(package_name)
                                 package_details.append({
                                     'agreement_id': agreement_id,
                                     'package_name': package_name,
-                                    'payment_status': 'Current',
+                                    'payment_status': 'Unknown',
                                     'amount_owed': 0,
                                     'invoice_count': 0,
+                                    'scheduled_payments_count': 0,
                                     'has_billing_data': False,
                                     'has_v2_data': False
                                 })
                         
-                        except Exception as e:
-                            logger.warning(f"⚠️ Error getting billing details for agreement {agreement_id}: {e}")
-                            # Still add the agreement with basic info
-                            package_name = agreement.get('package_name') or agreement.get('name') or f'Training Package #{agreement_id}'
-                            active_packages.append(package_name)
-                            package_details.append({
-                                'agreement_id': agreement_id,
-                                'package_name': package_name,
-                                'payment_status': 'Unknown',
-                                'amount_owed': 0,
-                                'invoice_count': 0,
-                                'has_billing_data': False,
-                                'has_v2_data': False
-                            })
+                        # Create the enhanced training client with real agreement data
+                        payment_status = 'Past Due' if total_past_due > 0 else 'Current'
+                        
+                        training_client = {
+                            'id': clubos_id,
+                            'clubos_member_id': clubos_id,
+                            'member_id': clubos_id,
+                            'member_name': full_name or f"Training Client #{str(clubos_id)[-4:]}",
+                            'first_name': first_name,
+                            'last_name': last_name,
+                            'full_name': full_name,
+                            'email': assignee.get('email', ''),
+                            'phone': assignee.get('mobilePhone', assignee.get('phone', '')),
+                            'status': 'Active',
+                            'trainer_name': assignee.get('assignedTrainer', 'Jeremy Mayo'),
+                            'membership_type': 'Personal Training',
+                            'source': 'clubos_breakthrough_method',
+                            'last_updated': assignee.get('lastUpdated', ''),
+                            # Real agreement data from breakthrough method
+                            'active_packages': active_packages,
+                            'package_details': package_details,
+                            'past_due_amount': total_past_due,
+                            'total_past_due': total_past_due,
+                            'payment_status': payment_status,
+                            'sessions_remaining': len(package_details),
+                            'last_session': 'See ClubOS',
+                            'agreement_count': len(active_agreements),
+                            # Dashboard display
+                            'package_summary': ', '.join(active_packages[:2]) + (f' (+{len(active_packages)-2} more)' if len(active_packages) > 2 else ''),
+                            'financial_summary': f"${total_past_due:.2f} past due" if total_past_due > 0 else "Current"
+                        }
+                        
+                        logger.debug(f"🎉 Thread {threading.get_ident()}: BREAKTHROUGH SUCCESS: {full_name} - {len(active_packages)} active packages - ${total_past_due:.2f} total past due")
+                        return training_client
                     
-                    # Create the enhanced training client with real agreement data
-                    payment_status = 'Past Due' if total_past_due > 0 else 'Current'
-                    
-                    training_client = {
-                        'id': clubos_id,
-                        'clubos_member_id': clubos_id,
-                        'member_id': clubos_id,
-                        'member_name': full_name or f"Training Client #{str(clubos_id)[-4:]}",
-                        'first_name': first_name,
-                        'last_name': last_name,
-                        'full_name': full_name,
-                        'email': assignee.get('email', ''),
-                        'phone': assignee.get('mobilePhone', assignee.get('phone', '')),
-                        'status': 'Active',
-                        'trainer_name': assignee.get('assignedTrainer', 'Jeremy Mayo'),
-                        'membership_type': 'Personal Training',
-                        'source': 'clubos_breakthrough_method',
-                        'last_updated': assignee.get('lastUpdated', ''),
-                        # Real agreement data from breakthrough method
-                        'active_packages': active_packages,
-                        'package_details': package_details,
-                        'past_due_amount': total_past_due,
-                        'total_past_due': total_past_due,
-                        'payment_status': payment_status,
-                        'sessions_remaining': len(package_details),
-                        'last_session': 'See ClubOS',
-                        'agreement_count': len(active_agreements),
-                        # Dashboard display
-                        'package_summary': ', '.join(active_packages[:2]) + (f' (+{len(active_packages)-2} more)' if len(active_packages) > 2 else ''),
-                        'financial_summary': f"${total_past_due:.2f} past due" if total_past_due > 0 else "Current"
-                    }
-                    
-                    logger.info(f"🎉 BREAKTHROUGH SUCCESS: {full_name} - {len(active_packages)} active packages - ${total_past_due:.2f} total past due")
-                    training_clients.append(training_client)
+                    except Exception as e:
+                        logger.error(f"❌ Thread {threading.get_ident()}: Error processing {full_name} (ID: {clubos_id}): {e}")
+                        # Still add as training client with default package
+                        training_client = self._create_default_training_client(assignee, clubos_id, full_name, first_name, last_name)
+                        return training_client
                 
                 except Exception as e:
-                    logger.error(f"❌ Error processing {full_name} (ID: {clubos_id}): {e}")
-                    # Still add as training client with default package
-                    training_client = self._create_default_training_client(assignee, clubos_id, full_name, first_name, last_name)
-                    training_clients.append(training_client)
+                    logger.error(f"❌ Thread {threading.get_ident()}: Error in process_assignee for {assignee.get('name', 'Unknown')}: {e}")
+                    return None
             
+            # Process assignees in parallel with thread-safe sessions
+            with ThreadPoolExecutor(max_workers=6) as executor:  # Reduced workers for better stability
+                # Submit all assignee processing tasks
+                future_to_assignee = {executor.submit(process_assignee_thread_safe, assignee): assignee for assignee in assignees}
+                
+                # Process completed tasks and track progress
+                for future in as_completed(future_to_assignee):
+                    assignee = future_to_assignee[future]
+                    try:
+                        training_client = future.result()
+                        if training_client:
+                            training_clients.append(training_client)
+                            completed_count += 1
+                            
+                            # Progress update every 5 assignees
+                            if completed_count % 5 == 0:
+                                logger.info(f"📊 Parallel processing: {completed_count}/{len(assignees)} assignees completed...")
+                                
+                    except Exception as e:
+                        logger.error(f"❌ Error processing assignee {assignee.get('name', 'Unknown')}: {e}")
+                        # Try to create a default training client as fallback
+                        try:
+                            clubos_id = assignee.get('tfoUserId') or assignee.get('id') or assignee.get('memberId')
+                            full_name = assignee.get('name', '').strip()
+                            first_name = assignee.get('firstName', '')
+                            last_name = assignee.get('lastName', '')
+                            
+                            if clubos_id and full_name:
+                                training_client = self._create_default_training_client(assignee, clubos_id, full_name, first_name, last_name)
+                                training_clients.append(training_client)
+                                completed_count += 1
+                        except Exception as fallback_e:
+                            logger.error(f"❌ Fallback failed for assignee {assignee.get('name', 'Unknown')}: {fallback_e}")
+            
+            logger.info(f"✅ Parallel processing complete: {completed_count}/{len(assignees)} assignees processed")
             logger.info(f"🏆 BREAKTHROUGH METHOD COMPLETE: Retrieved {len(training_clients)} training clients with real agreement data")
             return training_clients
             
