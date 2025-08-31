@@ -15,51 +15,24 @@ def create_app_config(app):
     # Basic Flask configuration
     app.secret_key = 'anytime-fitness-dashboard-secret-key-2025'
     
-    # Import Square invoice functionality with proper secrets management
-    try:
-        from .secrets_local import get_secret
-        
-        # Get Square credentials from secrets (production by default)
-        access_token = get_secret("square-production-access-token")
-        location_id = get_secret("square-production-location-id")
-        
-        # Only set environment variables if we have valid credentials
-        if access_token and location_id:
-            os.environ['SQUARE_PRODUCTION_ACCESS_TOKEN'] = access_token
-            os.environ['SQUARE_LOCATION_ID'] = location_id
-            os.environ['SQUARE_ENVIRONMENT'] = 'production'
-            
-            # Now import the Square function
-            from ..services.payments.square_client_simple import create_square_invoice
-            
-            app.config['SQUARE_AVAILABLE'] = True
-            app.config['SQUARE_CLIENT'] = create_square_invoice
-            logger.info("🔑 Using Square credentials from secrets_local.py")
-            logger.info("✅ Square client loaded successfully in PRODUCTION mode")
-        else:
-            # Credentials missing - use fallback
-            logger.warning("⚠️ Square credentials not found in secrets")
-            app.config['SQUARE_AVAILABLE'] = False
-            
-            # Create a fallback function
-            def create_square_invoice(member_name, amount, description="Overdue Payment"):
-                """Fallback Square invoice function when service is unavailable"""
-                logger.error("Square service unavailable - cannot create invoice")
-                return None
-            
-            app.config['SQUARE_CLIENT'] = create_square_invoice
-        
-    except ImportError as e:
-        logger.warning(f"Square client not available: {e}")
-        app.config['SQUARE_AVAILABLE'] = False
-        
-        # Create a fallback function
-        def create_square_invoice(member_name, amount, description="Overdue Payment"):
-            """Fallback Square invoice function when service is unavailable"""
-            logger.error("Square service unavailable - cannot create invoice")
-            return None
-        
-        app.config['SQUARE_CLIENT'] = create_square_invoice
+    # Import Square invoice functionality - NO FALLBACKS
+    from .secrets_local import get_secret
+    from ..services.payments.square_client_simple import create_square_invoice
+    
+    # Get Square credentials from secrets (production by default)
+    access_token = get_secret("square-production-access-token")
+    location_id = get_secret("square-production-location-id")
+    
+    # Set environment variables
+    os.environ['SQUARE_PRODUCTION_ACCESS_TOKEN'] = access_token
+    os.environ['SQUARE_LOCATION_ID'] = location_id
+    os.environ['SQUARE_ENVIRONMENT'] = 'production'
+    
+    # Use the real Square client
+    app.config['SQUARE_AVAILABLE'] = True
+    app.config['SQUARE_CLIENT'] = create_square_invoice
+    logger.info("🔑 Using Square credentials from secrets_local.py")
+    logger.info("✅ Square client loaded successfully in PRODUCTION mode")
     
     # Database configuration
     app.config['DATABASE_PATH'] = 'gym_bot.db'

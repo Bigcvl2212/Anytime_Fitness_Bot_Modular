@@ -1530,6 +1530,11 @@ function sendBatchInvoices() {
 }
 
 function showBatchInvoiceModal() {
+    // Auto-select ALL past due members first
+    document.querySelectorAll('.batch-invoice-checkbox').forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    
     const selectedMembers = [];
     document.querySelectorAll('.batch-invoice-checkbox:checked').forEach(checkbox => {
         selectedMembers.push({

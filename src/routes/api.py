@@ -534,8 +534,8 @@ def api_batch_invoices():
         placeholders = ','.join(['?' for _ in selected_clients])
         cursor.execute(f"""
             SELECT prospect_id, id, guid, first_name, last_name, full_name, email, 
-                   mobile_phone, amount_past_due, amount_of_next_payment, 
-                   payment_amount, agreement_rate, status_message
+                   mobile_phone, amount_past_due, base_amount_past_due, missed_payments,
+                   late_fees, agreement_recurring_cost, status_message
             FROM members 
             WHERE prospect_id IN ({placeholders}) OR id IN ({placeholders})
         """, selected_clients + selected_clients)
@@ -567,46 +567,52 @@ def api_batch_invoices():
                     })
                     continue
                 
-                # Calculate invoice amount with late fees
-                amount_past_due = float(member_dict['amount_past_due'] or 0)
-                next_payment = float(member_dict['amount_of_next_payment'] or 0)
-                monthly_rate = float(member_dict['agreement_rate'] or member_dict['payment_amount'] or 0)
+                # Use the new calculated fields from the cards
+                base_amount_past_due = float(member_dict['base_amount_past_due'] or 0)
+                missed_payments = int(member_dict['missed_payments'] or 0)
+                late_fees = float(member_dict['late_fees'] or 0)
                 
-                # Calculate late fee based on past due amount
-                # For every $50 past due, add $5 late fee (minimum $25 if any past due)
-                late_fee = 0.0
-                if amount_past_due > 0:
-                    # Calculate how many payment periods they are behind (assuming $50 average)
-                    payment_periods_behind = max(1, int(amount_past_due / 50))
-                    late_fee = max(25.0, payment_periods_behind * 5.0)  # Min $25, $5 per period
-                    late_fee = min(late_fee, 100.0)  # Cap at $100
+                # Total amount is base + late fees (as shown on the cards)
+                total_amount = base_amount_past_due + late_fees
                 
-                total_amount = amount_past_due + late_fee
-                
-                # If no past due amount, use next payment or monthly rate
+                # If no calculated total, fall back to original amount_past_due
                 if total_amount <= 0:
-                    total_amount = next_payment if next_payment > 0 else monthly_rate
+                    total_amount = float(member_dict['amount_past_due'] or 0)
                 
                 # Ensure we have a valid amount (minimum $5)
                 total_amount = max(float(total_amount), 5.0)
                 
-                # Create detailed description
+                # Create detailed description with new breakdown
                 description = f"Payment for {member_name}"
-                if amount_past_due > 0:
-                    description += f" - Past Due: ${amount_past_due:.2f}"
-                if late_fee > 0:
-                    description += f" + Late Fee: ${late_fee:.2f}"
+                if base_amount_past_due > 0:
+                    description += f" - Base Amount: ${base_amount_past_due:.2f}"
+                if missed_payments > 0:
+                    description += f" ({missed_payments} missed payments)"
+                if late_fees > 0:
+                    description += f" + Late Fees: ${late_fees:.2f}"
                     
                 # Add status message if available
                 if member_dict['status_message']:
                     description += f" ({member_dict['status_message']})"
                 
-                # Create Square invoice
+                # Get mobile phone for SMS delivery
+                mobile_phone = member_dict['mobile_phone']
+                
+                # Create Square invoice - prioritize email over SMS since SMS delivery is problematic
                 try:
-                    if email:
-                        invoice_result = square_client(member_name, email, total_amount, description)
+                    # Check for valid email (not None, not empty, not the string 'None')
+                    valid_email = email and email != 'None' and email.strip() != ''
+                    
+                    if valid_email:
+                        # Send to real ClubHub email address
+                        invoice_result = square_client(member_name, email, total_amount, description, delivery_method='email')
+                    elif mobile_phone:
+                        # Fallback to mobile phone (SMS) if no valid email
+                        invoice_result = square_client(member_name, mobile_phone, total_amount, description, delivery_method='sms')
                     else:
-                        invoice_result = square_client(member_name, total_amount, description)
+                        # No contact method available - use placeholder email
+                        placeholder_email = f"{member_name.lower().replace(' ', '.')}@anytimefitness.com"
+                        invoice_result = square_client(member_name, placeholder_email, total_amount, description, delivery_method='email')
                     
                     # Handle different return types
                     if isinstance(invoice_result, dict):
@@ -622,22 +628,31 @@ def api_batch_invoices():
                     invoice_url = None
                 
                 if invoice_url:
+                    # Determine actual delivery method used
+                    valid_email = email and email != 'None' and email.strip() != ''
+                    actual_delivery_method = 'Email' if valid_email else ('SMS' if mobile_phone else 'Email')
+                    actual_contact_info = email if valid_email else (mobile_phone if mobile_phone else f"{member_name.lower().replace(' ', '.')}@anytimefitness.com")
+                    
                     successful_invoices.append({
                         'member_id': member_id,
                         'member_name': member_name,
-                        'email': email,
+                        'contact_info': actual_contact_info,
+                        'delivery_method': actual_delivery_method,
                         'amount': total_amount,
-                        'past_due_amount': amount_past_due,
-                        'late_fee': late_fee,
+                        'base_amount': base_amount_past_due,
+                        'late_fees': late_fees,
+                        'missed_payments': missed_payments,
                         'invoice_url': invoice_url,
                         'description': description
                     })
-                    logger.info(f"✅ Invoice created for {member_name}: ${total_amount:.2f} (Past Due: ${amount_past_due:.2f}, Late Fee: ${late_fee:.2f})")
+                    logger.info(f"✅ Invoice created for {member_name}: ${total_amount:.2f} (Base: ${base_amount_past_due:.2f}, Late Fees: ${late_fees:.2f}) via {actual_delivery_method} to {actual_contact_info}")
                 else:
+                    valid_email = email and email != 'None' and email.strip() != ''
                     failed_invoices.append({
                         'member_id': member_id,
                         'member_name': member_name,
-                        'email': email,
+                        'contact_info': email if valid_email else (mobile_phone if mobile_phone else f"{member_name.lower().replace(' ', '.')}@anytimefitness.com"),
+                        'delivery_method': 'Email' if valid_email else ('SMS' if mobile_phone else 'Email'),
                         'amount': total_amount,
                         'error': 'Failed to create Square invoice'
                     })
@@ -660,7 +675,7 @@ def api_batch_invoices():
             'successful': len(successful_invoices),
             'failed': len(failed_invoices),
             'total_amount': sum(inv['amount'] for inv in successful_invoices),
-            'total_late_fees': sum(inv['late_fee'] for inv in successful_invoices)
+            'total_late_fees': sum(inv['late_fees'] for inv in successful_invoices)
         }
         
         logger.info(f"🧾 Batch invoice summary: {summary['successful']}/{summary['total_processed']} successful, Total: ${summary['total_amount']:.2f}")

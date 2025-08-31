@@ -64,7 +64,7 @@ def get_secret(key: str, default: Optional[str] = None) -> Optional[str]:
     elif key == "square-production-access-token":
         return "EAAAl3E3RnKndmM_XvqfVlLoVj_VbVtBpimwy4xeljcwkkAF2tOStaxYq7KhPXCA"
     elif key == "square-production-location-id":
-        return "LCR9E5HA00KPA"
+        return "Q0TK7D7CFHWE3"
     
     # Return None if not found
     return None
