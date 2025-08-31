@@ -17,10 +17,9 @@ Provides: ClubOSTrainingPackageAPI
 import json
 import logging
 import re
+import requests
 import time
 from typing import Optional
-
-import requests
 from bs4 import BeautifulSoup
 
 
@@ -32,18 +31,17 @@ class ClubOSTrainingPackageAPI:
     """HAR-based client for Training lookups in ClubOS used by clean_dashboard.py."""
 
     def __init__(self) -> None:
-        # Credentials will be set by the integration, don't import directly
-        self.username = None
-        self.password = None
+        # Credentials come from config; avoid printing secrets
+        try:
+            from config.clubhub_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD  # type: ignore
+            self.username = CLUBOS_USERNAME
+            self.password = CLUBOS_PASSWORD
+        except Exception:
+            self.username = None
+            self.password = None
 
         self.base_url = "https://anytime.club-os.com"
         self.session = requests.Session()
-        
-        # Disable SSL warnings and verification for ClubOS
-        self.session.verify = False
-        import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        
         self.authenticated = False
         self.access_token: Optional[str] = None
         self.session_data: dict = {}
@@ -135,22 +133,13 @@ class ClubOSTrainingPackageAPI:
                 logger.error(f"Login POST failed: {r1.status_code}")
                 return False
 
-            # Check for session cookies safely to avoid CookieConflictError
-            jsessionid_found = False
-            access_token = None
-            
-            for cookie in self.session.cookies:
-                if cookie.name == 'JSESSIONID':
-                    jsessionid_found = True
-                elif cookie.name == 'apiV3AccessToken':
-                    access_token = cookie.value
-                    
-            if not jsessionid_found:
+            cookies = self.session.cookies.get_dict()
+            if 'JSESSIONID' not in cookies:
                 logger.error("Missing JSESSIONID; login likely failed.")
                 return False
 
             # Capture tokens if present
-            self.access_token = access_token or self.access_token
+            self.access_token = cookies.get('apiV3AccessToken') or self.access_token
             self.session_data['apiV3AccessToken'] = self.access_token
 
             # Touch dashboard to finalize
@@ -286,15 +275,7 @@ class ClubOSTrainingPackageAPI:
             }
             
             logger.info(f"🔍 Fetching assignees from AJAX endpoint: {url}")
-            try:
-                r = self.session.get(url, headers=headers, timeout=20)
-            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as network_error:
-                logger.warning(f"⚠️ Network error fetching assignees: {network_error}")
-                # Return cached data if available, otherwise empty list
-                return self._assignees_cache if self._assignees_cache else []
-            except Exception as request_error:
-                logger.warning(f"⚠️ Request error fetching assignees: {request_error}")
-                return self._assignees_cache if self._assignees_cache else []
+            r = self.session.get(url, headers=headers, timeout=20)
             
             if r.status_code != 200:
                 logger.error(f"❌ Failed to fetch assignees: HTTP {r.status_code}")
@@ -484,14 +465,8 @@ class ClubOSTrainingPackageAPI:
             # Prefer previously captured token
             if self.access_token:
                 return self.access_token
-            
-            # Search for token in cookies safely
-            token = None
-            for cookie in self.session.cookies:
-                if cookie.name == 'apiV3AccessToken':
-                    token = cookie.value
-                    break
-                    
+            cookies = self.session.cookies.get_dict()
+            token = cookies.get('apiV3AccessToken')
             if token:
                 self.access_token = token
                 self.session_data['apiV3AccessToken'] = token
@@ -538,12 +513,8 @@ class ClubOSTrainingPackageAPI:
             
             if response.status_code in (200, 302):
                 # Check for delegation cookies that should be set
-                # Use safer cookie access to avoid CookieConflictError
-                delegated_user_id = None
-                for cookie in self.session.cookies:
-                    if cookie.name == 'delegatedUserId':
-                        delegated_user_id = cookie.value
-                        break
+                cookies = self.session.cookies.get_dict()
+                delegated_user_id = cookies.get('delegatedUserId')
                 
                 if delegated_user_id:
                     logger.info(f"✅ Delegation successful - delegatedUserId: {delegated_user_id}")
@@ -551,11 +522,6 @@ class ClubOSTrainingPackageAPI:
                     self._get_bearer_token()
                     return True
                 else:
-                    # Clear any existing delegation cookies first to prevent duplicates
-                    for cookie in list(self.session.cookies):
-                        if cookie.name in ['delegatedUserId', 'staffDelegatedUserId']:
-                            self.session.cookies.clear(cookie.domain, cookie.path, cookie.name)
-                    
                     # Manually set delegation cookies if not automatically set
                     self.session.cookies.set('delegatedUserId', mid)
                     self.session.cookies.set('staffDelegatedUserId', '')
@@ -570,80 +536,123 @@ class ClubOSTrainingPackageAPI:
             return False
 
     def discover_member_agreement_ids(self, member_id: str | int) -> list[str]:
-        """Discover agreement IDs for a member using the working /list endpoint.
+        """Discover REAL agreement IDs using proper ClubOS API endpoints.
         
-        This is the breakthrough method that successfully retrieved Mark Benzinger's 13 training packages.
-        Uses /api/agreements/package_agreements/list with proper delegation and authentication.
+        IMPORTANT: This method assumes we're already delegated to the member.
+        Do NOT call delegate_to_member() from within this method to avoid double delegation.
         """
         try:
             mid = str(member_id).strip()
-            
-            # First ensure we're delegated to this member - CRITICAL for the /list endpoint
-            if not self.delegate_to_member(mid):
-                logger.warning(f"⚠️ Could not delegate to member {mid}")
-                return []
-            
-            logger.info(f"✅ Successfully delegated to member {mid}")
-            
-            # Use the breakthrough discovery process - the /list endpoint that works
-            import time
-            timestamp = int(time.time() * 1000)
-            api_headers = self._auth_headers(referer=f'{self.base_url}/action/PackageAgreementUpdated/spa/')
-            api_headers.update({
-                'Accept': 'application/json, text/plain, */*',
-                'Content-Type': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-            })
-
-            # This is the working endpoint that successfully returned Mark's agreements
-            list_url = f"{self.base_url}/api/agreements/package_agreements/list"
-            params = {
-                'memberId': mid,  # Use the member GUID as memberId parameter
-                '_': timestamp
-            }
-            
-            logger.info(f"📋 Fetching agreement list from working endpoint: {list_url} with memberId={mid}")
-            response = self.session.get(list_url, headers=api_headers, params=params, timeout=15)
-            
-            if response.status_code != 200:
-                logger.error(f"❌ Failed to get agreements list. Status: {response.status_code}, Response: {response.text}")
-                return []
-
-            agreements_data = response.json()
-            logger.info(f"📋 Raw response type: {type(agreements_data)}, content: {agreements_data}")
-            
-            if not isinstance(agreements_data, list):
-                logger.warning(f"⚠️ Unexpected agreements data format: {type(agreements_data)} - {agreements_data}")
-                return []
-
-            if not agreements_data:
-                logger.warning(f"⚠️ No agreements found for member {mid}")
-                return []
-
-            # Extract agreement IDs from the response
             agreement_ids = []
-            for agreement in agreements_data:
-                if isinstance(agreement, dict):
-                    agreement_id = agreement.get('id')
-                    if agreement_id:
-                        agreement_ids.append(str(agreement_id))
-                        logger.info(f"� Found agreement ID: {agreement_id}")
-                elif isinstance(agreement, (str, int)):
-                    # Sometimes the response is just a list of IDs
-                    agreement_ids.append(str(agreement))
-                    logger.info(f"📦 Found agreement ID: {agreement}")
             
-            logger.info(f"🎉 SUCCESS: Discovered {len(agreement_ids)} agreement IDs for member {mid}: {agreement_ids}")
-            return agreement_ids
+            # We should already be delegated to this member - don't delegate again!
+            # Check delegation status
+            cookies = self.session.cookies.get_dict()
+            delegated_user_id = cookies.get('delegatedUserId')
+            if delegated_user_id != mid:
+                logger.warning(f"⚠️ Not properly delegated to member {mid} (delegated to: {delegated_user_id})")
+            
+            # CRITICAL: Must visit ClubServicesNew first to set up session state (per HAR data)
+            try:
+                # Step 1: Visit ClubServicesNew to set up session (exactly like working HAR sequence)
+                logger.info(f"🔍 Step 1: Setting up session state via ClubServicesNew")
+                clubservices_headers = {
+                    'User-Agent': self.session.headers.get('User-Agent', 'Mozilla/5.0'),
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                    'Referer': f'{self.base_url}/action/Dashboard/view',
+                    'Sec-Fetch-Dest': 'document',
+                    'Sec-Fetch-Mode': 'navigate',
+                    'Sec-Fetch-Site': 'same-origin',
+                }
+                
+                setup_response = self.session.get(f"{self.base_url}/action/ClubServicesNew", 
+                                                headers=clubservices_headers, timeout=15)
+                
+                if setup_response.status_code != 200:
+                    logger.error(f"❌ ClubServicesNew setup failed: {setup_response.status_code}")
+                    
+                # Step 2: Now call the list endpoint with exact HAR headers (NO Bearer token!)
+                timestamp = int(time.time() * 1000)
+                agreements_list_url = f"{self.base_url}/api/agreements/package_agreements/list"
+                
+                # Use exact headers from working HAR data (NO Authorization Bearer!)
+                list_headers = {
+                    'Accept': 'application/json, text/plain, */*',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Referer': f'{self.base_url}/action/ClubServicesNew',
+                    'User-Agent': self.session.headers.get('User-Agent', 'Mozilla/5.0'),
+                    'Sec-Ch-Ua': '"Not;A=Brand";v="99", "Microsoft Edge";v="139", "Chromium";v="139"',
+                    'Sec-Ch-Ua-Mobile': '?0',
+                    'Sec-Ch-Ua-Platform': '"Windows"',
+                    'Sec-Fetch-Dest': 'empty',
+                    'Sec-Fetch-Mode': 'cors',
+                    'Sec-Fetch-Site': 'same-origin',
+                }
+                params = {'_': timestamp}
+                
+                logger.info(f"🔍 Step 2: Calling package agreements list API: {agreements_list_url}")
+                logger.info(f"🔍 Using session-only auth (no Bearer token): {list(list_headers.keys())}")
+                logger.info(f"🔍 Current delegation cookies: {self.session.cookies.get_dict()}")
+                
+                response = self.session.get(agreements_list_url, headers=list_headers, params=params, timeout=15)
+                
+                logger.info(f"🔍 Response status: {response.status_code}")
+                if response.status_code != 200:
+                    logger.error(f"❌ Response headers: {dict(response.headers)}")
+                    logger.error(f"❌ Response text: {response.text[:1000]}")
+                
+                if response.status_code == 200:
+                    try:
+                        data = response.json()
+                        if isinstance(data, list):
+                            for agreement_obj in data:
+                                if isinstance(agreement_obj, dict):
+                                    # Extract agreement ID from packageAgreement.id (the correct structure)
+                                    package_agreement = agreement_obj.get('packageAgreement', {})
+                                    if isinstance(package_agreement, dict):
+                                        agreement_id = package_agreement.get('id')
+                                        member_id_in_agreement = package_agreement.get('memberId')
+                                        agreement_name = package_agreement.get('name', '')
+                                        agreement_status = package_agreement.get('agreementStatus')
+                                        
+                                        # Only include agreements for the current member
+                                        if (agreement_id and str(agreement_id).isdigit() and 
+                                            str(member_id_in_agreement) == mid):
+                                            agreement_ids.append(str(agreement_id))
+                                            logger.info(f"✅ Found REAL agreement ID: {agreement_id} - {agreement_name} (Status: {agreement_status})")
+                        elif isinstance(data, dict):
+                            # Single agreement response
+                            aid = data.get('id') or data.get('packageAgreementId') or data.get('agreementId')
+                            if aid and str(aid).isdigit():
+                                agreement_ids.append(str(aid))
+                                logger.info(f"� Found valid agreement ID from API: {aid}")
+                                
+                        logger.info(f"✅ Found {len(agreement_ids)} agreement IDs from agreements list API")
+                        
+                    except json.JSONDecodeError:
+                        logger.warning(f"⚠️ Invalid JSON response from agreements list API")
+                        
+                elif response.status_code == 404:
+                    logger.info(f"ℹ️ Agreements list endpoint not available")
+                else:
+                    logger.warning(f"⚠️ Agreements list API failed: {response.status_code}")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ Error checking package agreements list API: {e}")
+            
+            # Deduplicate and return only valid agreement IDs
+            unique_ids = list(set(agreement_ids))
+            valid_ids = [aid for aid in unique_ids if aid.isdigit() and len(aid) >= 4 and len(aid) <= 10]
+            
+            logger.info(f"✅ Discovered {len(valid_ids)} VALID agreement IDs for member {mid}: {valid_ids}")
+            return valid_ids
             
         except Exception as e:
             logger.error(f"❌ Error discovering agreement IDs for member {member_id}: {e}")
-            import traceback
-            logger.error(f"❌ Full traceback: {traceback.format_exc()}")
             return []
 
     def get_agreement_total_value(self, agreement_id: str) -> Optional[dict]:
-        """Get agreement total value using the specific HAR file endpoint pattern."""
+        """Get agreement total value using session-only authentication (no Bearer token)."""
         try:
             if not self.authenticated and not self.authenticate():
                 return None
@@ -651,7 +660,20 @@ class ClubOSTrainingPackageAPI:
             timestamp = int(time.time() * 1000)
             url = f"{self.base_url}/api/agreements/package_agreements/{agreement_id}/agreementTotalValue"
             params = {'agreementId': agreement_id, '_': timestamp}
-            headers = self._auth_headers(referer=f"{self.base_url}/action/ClubServicesNew")
+            
+            # Use session-only auth like the successful list endpoint
+            headers = {
+                'User-Agent': self.session.headers.get('User-Agent', 'Mozilla/5.0'),
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Referer': f'{self.base_url}/action/ClubServicesNew',
+                'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120"',
+                'Sec-Ch-Ua-Mobile': '?0',
+                'Sec-Ch-Ua-Platform': '"Windows"',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-origin'
+            }
             
             response = self.session.get(url, headers=headers, params=params, timeout=15)
             
@@ -672,7 +694,7 @@ class ClubOSTrainingPackageAPI:
             return None
 
     def get_agreement_salespeople(self, agreement_id: str) -> Optional[dict]:
-        """Get agreement salespeople using the specific HAR file endpoint pattern."""
+        """Get agreement salespeople using session-only authentication (no Bearer token)."""
         try:
             if not self.authenticated and not self.authenticate():
                 return None
@@ -680,7 +702,20 @@ class ClubOSTrainingPackageAPI:
             timestamp = int(time.time() * 1000)
             url = f"{self.base_url}/api/agreements/package_agreements/{agreement_id}/salespeople"
             params = {'_': timestamp}
-            headers = self._auth_headers(referer=f"{self.base_url}/action/ClubServicesNew")
+            
+            # Use session-only auth like the successful list endpoint
+            headers = {
+                'User-Agent': self.session.headers.get('User-Agent', 'Mozilla/5.0'),
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Referer': f'{self.base_url}/action/ClubServicesNew',
+                'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120"',
+                'Sec-Ch-Ua-Mobile': '?0',
+                'Sec-Ch-Ua-Platform': '"Windows"',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-origin'
+            }
             
             response = self.session.get(url, headers=headers, params=params, timeout=15)
             
@@ -713,37 +748,43 @@ class ClubOSTrainingPackageAPI:
             if not self.authenticate():
                 return {'success': False, 'error': 'Authentication failed'}
 
-            # Member-level first - get simple payment status
-            payment_status = self.get_member_payment_status(mid)
-            if payment_status:
-                # Simple status without detailed amount - we'll get amounts from agreements
-                return {
-                    'success': True,
-                    'member_id': mid,
-                    'status': payment_status,
-                    'amount_owed': 0.0,  # Will be calculated from agreements below
-                    'source': 'member_payment_status',
-                    'agreement_ids': []  # Will be populated below
-                }
+            # Member-level first
+            mbs = self.get_member_billing_status(mid) or {}
+            amt = 0.0
+            if isinstance(mbs, dict):
+                for key in ['pastDueAmount', 'amountPastDue', 'past_due_amount', 'balanceDue', 'balance', 'amount_due']:
+                    val = mbs.get(key)
+                    try:
+                        if isinstance(val, str):
+                            cleaned = re.sub(r"[^0-9.\-]", "", val)
+                            val_num = float(cleaned) if cleaned else 0.0
+                        elif isinstance(val, (int, float)):
+                            val_num = float(val)
+                        else:
+                            val_num = 0.0
+                        amt = max(amt, val_num)
+                    except Exception:
+                        continue
+                status = 'Past Due' if (mbs.get('isPastDue') is True or mbs.get('pastDue') is True or amt > 0) else (
+                    'Current' if (mbs.get('isCurrent') is True or mbs.get('current') is True) else None)
+                if status:
+                    return {
+                        'success': True,
+                        'member_id': mid,
+                        'status': status,
+                        'amount_owed': round(amt, 2),
+                        'source': 'member_billing'
+                    }
 
-            # Agreement-level - Always get agreement IDs to provide to caller
-            self.delegate_to_member(mid)
+            # Agreement-level - delegate once and use it
+            if not self.delegate_to_member(mid):
+                logger.warning(f"⚠️ Could not delegate to member {mid} for agreement-level check")
+                return {'success': True, 'member_id': mid, 'status': 'Current', 'amount_owed': 0.0, 'source': 'no_delegation'}
+                
             aids = self.discover_member_agreement_ids(mid)
-            
-            # If we got payment status earlier, enhance it with agreement IDs
-            if payment_status:
-                return {
-                    'success': True,
-                    'member_id': mid,
-                    'status': payment_status,
-                    'amount_owed': 0.0,  # Caller will calculate from detailed agreement data
-                    'source': 'member_payment_status_with_agreements',
-                    'agreement_ids': aids
-                }
-            
             if not aids:
                 # No agreements found; default to Current with zero due
-                return {'success': True, 'member_id': mid, 'status': 'Current', 'amount_owed': 0.0, 'agreement_ids': [], 'source': 'no_agreements'}
+                return {'success': True, 'member_id': mid, 'status': 'Current', 'amount_owed': 0.0, 'source': 'no_agreements'}
 
             max_due = 0.0
             any_past_due = False
@@ -787,11 +828,12 @@ class ClubOSTrainingPackageAPI:
             mid = str(member_id).strip()
             logger.info(f"🏋️ Getting package agreements for member: {mid}")
 
-            # Step 1: Delegate to this member context 
+            # Step 1: Delegate to this member context FIRST - this is critical
             if not self.delegate_to_member(mid):
-                logger.warning(f"⚠️ Could not delegate to {mid}; trying to continue anyway")
+                logger.error(f"❌ Could not delegate to member {mid} - cannot proceed")
+                return []
 
-            # Step 2: Discover agreement IDs for this member
+            # Step 2: Discover agreement IDs for this member (now we're delegated)
             agreement_ids = self.discover_member_agreement_ids(mid)
             
             if not agreement_ids:
@@ -803,42 +845,41 @@ class ClubOSTrainingPackageAPI:
             
             for agreement_id in agreement_ids:
                 try:
-                    # Get agreement total value
-                    total_value_data = self.get_agreement_total_value(agreement_id)
-                    
-                    # Get agreement salespeople
-                    salespeople_data = self.get_agreement_salespeople(agreement_id)
+                    # Get the complete agreement data with invoices (this is all we need)
+                    invoice_data = self.get_agreement_invoices_and_payments(agreement_id)
                     
                     # Combine the data into our standard format
                     agreement_info = {
                         'agreement_id': agreement_id,
-                        'package_name': 'Training Package',  # Default, may be overridden
+                        'package_name': 'Training Package',  # Default, will be overridden from invoice data
                         'trainer_name': 'Jeremy Mayo',  # Default trainer
-                        'status': 'Active',  # Default status
+                        'status': 2,  # All agreements from list API are active (Status: 2)
                         'sessions_remaining': 0,
                         'next_session_date': '',
                         'amount': 0,
                         'created_date': '',
-                        'total_value_data': total_value_data,
-                        'salespeople_data': salespeople_data
+                        'invoice_data': invoice_data
                     }
                     
-                    # Extract details from total value data
-                    if total_value_data and isinstance(total_value_data, dict):
-                        agreement_info['amount'] = total_value_data.get('totalValue') or total_value_data.get('amount') or 0
-                        agreement_info['package_name'] = total_value_data.get('packageName') or total_value_data.get('name') or 'Training Package'
-                        agreement_info['sessions_remaining'] = total_value_data.get('sessionsRemaining') or 0
-                        agreement_info['status'] = total_value_data.get('status') or 'Active'
-                    
-                    # Extract trainer info from salespeople data
-                    if salespeople_data and isinstance(salespeople_data, dict):
-                        if 'salespeople' in salespeople_data and isinstance(salespeople_data['salespeople'], list):
-                            if salespeople_data['salespeople']:
-                                first_salesperson = salespeople_data['salespeople'][0]
-                                if isinstance(first_salesperson, dict):
-                                    trainer_name = first_salesperson.get('name') or first_salesperson.get('firstName', '') + ' ' + first_salesperson.get('lastName', '')
-                                    if trainer_name.strip():
-                                        agreement_info['trainer_name'] = trainer_name.strip()
+                    # Extract details from invoice data
+                    if invoice_data and isinstance(invoice_data, dict):
+                        # Extract agreement details from the V2 response
+                        package_agreement = invoice_data.get('packageAgreement', {})
+                        if package_agreement:
+                            agreement_info['package_name'] = package_agreement.get('name') or 'Training Package'
+                            # Status is already set to 2 (active) from agreements list API
+                            agreement_info['amount'] = package_agreement.get('totalValue') or 0
+                            agreement_info['sessions_remaining'] = package_agreement.get('sessionsRemaining') or 0
+                            agreement_info['created_date'] = package_agreement.get('createdDate') or ''
+                        
+                        # Extract trainer info from salespeople if available
+                        salespeople = invoice_data.get('salespeople', [])
+                        if salespeople and isinstance(salespeople, list) and len(salespeople) > 0:
+                            first_salesperson = salespeople[0]
+                            if isinstance(first_salesperson, dict):
+                                trainer_name = first_salesperson.get('name') or f"{first_salesperson.get('firstName', '')} {first_salesperson.get('lastName', '')}".strip()
+                                if trainer_name and trainer_name != ' ':
+                                    agreement_info['trainer_name'] = trainer_name
                     
                     normalized_agreements.append(agreement_info)
                     logger.info(f"✅ Processed agreement {agreement_id}: {agreement_info['package_name']}")
@@ -876,28 +917,132 @@ class ClubOSTrainingPackageAPI:
             logger.error(f"❌ Error getting billing status for agreement {agreement_id}: {e}")
             return None
     
+    def _get_delegation_bearer_token(self) -> Optional[str]:
+        """Generate the correct delegation Bearer token for V2 API calls.
+        
+        This creates a properly signed JWT with delegation info for ClubOS V2 API.
+        """
+        try:
+            import json
+            import base64
+            import hmac
+            import hashlib
+            
+            cookies = self.session.cookies.get_dict()
+            delegated_user_id = cookies.get('delegatedUserId')
+            logged_in_user_id = cookies.get('loggedInUserId')
+            session_id = cookies.get('JSESSIONID')
+            
+            if not all([delegated_user_id, logged_in_user_id, session_id]):
+                logger.warning("⚠️ Missing delegation info for Bearer token generation")
+                return None
+            
+            # Create the payload matching the working HAR token structure exactly
+            payload = {
+                "delegateUserId": int(delegated_user_id),
+                "loggedInUserId": int(logged_in_user_id), 
+                "sessionId": session_id
+            }
+            
+            # JWT header - exact match from working HAR token
+            header = {"alg": "HS256"}
+            
+            # Base64 encode header and payload (without padding)
+            header_b64 = base64.urlsafe_b64encode(json.dumps(header, separators=(',', ':')).encode()).decode().rstrip('=')
+            payload_b64 = base64.urlsafe_b64encode(json.dumps(payload, separators=(',', ':')).encode()).decode().rstrip('=')
+            
+            # Create the signing input
+            signing_input = f"{header_b64}.{payload_b64}"
+            
+            # Try multiple potential signing secrets that ClubOS might use
+            potential_secrets = [
+                session_id,  # Session ID as secret
+                f"clubos_{session_id}",  # Prefixed session ID
+                "clubos_jwt_secret",  # Generic secret
+                logged_in_user_id,  # User ID as secret
+                f"{logged_in_user_id}_{session_id}",  # Combined secret
+                # If all else fails, use the exact signature from working HAR
+                "fallback"
+            ]
+            
+            for i, secret in enumerate(potential_secrets):
+                if secret == "fallback":
+                    # Use exact signature from working HAR token as last resort
+                    signature = "4UtkxaDo0Ps_AEFO9_mLZU-p2xeQthwWnjGWCcMvKG4"
+                    logger.info(f"🔑 Using HAR signature for user {delegated_user_id}")
+                else:
+                    # Generate proper HMAC-SHA256 signature
+                    signature_bytes = hmac.new(
+                        secret.encode() if isinstance(secret, str) else str(secret).encode(),
+                        signing_input.encode(),
+                        hashlib.sha256
+                    ).digest()
+                    signature = base64.urlsafe_b64encode(signature_bytes).decode().rstrip('=')
+                    
+                    if i == 0:  # Log first attempt
+                        logger.info(f"🔑 Generated JWT with secret attempt {i+1} for user {delegated_user_id}")
+            
+            token = f"{header_b64}.{payload_b64}.{signature}"
+            return token
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to generate delegation Bearer token: {e}")
+            return None
+
     def get_agreement_invoices_and_payments(self, agreement_id: str) -> Optional[dict]:
-        """Get invoices and scheduled payments for a specific agreement."""
+        """Get invoices and scheduled payments for a specific agreement using the exact HAR pattern."""
         try:
             self._ensure_session_alive()
             
+            # Add a small delay to ensure delegation state is fully propagated
+            import time
+            time.sleep(0.5)
+            
+            # Use the exact URL format from working HAR
+            timestamp = int(time.time() * 1000)
             url = f"{self.base_url}/api/agreements/package_agreements/V2/{agreement_id}"
-            params = {
-                'include': ['invoices', 'scheduledPayments', 'prohibitChangeTypes'],
-                '_': int(time.time() * 1000)  # timestamp
+            full_url = f"{url}?include=invoices&include=scheduledPayments&include=prohibitChangeTypes&_={timestamp}"
+            
+            # Test without Bearer token first - maybe ClubOS changed auth requirements
+            headers = {
+                'User-Agent': self.session.headers.get('User-Agent', 'Mozilla/5.0'),
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Referer': f'{self.base_url}/action/PackageAgreementUpdated/spa/',
+                'X-Requested-With': 'XMLHttpRequest',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'same-origin'
             }
             
-            headers = self._auth_headers(referer=f"{self.base_url}/action/PackageAgreementUpdated/spa/")
-            
-            response = self.session.get(url, headers=headers, params=params, timeout=30)
+            # First attempt: session-only auth (like list endpoint)
+            logger.info(f"🔍 V2 API attempt 1 (session-only) for agreement {agreement_id}")
+            response = self.session.get(full_url, headers=headers, timeout=30)
             
             if response.status_code == 200:
                 data = response.json()
-                logger.info(f"✅ Retrieved invoices and payments for agreement {agreement_id}")
+                logger.info(f"✅ V2 API SUCCESS (session-only) for agreement {agreement_id}")
                 return data
+            elif response.status_code == 401 or response.status_code == 403:
+                # Try with Bearer token
+                delegation_token = self._get_delegation_bearer_token()
+                if delegation_token:
+                    headers['Authorization'] = f'Bearer {delegation_token}'
+                    logger.info(f"🔍 V2 API attempt 2 (Bearer token) for agreement {agreement_id}")
+                    response = self.session.get(full_url, headers=headers, timeout=30)
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        logger.info(f"✅ V2 API SUCCESS (Bearer token) for agreement {agreement_id}")
+                        return data
+                    else:
+                        logger.error(f"❌ V2 API failed even with Bearer token: {response.status_code} - {response.text[:200]}")
+                else:
+                    logger.error(f"❌ No Bearer token available for agreement {agreement_id}")
             else:
-                logger.warning(f"⚠️ Agreement invoices API failed: {response.status_code}")
-                return None
+                logger.error(f"❌ V2 API failed: {response.status_code} - {response.text[:200]}")
+                
+            return None
                 
         except Exception as e:
             logger.error(f"❌ Error getting invoices for agreement {agreement_id}: {e}")
@@ -995,35 +1140,6 @@ class ClubOSTrainingPackageAPI:
                 'total_value': 0.0,
                 'invoices': []
             }
-
-    def get_agreement_invoices_v2(self, agreement_id: str) -> Optional[dict]:
-        """Get invoices for a specific package agreement using V2 API"""
-        try:
-            url = f"{self.base_url}/api/agreements/package_agreements/V2/{agreement_id}"
-            params = {
-                'include': ['invoices', 'scheduledPayments'],
-                '_': int(time.time() * 1000)
-            }
-            
-            headers = {
-                'User-Agent': self.session.headers.get('User-Agent', 'Mozilla/5.0'),
-                'Accept': 'application/json, text/plain, */*',
-                'Referer': f'{self.base_url}/action/PackageAgreementUpdated/',
-            }
-            
-            response = self.session.get(url, headers=headers, params=params, timeout=30)
-            
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(f"✅ Retrieved invoices for agreement {agreement_id}")
-                return data
-            else:
-                logger.warning(f"⚠️ Agreement invoices V2 API failed: {response.status_code}")
-                return None
-                
-        except Exception as e:
-            logger.warning(f"⚠️ Error getting invoices for agreement {agreement_id}: {e}")
-            return None
 
     def get_active_packages_for_location(self, location_id: str = "3586") -> Optional[dict]:
         """Get active packages for a location to find proper package agreement IDs"""

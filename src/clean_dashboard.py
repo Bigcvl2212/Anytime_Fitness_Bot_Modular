@@ -1194,6 +1194,9 @@ class DatabaseManager:
 # Initialize database manager and import data
 db_manager = DatabaseManager()
 
+# Add database manager to Flask app for access in other modules
+app.db_manager = db_manager
+
 # Only import CSV data if database is empty (first time setup)
 conn = sqlite3.connect(db_manager.db_path)
 cursor = conn.cursor()
@@ -1427,8 +1430,8 @@ def import_fresh_clubhub_data():
         return None
 
 # Always import fresh data on startup to ensure data is current
-print("🔄 Importing fresh data from ClubHub on startup...")
-startup_category_counts = import_fresh_clubhub_data()
+# print("🔄 Importing fresh data from ClubHub on startup...")
+# startup_category_counts = import_fresh_clubhub_data()
 
 def update_new_members_only():
     """Periodically update database with only new members/prospects (not full refresh)"""

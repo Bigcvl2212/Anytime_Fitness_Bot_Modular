@@ -6,17 +6,12 @@ import sys
 sys.path.append('.')
 
 from clubos_training_api_fixed import ClubOSTrainingPackageAPI
-from src.config.clubos_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD
 
 def test_mark_direct():
     print("🧪 Testing Mark Benzinger with GUID 66082049")
     
     try:
         api = ClubOSTrainingPackageAPI()
-        api.username = CLUBOS_USERNAME
-        api.password = CLUBOS_PASSWORD
-        
-        print(f"📋 Using credentials: {CLUBOS_USERNAME[:3]}*** / {len(CLUBOS_PASSWORD) if CLUBOS_PASSWORD else 0} chars")
         
         # Step 1: Get payment details using his GUID
         print("📋 Step 1: Getting payment details...")

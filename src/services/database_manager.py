@@ -128,129 +128,108 @@ class DatabaseManager:
             conn.close()
     
     def init_database(self):
-        """Initialize database with all required tables"""
+        """Initialize database with all necessary tables"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
         try:
-            # Get existing table info to check what columns exist
-            def table_info(table_name):
-                try:
-                    cursor.execute(f"PRAGMA table_info({table_name})")
-                    return [row[1] for row in cursor.fetchall()]
-                except:
-                    return []
-            
+            # --- Lightweight migration helpers ---
+            def table_info(name: str):
+                cursor.execute(f"PRAGMA table_info({name})")
+                return [row[1] for row in cursor.fetchall()]
+
+            def ensure_column(table: str, column_def_sql: str, column_name: str):
+                cols = table_info(table)
+                if column_name not in cols:
+                    cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column_def_sql}")
+
             # Create members table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS members (
                     id INTEGER PRIMARY KEY,
                     prospect_id TEXT UNIQUE,
-                    guid TEXT UNIQUE,
+                    guid TEXT,
                     first_name TEXT,
                     last_name TEXT,
                     full_name TEXT,
                     email TEXT,
-                    mobile_phone TEXT,
                     phone TEXT,
+                    mobile_phone TEXT,
                     status TEXT,
                     status_message TEXT,
                     member_type TEXT,
                     user_type TEXT,
-                    amount_past_due REAL DEFAULT 0.0,
-                    next_payment_date TEXT,
-                    next_payment_amount REAL DEFAULT 0.0,
-                    address1 TEXT,
-                    city TEXT,
-                    state TEXT,
-                    zip TEXT,
+                    join_date TEXT,
+                    amount_past_due REAL,
+                    date_of_next_payment TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             
+            # Migration: ensure prospect_id exists on members
+            ensure_column('members', 'prospect_id TEXT', 'prospect_id')
+            # Migration: ensure guid exists for member profile lookups
+            ensure_column('members', 'guid TEXT', 'guid')
+            # Migration: ensure user_type exists (maps from member_type)
+            ensure_column('members', 'user_type TEXT', 'user_type')
+            # Migration: ensure mobile_phone exists (templates reference it)
+            ensure_column('members', 'mobile_phone TEXT', 'mobile_phone')
+            # Migration: ensure legacy phone column exists for compatibility
+            ensure_column('members', 'phone TEXT', 'phone')
+            
+            # Create prospects table
             # Create prospects table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS prospects (
-                    id INTEGER PRIMARY KEY,
-                    prospect_id TEXT UNIQUE,
-                    guid TEXT UNIQUE,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    prospect_id TEXT NOT NULL,
                     first_name TEXT,
                     last_name TEXT,
                     full_name TEXT,
                     email TEXT,
-                    mobile_phone TEXT,
                     phone TEXT,
                     status TEXT,
-                    status_message TEXT,
-                    lead_source TEXT,
-                    interest_level TEXT,
-                    follow_up_date TEXT,
-                    address1 TEXT,
-                    city TEXT,
-                    state TEXT,
-                    zip TEXT,
+                    prospect_type TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             
-            # Create training_clients table
+            # Migration: ensure prospect_id exists on prospects
+            ensure_column('prospects', 'prospect_id TEXT', 'prospect_id')
+            
+            # Create training_clients table with enhanced package data support
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS training_clients (
                     id INTEGER PRIMARY KEY,
-                    clubos_member_id TEXT,
                     member_id TEXT,
-                    member_name TEXT,
+                    clubos_member_id TEXT,
                     first_name TEXT,
                     last_name TEXT,
                     full_name TEXT,
+                    member_name TEXT,
                     email TEXT,
                     phone TEXT,
                     status TEXT,
-                    trainer_name TEXT,
                     training_package TEXT,
+                    trainer_name TEXT,
+                    membership_type TEXT,
+                    source TEXT,
                     active_packages TEXT,
+                    package_summary TEXT,
+                    package_details TEXT,
                     past_due_amount REAL DEFAULT 0.0,
                     total_past_due REAL DEFAULT 0.0,
-                    payment_status TEXT DEFAULT 'Current',
+                    payment_status TEXT,
                     sessions_remaining INTEGER DEFAULT 0,
                     last_session TEXT,
+                    financial_summary TEXT,
+                    last_updated TIMESTAMP,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            
-            # Check if we need to migrate the existing training_clients table
-            existing_columns = table_info('training_clients')
-            required_columns = [
-                'clubos_member_id', 'member_name', 'first_name', 'last_name', 
-                'trainer_name', 'active_packages', 'past_due_amount', 'total_past_due', 
-                'payment_status', 'sessions_remaining', 'last_session', 'last_updated'
-            ]
-            
-            missing_columns = [col for col in required_columns if col not in existing_columns]
-            
-            if missing_columns:
-                logger.info(f"🔄 Migrating training_clients table to add missing columns: {missing_columns}")
-                
-                for column in missing_columns:
-                    try:
-                        if column in ['past_due_amount', 'total_past_due']:
-                            cursor.execute(f"ALTER TABLE training_clients ADD COLUMN {column} REAL DEFAULT 0.0")
-                        elif column in ['sessions_remaining']:
-                            cursor.execute(f"ALTER TABLE training_clients ADD COLUMN {column} INTEGER DEFAULT 0")
-                        elif column in ['active_packages', 'payment_status', 'last_updated']:
-                            cursor.execute(f"ALTER TABLE training_clients ADD COLUMN {column} TEXT DEFAULT ''")
-                        else:
-                            cursor.execute(f"ALTER TABLE training_clients ADD COLUMN {column} TEXT")
-                        
-                        logger.info(f"✅ Added column: {column}")
-                    except Exception as e:
-                        logger.warning(f"⚠️ Column {column} might already exist: {e}")
-                
-                logger.info("✅ Training clients table migration completed")
             
             # Create member_categories table for fast member classification
             cursor.execute("""
@@ -259,8 +238,9 @@ class DatabaseManager:
                     member_id TEXT UNIQUE,
                     category TEXT,
                     status_message TEXT,
-                    full_name TEXT,
-                    classified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    status TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (member_id) REFERENCES members (prospect_id)
                 )
             """)
@@ -289,15 +269,64 @@ class DatabaseManager:
                 )
             """)
             
-            # Create indexes for better performance
+            # Migrate existing database by adding missing columns if they don't exist
+            try:
+                # Add phone column to prospects table if missing
+                cursor.execute("PRAGMA table_info(prospects)")
+                prospects_columns = [row[1] for row in cursor.fetchall()]
+                if 'phone' not in prospects_columns:
+                    cursor.execute("ALTER TABLE prospects ADD COLUMN phone TEXT")
+                    logger.info("✅ Added missing 'phone' column to prospects table")
+                if 'prospect_type' not in prospects_columns:
+                    cursor.execute("ALTER TABLE prospects ADD COLUMN prospect_type TEXT")
+                    logger.info("✅ Added missing 'prospect_type' column to prospects table")
+                if 'status' not in prospects_columns:
+                    cursor.execute("ALTER TABLE prospects ADD COLUMN status TEXT")
+                    logger.info("✅ Added missing 'status' column to prospects table")
+                
+                # Migrate training_clients table to add enhanced package data columns
+                cursor.execute("PRAGMA table_info(training_clients)")
+                training_columns = [row[1] for row in cursor.fetchall()]
+                
+                training_column_migrations = [
+                    ('clubos_member_id', 'TEXT'),
+                    ('member_name', 'TEXT'),
+                    ('trainer_name', 'TEXT'),
+                    ('membership_type', 'TEXT'),
+                    ('source', 'TEXT'),
+                    ('active_packages', 'TEXT'),
+                    ('package_summary', 'TEXT'),
+                    ('package_details', 'TEXT'),
+                    ('past_due_amount', 'REAL DEFAULT 0.0'),
+                    ('total_past_due', 'REAL DEFAULT 0.0'),
+                    ('payment_status', 'TEXT'),
+                    ('sessions_remaining', 'INTEGER DEFAULT 0'),
+                    ('last_session', 'TEXT'),
+                    ('financial_summary', 'TEXT'),
+                    ('last_updated', 'TIMESTAMP')
+                ]
+                
+                for column_name, column_type in training_column_migrations:
+                    if column_name not in training_columns:
+                        cursor.execute(f"ALTER TABLE training_clients ADD COLUMN {column_name} {column_type}")
+                        logger.info(f"✅ Added missing '{column_name}' column to training_clients table")
+                        
+            except Exception as migrate_error:
+                logger.warning(f"⚠️  Database migration warning: {migrate_error}")
+
+            # Create indexes for better performance and add unique constraints
             # Guard index creation only if column exists to avoid errors on legacy DBs
             if 'prospect_id' in table_info('members'):
-                cursor.execute("CREATE INDEX IF NOT EXISTS idx_members_prospect_id ON members(prospect_id)")
+                # Create unique index on prospect_id to prevent duplicates
+                cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_members_prospect_id_unique ON members(prospect_id)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_members_status ON members(status)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_members_email ON members(email)")
             if 'prospect_id' in table_info('prospects'):
-                cursor.execute("CREATE INDEX IF NOT EXISTS idx_prospects_prospect_id ON prospects(prospect_id)")
+                # Create unique index on prospect_id to prevent duplicates  
+                cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_prospects_prospect_id_unique ON prospects(prospect_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_training_clients_member_id ON training_clients(member_id)")
+            # Make member_categories.member_id unique to prevent duplicates
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_member_categories_member_id_unique ON member_categories(member_id)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_member_categories_category ON member_categories(category)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_funding_cache_member_name ON funding_status_cache(member_name)")
             
@@ -313,17 +342,28 @@ class DatabaseManager:
     def save_members_to_db(self, members: List[Dict[str, Any]]) -> bool:
         """Upsert members into the database with minimal required fields.
         Expects list of dicts that may come from ClubHub API; we map keys safely.
+        Prevents duplicates by checking prospect_id first.
         """
         if not members:
             return False
-        conn = self.get_connection()
+        
+        # Use timeout and isolation level to prevent concurrent transaction conflicts
+        conn = sqlite3.connect(self.db_path, timeout=30.0, isolation_level='IMMEDIATE')
         cursor = conn.cursor()
         try:
+            inserted_count = 0
+            updated_count = 0
+            
             for m in members:
                 # Normalize keys from possible variants
                 prospect_id = (
                     m.get('prospect_id') or m.get('prospectId') or m.get('clubos_member_id') or m.get('id')
                 )
+                
+                # Skip if no prospect_id
+                if not prospect_id:
+                    continue
+                    
                 first_name = m.get('first_name') or m.get('firstName')
                 last_name = m.get('last_name') or m.get('lastName')
                 full_name = m.get('full_name') or (
@@ -337,29 +377,62 @@ class DatabaseManager:
                 amount_past_due = m.get('amount_past_due') or m.get('pastDueAmount') or 0
                 date_of_next_payment = m.get('date_of_next_payment') or m.get('nextPaymentDate')
 
-                # Use INSERT OR REPLACE with correct column names from existing schema
-                cursor.execute(
-                    """
-                    INSERT OR REPLACE INTO members (
-                        prospect_id, guid, first_name, last_name, full_name, email, mobile_phone,
-                        status, status_message, user_type, amount_past_due, date_of_next_payment, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                    """,
-                    (
-                        str(prospect_id) if prospect_id is not None else None,  # prospect_id column
-                        str(prospect_id) if prospect_id is not None else None,  # guid column (use same value)
-                        first_name,
-                        last_name,
-                        full_name,
-                        email,
-                        mobile_phone,
-                        status,
-                        status_message,
-                        member_type,  # Maps to user_type column
-                        float(amount_past_due) if amount_past_due not in (None, '') else 0,
-                        date_of_next_payment,
-                    ),
-                )
+                # Check if member already exists by prospect_id
+                cursor.execute("SELECT id FROM members WHERE prospect_id = ?", (str(prospect_id),))
+                existing_member = cursor.fetchone()
+                
+                if existing_member:
+                    # Update existing member
+                    cursor.execute(
+                        """
+                        UPDATE members SET 
+                            guid = ?, first_name = ?, last_name = ?, full_name = ?, email = ?, 
+                            mobile_phone = ?, status = ?, status_message = ?, user_type = ?, 
+                            amount_past_due = ?, date_of_next_payment = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE prospect_id = ?
+                        """,
+                        (
+                            str(prospect_id),  # guid column (use same value as prospect_id)
+                            first_name,
+                            last_name,
+                            full_name,
+                            email,
+                            mobile_phone,
+                            status,
+                            status_message,
+                            member_type,  # Maps to user_type column
+                            float(amount_past_due) if amount_past_due not in (None, '') else 0,
+                            date_of_next_payment,
+                            str(prospect_id)  # WHERE condition
+                        ),
+                    )
+                    updated_count += 1
+                else:
+                    # Insert new member
+                    cursor.execute(
+                        """
+                        INSERT INTO members (
+                            prospect_id, guid, first_name, last_name, full_name, email, mobile_phone,
+                            status, status_message, user_type, amount_past_due, date_of_next_payment, 
+                            created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                        (
+                            str(prospect_id),  # prospect_id column
+                            str(prospect_id),  # guid column (use same value)
+                            first_name,
+                            last_name,
+                            full_name,
+                            email,
+                            mobile_phone,
+                            status,
+                            status_message,
+                            member_type,  # Maps to user_type column
+                            float(amount_past_due) if amount_past_due not in (None, '') else 0,
+                            date_of_next_payment,
+                        ),
+                    )
+                    inserted_count += 1
                 
                 # Also update the category classification based on amount_past_due
                 if prospect_id:
@@ -406,17 +479,122 @@ class DatabaseManager:
                     elif ('good standing' in status_message_lower or 'active' in status_lower or status_lower == 'active'):
                         category = 'green'
                     
-                    # Insert/update member category
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO member_categories 
-                        (member_id, category, status_message, classified_at)
-                        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-                    """, (str(prospect_id), category, updated_status_message))
+                    # Insert/update member category (also prevent duplicates here)
+                    cursor.execute("SELECT member_id FROM member_categories WHERE member_id = ?", (str(prospect_id),))
+                    if cursor.fetchone():
+                        # Update existing category
+                        cursor.execute("""
+                            UPDATE member_categories 
+                            SET category = ?, status_message = ?, classified_at = CURRENT_TIMESTAMP
+                            WHERE member_id = ?
+                        """, (category, updated_status_message, str(prospect_id)))
+                    else:
+                        # Insert new category
+                        cursor.execute("""
+                            INSERT INTO member_categories 
+                            (member_id, category, status_message, full_name, classified_at)
+                            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                        """, (str(prospect_id), category, updated_status_message, full_name))
+            
             conn.commit()
-            logger.info(f"✅ Successfully saved {len(members)} members to database")
+            logger.info(f"✅ Successfully processed {len(members)} members to database ({inserted_count} inserted, {updated_count} updated)")
             return True
         except Exception as e:
             logger.error(f"❌ Error saving members to DB: {e}")
+            logger.error(f"❌ Error details: {str(e)}")
+            if hasattr(e, 'args') and e.args:
+                logger.error(f"❌ Error args: {e.args}")
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
+    
+    def save_prospects_to_db(self, prospects: List[Dict[str, Any]]) -> bool:
+        """Upsert prospects into the database with minimal required fields.
+        Expects list of dicts that may come from ClubHub API; we map keys safely.
+        Prevents duplicates by checking prospect_id first.
+        """
+        if not prospects:
+            return False
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            inserted_count = 0
+            updated_count = 0
+            
+            for p in prospects:
+                # Normalize keys from possible variants
+                prospect_id = (
+                    p.get('prospect_id') or p.get('prospectId') or p.get('id')
+                )
+                
+                # Skip if no prospect_id
+                if not prospect_id:
+                    continue
+                    
+                first_name = p.get('first_name') or p.get('firstName')
+                last_name = p.get('last_name') or p.get('lastName')
+                full_name = p.get('full_name') or (
+                    f"{first_name or ''} {last_name or ''}".strip() if (first_name or last_name) else None
+                )
+                email = p.get('email')
+                phone = p.get('phone') or p.get('mobile_phone') or p.get('mobilePhone')
+                status = p.get('status')
+                prospect_type = p.get('prospect_type') or p.get('prospectType') or p.get('type')
+
+                # Check if prospect already exists by prospect_id
+                cursor.execute("SELECT id FROM prospects WHERE prospect_id = ?", (str(prospect_id),))
+                existing_prospect = cursor.fetchone()
+                
+                if existing_prospect:
+                    # Update existing prospect
+                    cursor.execute(
+                        """
+                        UPDATE prospects SET 
+                            first_name = ?, last_name = ?, full_name = ?, email = ?, 
+                            phone = ?, status = ?, prospect_type = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE prospect_id = ?
+                        """,
+                        (
+                            first_name,
+                            last_name,
+                            full_name,
+                            email,
+                            phone,
+                            status,
+                            prospect_type,
+                            str(prospect_id)  # WHERE condition
+                        ),
+                    )
+                    updated_count += 1
+                else:
+                    # Insert new prospect
+                    cursor.execute(
+                        """
+                        INSERT INTO prospects (
+                            prospect_id, first_name, last_name, full_name, email, phone,
+                            status, prospect_type, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                        (
+                            str(prospect_id),  # prospect_id column
+                            first_name,
+                            last_name,
+                            full_name,
+                            email,
+                            phone,
+                            status,
+                            prospect_type,
+                        ),
+                    )
+                    inserted_count += 1
+            
+            conn.commit()
+            logger.info(f"✅ Prospects saved to database: {inserted_count} inserted, {updated_count} updated")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error saving prospects to DB: {e}")
             logger.error(f"❌ Error details: {str(e)}")
             if hasattr(e, 'args') and e.args:
                 logger.error(f"❌ Error args: {e.args}")
@@ -765,10 +943,10 @@ class DatabaseManager:
         """Update or insert member category classification"""
         query = """
             INSERT OR REPLACE INTO member_categories 
-            (member_id, category, status_message, classified_at)
-            VALUES (?, ?, ?, ?)
+            (member_id, category, status_message, status, updated_at)
+            VALUES (?, ?, ?, ?, ?)
         """
-        return self.execute_update(query, (member_id, category, status_message, datetime.now()))
+        return self.execute_update(query, (member_id, category, status_message, status, datetime.now()))
     
     def lookup_member_name_by_email(self, email: str) -> str:
         """Look up proper member name (first + last) from database using email"""
@@ -826,95 +1004,6 @@ class DatabaseManager:
             logger.error(f"❌ Error getting training clients with agreements: {e}")
             return []
     
-    def save_training_clients_to_db(self, training_clients: List[Dict]) -> bool:
-        """Save or update training clients with their agreement data to the database"""
-        try:
-            conn = self.get_connection()
-            cursor = conn.cursor()
-            
-            logger.info(f"💾 Saving {len(training_clients)} training clients to database...")
-            
-            for client in training_clients:
-                try:
-                    # Debug: Log what we're trying to save
-                    logger.info(f"💾 Saving client: {client.get('member_name', 'Unknown')} - ClubOS ID: {client.get('clubos_member_id')}")
-                    
-                    # Check if training client already exists
-                    cursor.execute("""
-                        SELECT id FROM training_clients 
-                        WHERE clubos_member_id = ? OR member_id = ?
-                    """, (client.get('clubos_member_id'), client.get('member_id')))
-                    
-                    existing = cursor.fetchone()
-                    
-                    if existing:
-                        # Update existing record - use existing columns
-                        cursor.execute("""
-                            UPDATE training_clients SET
-                                clubos_member_id = ?,
-                                member_id = ?,
-                                member_name = ?,
-                                first_name = ?,
-                                last_name = ?,
-                                email = ?,
-                                phone = ?,
-                                trainer_name = ?,
-                                payment_status = ?,
-                                last_updated = ?
-                            WHERE id = ?
-                        """, (
-                            client.get('clubos_member_id'),
-                            client.get('member_id'),
-                            client.get('member_name', ''),
-                            client.get('first_name', ''),
-                            client.get('last_name', ''),
-                            client.get('email', ''),
-                            client.get('phone', ''),
-                            client.get('trainer_name', ''),
-                            client.get('payment_status', 'Current'),
-                            datetime.now().isoformat(),
-                            existing[0]
-                        ))
-                        logger.info(f"✅ Updated existing client {existing[0]}")
-                    else:
-                        # Insert new record - use existing columns
-                        cursor.execute("""
-                            INSERT INTO training_clients (
-                                clubos_member_id, member_id, member_name, first_name, last_name,
-                                email, phone, trainer_name, payment_status, created_at, last_updated
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (
-                            client.get('clubos_member_id'),
-                            client.get('member_id'),
-                            client.get('member_name', ''),
-                            client.get('first_name', ''),
-                            client.get('last_name', ''),
-                            client.get('email', ''),
-                            client.get('phone', ''),
-                            client.get('trainer_name', ''),
-                            client.get('payment_status', 'Current'),
-                            datetime.now().isoformat(),
-                            datetime.now().isoformat()
-                        ))
-                        logger.info(f"✅ Inserted new client with ID: {cursor.lastrowid}")
-                        
-                except Exception as client_error:
-                    logger.error(f"❌ Error saving training client {client.get('member_name', 'Unknown')}: {client_error}")
-                    continue
-            
-            conn.commit()
-            logger.info(f"✅ Successfully saved {len(training_clients)} training clients to database")
-            return True
-            
-        except Exception as e:
-            logger.error(f"❌ Error saving training clients to database: {e}")
-            if 'conn' in locals():
-                conn.rollback()
-            return False
-        finally:
-            if 'conn' in locals():
-                conn.close()
-    
     def classify_member_status_enhanced(self, member_data: Dict[str, Any]) -> str:
         """Enhanced member classification based on clean dashboard logic"""
         # Ensure status_message and status are strings, handle None/NoneType values
@@ -961,6 +1050,124 @@ class DatabaseManager:
         
         # Default to green if unclear
         return 'green'
+
+    def save_training_clients_to_db(self, training_clients: List[Dict[str, Any]]) -> bool:
+        """Upsert training clients into the database with enhanced agreement data.
+        Expects list of dicts from ClubOS integration with package and payment details.
+        """
+        if not training_clients:
+            return False
+            
+        # Use the enhanced transaction isolation to prevent concurrent conflicts
+        conn = sqlite3.connect(self.db_path, timeout=30.0, isolation_level='IMMEDIATE')
+        cursor = conn.cursor()
+        
+        try:
+            inserted_count = 0
+            updated_count = 0
+            
+            for tc in training_clients:
+                # Extract all the enhanced data from ClubOS integration
+                member_id = tc.get('member_id') or tc.get('clubos_member_id') or tc.get('id')
+                clubos_member_id = tc.get('clubos_member_id') or member_id
+                
+                # Skip if no member_id
+                if not member_id:
+                    logger.warning(f"⚠️ Skipping training client with no member_id: {tc}")
+                    continue
+                    
+                # Basic info
+                first_name = tc.get('first_name', '')
+                last_name = tc.get('last_name', '')
+                full_name = tc.get('full_name') or tc.get('member_name') or f"{first_name} {last_name}".strip()
+                member_name = tc.get('member_name') or full_name
+                email = tc.get('email', '')
+                phone = tc.get('phone', '')
+                status = tc.get('status', 'Active')
+                
+                # Training info
+                trainer_name = tc.get('trainer_name', 'Jeremy Mayo')
+                membership_type = tc.get('membership_type', 'Personal Training')
+                source = tc.get('source', 'clubos_assignees_with_agreements')
+                
+                # Package data
+                active_packages = tc.get('active_packages', [])
+                package_summary = tc.get('package_summary', '')
+                package_details = tc.get('package_details', [])
+                
+                # Financial data
+                past_due_amount = float(tc.get('past_due_amount', 0.0))
+                total_past_due = float(tc.get('total_past_due', 0.0))
+                payment_status = tc.get('payment_status', 'Current')
+                sessions_remaining = int(tc.get('sessions_remaining', 0))
+                last_session = tc.get('last_session', 'See ClubOS')
+                financial_summary = tc.get('financial_summary', 'Current')
+                last_updated = tc.get('last_updated', '')
+                
+                # Convert complex data to JSON strings for storage
+                import json
+                active_packages_json = json.dumps(active_packages) if active_packages else '[]'
+                package_details_json = json.dumps(package_details) if package_details else '[]'
+                
+                # Check if training client already exists by member_id
+                cursor.execute("SELECT id FROM training_clients WHERE member_id = ? OR clubos_member_id = ?", 
+                             (str(member_id), str(clubos_member_id)))
+                existing_client = cursor.fetchone()
+                
+                if existing_client:
+                    # Update existing training client with all enhanced data
+                    cursor.execute("""
+                        UPDATE training_clients SET 
+                            member_id = ?, clubos_member_id = ?, first_name = ?, last_name = ?, 
+                            member_name = ?, email = ?, phone = ?,
+                            trainer_name = ?, membership_type = ?, source = ?,
+                            active_packages = ?, package_summary = ?, package_details = ?,
+                            past_due_amount = ?, total_past_due = ?, payment_status = ?,
+                            sessions_remaining = ?, last_session = ?, financial_summary = ?,
+                            last_updated = ?
+                        WHERE id = ?
+                    """, (
+                        str(member_id), str(clubos_member_id), first_name, last_name,
+                        member_name, email, phone,
+                        trainer_name, membership_type, source,
+                        active_packages_json, package_summary, package_details_json,
+                        past_due_amount, total_past_due, payment_status,
+                        sessions_remaining, last_session, financial_summary,
+                        last_updated, existing_client[0]
+                    ))
+                    updated_count += 1
+                else:
+                    # Insert new training client with all enhanced data
+                    cursor.execute("""
+                        INSERT INTO training_clients (
+                            member_id, clubos_member_id, first_name, last_name, member_name,
+                            email, phone, trainer_name, membership_type, source,
+                            active_packages, package_summary, package_details,
+                            past_due_amount, total_past_due, payment_status,
+                            sessions_remaining, last_session, financial_summary,
+                            last_updated, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+                                CURRENT_TIMESTAMP)
+                    """, (
+                        str(member_id), str(clubos_member_id), first_name, last_name, member_name,
+                        email, phone, trainer_name, membership_type, source,
+                        active_packages_json, package_summary, package_details_json,
+                        past_due_amount, total_past_due, payment_status,
+                        sessions_remaining, last_session, financial_summary,
+                        last_updated
+                    ))
+                    inserted_count += 1
+            
+            conn.commit()
+            logger.info(f"✅ Training clients database: {inserted_count} inserted, {updated_count} updated")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to save training clients: {e}")
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
 
     def log_data_refresh(self, table_name: str, record_count: int, category_breakdown: Dict = None):
         """Log data refresh operation"""

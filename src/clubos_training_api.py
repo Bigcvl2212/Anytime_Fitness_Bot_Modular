@@ -1419,17 +1419,7 @@ class ClubOSTrainingPackageAPI:
         based on the actual ClubOS API flow documented in the HAR files.
         """
         try:
-            # Ensure authentication before making API calls
-            if not self.authenticated and not self.authenticate():
-                logger.warning("❌ Cannot discover agreement IDs: authentication failed")
-                return []
-                
             mid = str(member_id).strip()
-            
-            # Delegate to the member first
-            if not self.delegate_to_member(mid):
-                logger.warning(f"❌ Cannot discover agreement IDs: delegation to member {mid} failed")
-                return []
             
             # SPA context per HAR: /action/PackageAgreementUpdated/spa/
             try:
@@ -1442,36 +1432,6 @@ class ClubOSTrainingPackageAPI:
                 self.session.get(f"{self.base_url}/action/PackageAgreementUpdated/spa/", headers=pre_headers, timeout=12)
             except Exception:
                 pass
-
-            # FIRST: Try the simple approach that worked in our manual test
-            logger.info(f"🔍 Trying simple list endpoint for member {mid}")
-            simple_url = f"{self.base_url}/api/agreements/package_agreements/list"
-            simple_response = self.session.get(simple_url, timeout=15)
-            
-            if simple_response.status_code == 200:
-                logger.info("✅ Simple list endpoint worked!")
-                try:
-                    data = simple_response.json()
-                    if isinstance(data, list):
-                        agreement_ids = []
-                        for item in data:
-                            if isinstance(item, dict):
-                                # Try packageAgreement.id (actual format we discovered)
-                                if item.get('packageAgreement') and isinstance(item['packageAgreement'], dict):
-                                    package_id = item['packageAgreement'].get('id')
-                                    if package_id:
-                                        agreement_ids.append(str(package_id))
-                                # Try direct ID (fallback)
-                                elif item.get('id'):
-                                    agreement_ids.append(str(item['id']))
-                        
-                        if agreement_ids:
-                            logger.info(f"✅ Found {len(agreement_ids)} agreement IDs from simple API: {agreement_ids}")
-                            return agreement_ids
-                except Exception as e:
-                    logger.warning(f"⚠️ Error parsing simple response: {e}")
-            else:
-                logger.info(f"ℹ️ Simple list endpoint failed: {simple_response.status_code}, trying complex approach...")
 
             # List endpoint with memberId and clubId, AJAX headers, SPA referer
             timestamp = int(time.time() * 1000)
@@ -1562,20 +1522,7 @@ class ClubOSTrainingPackageAPI:
             try:
                 data = response.json()
                 if isinstance(data, list):
-                    # FIX: The actual structure is [{"packageAgreement": {"id": 1672118, ...}}]
-                    # NOT [{"id": 1672118}] as we were expecting!
-                    agreement_ids = []
-                    for item in data:
-                        if isinstance(item, dict):
-                            # Try direct ID first (fallback for different response formats)
-                            if item.get('id'):
-                                agreement_ids.append(str(item['id']))
-                            # Try packageAgreement.id (actual format we discovered)
-                            elif item.get('packageAgreement') and isinstance(item['packageAgreement'], dict):
-                                package_id = item['packageAgreement'].get('id')
-                                if package_id:
-                                    agreement_ids.append(str(package_id))
-                    
+                    agreement_ids = [str(item.get('id')) for item in data if item.get('id')]
                     if agreement_ids:
                         logger.info(f"✅ Found {len(agreement_ids)} agreement IDs from API: {agreement_ids}")
                         return agreement_ids

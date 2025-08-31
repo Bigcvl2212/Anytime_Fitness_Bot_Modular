@@ -7,10 +7,6 @@ Run this script from the project root to start the dashboard
 import os
 import sys
 import logging
-import urllib3
-
-# Suppress SSL warnings for ClubOS API calls
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Ensure project root is on sys.path so 'src' is imported as a package
 project_root = os.path.dirname(os.path.abspath(__file__))

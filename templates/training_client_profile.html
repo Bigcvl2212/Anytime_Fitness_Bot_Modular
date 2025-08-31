@@ -202,24 +202,41 @@
                                         </div>
                                     </div>
                                     
-                                    <!-- Package Details from V2 data -->
-                                    {% if agreement.v2 and agreement.v2.packageAgreement %}
-                                    {% set pa = agreement.v2.packageAgreement %}
+                                    <!-- Enhanced Package Details from ClubOS Integration -->
                                     <div class="row mb-3">
-                                        {% if pa.sessionsRemaining is not none %}
+                                        {% if agreement.sessions_remaining %}
                                         <div class="col-6">
                                             <small class="text-muted">Sessions Remaining</small>
-                                            <p class="mb-0 fw-bold text-info">{{ pa.sessionsRemaining }}</p>
+                                            <p class="mb-0 fw-bold text-info">{{ agreement.sessions_remaining }}</p>
                                         </div>
                                         {% endif %}
-                                        {% if pa.packagePrice %}
+                                        {% if agreement.amount %}
                                         <div class="col-6">
-                                            <small class="text-muted">Package Price</small>
-                                            <p class="mb-0 fw-bold">${{ pa.packagePrice }}</p>
+                                            <small class="text-muted">Package Value</small>
+                                            <p class="mb-0 fw-bold">${{ "%.2f"|format(agreement.amount) }}</p>
                                         </div>
                                         {% endif %}
                                     </div>
                                     
+                                    <!-- Agreement Status and Details -->
+                                    <div class="row mb-3">
+                                        <div class="col-6">
+                                            <small class="text-muted">Payment Status</small>
+                                            <p class="mb-0">
+                                                <span class="badge bg-{{ 'danger' if agreement.payment_status|lower == 'past due' else 'success' }}">
+                                                    {{ agreement.payment_status or 'Current' }}
+                                                </span>
+                                            </p>
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted">Invoice Count</small>
+                                            <p class="mb-0 fw-bold">{{ agreement.invoice_count or 0 }}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Package Details from V2 data (fallback) -->
+                                    {% if agreement.v2 and agreement.v2.packageAgreement %}
+                                    {% set pa = agreement.v2.packageAgreement %}
                                     {% if pa.startDate or pa.endDate %}
                                     <div class="row mb-3">
                                         {% if pa.startDate %}
@@ -238,43 +255,72 @@
                                     {% endif %}
                                     {% endif %}
 
-                                    <!-- Invoice Information -->
+                                    <!-- Enhanced Invoice Information from ClubOS Integration -->
                                     <div class="mb-3">
                                         <h6 class="text-muted mb-2">
-                                            <i class="fas fa-file-invoice me-1"></i>Invoice Status
+                                            <i class="fas fa-file-invoice me-1"></i>Invoice & Payment Status
                                         </h6>
+                                        
+                                        <!-- Use our improved past due calculation -->
+                                        {% if agreement.amount_owed and agreement.amount_owed > 0 %}
+                                        <div class="alert alert-danger mb-2 py-2">
+                                            <strong>Amount Owed: ${{ "%.2f"|format(agreement.amount_owed) }}</strong>
+                                        </div>
+                                        {% endif %}
+                                        
+                                        <!-- Agreement Billing Summary -->
+                                        <div class="row mb-2">
+                                            <div class="col-6">
+                                                <small class="text-muted">Payment Status</small>
+                                                <p class="mb-0">
+                                                    <span class="badge bg-{{ 'danger' if agreement.payment_status|lower == 'past due' else 'success' }}">
+                                                        {{ agreement.payment_status or 'Current' }}
+                                                    </span>
+                                                </p>
+                                            </div>
+                                            <div class="col-6">
+                                                <small class="text-muted">Invoice Count</small>
+                                                <p class="mb-0 fw-bold">{{ agreement.invoice_count or 0 }}</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Scheduled Payments Info -->
+                                        {% if agreement.scheduled_payments_count and agreement.scheduled_payments_count > 0 %}
+                                        <div class="row mb-2">
+                                            <div class="col-12">
+                                                <small class="text-muted">Scheduled Payments</small>
+                                                <p class="mb-0 fw-bold text-info">{{ agreement.scheduled_payments_count }} scheduled</p>
+                                            </div>
+                                        </div>
+                                        {% endif %}
+                                        
+                                        <!-- Fallback to V2 invoice data if available -->
                                         {% set invoices = agreement.v2.include.invoices if agreement.v2 and agreement.v2.include and agreement.v2.include.invoices else (agreement.v2.invoices if agreement.v2 and agreement.v2.invoices else []) %}
                                         {% if invoices %}
-                                        {% set past_due_invoices = invoices|selectattr('status', 'in', ['delinquent', 'pay now'])|list %}
-                                        {% set total_past_due = past_due_invoices|map(attribute='invoice_total')|map('float')|sum %}
-                                        
-                                        {% if total_past_due > 0 %}
-                                        <div class="alert alert-danger mb-2 py-2">
-                                            <strong>Total Past Due: ${{ "%.2f"|format(total_past_due) }}</strong>
-                                        </div>
-                                        {% endif %}
-                                        
-                                        {% for invoice in invoices[:3] %}
-                                        <div class="d-flex justify-content-between align-items-center mb-1 p-2 border rounded">
-                                            <div>
-                                                <i class="fas fa-file-invoice me-1"></i>
-                                                Invoice #{{ invoice.id or 'N/A' }}
-                                                {% set status = invoice.status|lower %}
-                                                <span class="badge bg-{{ 'danger' if status in ['delinquent', 'pay now'] else ('success' if status == 'paid' else 'warning') }} ms-1">
-                                                    {{ 'Past Due' if status in ['delinquent', 'pay now'] else ('Paid' if status == 'paid' else invoice.status) }}
-                                                </span>
+                                        <div class="mt-2">
+                                            <small class="text-muted">Recent Invoices (V2 API):</small>
+                                            {% for invoice in invoices[:3] %}
+                                            <div class="d-flex justify-content-between align-items-center mb-1 p-2 border rounded">
+                                                <div>
+                                                    <i class="fas fa-file-invoice me-1"></i>
+                                                    Invoice #{{ invoice.id or 'N/A' }}
+                                                    {% set status = invoice.status|lower %}
+                                                    <span class="badge bg-{{ 'danger' if status in ['delinquent', 'pay now'] else ('success' if status == 'paid' else 'warning') }} ms-1">
+                                                        {{ 'Past Due' if status in ['delinquent', 'pay now'] else ('Paid' if status == 'paid' else invoice.status) }}
+                                                    </span>
+                                                </div>
+                                                <div class="text-end">
+                                                    <div class="fw-bold">${{ "%.2f"|format(invoice.invoice_total|float if invoice.invoice_total else 0) }}</div>
+                                                    <small class="text-muted">{{ invoice.invoice_date or invoice.billingDate or invoice.date or 'No date' }}</small>
+                                                </div>
                                             </div>
-                                            <div class="text-end">
-                                                <div class="fw-bold">${{ "%.2f"|format(invoice.invoice_total|float if invoice.invoice_total else 0) }}</div>
-                                                <small class="text-muted">{{ invoice.invoice_date or invoice.billingDate or invoice.date or 'No date' }}</small>
-                                            </div>
+                                            {% endfor %}
+                                            {% if invoices|length > 3 %}
+                                            <small class="text-muted">+ {{ invoices|length - 3 }} more invoices</small>
+                                            {% endif %}
                                         </div>
-                                        {% endfor %}
-                                        {% if invoices|length > 3 %}
-                                        <small class="text-muted">+ {{ invoices|length - 3 }} more invoices</small>
-                                        {% endif %}
                                         {% else %}
-                                        <div class="text-muted small">No invoice data available from ClubOS</div>
+                                        <div class="text-muted small">Invoice details available from ClubOS integration</div>
                                         {% endif %}
                                     </div>
 
@@ -290,6 +336,21 @@
                                             <i class="fas fa-eye me-1"></i>Details
                                         </button>
                                     </div>
+                                    
+                                    <!-- ClubOS Integration Data Summary -->
+                                    {% if agreement.has_billing_data or agreement.has_v2_data %}
+                                    <div class="mt-3 p-2 bg-light border rounded">
+                                        <small class="text-muted">
+                                            <i class="fas fa-database me-1"></i>Data Source:
+                                            {% if agreement.has_billing_data %}
+                                            <span class="badge bg-success">ClubOS Billing</span>
+                                            {% endif %}
+                                            {% if agreement.has_v2_data %}
+                                            <span class="badge bg-info">V2 API</span>
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                    {% endif %}
                                     
                                     <!-- Raw Data Toggle -->
                                     <div class="mt-3">
