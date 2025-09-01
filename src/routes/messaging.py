@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Messaging Routes
-Messaging inbox, campaigns, and ClubOS integration
+ClubOS messaging integration, conversation management, and campaign functionality
 """
 
 from flask import Blueprint, render_template, request, jsonify, current_app
@@ -9,6 +9,9 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Any
 import time # Added for retry logic
+import json # Added for json parsing
+import re # Added for regex
+import hashlib # Added for conversation ID generation
 
 # Import here to avoid circular imports
 from ..services.clubos_messaging_client import ClubOSMessagingClient
@@ -39,12 +42,12 @@ def get_clubos_credentials(owner_id: str) -> Dict[str, str]:
         return None
 
 def store_messages_in_database(messages: List[Dict], owner_id: str) -> int:
-    """Store messages in the database"""
+    """Store ClubOS messages in the database with enhanced metadata"""
     try:
         conn = current_app.db_manager.get_connection()
         cursor = conn.cursor()
         
-        # Drop and recreate messages table to ensure correct schema
+        # Drop and recreate messages table with enhanced schema for ClubOS
         cursor.execute('DROP TABLE IF EXISTS messages')
         cursor.execute('''
             CREATE TABLE messages (
@@ -56,41 +59,138 @@ def store_messages_in_database(messages: List[Dict], owner_id: str) -> int:
                 to_user TEXT,
                 status TEXT,
                 owner_id TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                -- Enhanced metadata fields for ClubOS
+                delivery_status TEXT DEFAULT 'received',
+                campaign_id TEXT,
+                channel TEXT DEFAULT 'clubos',
+                member_id TEXT,
+                message_actions TEXT, -- JSON for confirmations, emojis, opt-in/out
+                is_confirmation BOOLEAN DEFAULT FALSE,
+                is_opt_in BOOLEAN DEFAULT FALSE,
+                is_opt_out BOOLEAN DEFAULT FALSE,
+                has_emoji BOOLEAN DEFAULT FALSE,
+                emoji_reactions TEXT, -- JSON array of emojis
+                conversation_id TEXT, -- For grouping messages by conversation
+                thread_id TEXT -- For message threading
             )
         ''')
         
-        # Insert messages
+        # Insert ClubOS messages with enhanced parsing
         stored_count = 0
         for message in messages:
             try:
+                # Parse message content for actions and metadata
+                content = message.get('content', '')
+                message_actions = parse_message_actions(content)
+                member_id = extract_member_id_from_content(content)
+                conversation_id = generate_conversation_id(member_id, owner_id)
+                
                 cursor.execute('''
                     INSERT OR REPLACE INTO messages 
-                    (id, message_type, content, timestamp, from_user, to_user, status, owner_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (id, message_type, content, timestamp, from_user, to_user, status, owner_id,
+                     delivery_status, campaign_id, channel, member_id, message_actions, 
+                     is_confirmation, is_opt_in, is_opt_out, has_emoji, emoji_reactions,
+                     conversation_id, thread_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     message.get('id'),
                     message.get('message_type', message.get('type')),
-                    message.get('content'),
+                    content,
                     message.get('timestamp'),
                     message.get('from_user', message.get('from')),
                     message.get('to_user', message.get('to')),
                     message.get('status'),
-                    owner_id
+                    owner_id,
+                    message.get('delivery_status', 'received'),
+                    message.get('campaign_id'),
+                    'clubos',  # Always ClubOS channel
+                    member_id,
+                    json.dumps(message_actions),
+                    message_actions.get('is_confirmation', False),
+                    message_actions.get('is_opt_in', False),
+                    message_actions.get('is_opt_out', False),
+                    message_actions.get('has_emoji', False),
+                    json.dumps(message_actions.get('emojis', [])),
+                    conversation_id,
+                    message.get('thread_id')
                 ))
                 stored_count += 1
             except Exception as e:
-                logger.warning(f"⚠️ Error inserting message {message.get('id')}: {e}")
+                logger.warning(f"⚠️ Error inserting ClubOS message {message.get('id')}: {e}")
         
         conn.commit()
         conn.close()
         
-        logger.info(f"✅ Stored {stored_count} messages in database")
+        logger.info(f"✅ Stored {stored_count} ClubOS messages in database with enhanced metadata")
         return stored_count
         
     except Exception as e:
-        logger.error(f"❌ Error storing messages in database: {e}")
+        logger.error(f"❌ Error storing ClubOS messages in database: {e}")
         return 0
+
+def parse_message_actions(content: str) -> Dict[str, Any]:
+    """Parse ClubOS message content for actions, confirmations, emojis, etc."""
+    if not content:
+        return {}
+    
+    actions = {
+        'is_confirmation': False,
+        'is_opt_in': False,
+        'is_opt_out': False,
+        'has_emoji': False,
+        'emojis': [],
+        'keywords': []
+    }
+    
+    content_lower = content.lower()
+    
+    # Check for confirmations (common in ClubOS messages)
+    if any(word in content_lower for word in ['confirm', 'confirmar', 'yes', 'si']):
+        actions['is_confirmation'] = True
+        actions['keywords'].append('confirmation')
+    
+    # Check for opt-in/opt-out (ClubOS SMS keywords)
+    if any(word in content_lower for word in ['start', 'begin', 'subscribe']):
+        actions['is_opt_in'] = True
+        actions['keywords'].append('opt_in')
+    elif any(word in content_lower for word in ['stop', 'end', 'unsubscribe', 'cancel']):
+        actions['is_opt_out'] = True
+        actions['keywords'].append('opt_out')
+    
+    # Extract emojis from ClubOS messages
+    emoji_pattern = r'[😀-🙏🌀-🗿🚀-🛿🦀-🧿]'
+    emojis = re.findall(emoji_pattern, content)
+    if emojis:
+        actions['has_emoji'] = True
+        actions['emojis'] = emojis
+    
+    return actions
+
+def extract_member_id_from_content(content: str) -> str:
+    """Extract member ID or name from ClubOS message content"""
+    if not content:
+        return None
+    
+    # Look for patterns like "Member Name" at the beginning (ClubOS format)
+    lines = content.split('\n')
+    for line in lines:
+        line = line.strip()
+        if line and len(line) > 3 and len(line) < 50:
+            # Check if it looks like a name
+            if re.match(r'^[A-Z][a-z]+ [A-Z][a-z\s]+$', line):
+                return line
+    
+    return None
+
+def generate_conversation_id(member_id: str, owner_id: str) -> str:
+    """Generate a unique conversation ID for grouping ClubOS messages"""
+    if not member_id:
+        return f"system_{owner_id}"
+    
+    # Create a consistent conversation ID
+    conversation_key = f"{member_id}_{owner_id}".lower().replace(' ', '_')
+    return hashlib.md5(conversation_key.encode()).hexdigest()[:16]
 
 @messaging_bp.route('/messaging')
 def messaging_page():
@@ -475,6 +575,163 @@ def get_member_messages(member_name):
         
     except Exception as e:
         logger.error(f"❌ Error getting member messages: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@messaging_bp.route('/api/conversations', methods=['GET'])
+def get_conversations():
+    """Get all ClubOS conversations grouped by member"""
+    try:
+        owner_id = request.args.get('owner_id', '187032782')
+        limit = request.args.get('limit', 50)
+        
+        conn = current_app.db_manager.get_connection()
+        cursor = conn.cursor()
+        
+        # Get conversations with latest message and metadata
+        cursor.execute('''
+            SELECT 
+                conversation_id,
+                member_id,
+                MAX(timestamp) as last_message_time,
+                COUNT(*) as message_count,
+                MAX(content) as last_message_content,
+                MAX(is_confirmation) as has_confirmation,
+                MAX(is_opt_in) as has_opt_in,
+                MAX(is_opt_out) as has_opt_out,
+                MAX(has_emoji) as has_emoji,
+                MAX(emoji_reactions) as emoji_reactions
+            FROM messages 
+            WHERE owner_id = ? AND conversation_id IS NOT NULL
+            GROUP BY conversation_id, member_id
+            ORDER BY last_message_time DESC
+            LIMIT ?
+        ''', (owner_id, limit))
+        
+        conversations = []
+        for row in cursor.fetchall():
+            conversation = dict(row)
+            
+            # Parse emoji reactions
+            try:
+                emoji_reactions = json.loads(conversation['emoji_reactions']) if conversation['emoji_reactions'] else []
+            except:
+                emoji_reactions = []
+            
+            conversations.append({
+                'conversation_id': conversation['conversation_id'],
+                'member_id': conversation['member_id'],
+                'last_message_time': conversation['last_message_time'],
+                'message_count': conversation['message_count'],
+                'last_message_content': conversation['last_message_content'],
+                'has_confirmation': bool(conversation['has_confirmation']),
+                'has_opt_in': bool(conversation['has_opt_in']),
+                'has_opt_out': bool(conversation['has_opt_out']),
+                'has_emoji': bool(conversation['has_emoji']),
+                'emoji_reactions': emoji_reactions
+            })
+        
+        conn.close()
+        
+        logger.info(f"✅ Retrieved {len(conversations)} ClubOS conversations")
+        return jsonify({'success': True, 'conversations': conversations})
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting ClubOS conversations: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@messaging_bp.route('/api/conversations/<conversation_id>', methods=['GET'])
+def get_conversation_detail(conversation_id):
+    """Get detailed ClubOS conversation with all messages"""
+    try:
+        owner_id = request.args.get('owner_id', '187032782')
+        
+        conn = current_app.db_manager.get_connection()
+        cursor = conn.cursor()
+        
+        # Get all messages in the conversation
+        cursor.execute('''
+            SELECT * FROM messages 
+            WHERE owner_id = ? AND conversation_id = ?
+            ORDER BY timestamp ASC, created_at ASC
+        ''', (owner_id, conversation_id))
+        
+        messages = [dict(row) for row in cursor.fetchall()]
+        
+        # Get conversation metadata
+        cursor.execute('''
+            SELECT 
+                member_id,
+                COUNT(*) as total_messages,
+                MIN(timestamp) as first_message_time,
+                MAX(timestamp) as last_message_time,
+                SUM(CASE WHEN is_confirmation THEN 1 ELSE 0 END) as confirmations,
+                SUM(CASE WHEN is_opt_in THEN 1 ELSE 0 END) as opt_ins,
+                SUM(CASE WHEN is_opt_out THEN 1 ELSE 0 END) as opt_outs,
+                SUM(CASE WHEN has_emoji THEN 1 ELSE 0 END) as emoji_messages
+            FROM messages 
+            WHERE owner_id = ? AND conversation_id = ?
+        ''', (owner_id, conversation_id))
+        
+        metadata = dict(cursor.fetchone()) if cursor.fetchone() else {}
+        conn.close()
+        
+        logger.info(f"✅ Retrieved ClubOS conversation {conversation_id} with {len(messages)} messages")
+        return jsonify({
+            'success': True, 
+            'conversation_id': conversation_id,
+            'messages': messages, 
+            'metadata': metadata
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting ClubOS conversation detail: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@messaging_bp.route('/api/messages/search', methods=['GET'])
+def search_messages():
+    """Search ClubOS messages by content, member, or actions"""
+    try:
+        owner_id = request.args.get('owner_id', '187032782')
+        query = request.args.get('q', '')
+        action_type = request.args.get('action', '')  # confirmation, opt_in, opt_out, emoji
+        limit = request.args.get('limit', 50)
+        
+        conn = current_app.db_manager.get_connection()
+        cursor = conn.cursor()
+        
+        # Build search query
+        sql = '''
+            SELECT * FROM messages 
+            WHERE owner_id = ?
+        '''
+        params = [owner_id]
+        
+        if query:
+            sql += ' AND (content LIKE ? OR member_id LIKE ? OR from_user LIKE ?)'
+            params.extend([f'%{query}%', f'%{query}%', f'%{query}%'])
+        
+        if action_type:
+            if action_type == 'confirmation':
+                sql += ' AND is_confirmation = 1'
+            elif action_type == 'opt_in':
+                sql += ' AND is_opt_in = 1'
+            elif action_type == 'opt_out':
+                sql += ' AND is_opt_out = 1'
+            elif action_type == 'emoji':
+                sql += ' AND has_emoji = 1'
+        
+        sql += ' ORDER BY timestamp DESC, created_at DESC LIMIT ?'
+        params.append(limit)
+        
+        cursor.execute(sql, params)
+        messages = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        logger.info(f"✅ Search returned {len(messages)} ClubOS messages for query: {query}")
+        return jsonify({'success': True, 'messages': messages, 'query': query})
+        
+    except Exception as e:
+        logger.error(f"❌ Error searching ClubOS messages: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @messaging_bp.route('/api/members/categories', methods=['GET'])

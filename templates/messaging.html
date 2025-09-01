@@ -251,9 +251,9 @@
                 <div>
                     <h1 class="h3 mb-0">
                         <i class="fas fa-comments me-2 text-primary"></i>
-                        Messaging Center
+                        ClubOS Messaging Center
                     </h1>
-                    <p class="text-muted mb-0">ClubOS message sync and campaign management</p>
+                    <p class="text-muted mb-0">ClubOS message sync, conversation management, and campaign functionality</p>
                 </div>
                 <div class="d-flex gap-2">
                     <button class="btn btn-info" onclick="syncClubOSMessages()">
@@ -308,14 +308,43 @@
 
     <!-- Main Content Row -->
     <div class="row messaging-container">
+        <!-- Conversations Panel -->
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">
+                            <i class="fas fa-comments me-2"></i>
+                            Conversations
+                        </h6>
+                        <div class="d-flex align-items-center gap-2">
+                            <span id="conversationCount" class="badge bg-info">0</span>
+                            <button class="btn btn-sm btn-outline-primary" onclick="loadConversations()">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="conversationsContainer" class="conversations-container">
+                        <div class="text-center py-5">
+                            <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No conversations</h5>
+                            <p class="text-muted">Sync messages to see conversations</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Messages Panel -->
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="card h-100">
                 <div class="card-header">
                     <div class="d-flex justify-content-between align-items-center">
                         <h6 class="mb-0">
                             <i class="fas fa-inbox me-2"></i>
-                            ClubOS Messages
+                            Recent Messages
                         </h6>
                         <div class="d-flex align-items-center gap-2">
                             <span id="messageCount" class="badge bg-primary">0</span>
@@ -336,7 +365,7 @@
         </div>
 
         <!-- Campaign History Panel -->
-        <div class="col-md-6">
+        <div class="col-md-4">
             <div class="card h-100">
                 <div class="card-header">
                     <div class="d-flex justify-content-between align-items-center">
@@ -792,6 +821,218 @@ function displayConversation(messages, memberName) {
     }).join('');
     
     messagesContainer.innerHTML = conversationHtml;
+    
+    // Scroll to bottom to show latest messages
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// Load conversations list
+function loadConversations() {
+    console.log('💬 Loading conversations...');
+    
+    fetch('/api/conversations?limit=50')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayConversations(data.conversations);
+            console.log(`✅ Loaded ${data.conversations.length} conversations`);
+        } else {
+            console.error('Error loading conversations:', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+}
+
+// Display conversations list
+function displayConversations(conversations) {
+    const container = document.getElementById('conversationsContainer');
+    const countBadge = document.getElementById('conversationCount');
+    
+    if (!conversations || conversations.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No conversations</h5>
+                <p class="text-muted">Sync messages to see conversations</p>
+            </div>
+        `;
+        countBadge.textContent = '0';
+        return;
+    }
+    
+    countBadge.textContent = conversations.length;
+    
+    const conversationsHtml = conversations.map(conversation => {
+        const memberName = conversation.member_id || 'Unknown Member';
+        const lastMessage = conversation.last_message_content || 'No message content';
+        const messageCount = conversation.message_count || 0;
+        const lastTime = formatDateTime(conversation.last_message_time);
+        
+        // Build action badges
+        const actionBadges = [];
+        if (conversation.has_confirmation) actionBadges.push('<span class="badge bg-success me-1">✓ Confirmed</span>');
+        if (conversation.has_opt_in) actionBadges.push('<span class="badge bg-info me-1">📱 Opt-in</span>');
+        if (conversation.has_opt_out) actionBadges.push('<span class="badge bg-warning me-1">🚫 Opt-out</span>');
+        if (conversation.has_emoji) actionBadges.push('<span class="badge bg-primary me-1">😊 Emoji</span>');
+        
+        return `
+            <div class="conversation-item mb-3 p-3 border rounded cursor-pointer" 
+                 onclick="showConversationDetail('${conversation.conversation_id}', '${memberName}')"
+                 style="cursor: pointer; transition: all 0.2s ease;">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">${memberName}</h6>
+                        <p class="mb-1 small text-muted">${lastMessage.substring(0, 60)}${lastMessage.length > 60 ? '...' : ''}</p>
+                        <div class="d-flex align-items-center gap-2">
+                            <small class="text-muted">${messageCount} messages</small>
+                            <small class="text-muted">•</small>
+                            <small class="text-muted">${lastTime}</small>
+                        </div>
+                        ${actionBadges.length > 0 ? `<div class="mt-2">${actionBadges.join('')}</div>` : ''}
+                    </div>
+                    <i class="fas fa-chevron-right text-muted"></i>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = conversationsHtml;
+}
+
+// Show conversation detail modal
+function showConversationDetail(conversationId, memberName) {
+    console.log(`💬 Opening conversation detail: ${conversationId} for ${memberName}`);
+    
+    // Update modal title
+    document.getElementById('conversationMemberName').textContent = memberName;
+    
+    // Show loading state
+    document.getElementById('conversationLoading').style.display = 'block';
+    document.getElementById('conversationContent').style.display = 'none';
+    
+    // Open modal
+    const modal = new bootstrap.Modal(document.getElementById('conversationModal'));
+    modal.show();
+    
+    // Load conversation detail
+    fetch(`/api/conversations/${conversationId}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayConversationDetail(data.messages, data.metadata, memberName);
+        } else {
+            document.getElementById('conversationLoading').innerHTML = `
+                <div class="text-center py-5">
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <p class="text-danger">Error loading conversation: ${data.error}</p>
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error loading conversation detail:', error);
+        document.getElementById('conversationLoading').innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                <p class="text-danger">Network error loading conversation</p>
+            </div>
+        `;
+    });
+}
+
+// Display conversation detail with metadata
+function displayConversationDetail(messages, metadata, memberName) {
+    const loadingDiv = document.getElementById('conversationLoading');
+    const contentDiv = document.getElementById('conversationContent');
+    const messagesContainer = document.getElementById('conversationMessages');
+    
+    if (!messages || messages.length === 0) {
+        loadingDiv.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No messages found</h5>
+                <p class="text-muted">No conversation history with ${memberName}</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Hide loading, show content
+    loadingDiv.style.display = 'none';
+    contentDiv.style.display = 'block';
+    
+    // Add conversation metadata header
+    const metadataHtml = `
+        <div class="conversation-metadata mb-3 p-3 bg-light rounded">
+            <div class="row text-center">
+                <div class="col-3">
+                    <div class="stat-item">
+                        <div class="stat-number">${metadata.total_messages || 0}</div>
+                        <small class="text-muted">Messages</small>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="stat-item">
+                        <div class="stat-number">${metadata.confirmations || 0}</div>
+                        <small class="text-muted">Confirmations</small>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="stat-item">
+                        <div class="stat-number">${metadata.opt_ins || 0}</div>
+                        <small class="text-muted">Opt-ins</small>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="stat-item">
+                        <div class="stat-number">${metadata.emoji_messages || 0}</div>
+                        <small class="text-muted">Emojis</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Display messages in chronological order (oldest first for conversation view)
+    const conversationHtml = messages.map(message => {
+        const isFromMember = message.from_user && message.from_user.toLowerCase().includes(memberName.toLowerCase());
+        const messageClass = isFromMember ? 'member-message' : 'user-message';
+        const messageAlign = isFromMember ? 'text-start' : 'text-end';
+        
+        // Parse message actions
+        let messageActions = '';
+        try {
+            const actions = JSON.parse(message.message_actions || '{}');
+            if (actions.is_confirmation) messageActions += '<span class="badge bg-success me-1">✓ Confirmed</span>';
+            if (actions.is_opt_in) messageActions += '<span class="badge bg-info me-1">📱 Opt-in</span>';
+            if (actions.is_opt_out) messageActions += '<span class="badge bg-warning me-1">🚫 Opt-out</span>';
+            if (actions.has_emoji) {
+                const emojis = actions.emojis || [];
+                messageActions += emojis.map(emoji => `<span class="emoji-reaction">${emoji}</span>`).join('');
+            }
+        } catch (e) {
+            // Ignore parsing errors
+        }
+        
+        return `
+            <div class="conversation-message ${messageClass} mb-3">
+                <div class="message-bubble ${messageAlign}">
+                    <div class="message-content">
+                        <p class="mb-1">${message.content || 'No content'}</p>
+                        <small class="text-muted">
+                            ${formatDateTime(message.timestamp)}
+                            ${message.message_type ? ` • ${message.message_type}` : ''}
+                        </small>
+                        ${messageActions ? `<div class="message-actions mt-2">${messageActions}</div>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    messagesContainer.innerHTML = metadataHtml + conversationHtml;
     
     // Scroll to bottom to show latest messages
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
