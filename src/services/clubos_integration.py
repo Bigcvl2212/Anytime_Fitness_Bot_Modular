@@ -966,3 +966,74 @@ class ClubOSIntegration:
                 'classes': 0,
                 'updated_at': None
             }
+
+    def get_events_for_date_range(self, start_date: str, end_date: str) -> List[Dict[str, Any]]:
+        """Get calendar events for a specific date range"""
+        try:
+            from datetime import datetime, date
+            from src.ical_calendar_parser import iCalClubOSParser
+            
+            # Parse date strings
+            start_dt = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_dt = datetime.strptime(end_date, '%Y-%m-%d').date()
+            
+            logger.info(f"🌟 Getting events for date range: {start_date} to {end_date}")
+            
+            # Use the iCal calendar sync URL
+            calendar_sync_url = "https://anytime.club-os.com/CalendarSync/4984a5b2aac135a95b6bc173054e95716b27e6b9"
+            ical_parser = iCalClubOSParser(calendar_sync_url)
+            
+            # Get real events from iCal feed
+            real_events = ical_parser.get_real_events()
+            logger.info(f"🌟 Total events from iCal: {len(real_events)}")
+            
+            range_events = []
+            matched_count = 0
+            
+            for event in real_events:
+                # FILTER: Only include events within the date range
+                if event.start_time:
+                    event_date = event.start_time.date()
+                    
+                    if start_dt <= event_date <= end_dt:
+                        matched_count += 1
+                        # Format the real event data for display
+                        attendee_names = [attendee['name'] for attendee in event.attendees if attendee['name']]
+                        attendee_emails = [attendee['email'] for attendee in event.attendees if attendee['email']]
+                        
+                        # Check if this event contains training clients (not just appointments)
+                        is_training_session = len(attendee_names) > 0 and attendee_names[0] != ''
+                        
+                        formatted_event = {
+                            'id': event.uid,
+                            'title': event.summary,
+                            'start_time': event.start_time.isoformat() if event.start_time else None,
+                            'end_time': event.end_time.isoformat() if event.end_time else None,
+                            'start': event.start_time.isoformat() if event.start_time else None,  # For compatibility
+                            'end': event.end_time.isoformat() if event.end_time else None,  # For compatibility
+                            'description': event.description,
+                            'location': '',  # iCal doesn't provide location
+                            'participants': attendee_names,
+                            'participant_emails': attendee_emails,
+                            'attendees': [{'name': name, 'email': email} for name, email in zip(attendee_names, attendee_emails)],
+                            'is_training_session': is_training_session,
+                            'all_day': False,  # iCal doesn't provide all_day
+                            'start_time_obj': event.start_time,  # Keep for sorting
+                            'client_name': attendee_names[0] if attendee_names else '',
+                            'trainer_name': 'Jeremy Mayo'  # Default trainer name
+                        }
+                        range_events.append(formatted_event)
+            
+            # SORT: Sort events by start time (earliest first)
+            range_events.sort(key=lambda x: x['start_time_obj'] if x['start_time_obj'] else datetime.min)
+            
+            # Remove the sorting helper field
+            for event in range_events:
+                del event['start_time_obj']
+            
+            logger.info(f"✅ Retrieved {len(range_events)} events for date range {start_date} to {end_date} from iCal (matched {matched_count} out of {len(real_events)} total events)")
+            return range_events
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting events for date range: {e}")
+            return []
