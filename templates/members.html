@@ -99,6 +99,66 @@
         color: #212529;
     }
     
+    /* Conversation Styles */
+    .conversation-container {
+        background: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1rem;
+    }
+    
+    .conversation-message {
+        margin-bottom: 1rem;
+    }
+    
+    .message-bubble {
+        max-width: 80%;
+        padding: 0.75rem;
+        border-radius: 1rem;
+        position: relative;
+    }
+    
+    .member-message .message-bubble {
+        background: #e3f2fd;
+        border: 1px solid #bbdefb;
+        margin-right: auto;
+    }
+    
+    .user-message .message-bubble {
+        background: #0d6efd;
+        color: white;
+        margin-left: auto;
+    }
+    
+    .message-content {
+        word-wrap: break-word;
+    }
+    
+    .message-content p {
+        margin-bottom: 0.25rem;
+    }
+    
+    .message-content small {
+        opacity: 0.8;
+    }
+    
+    .message-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+    }
+    
+    .message-action-btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        border-radius: 0.25rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .message-action-btn:hover {
+        transform: scale(1.05);
+    }
+    
     .form-label-muted {
         color: #6c757d;
         font-weight: 500;
@@ -551,6 +611,75 @@
                                 </div>
                                 <div class="card-body" id="invoice-history-content">
                                     <p class="text-muted">Invoice history will be displayed here.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Member Inbox and Conversation History -->
+                    <div class="row">
+                        <div class="col-12 mb-4">
+                            <div class="card">
+                                <div class="card-header bg-primary text-white">
+                                    <ul class="nav nav-tabs card-header-tabs" id="memberInboxTabs" role="tablist">
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link active text-white" id="inbox-tab" data-bs-toggle="tab" data-bs-target="#inbox" type="button" role="tab">
+                                                <i class="fas fa-inbox me-2"></i>
+                                                Inbox
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link text-white" id="conversation-tab" data-bs-toggle="tab" data-bs-target="#conversation" type="button" role="tab">
+                                                <i class="fas fa-comments me-2"></i>
+                                                Conversation History
+                                            </button>
+                                        </li>
+                                        <li class="nav-item ms-auto">
+                                            <div class="d-flex gap-2">
+                                                <button class="btn btn-sm btn-light" onclick="loadMemberMessages()">
+                                                    <i class="fas fa-sync-alt me-1"></i>
+                                                    Refresh
+                                                </button>
+                                                <button class="btn btn-sm btn-light" onclick="sendMessageToMember()">
+                                                    <i class="fas fa-paper-plane me-1"></i>
+                                                    Send Message
+                                                </button>
+                                            </div>
+                                        </li>
+                                    </ul>
+                                </div>
+                                <div class="card-body">
+                                    <div class="tab-content" id="memberInboxTabContent">
+                                        <!-- Inbox Tab -->
+                                        <div class="tab-pane fade show active" id="inbox" role="tabpanel">
+                                            <div class="mb-3">
+                                                <div class="input-group">
+                                                    <input type="text" class="form-control" id="memberMessageSearch" placeholder="Search messages...">
+                                                    <button class="btn btn-outline-secondary" type="button" onclick="searchMemberMessages()">
+                                                        <i class="fas fa-search"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div id="member-inbox-container" style="max-height: 400px; overflow-y: auto;">
+                                                <div class="text-center py-4">
+                                                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                                    <h5 class="text-muted">No messages in inbox</h5>
+                                                    <p class="text-muted">Messages will appear here when received</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Conversation History Tab -->
+                                        <div class="tab-pane fade" id="conversation" role="tabpanel">
+                                            <div id="conversation-container" style="max-height: 400px; overflow-y: auto;">
+                                                <div class="text-center py-4">
+                                                    <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                                                    <h5 class="text-muted">No conversation history</h5>
+                                                    <p class="text-muted">Click "Send Message" to start a conversation</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2276,24 +2405,47 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('🔍 Checking for cached member data...');
     checkCachedData();
     
-    // Member search functionality
-    const searchInput = document.getElementById('memberSearch');
-    const statusFilter = document.getElementById('statusFilter');
+    // Member search functionality for individual category search inputs
+    const searchInputs = [
+        'greenMemberSearch',
+        'compMemberSearch', 
+        'ppvMemberSearch',
+        'staffMemberSearch',
+        'inactiveMemberSearch'
+    ];
     
-    function filterMembers() {
-        const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
-        const statusTerm = statusFilter ? statusFilter.value.toLowerCase() : '';
-        const memberItems = document.querySelectorAll('.member-item');
+    function setupCategorySearch(categoryId) {
+        const searchInput = document.getElementById(categoryId);
+        if (searchInput) {
+            searchInput.addEventListener('input', function() {
+                filterMembersByCategory(categoryId, this.value);
+            });
+            
+            // Search on Enter key
+            searchInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    filterMembersByCategory(categoryId, this.value);
+                }
+            });
+        }
+    }
+    
+    function filterMembersByCategory(categoryId, searchTerm) {
+        console.log(`🔍 Filtering ${categoryId} with: "${searchTerm}"`);
+        
+        const memberItems = document.querySelectorAll(`#${categoryId.replace('Search', '')} .member-item`);
+        const searchLower = searchTerm.toLowerCase();
         
         memberItems.forEach(item => {
             const name = item.dataset.name || '';
             const email = item.dataset.email || '';
-            const status = item.dataset.status || '';
+            const phone = item.dataset.phone || '';
             
-            const matchesSearch = name.includes(searchTerm) || email.includes(searchTerm);
-            const matchesStatus = !statusTerm || status.includes(statusTerm);
+            const matchesSearch = name.toLowerCase().includes(searchLower) || 
+                                 email.toLowerCase().includes(searchLower) || 
+                                 phone.toLowerCase().includes(searchLower);
             
-            if (matchesSearch && matchesStatus) {
+            if (matchesSearch || !searchTerm) {
                 item.style.display = 'block';
             } else {
                 item.style.display = 'none';
@@ -2301,13 +2453,8 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    if (searchInput) {
-        searchInput.addEventListener('input', filterMembers);
-    }
-    
-    if (statusFilter) {
-        statusFilter.addEventListener('change', filterMembers);
-    }
+    // Set up search for all categories
+    searchInputs.forEach(setupCategorySearch);
 
     // Tab switching functionality
     const allMembersTab = document.getElementById('all-members-tab');
@@ -2431,5 +2578,267 @@ async function loadActualMemberCounts() {
 // Initialize the page
 checkCachedData();
 loadActualMemberCounts();
+
+// Check if we should open a member profile from URL parameters
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const searchQuery = urlParams.get('search');
+    const openProfile = urlParams.get('open_profile');
+    const highlightMember = urlParams.get('highlight');
+    
+    if (searchQuery && openProfile === 'true') {
+        // Wait a bit for the page to load, then open the member profile
+        setTimeout(() => {
+            if (highlightMember) {
+                // If we have a specific member ID, use that
+                showMemberProfile(searchQuery, highlightMember);
+            } else {
+                // Otherwise just use the search query
+                showMemberProfile(searchQuery);
+            }
+        }, 1000);
+    }
+    
+    // Add event listener for member message search
+    const memberMessageSearch = document.getElementById('memberMessageSearch');
+    if (memberMessageSearch) {
+        memberMessageSearch.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchMemberMessages();
+            }
+        });
+    }
+});
+
+// Conversation Functions
+let currentMemberName = '';
+
+// Load messages for the current member
+function loadMemberMessages() {
+    if (!currentMemberName) {
+        console.log('⚠️ No member selected for messages');
+        return;
+    }
+    
+    console.log(`💬 Loading messages for: ${currentMemberName}`);
+    
+    fetch(`/api/messages/member/${encodeURIComponent(currentMemberName)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayMemberInbox(data.messages);
+                displayMemberConversation(data.messages);
+            } else {
+                console.error('Error loading member messages:', data.error);
+                displayMemberInbox([]);
+                displayMemberConversation([]);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            displayMemberInbox([]);
+            displayMemberConversation([]);
+        });
+}
+
+// Display inbox for the member
+function displayMemberInbox(messages) {
+    const container = document.getElementById('member-inbox-container');
+    
+    if (!messages || messages.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No messages in inbox</h5>
+                <p class="text-muted">Messages will appear here when received</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Display messages in inbox format (newest first)
+    const inboxHtml = messages.map(message => {
+        const isFromMember = message.from_user && message.from_user.toLowerCase().includes(currentMemberName.toLowerCase());
+        const messageClass = isFromMember ? 'member-message' : 'user-message';
+        
+        // Parse message actions
+        let messageActions = '';
+        try {
+            const actions = JSON.parse(message.message_actions || '{}');
+            if (actions.is_confirmation) messageActions += '<span class="badge bg-success me-1">✓ Confirmed</span>';
+            if (actions.is_opt_in) messageActions += '<span class="badge bg-info me-1">📱 Opt-in</span>';
+            if (actions.is_opt_out) messageActions += '<span class="badge bg-warning me-1">🚫 Opt-out</span>';
+            if (actions.has_emoji) {
+                const emojis = actions.emojis || [];
+                messageActions += emojis.map(emoji => `<span class="emoji-reaction">${emoji}</span>`).join('');
+            }
+        } catch (e) {
+            // Ignore parsing errors
+        }
+        
+        return `
+            <div class="message-item p-3 border-bottom ${messageClass}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-1">
+                            <strong class="me-2">${isFromMember ? currentMemberName : 'You'}</strong>
+                            <small class="text-muted">${formatDateTime(message.timestamp)}</small>
+                        </div>
+                        <div class="message-content">
+                            <p class="mb-1">${message.content || 'No content'}</p>
+                            ${messageActions ? `<div class="message-actions mt-2">${messageActions}</div>` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = inboxHtml;
+}
+
+// Search messages for the current member
+function searchMemberMessages() {
+    const query = document.getElementById('memberMessageSearch').value;
+    if (!query.trim()) {
+        loadMemberMessages();
+        return;
+    }
+    
+    fetch(`/api/messages/search?q=${encodeURIComponent(query)}&member=${encodeURIComponent(currentMemberName)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayMemberInbox(data.messages);
+            }
+        })
+        .catch(error => {
+            console.error('Error searching member messages:', error);
+        });
+}
+
+// Display conversation for the member
+function displayMemberConversation(messages) {
+    const container = document.getElementById('conversation-container');
+    
+    if (!messages || messages.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No messages yet</h5>
+                <p class="text-muted">Click "Send Message" to start a conversation with ${currentMemberName}</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Display messages in chronological order (oldest first for conversation view)
+    const conversationHtml = messages.map(message => {
+        const isFromMember = message.from_user && message.from_user.toLowerCase().includes(currentMemberName.toLowerCase());
+        const messageClass = isFromMember ? 'member-message' : 'user-message';
+        const messageAlign = isFromMember ? 'text-start' : 'text-end';
+        
+        // Parse message actions
+        let messageActions = '';
+        try {
+            const actions = JSON.parse(message.message_actions || '{}');
+            if (actions.is_confirmation) messageActions += '<span class="badge bg-success me-1">✓ Confirmed</span>';
+            if (actions.is_opt_in) messageActions += '<span class="badge bg-info me-1">📱 Opt-in</span>';
+            if (actions.is_opt_out) messageActions += '<span class="badge bg-warning me-1">🚫 Opt-out</span>';
+            if (actions.has_emoji) {
+                const emojis = actions.emojis || [];
+                messageActions += emojis.map(emoji => `<span class="emoji-reaction">${emoji}</span>`).join('');
+            }
+        } catch (e) {
+            // Ignore parsing errors
+        }
+        
+        return `
+            <div class="conversation-message ${messageClass} mb-3">
+                <div class="message-bubble ${messageAlign}">
+                    <div class="message-content">
+                        <p class="mb-1">${message.content || 'No content'}</p>
+                        <small class="text-muted">
+                            ${formatDateTime(message.timestamp)}
+                            ${message.message_type ? ` • ${message.message_type}` : ''}
+                        </small>
+                        ${messageActions ? `<div class="message-actions mt-2">${messageActions}</div>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = conversationHtml;
+    
+    // Scroll to bottom to show latest messages
+    container.scrollTop = container.scrollHeight;
+}
+
+// Send message to the current member
+function sendMessageToMember() {
+    if (!currentMemberName) {
+        alert('No member selected');
+        return;
+    }
+    
+    const message = prompt(`Send message to ${currentMemberName}:`);
+    if (!message || message.trim() === '') {
+        return;
+    }
+    
+    // For now, just show a success message
+    // In a real implementation, this would send via ClubOS API
+    alert(`Message sent to ${currentMemberName}: "${message}"`);
+    
+    // Refresh the conversation
+    setTimeout(() => {
+        loadMemberMessages();
+    }, 1000);
+}
+
+// Update the showMemberProfile function to load messages
+function showMemberProfile(memberName, memberId = null) {
+    console.log(`👤 Showing profile for: ${memberName}${memberId ? ` (ID: ${memberId})` : ''}`);
+    
+    // Set current member name for conversation loading
+    currentMemberName = memberName;
+    
+    // Update modal title
+    document.getElementById('modal-member-name').textContent = memberName;
+    
+    // Show loading state
+    document.getElementById('member-profile-loading').style.display = 'block';
+    document.getElementById('member-profile-content').style.display = 'none';
+    
+    // Open modal
+    const modalElement = document.getElementById('memberProfileModal');
+    const modal = new bootstrap.Modal(modalElement);
+    modal.show();
+    
+    // Load member data and messages
+    Promise.all([
+        loadMemberData(memberName, memberId),
+        loadMemberMessages()
+    ]).then(() => {
+        // Hide loading, show content
+        document.getElementById('member-profile-loading').style.display = 'none';
+        document.getElementById('member-profile-content').style.display = 'block';
+    }).catch(error => {
+        console.error('Error loading member profile:', error);
+        document.getElementById('member-profile-loading').style.display = 'none';
+        document.getElementById('member-profile-content').style.display = 'block';
+    });
+}
+
+// Utility function for formatting dates
+function formatDateTime(dateString) {
+    if (!dateString) return 'Unknown';
+    try {
+        return new Date(dateString).toLocaleString();
+    } catch {
+        return dateString;
+    }
+}
 </script>
 {% endblock %}

@@ -92,84 +92,11 @@ async function loadProspects() {
         if (data.success && data.prospects.length > 0) {
             console.log(`✅ Loaded ${data.prospects.length} prospects from ClubHub`);
             
-            let html = '';
-            data.prospects.forEach(prospect => {
-                const displayName = prospect.full_name || `${prospect.firstName || ''} ${prospect.lastName || ''}`.trim() || 'Unknown Name';
-                const prospectId = prospect.id || prospect.prospectId || 'N/A';
-                
-                html += `
-                    <div class="col-md-6 col-lg-4 mb-4">
-                        <div class="card prospect-card h-100" style="cursor: pointer;" onclick="window.location.href='/prospect/${prospectId}'">
-                            <div class="card-body">
-                                <h5 class="text-purple mb-2">
-                                    <i class="fas fa-user-plus me-2"></i>
-                                    ${displayName}
-                                </h5>
-                                
-                                <div class="contact-info mb-3">
-                                    <p class="mb-1">
-                                        <i class="fas fa-id-card me-2 text-muted"></i>
-                                        <strong>ID:</strong> ${prospectId}
-                                    </p>
-                                    ${prospect.email ? `
-                                    <p class="mb-1">
-                                        <i class="fas fa-envelope me-2 text-muted"></i>
-                                        <a href="mailto:${prospect.email}">${prospect.email}</a>
-                                    </p>
-                                    ` : ''}
-                                    ${prospect.mobilePhone || prospect.mobile_phone ? `
-                                    <p class="mb-1">
-                                        <i class="fas fa-phone me-2 text-muted"></i>
-                                        <a href="tel:${prospect.mobilePhone || prospect.mobile_phone}">${prospect.mobilePhone || prospect.mobile_phone}</a>
-                                    </p>
-                                    ` : ''}
-                                    ${prospect.address1 ? `
-                                    <p class="mb-1">
-                                        <i class="fas fa-map-marker-alt me-2 text-muted"></i>
-                                        ${prospect.address1}, ${prospect.city || ''}, ${prospect.state || ''}
-                                    </p>
-                                    ` : ''}
-                                </div>
-                                
-                                <div class="agreement-info mb-3">
-                                    ${prospect.leadSource || prospect.lead_source ? `
-                                    <p class="mb-1">
-                                        <i class="fas fa-source me-2 text-muted"></i>
-                                        <strong>Source:</strong> ${prospect.leadSource || prospect.lead_source}
-                                    </p>
-                                    ` : ''}
-                                    ${prospect.interestLevel || prospect.interest_level ? `
-                                    <p class="mb-1">
-                                        <i class="fas fa-star me-2 text-muted"></i>
-                                        <strong>Interest:</strong> ${prospect.interestLevel || prospect.interest_level}/5
-                                    </p>
-                                    ` : ''}
-                                </div>
-                                
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span class="badge bg-info">${prospect.status || 'New Lead'}</span>
-                                    <div>
-                                        <a href="/prospect/${prospectId}" class="btn btn-sm btn-purple" style="text-decoration: none;" onclick="event.stopPropagation();">
-                                            <i class="fas fa-eye me-1"></i> View Profile
-                                        </a>
-                                    </div>
-                                </div>
-                                
-                                ${prospect.followUpDate || prospect.follow_up_date ? `
-                                <div class="mt-2">
-                                    <small class="text-muted">
-                                        <i class="fas fa-calendar-alt me-1"></i>
-                                        Follow-up: ${prospect.followUpDate || prospect.follow_up_date}
-                                    </small>
-                                </div>
-                                ` : ''}
-                            </div>
-                        </div>
-                    </div>
-                `;
-            });
+            // Cache the prospects data for search functionality
+            window.cachedProspects = data.prospects;
             
-            prospectsContainer.innerHTML = html;
+            // Display all prospects
+            displayProspects(data.prospects);
             
             // Update the total count in the header badge
             const totalBadge = document.querySelector('.badge-purple');
@@ -225,6 +152,167 @@ async function checkCachedData() {
     }
 }
 
+// Search functionality
+function setupSearch() {
+    const searchInput = document.getElementById('searchInput');
+    const searchButton = document.getElementById('searchButton');
+    
+    if (searchInput) {
+        // Search on input
+        searchInput.addEventListener('input', function() {
+            filterProspects(this.value);
+        });
+        
+        // Search on button click
+        if (searchButton) {
+            searchButton.addEventListener('click', function() {
+                filterProspects(searchInput.value);
+            });
+        }
+        
+        // Search on Enter key
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                filterProspects(this.value);
+            }
+        });
+    }
+}
+
+function filterProspects(searchTerm) {
+    console.log(`🔍 Filtering prospects with: "${searchTerm}"`);
+    
+    if (!window.cachedProspects) {
+        console.log('⚠️ No cached prospects data available');
+        return;
+    }
+    
+    const filteredProspects = window.cachedProspects.filter(prospect => {
+        const fullName = `${prospect.firstName || ''} ${prospect.lastName || ''}`.toLowerCase();
+        const email = (prospect.email || '').toLowerCase();
+        const phone = (prospect.phone || '').toLowerCase();
+        const searchLower = searchTerm.toLowerCase();
+        
+        return fullName.includes(searchLower) || 
+               email.includes(searchLower) || 
+               phone.includes(searchLower);
+    });
+    
+    displayProspects(filteredProspects, searchTerm);
+}
+
+function displayProspects(prospects, searchTerm = '') {
+    const prospectsContainer = document.getElementById('prospectsContainer');
+    const resultsCount = document.getElementById('resultsCount');
+    
+    if (resultsCount) {
+        if (searchTerm) {
+            resultsCount.textContent = `Found ${prospects.length} prospects matching "${searchTerm}"`;
+        } else {
+            resultsCount.textContent = `Showing ${prospects.length} prospects`;
+        }
+    }
+    
+    if (prospects.length === 0) {
+        prospectsContainer.innerHTML = `
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No prospects found</h5>
+                        <p class="text-muted">${searchTerm ? `No prospects match "${searchTerm}"` : 'No prospects available'}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    prospects.forEach(prospect => {
+        const displayName = prospect.full_name || `${prospect.firstName || ''} ${prospect.lastName || ''}`.trim() || 'Unknown Name';
+        const prospectId = prospect.id || prospect.prospectId || 'N/A';
+        
+        html += `
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card prospect-card h-100" style="cursor: pointer;" onclick="window.location.href='/prospect/${prospectId}'">
+                    <div class="card-body">
+                        <h5 class="text-purple mb-2">
+                            <i class="fas fa-user-plus me-2"></i>
+                            ${displayName}
+                        </h5>
+                        
+                        <div class="contact-info mb-3">
+                            <p class="mb-1">
+                                <i class="fas fa-id-card me-2 text-muted"></i>
+                                <strong>ID:</strong> ${prospectId}
+                            </p>
+                            ${prospect.email ? `
+                            <p class="mb-1">
+                                <i class="fas fa-envelope me-2 text-muted"></i>
+                                <a href="mailto:${prospect.email}">${prospect.email}</a>
+                            </p>
+                            ` : ''}
+                            ${prospect.mobilePhone || prospect.mobile_phone ? `
+                            <p class="mb-1">
+                                <i class="fas fa-phone me-2 text-muted"></i>
+                                <a href="tel:${prospect.mobilePhone || prospect.mobile_phone}">${prospect.mobilePhone || prospect.mobile_phone}</a>
+                            </p>
+                            ` : ''}
+                            ${prospect.address1 ? `
+                            <p class="mb-1">
+                                <i class="fas fa-map-marker-alt me-2 text-muted"></i>
+                                ${prospect.address1}, ${prospect.city || ''}, ${prospect.state || ''}
+                            </p>
+                            ` : ''}
+                        </div>
+                        
+                        <div class="agreement-info mb-3">
+                            ${prospect.leadSource || prospect.lead_source ? `
+                            <p class="mb-1">
+                                <i class="fas fa-source me-2 text-muted"></i>
+                                <strong>Source:</strong> ${prospect.leadSource || prospect.lead_source}
+                            </p>
+                            ` : ''}
+                            ${prospect.interestLevel || prospect.interest_level ? `
+                            <p class="mb-1">
+                                <i class="fas fa-star me-2 text-muted"></i>
+                                <strong>Interest:</strong> ${prospect.interestLevel || prospect.interest_level}/5
+                            </p>
+                            ` : ''}
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="badge bg-info">${prospect.status || 'New Lead'}</span>
+                            <div>
+                                <a href="/prospect/${prospectId}" class="btn btn-sm btn-purple" style="text-decoration: none;" onclick="event.stopPropagation();">
+                                    <i class="fas fa-eye me-1"></i> View Profile
+                                </a>
+                            </div>
+                        </div>
+                        
+                        ${prospect.followUpDate || prospect.follow_up_date ? `
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-calendar-alt me-1"></i>
+                                Follow-up: ${prospect.followUpDate || prospect.follow_up_date}
+                            </small>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    prospectsContainer.innerHTML = html;
+}
+
+function showProspectProfile(prospectId) {
+    // Navigate to prospect profile page or open modal
+    window.location.href = `/prospect/${prospectId}`;
+}
+
 // Load prospects when page loads
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Prospects page loaded');
@@ -238,6 +326,18 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Set up search functionality
     setupSearch();
+    
+    // Check for search parameter in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const searchParam = urlParams.get('search');
+    if (searchParam) {
+        console.log(`🔍 Found search parameter: "${searchParam}"`);
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.value = searchParam;
+            filterProspects(searchParam);
+        }
+    }
 });
 </script>
 

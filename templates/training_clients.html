@@ -417,6 +417,55 @@ document.addEventListener('DOMContentLoaded', function() {
     setupSearch();
 });
 
+// Search functionality
+function setupSearch() {
+    const searchInput = document.getElementById('searchInput');
+    const searchButton = document.getElementById('searchButton');
+    
+    if (searchInput) {
+        // Search on input
+        searchInput.addEventListener('input', function() {
+            filterTrainingClients(this.value);
+        });
+        
+        // Search on button click
+        if (searchButton) {
+            searchButton.addEventListener('click', function() {
+                filterTrainingClients(searchInput.value);
+            });
+        }
+        
+        // Search on Enter key
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                filterTrainingClients(this.value);
+            }
+        });
+    }
+}
+
+function filterTrainingClients(searchTerm) {
+    console.log(`🔍 Filtering training clients with: "${searchTerm}"`);
+    
+    if (!window.cachedTrainingClients) {
+        console.log('⚠️ No cached training clients data available');
+        return;
+    }
+    
+    const filteredClients = window.cachedTrainingClients.filter(client => {
+        const memberName = (client.member_name || '').toLowerCase();
+        const trainerName = (client.trainer_name || '').toLowerCase();
+        const packageSummary = (client.package_summary || '').toLowerCase();
+        const searchLower = searchTerm.toLowerCase();
+        
+        return memberName.includes(searchLower) || 
+               trainerName.includes(searchLower) || 
+               packageSummary.includes(searchLower);
+    });
+    
+    renderClients(filteredClients);
+}
+
 // Load training clients from API
 async function loadTrainingClients() {
     const container = document.getElementById('clientsContainer');

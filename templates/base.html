@@ -541,7 +541,7 @@
         
         <div class="outlook-search">
             <i class="fas fa-search"></i>
-            <input type="text" placeholder="Search members, prospects, events...">
+            <input type="text" id="globalSearch" placeholder="Search members, prospects, events..." onkeypress="handleGlobalSearch(event)">
         </div>
         
         <div class="outlook-user">
@@ -613,6 +613,85 @@
     <!-- Scripts -->
     <!-- Core JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Global Search Functionality -->
+<script>
+function handleGlobalSearch(event) {
+    if (event.key === 'Enter') {
+        const searchTerm = document.getElementById('globalSearch').value.trim();
+        if (searchTerm) {
+            performGlobalSearch(searchTerm);
+        }
+    }
+}
+
+function performGlobalSearch(searchTerm) {
+    console.log(`🔍 Global search for: "${searchTerm}"`);
+    
+    // First try to find in members
+    fetch(`/api/members/search?q=${encodeURIComponent(searchTerm)}`)
+        .then(response => response.json())
+        .then(memberData => {
+            if (memberData.success && memberData.members && memberData.members.length > 0) {
+                // Found member, navigate to their profile
+                const member = memberData.members[0];
+                const memberId = member.guid || member.prospect_id || member.id;
+                console.log(`✅ Found member: ${member.full_name} (ID: ${memberId})`);
+                window.location.href = `/member/${memberId}`;
+                return;
+            }
+            
+            // If not found in members, try prospects
+            console.log(`🔍 Not found in members, searching prospects...`);
+            return fetch('/api/prospects/all');
+        })
+        .then(prospectResponse => {
+            if (!prospectResponse) return; // Already handled member case
+            
+            return prospectResponse.json();
+        })
+        .then(prospectData => {
+            if (prospectData && prospectData.success && prospectData.prospects) {
+                // Search through prospects for the name
+                const prospect = prospectData.prospects.find(p => {
+                    const fullName = `${p.firstName || ''} ${p.lastName || ''}`.trim();
+                    return fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           searchTerm.toLowerCase().includes(fullName.toLowerCase());
+                });
+                
+                if (prospect) {
+                    const prospectId = prospect.prospect_id || prospect.id;
+                    console.log(`✅ Found prospect: ${prospect.firstName} ${prospect.lastName} (ID: ${prospectId})`);
+                    window.location.href = `/prospect/${prospectId}`;
+                    return;
+                }
+            }
+            
+            // If not found in either, show search results page or alert
+            console.log(`⚠️ Not found in members or prospects`);
+            alert(`No members or prospects found matching "${searchTerm}"`);
+        })
+        .catch(error => {
+            console.error('❌ Error in global search:', error);
+            alert('Search error occurred. Please try again.');
+        });
+}
+
+// Add click handler for search icon
+document.addEventListener('DOMContentLoaded', function() {
+    const searchIcon = document.querySelector('.outlook-search i');
+    const searchInput = document.getElementById('globalSearch');
+    
+    if (searchIcon && searchInput) {
+        searchIcon.addEventListener('click', function() {
+            const searchTerm = searchInput.value.trim();
+            if (searchTerm) {
+                performGlobalSearch(searchTerm);
+            }
+        });
+    }
+});
+</script>
 
 <!-- Page-specific JS -->
 {% block extra_js %}{% endblock %}
