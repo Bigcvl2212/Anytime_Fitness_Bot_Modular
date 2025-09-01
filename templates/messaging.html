@@ -167,6 +167,78 @@
         z-index: 10;
         border-bottom: 1px solid #dee2e6;
     }
+    
+    /* Conversation Modal Styles */
+    .conversation-container {
+        background: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1rem;
+    }
+    
+    .conversation-message {
+        margin-bottom: 1rem;
+    }
+    
+    .message-bubble {
+        max-width: 80%;
+        padding: 0.75rem;
+        border-radius: 1rem;
+        position: relative;
+    }
+    
+    .member-message .message-bubble {
+        background: #e3f2fd;
+        border: 1px solid #bbdefb;
+        margin-right: auto;
+    }
+    
+    .user-message .message-bubble {
+        background: #0d6efd;
+        color: white;
+        margin-left: auto;
+    }
+    
+    .message-content {
+        word-wrap: break-word;
+    }
+    
+    .message-content p {
+        margin-bottom: 0.25rem;
+    }
+    
+    .message-content small {
+        opacity: 0.8;
+    }
+    
+    /* Clickable message styles */
+    .clickable-message {
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .clickable-message:hover {
+        background-color: #f8f9fa;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .message-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+    }
+    
+    .message-action-btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        border-radius: 0.25rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .message-action-btn:hover {
+        transform: scale(1.05);
+    }
 </style>
 {% endblock %}
 
@@ -382,6 +454,42 @@
         </div>
     </div>
 </div>
+
+<!-- Conversation Modal -->
+<div class="modal fade" id="conversationModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-comments me-2"></i>
+                    Conversation with <span id="conversationMemberName">Member</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Loading State -->
+                <div id="conversationLoading" class="text-center py-5">
+                    <div class="loading-spinner"></div>
+                    <p class="text-muted mt-3">Loading conversation...</p>
+                </div>
+                
+                <!-- Conversation Content -->
+                <div id="conversationContent" style="display: none;">
+                    <div id="conversationMessages" class="conversation-container" style="max-height: 400px; overflow-y: auto;">
+                        <!-- Messages will be loaded here -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="goToMemberProfile(document.getElementById('conversationMemberName').textContent)">
+                    <i class="fas fa-user me-1"></i>
+                    View Member Profile
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -562,7 +670,7 @@ function displayMessages(messages) {
         
         return `
             <div class="message-thread ${index < 5 ? 'border-primary' : ''} ${isClickable ? 'clickable-message' : ''}" 
-                 ${isClickable ? `onclick="goToMemberProfile('${memberName}')"` : ''}
+                 ${isClickable ? `onclick="showConversation('${memberName}')"` : ''}
                  style="${isClickable ? 'cursor: pointer;' : ''}">
                 <div class="p-3">
                     <div class="d-flex justify-content-between align-items-start">
@@ -570,7 +678,7 @@ function displayMessages(messages) {
                             <h6 class="mb-1">
                                 ${displayName}
                                 ${index < 5 ? '<span class="badge bg-primary ms-2">Recent</span>' : ''}
-                                ${isClickable ? '<i class="fas fa-external-link-alt ms-2 text-muted" title="Click to view member profile"></i>' : ''}
+                                ${isClickable ? '<i class="fas fa-comments ms-2 text-muted" title="Click to view conversation"></i>' : ''}
                             </h6>
                             <p class="mb-1">${message.content || 'No content'}</p>
                             <small class="text-muted">
@@ -578,14 +686,115 @@ function displayMessages(messages) {
                                 ${message.message_type ? ` • ${message.message_type}` : ''}
                             </small>
                         </div>
-                        <span class="badge bg-${getStatusColor(message.status)} ms-2">${message.status || 'info'}</span>
+                        <div class="d-flex flex-column align-items-end">
+                            <span class="badge bg-${getStatusColor(message.status)} ms-2 mb-1">${message.status || 'info'}</span>
+                            ${isClickable ? `
+                                <div class="message-actions">
+                                    <button class="btn btn-sm btn-outline-primary message-action-btn" onclick="event.stopPropagation(); showConversation('${memberName}')" title="View Conversation">
+                                        <i class="fas fa-comments"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary message-action-btn" onclick="event.stopPropagation(); goToMemberProfile('${memberName}')" title="View Profile">
+                                        <i class="fas fa-user"></i>
+                                    </button>
+                                </div>
+                            ` : ''}
+                        </div>
                     </div>
                 </div>
             </div>
         `;
-    }).reverse().join('');
+    }).join('');
     
     container.innerHTML = summaryHtml + messagesHtml;
+}
+
+// Show conversation modal for a specific member
+function showConversation(memberName) {
+    console.log(`💬 Opening conversation for: ${memberName}`);
+    
+    // Update modal title
+    document.getElementById('conversationMemberName').textContent = memberName;
+    
+    // Show loading state
+    document.getElementById('conversationLoading').style.display = 'block';
+    document.getElementById('conversationContent').style.display = 'none';
+    
+    // Open modal
+    const modal = new bootstrap.Modal(document.getElementById('conversationModal'));
+    modal.show();
+    
+    // Load conversation messages
+    fetch(`/api/messages/member/${encodeURIComponent(memberName)}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            displayConversation(data.messages, memberName);
+        } else {
+            document.getElementById('conversationLoading').innerHTML = `
+                <div class="text-center py-5">
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <p class="text-danger">Error loading conversation: ${data.error}</p>
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error loading conversation:', error);
+        document.getElementById('conversationLoading').innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                <p class="text-danger">Network error loading conversation</p>
+            </div>
+        `;
+    });
+}
+
+// Display conversation messages
+function displayConversation(messages, memberName) {
+    const loadingDiv = document.getElementById('conversationLoading');
+    const contentDiv = document.getElementById('conversationContent');
+    const messagesContainer = document.getElementById('conversationMessages');
+    
+    if (!messages || messages.length === 0) {
+        loadingDiv.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No messages found</h5>
+                <p class="text-muted">No conversation history with ${memberName}</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Hide loading, show content
+    loadingDiv.style.display = 'none';
+    contentDiv.style.display = 'block';
+    
+    // Display messages in chronological order (oldest first for conversation view)
+    const conversationHtml = messages.map(message => {
+        const isFromMember = message.from_user && message.from_user.toLowerCase().includes(memberName.toLowerCase());
+        const messageClass = isFromMember ? 'member-message' : 'user-message';
+        const messageAlign = isFromMember ? 'text-start' : 'text-end';
+        
+        return `
+            <div class="conversation-message ${messageClass} mb-3">
+                <div class="message-bubble ${messageAlign}">
+                    <div class="message-content">
+                        <p class="mb-1">${message.content || 'No content'}</p>
+                        <small class="text-muted">
+                            ${formatDateTime(message.timestamp)}
+                            ${message.message_type ? ` • ${message.message_type}` : ''}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    messagesContainer.innerHTML = conversationHtml;
+    
+    // Scroll to bottom to show latest messages
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
 // Load member categories for campaign targeting
