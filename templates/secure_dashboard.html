@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Manager Dashboard - Anytime Fitness</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8f9fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 20px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+        }
+        
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .user-info {
+            text-align: right;
+            font-size: 14px;
+        }
+        
+        .btn-logout {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 8px 16px;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 5px;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
+        
+        .btn-logout:hover {
+            background: rgba(255,255,255,0.3);
+            text-decoration: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .security-status {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .security-status .icon {
+            font-size: 24px;
+            color: #28a745;
+        }
+        
+        .security-status .content h3 {
+            color: #155724;
+            margin-bottom: 5px;
+        }
+        
+        .security-status .content p {
+            color: #155724;
+            font-size: 14px;
+        }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.15);
+        }
+        
+        .card h3 {
+            color: #1e3c72;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .card h3 .icon {
+            font-size: 20px;
+        }
+        
+        .credential-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .credential-info label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #495057;
+            font-size: 14px;
+        }
+        
+        .credential-info .value {
+            font-family: 'Courier New', monospace;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+            font-size: 14px;
+        }
+        
+        .session-info {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .session-info .item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .session-info .label {
+            font-weight: 600;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(30, 60, 114, 0.3);
+            text-decoration: none;
+            color: white;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+        
+        .btn-success:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+            text-decoration: none;
+            color: white;
+        }
+        
+        .api-testing {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .api-testing h4 {
+            color: #856404;
+            margin-bottom: 15px;
+        }
+        
+        .api-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-connected { background: #28a745; }
+        .status-disconnected { background: #dc3545; }
+        .status-warning { background: #ffc107; }
+        
+        .footer {
+            background: #1e3c72;
+            color: white;
+            text-align: center;
+            padding: 20px 0;
+            margin-top: 40px;
+        }
+        
+        .footer p {
+            font-size: 14px;
+        }
+        
+        @media (max-width: 768px) {
+            .header .container {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .api-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1>🏋️ Anytime Fitness Dashboard</h1>
+            <div class="header-info">
+                <div class="user-info">
+                    <div><strong>Manager ID:</strong> {{ manager_id }}</div>
+                    <div><small>Last Activity: {{ session_info.last_activity or 'Just now' }}</small></div>
+                </div>
+                <a href="{{ url_for('logout') }}" class="btn-logout">🚪 Logout</a>
+            </div>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="security-status">
+            <div class="icon">🛡️</div>
+            <div class="content">
+                <h3>Secure Connection Active</h3>
+                <p>Your credentials are securely encrypted and stored in Google Cloud Secret Manager. All API communications use HTTPS encryption.</p>
+            </div>
+        </div>
+        
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3><span class="icon">🏢</span>ClubOS Integration</h3>
+                <div class="credential-info">
+                    <label>Username:</label>
+                    <div class="value">{{ clubos_username }}</div>
+                </div>
+                <p>Connected to ClubOS for training client data, calendar management, and member services.</p>
+                <div style="margin-top: 15px;">
+                    <span class="status-indicator status-connected"></span>
+                    <small>Ready for API calls</small>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3><span class="icon">📱</span>ClubHub Integration</h3>
+                <div class="credential-info">
+                    <label>Email:</label>
+                    <div class="value">{{ clubhub_email }}</div>
+                </div>
+                <p>Connected to ClubHub for member and prospect data retrieval.</p>
+                <div style="margin-top: 15px;">
+                    <span class="status-indicator status-connected"></span>
+                    <small>Ready for API calls</small>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3><span class="icon">📊</span>Session Information</h3>
+                <div class="session-info">
+                    <div class="item">
+                        <span class="label">Login Time:</span>
+                        <span>{{ session_info.login_time or 'Just logged in' }}</span>
+                    </div>
+                    <div class="item">
+                        <span class="label">Session Status:</span>
+                        <span>
+                            <span class="status-indicator status-connected"></span>
+                            Active
+                        </span>
+                    </div>
+                    <div class="item">
+                        <span class="label">Security Level:</span>
+                        <span>🔐 High</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3><span class="icon">⚙️</span>Management</h3>
+                <p>Manage your credentials and dashboard settings securely.</p>
+                <div style="margin-top: 15px;">
+                    <a href="{{ url_for('settings') }}" class="btn-primary">
+                        🛠️ Settings
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="api-testing">
+            <h4>🧪 API Testing & Integration</h4>
+            <p>Test your API connections and integrate with existing services.</p>
+            <div class="api-buttons" style="margin-top: 15px;">
+                <button class="btn-success" onclick="testClubOSConnection()">
+                    🏢 Test ClubOS
+                </button>
+                <button class="btn-success" onclick="testClubHubConnection()">
+                    📱 Test ClubHub
+                </button>
+                <button class="btn-primary" onclick="viewAPICredentials()">
+                    🔑 View API Credentials
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; {{ datetime.now().year }} Anytime Fitness Secure Dashboard. All credentials are encrypted and secure.</p>
+        </div>
+    </footer>
+
+    <script>
+        // API testing functions
+        async function testClubOSConnection() {
+            const button = event.target;
+            const originalText = button.textContent;
+            
+            button.disabled = true;
+            button.textContent = '⏳ Testing...';
+            
+            try {
+                // This would integrate with your existing ClubOS API testing
+                alert('ClubOS API test would be implemented here.\nYour credentials are securely stored and ready for API calls.');
+            } catch (error) {
+                alert('ClubOS connection test failed: ' + error.message);
+            } finally {
+                button.disabled = false;
+                button.textContent = originalText;
+            }
+        }
+        
+        async function testClubHubConnection() {
+            const button = event.target;
+            const originalText = button.textContent;
+            
+            button.disabled = true;
+            button.textContent = '⏳ Testing...';
+            
+            try {
+                // This would integrate with your existing ClubHub API testing
+                alert('ClubHub API test would be implemented here.\nYour credentials are securely stored and ready for API calls.');
+            } catch (error) {
+                alert('ClubHub connection test failed: ' + error.message);
+            } finally {
+                button.disabled = false;
+                button.textContent = originalText;
+            }
+        }
+        
+        async function viewAPICredentials() {
+            const managerId = '{{ manager_id }}';
+            
+            try {
+                const response = await fetch(`/api/credentials/${managerId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Display credentials securely (in a real implementation, you might want to show them in a modal)
+                    const credentialsText = `
+ClubOS Username: ${data.clubos_username}
+ClubOS Password: [HIDDEN - Available for API calls]
+
+ClubHub Email: ${data.clubhub_email}
+ClubHub Password: [HIDDEN - Available for API calls]
+
+These credentials are encrypted and securely stored in Google Cloud Secret Manager.
+                    `;
+                    
+                    alert(credentialsText);
+                } else {
+                    alert('Failed to retrieve credentials: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error retrieving credentials: ' + error.message);
+            }
+        }
+        
+        // Auto-refresh session info every 5 minutes
+        setInterval(async () => {
+            try {
+                const response = await fetch('/api/session');
+                const sessionData = await response.json();
+                
+                if (!sessionData.authenticated) {
+                    alert('Your session has expired. Please log in again.');
+                    window.location.href = '/login';
+                }
+            } catch (error) {
+                console.warn('Failed to check session status:', error);
+            }
+        }, 5 * 60 * 1000);
+    </script>
+</body>
+</html>
