@@ -8,6 +8,7 @@ import requests
 import logging
 from bs4 import BeautifulSoup
 from typing import Dict, Optional
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +26,10 @@ class ClubOSWorkingMessagingClient:
         self.authenticated = False
         
     def authenticate(self) -> bool:
-        """Authenticate with ClubOS using the same pattern as the working client"""
+        """Authenticate with ClubOS using working HAR token pattern and relaxed TLS verification"""
         try:
             logger.info(f"🔐 Authenticating {self.username}...")
-            
-            # Set proper headers like a real browser
+            # Browser-like headers
             self.session.headers.update({
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -38,67 +38,50 @@ class ClubOSWorkingMessagingClient:
                 'Connection': 'keep-alive',
                 'Upgrade-Insecure-Requests': '1'
             })
-            
-            # Get login page first
+            # Step 1: View login page to collect form tokens
+            login_view_url = f"{self.base_url}/action/Login/view"
             logger.info("📄 Getting login page...")
-            login_page = self.session.get(f"{self.base_url}/action/Account/login", timeout=10)
+            login_page = self.session.get(login_view_url, timeout=30, verify=False)
             logger.info(f"✅ Login page status: {login_page.status_code}")
-            
             if login_page.status_code != 200:
                 logger.error(f"❌ Failed to get login page: {login_page.status_code}")
                 return False
-            
-            # Extract CSRF token
             soup = BeautifulSoup(login_page.text, 'html.parser')
-            csrf_input = soup.find('input', {'name': '__RequestVerificationToken'})
-            
-            if not csrf_input:
-                logger.error("❌ No CSRF token found on login page")
-                return False
-            
-            csrf_token = csrf_input.get('value', '')
-            logger.info(f"🔑 CSRF token found: {csrf_token[:20]}...")
-            
-            # Submit login with proper headers
+            source_page = soup.find('input', {'name': '_sourcePage'})
+            fp_token = soup.find('input', {'name': '__fp'})
+            # Step 2: Submit login
             login_data = {
+                'login': 'Submit',
                 'username': self.username,
                 'password': self.password,
-                '__RequestVerificationToken': csrf_token
+                '_sourcePage': source_page.get('value') if source_page else '',
+                '__fp': fp_token.get('value') if fp_token else ''
             }
-            
+            login_post_url = f"{self.base_url}/action/Login"
             logger.info("🔐 Submitting login credentials...")
             login_response = self.session.post(
-                f"{self.base_url}/action/Account/login",
+                login_post_url,
                 data=login_data,
                 allow_redirects=True,
-                timeout=10,
+                timeout=30,
+                verify=False,
                 headers={
                     'Content-Type': 'application/x-www-form-urlencoded',
-                    'Referer': f"{self.base_url}/action/Account/login"
+                    'Referer': login_view_url,
+                    'Origin': self.base_url
                 }
             )
-            
             logger.info(f"🔍 Login response status: {login_response.status_code}")
-            logger.info(f"🔍 Final URL: {login_response.url}")
-            
-            # Check for successful authentication
-            if login_response.status_code == 200:
-                if "dashboard" in login_response.url.lower() or "home" in login_response.url.lower():
-                    logger.info("✅ Authentication successful - redirected to dashboard")
-                    self.authenticated = True
-                    return True
-                elif "login" not in login_response.url.lower():
-                    # Sometimes successful auth doesn't redirect to dashboard
-                    logger.info("✅ Authentication appears successful - not on login page")
-                    self.authenticated = True
-                    return True
-                else:
-                    logger.error(f"❌ Authentication failed - still on login page: {login_response.url}")
-                    return False
-            else:
-                logger.error(f"❌ Authentication failed with status code: {login_response.status_code}")
+            # Validate by cookies
+            session_id = self.session.cookies.get('JSESSIONID')
+            logged_in_user_id = self.session.cookies.get('loggedInUserId')
+            if not session_id or not logged_in_user_id:
+                logger.error("❌ Authentication failed - missing session cookies")
                 return False
-                
+            self.staff_id = logged_in_user_id
+            self.authenticated = True
+            logger.info("✅ Authentication successful")
+            return True
         except Exception as e:
             logger.error(f"❌ Authentication error: {e}")
             return False
@@ -126,8 +109,12 @@ class ClubOSWorkingMessagingClient:
                 },
                 headers={
                     'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Origin': self.base_url,
+                    'Referer': f"{self.base_url}/action/Dashboard"
+                },
+                verify=False,
+                timeout=30
             )
             
             if popup_response.status_code != 200:
@@ -135,45 +122,128 @@ class ClubOSWorkingMessagingClient:
                 return False
             
             logger.info("✅ FollowUp popup opened successfully")
+
+            # Optional debug dump of popup HTML
+            if os.environ.get('CLUBOS_DEBUG') == '1':
+                try:
+                    with open('followup_popup_debug.html', 'w', encoding='utf-8') as f:
+                        f.write(popup_response.text)
+                    logger.info("📝 Saved FollowUp popup HTML to followup_popup_debug.html")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not write followup_popup_debug.html: {e}")
             
-            # Step 2: Submit the actual message (exact form from HAR)
-            message_data = {
-                # Core fields from HAR analysis
-                'followUpStatus': '1',
-                'followUpType': '3',  # SMS type
-                'followUpSequence': '',
-                'memberSalesFollowUpStatus': '6',
-                
-                # Member targeting
-                'followUpLog.id': '',
-                'followUpLog.tfoUserId': member_id,
-                'followUpLog.outcome': '2',  # Important: outcome = 2 for SMS
-                
-                # Message content (HAR shows both email and text fields)
-                'emailSubject': 'Jeremy Mayo has sent you a message',
-                'emailMessage': '<p>Type message here...</p>',
-                'textMessage': message_text,  # This is the actual SMS content
-                
-                # Additional fields that were in successful HAR requests
-                'followUpLog.followUpAction': '3',  # SMS action
-                'followUpUser.role.id': '7',
-                'event.eventType': 'FOLLOWUP',
-                'duration': '1'
-            }
+            # Extract all inputs/textareas/selects across the entire popup (multiple forms)
+            soup = BeautifulSoup(popup_response.text, 'html.parser')
+            message_data: Dict[str, str] = {}
+
+            # Inputs (document order, later duplicates win)
+            for inp in soup.find_all('input'):
+                name = inp.get('name')
+                if not name:
+                    continue
+                itype = (inp.get('type') or '').lower()
+                if itype in ('submit', 'button', 'image', 'file'):
+                    continue
+                if itype in ('checkbox', 'radio'):
+                    if inp.has_attr('checked'):
+                        message_data[name] = inp.get('value') or 'on'
+                    continue
+                message_data[name] = inp.get('value') or ''
+
+            # Textareas
+            for ta in soup.find_all('textarea'):
+                name = ta.get('name')
+                if not name:
+                    continue
+                message_data[name] = ta.text or ta.get('value') or ''
+
+            # Selects
+            for sel in soup.find_all('select'):
+                name = sel.get('name')
+                if not name:
+                    continue
+                selected = sel.find('option', selected=True)
+                if selected is None:
+                    # take first option if exists
+                    opt = sel.find('option')
+                    if opt is not None:
+                        message_data[name] = opt.get('value') or opt.text or ''
+                else:
+                    message_data[name] = selected.get('value') or selected.text or ''
+
+            # Now enforce required values from working pattern
+            message_data['textMessage'] = message_text
+            message_data['followUpType'] = '3'
+            # Outcome: choose a valid option value; '2' is "Left message"
+            outcome_val = (message_data.get('followUpLog.outcome') or '').strip()
+            if outcome_val.lower().startswith('choose') or outcome_val == '':
+                message_data['followUpLog.outcome'] = '2'
+            else:
+                message_data['followUpLog.outcome'] = outcome_val
+            message_data['followUpLog.followUpAction'] = '3'
+            # Ensure target id present/overridden
+            message_data['followUpLog.tfoUserId'] = str(member_id)
+            # Fill common defaults if missing
+            if not message_data.get('followUpSequence'):
+                message_data['followUpSequence'] = ''
+            if not message_data.get('memberSalesFollowUpStatus'):
+                message_data['memberSalesFollowUpStatus'] = '6'
+
+            # Remove scheduling-related fields and any 'Choose...' placeholders
+            remove_keys = []
+            for k, v in list(message_data.items()):
+                if isinstance(v, str) and v.strip().lower().startswith('choose'):
+                    remove_keys.append(k)
+            # Always remove scheduling fields when sending text
+            remove_keys += [
+                'event.id', 'event.startTime', 'event.createdFor.tfoUserId', 'event.eventType',
+                'event.remindAttendeesMins', 'startTimeSlotId', 'duration'
+            ]
+            # Optional ancillary fields that aren't required for a text outcome
+            remove_keys += [
+                'followUpLog.followUpWith', 'followUpLog.followUpWithOrig', 'followUpLog.followUpDate'
+            ]
+            for k in set(remove_keys):
+                if k in message_data:
+                    message_data.pop(k, None)
+
+            # Optional: dump outgoing payload for debugging
+            if os.environ.get('CLUBOS_DEBUG') == '1':
+                try:
+                    import json
+                    with open('followup_payload_debug.json', 'w', encoding='utf-8') as f:
+                        json.dump({k: message_data[k] for k in sorted(message_data.keys())}, f, ensure_ascii=False, indent=2)
+                    logger.info("📝 Saved FollowUp payload to followup_payload_debug.json")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not write followup_payload_debug.json: {e}")
             
             # Submit message
             send_response = self.session.post(
                 f"{self.base_url}/action/FollowUp/save",
                 data=message_data,
                 headers={
+                    'Accept': 'text/html, */*; q=0.01',
+                    'Accept-Language': 'en-US,en;q=0.9',
                     'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Origin': self.base_url,
+                    'Referer': f"{self.base_url}/action/FollowUp"
+                },
+                verify=False,
+                timeout=30
             )
             
             # Check response for success
             if send_response.status_code == 200:
                 response_text = send_response.text
+                # Optional debug dump of save response
+                if os.environ.get('CLUBOS_DEBUG') == '1':
+                    try:
+                        with open('followup_save_debug.html', 'w', encoding='utf-8') as f:
+                            f.write(response_text)
+                        logger.info("📝 Saved FollowUp save response to followup_save_debug.html")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not write followup_save_debug.html: {e}")
                 if 'has been texted' in response_text:
                     logger.info(f"✅ Message sent successfully to member {member_id}")
                     return True
@@ -246,7 +316,7 @@ def test_working_implementation():
     
     # Test with known working member IDs from HAR
     test_member_ids = ['192224494', '189425730']  # Kymberley Marr, Dennis Rost
-    test_message = "This is a test message using the working HAR pattern."
+    test_message = 'Automated test via working client'
     
     client = ClubOSWorkingMessagingClient(username, password)
     
