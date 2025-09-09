@@ -3,9 +3,9 @@ Overdue Payments Workflow
 Handles processing of overdue member payments and invoice sending.
 """
 
-from ..services.data.member_data import get_yellow_red_members, get_member_balance_from_contact_data, batch_update_past_due_amounts
-from ..services.payments.square_client import create_overdue_payment_message_with_invoice
-from ..services.clubos.messaging import send_clubos_message
+from src.services.data.member_data import get_yellow_red_members, get_member_balance_from_contact_data, batch_update_past_due_amounts
+from src.services.payments.square_client import create_overdue_payment_message_with_invoice
+from src.services.clubos.messaging import send_clubos_message
 
 
 def process_overdue_payments(driver):
@@ -120,7 +120,7 @@ def check_member_balance(member_name, member_id=None):
     Returns:
         float: The member's past due balance
     """
-    from ..services.data.member_data import get_member_balance
+    from src.services.data.member_data import get_member_balance
     
     if member_id:
         balance = get_member_balance(member_id, member_name)

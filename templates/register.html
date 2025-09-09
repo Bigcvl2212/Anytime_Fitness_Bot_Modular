@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register Manager Credentials - Anytime Fitness Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+        }
+        
+        .register-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            width: 100%;
+            max-width: 600px;
+            margin: 20px;
+        }
+        
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .logo h1 {
+            color: #28a745;
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .logo p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .security-info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 25px;
+            font-size: 14px;
+            color: #0c5460;
+        }
+        
+        .security-info h4 {
+            color: #17a2b8;
+            margin-bottom: 10px;
+        }
+        
+        .security-info ul {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+        
+        .security-info li {
+            margin-bottom: 5px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #28a745;
+            box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.1);
+        }
+        
+        .form-group .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .credentials-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .credentials-section h3 {
+            color: #28a745;
+            font-size: 18px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .credentials-section h3 .icon {
+            margin-right: 10px;
+            font-size: 20px;
+        }
+        
+        .btn-register {
+            width: 100%;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 15px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn-register:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(40, 167, 69, 0.3);
+        }
+        
+        .btn-register:active {
+            transform: translateY(0);
+        }
+        
+        .btn-register:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .error-message {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .success-message {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .login-link {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        
+        .login-link a {
+            color: #28a745;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .login-link a:hover {
+            text-decoration: underline;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 10px;
+        }
+        
+        .spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #28a745;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 10px;
+        }
+        
+        .strength-meter {
+            height: 4px;
+            background: #e1e5e9;
+            border-radius: 2px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+        
+        .strength-meter .strength-fill {
+            height: 100%;
+            transition: width 0.3s, background-color 0.3s;
+        }
+        
+        .strength-weak { background-color: #dc3545; }
+        .strength-medium { background-color: #ffc107; }
+        .strength-strong { background-color: #28a745; }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="register-container">
+        <div class="logo">
+            <h1>🔐 Secure Registration</h1>
+            <p>Register Your Manager Credentials</p>
+        </div>
+        
+        <div class="security-info">
+            <h4>🛡️ Security Features:</h4>
+            <ul>
+                <li>Credentials are encrypted and stored in Google Cloud Secret Manager</li>
+                <li>No plain text passwords are stored in code or databases</li>
+                <li>Secure session management with automatic timeout</li>
+                <li>All API communications use HTTPS encryption</li>
+                <li>Your credentials are only accessible when authenticated</li>
+            </ul>
+        </div>
+        
+        {% if error %}
+        <div class="error-message">
+            ❌ {{ error }}
+        </div>
+        {% endif %}
+        
+        {% if success %}
+        <div class="success-message">
+            ✅ {{ success }}
+        </div>
+        {% endif %}
+        
+        <form method="POST" action="{{ url_for('auth.register') }}" id="registerForm">
+            <div class="credentials-section">
+                <h3><span class="icon">🏢</span>ClubOS Credentials</h3>
+                <div class="form-group">
+                    <label for="clubos_username">ClubOS Username</label>
+                    <input type="text" id="clubos_username" name="clubos_username" 
+                           value="{{ request.form.clubos_username or '' }}" 
+                           required minlength="3" maxlength="50">
+                    <div class="help-text">Your ClubOS login username (minimum 3 characters)</div>
+                </div>
+                <div class="form-group">
+                    <label for="clubos_password">ClubOS Password</label>
+                    <input type="password" id="clubos_password" name="clubos_password" 
+                           required minlength="8" maxlength="100">
+                    <div class="strength-meter">
+                        <div class="strength-fill" id="clubos_strength"></div>
+                    </div>
+                    <div class="help-text">Your ClubOS login password (minimum 8 characters)</div>
+                </div>
+            </div>
+            
+            <div class="credentials-section">
+                <h3><span class="icon">📱</span>ClubHub Credentials</h3>
+                <div class="form-group">
+                    <label for="clubhub_email">ClubHub Email</label>
+                    <input type="email" id="clubhub_email" name="clubhub_email" 
+                           value="{{ request.form.clubhub_email or '' }}" 
+                           required maxlength="100">
+                    <div class="help-text">Your ClubHub login email address</div>
+                </div>
+                <div class="form-group">
+                    <label for="clubhub_password">ClubHub Password</label>
+                    <input type="password" id="clubhub_password" name="clubhub_password" 
+                           required minlength="8" maxlength="100">
+                    <div class="strength-meter">
+                        <div class="strength-fill" id="clubhub_strength"></div>
+                    </div>
+                    <div class="help-text">Your ClubHub login password (minimum 8 characters)</div>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn-register" id="registerBtn">
+                🔐 Register Credentials Securely
+            </button>
+            
+            <div class="loading" id="loadingDiv">
+                <div class="spinner"></div>
+                Securely storing credentials...
+            </div>
+        </form>
+        
+        <div class="login-link">
+            Already registered? <a href="{{ url_for('auth.login') }}">Login here</a>
+        </div>
+    </div>
+
+    <script>
+        // Password strength checker
+        function checkPasswordStrength(password) {
+            let strength = 0;
+            if (password.length >= 8) strength++;
+            if (password.length >= 12) strength++;
+            if (/[a-z]/.test(password)) strength++;
+            if (/[A-Z]/.test(password)) strength++;
+            if (/[0-9]/.test(password)) strength++;
+            if (/[^A-Za-z0-9]/.test(password)) strength++;
+            
+            return Math.min(strength, 3);
+        }
+        
+        function updateStrengthMeter(inputId, meterId) {
+            const input = document.getElementById(inputId);
+            const meter = document.getElementById(meterId);
+            
+            input.addEventListener('input', function() {
+                const strength = checkPasswordStrength(this.value);
+                
+                meter.style.width = (strength * 33.33) + '%';
+                meter.className = 'strength-fill';
+                
+                if (strength === 0) {
+                    meter.classList.add('strength-weak');
+                } else if (strength <= 2) {
+                    meter.classList.add('strength-medium');
+                } else {
+                    meter.classList.add('strength-strong');
+                }
+            });
+        }
+        
+        updateStrengthMeter('clubos_password', 'clubos_strength');
+        updateStrengthMeter('clubhub_password', 'clubhub_strength');
+        
+        // Form submission handling
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            const button = document.getElementById('registerBtn');
+            const loading = document.getElementById('loadingDiv');
+            
+            // Show loading state
+            button.disabled = true;
+            button.textContent = 'Registering...';
+            loading.style.display = 'block';
+            
+            // Form validation
+            const clubosUsername = document.getElementById('clubos_username').value;
+            const clubosPassword = document.getElementById('clubos_password').value;
+            const clubhubEmail = document.getElementById('clubhub_email').value;
+            const clubhubPassword = document.getElementById('clubhub_password').value;
+            
+            if (!clubosUsername || clubosUsername.length < 3) {
+                e.preventDefault();
+                alert('ClubOS username must be at least 3 characters long');
+                resetForm();
+                return;
+            }
+            
+            if (!clubosPassword || clubosPassword.length < 8) {
+                e.preventDefault();
+                alert('ClubOS password must be at least 8 characters long');
+                resetForm();
+                return;
+            }
+            
+            if (!clubhubEmail || !clubhubEmail.includes('@')) {
+                e.preventDefault();
+                alert('Please enter a valid ClubHub email address');
+                resetForm();
+                return;
+            }
+            
+            if (!clubhubPassword || clubhubPassword.length < 8) {
+                e.preventDefault();
+                alert('ClubHub password must be at least 8 characters long');
+                resetForm();
+                return;
+            }
+            
+            function resetForm() {
+                button.disabled = false;
+                button.textContent = '🔐 Register Credentials Securely';
+                loading.style.display = 'none';
+            }
+        });
+        
+        // Security: Clear password fields on page load
+        window.addEventListener('load', function() {
+            document.getElementById('clubos_password').value = '';
+            document.getElementById('clubhub_password').value = '';
+        });
+    </script>
+</body>
+</html>

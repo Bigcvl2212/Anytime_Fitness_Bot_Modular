@@ -3,7 +3,7 @@
 Test ClubHub API for member search functionality
 """
 
-from services.data.clubhub_api import EnhancedClubHubAPIService
+from src.services.data.clubhub_api import EnhancedClubHubAPIService
 from config.constants import CLUBHUB_API_URL_MEMBERS
 
 def test_clubhub_member_search():

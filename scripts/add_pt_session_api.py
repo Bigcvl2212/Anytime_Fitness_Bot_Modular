@@ -4,8 +4,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from datetime import datetime, timedelta
 try:
-    from services.api.enhanced_clubos_client import EnhancedClubOSAPIClient
-    from services.api.clubos_api_client import ClubOSAPIAuthentication
+    from src.services.api.enhanced_clubos_client import EnhancedClubOSAPIClient
+    from src.services.api.clubos_api_client import ClubOSAPIAuthentication
     from config.secrets import get_clubos_credentials
 except Exception as e:
     print(f"[IMPORT ERROR] {e}")

@@ -1,0 +1,90 @@
+#!/usr/bin/env python3
+"""
+Debug messaging test - detailed response inspection
+"""
+import sys
+import os
+import json
+
+# Add src to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+# Direct import to avoid complex module init issues
+sys.path.append('src/services')
+from clubos_messaging_client import ClubOSMessagingClient
+
+# Import secrets
+sys.path.append('src/config')
+from secrets_local import get_secret
+
+def debug_message_test():
+    """Debug test sending a message to Jeremy Mayo's staff account"""
+    print("🧪 DEBUGGING message send to Jeremy Mayo staff account...")
+    
+    try:
+        # Get credentials
+        username = get_secret('clubos-username')
+        password = get_secret('clubos-password')
+        
+        if not username or not password:
+            print("❌ ERROR: ClubOS credentials not found")
+            return
+            
+        print(f"✅ Got credentials for user: {username}")
+        
+        # Initialize client
+        client = ClubOSMessagingClient(username, password)
+        print("✅ Client initialized")
+        
+        # First, let's check if we can authenticate
+        if not client.authenticate():
+            print("❌ Authentication failed!")
+            return
+        
+        print("✅ Authentication successful")
+        
+        # Send SMS message to your staff account - Jeremy Mayo ID: 187032782
+        print(f"📱 Sending SMS message to Jeremy Mayo (187032782)...")
+        print(f"📱 Message: 'DEBUG: Routing test to staff account'")
+        
+        # Let's capture the actual request/response
+        original_session_post = client.session.post
+        
+        def debug_post(*args, **kwargs):
+            print(f"🔍 POST Request:")
+            print(f"   URL: {args[0] if args else 'None'}")
+            print(f"   Data: {kwargs.get('data', 'None')}")
+            print(f"   Headers: {dict(kwargs.get('headers', {}))}")
+            
+            response = original_session_post(*args, **kwargs)
+            
+            print(f"🔍 POST Response:")
+            print(f"   Status: {response.status_code}")
+            print(f"   Headers: {dict(response.headers)}")
+            print(f"   Text preview: {response.text[:800]}...")
+            
+            return response
+        
+        client.session.post = debug_post
+        
+        result = client.send_sms_message(
+            member_id="187032782",  # Jeremy Mayo staff ID
+            message="DEBUG: Routing test to staff account - Jeremy should receive this!",
+            notes="Testing message routing debug"
+        )
+        
+        print(f"📱 SMS Result: {result}")
+        
+        if result:
+            print("✅ ClubOS accepted the message")
+            print("📱 If you didn't receive it, there may be a routing issue in ClubOS")
+        else:
+            print("❌ ClubOS rejected the message")
+            
+    except Exception as e:
+        print(f"❌ ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    debug_message_test()

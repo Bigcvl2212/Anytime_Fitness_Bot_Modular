@@ -12,8 +12,8 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from services.api.enhanced_clubos_client import EnhancedClubOSAPIClient
-    from services.api.clubos_api_client import ClubOSAPIAuthentication
+    from src.services.api.enhanced_clubos_client import EnhancedClubOSAPIClient
+    from src.services.api.clubos_api_client import ClubOSAPIAuthentication
     from config.secrets_local import get_secret
     
     print("✅ Successfully imported ClubOS API modules")

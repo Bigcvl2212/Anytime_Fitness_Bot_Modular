@@ -8,7 +8,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 from core.driver import setup_driver_and_login
-from services.clubos.messaging import send_clubos_message
+from src.services.clubos.messaging import send_clubos_message
 
 TARGET_NAME = "Jeremy Mayo"
 SMS_MESSAGE = "Proven driver SMS test - this should definitely work!"

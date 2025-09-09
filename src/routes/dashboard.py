@@ -4,7 +4,7 @@ Dashboard Routes
 Main dashboard page and related functionality
 """
 
-from flask import Blueprint, render_template, current_app
+from flask import Blueprint, render_template, current_app, session, redirect, url_for, flash
 from datetime import datetime, timedelta
 import logging
 
@@ -12,11 +12,31 @@ logger = logging.getLogger(__name__)
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
+# Import the authentication decorator
+from .auth import require_auth
+
 @dashboard_bp.route('/')
 @dashboard_bp.route('/<int:day_offset>')
+@require_auth
 def dashboard(day_offset=0):
-    """Dashboard route with optional day offset for navigation"""
+    """Dashboard route with optional day offset for navigation and multi-club support"""
     try:
+        # Check for multi-club context
+        from src.services.multi_club_manager import multi_club_manager
+        
+        # If no clubs selected but user has club access, redirect to selection
+        selected_clubs = session.get('selected_clubs', [])
+        if not selected_clubs and 'available_clubs' in session and session['available_clubs']:
+            flash('Please select your clubs first.', 'info')
+            return redirect(url_for('club_selection.club_selection'))
+        
+        # Get multi-club summary for dashboard header
+        club_summary = {
+            'selected_clubs': selected_clubs,
+            'club_names': [multi_club_manager.get_club_name(club_id) for club_id in selected_clubs],
+            'is_multi_club': len(selected_clubs) > 1,
+            'user_info': session.get('user_info', {})
+        }
         # Calculate target date based on day offset
         target_date = datetime.now().date() + timedelta(days=day_offset)
         
@@ -24,7 +44,7 @@ def dashboard(day_offset=0):
         clubos = current_app.clubos # Assuming ClubOSIntegration is available in current_app
         day_events = clubos.get_todays_events_lightweight()
         
-        # Format events for display
+        # Format events for display with enhanced participant name mapping
         recent_events = []
         for event in day_events:
             try:
@@ -46,17 +66,103 @@ def dashboard(day_offset=0):
                     except:
                         end_time = ''
                 
+                # Enhanced participant name mapping from training clients database with past due amounts
+                enhanced_participants = []
+                raw_participants = event.get('participants', [])
+                
+                # Ensure participants is a proper list of strings
+                if isinstance(raw_participants, str):
+                    raw_participants = [p.strip() for p in raw_participants.split(',') if p.strip()]
+                elif not isinstance(raw_participants, list):
+                    raw_participants = []
+
+                for participant in raw_participants:
+                    if participant and isinstance(participant, str) and participant.strip():
+                        # Try to find the real name and past due info in training clients database
+                        try:
+                            conn = current_app.db_manager.get_connection()
+                            cursor = conn.cursor()
+
+                            # Look for training client by various name patterns
+                            cursor.execute("""
+                                SELECT member_name, first_name, last_name, member_id
+                                FROM training_clients
+                                WHERE LOWER(member_name) LIKE LOWER(?)
+                                   OR LOWER(first_name || ' ' || last_name) LIKE LOWER(?)
+                                   OR LOWER(?) LIKE LOWER(member_name)
+                                ORDER BY created_at DESC
+                                LIMIT 1
+                            """, (f'%{participant}%', f'%{participant}%', participant))
+
+                            training_client = cursor.fetchone()
+                            conn.close()
+
+                            if training_client:
+                                # Use the real name from training clients database
+                                real_name = training_client[0] or f"{training_client[1]} {training_client[2]}".strip()
+                                member_id = training_client[3]
+
+                                # Get past due amount for this training client
+                                past_due_info = None
+                                if member_id:
+                                    try:
+                                        # Use the ClubOS training API to get payment status and amount
+                                        payment_data = current_app.clubos.get_complete_agreement_data(member_id)
+                                        if payment_data and payment_data.get('success'):
+                                            payment_status = payment_data.get('payment_status', 'Unknown')
+                                            amount_owed = payment_data.get('amount_owed', 0.0)
+
+                                            if payment_status == 'Past Due' and amount_owed > 0:
+                                                past_due_info = {
+                                                    'status': payment_status,
+                                                    'amount': amount_owed,
+                                                    'formatted_amount': f"${amount_owed:.2f}"
+                                                }
+                                    except Exception as payment_error:
+                                        logger.warning(f"⚠️ Error getting payment data for member {member_id}: {payment_error}")
+
+                                # Create enhanced participant with past due info
+                                enhanced_participant = {
+                                    'name': real_name,
+                                    'original_name': participant,
+                                    'past_due': past_due_info
+                                }
+                                enhanced_participants.append(enhanced_participant)
+                                logger.info(f"✅ Mapped '{participant}' to '{real_name}' with past due: {past_due_info}")
+                            else:
+                                # Keep original name if no mapping found
+                                enhanced_participants.append({
+                                    'name': participant,
+                                    'original_name': participant,
+                                    'past_due': None
+                                })
+                                logger.debug(f"⚠️ No training client mapping found for '{participant}'")
+
+                        except Exception as mapping_error:
+                            logger.warning(f"⚠️ Error mapping participant '{participant}': {mapping_error}")
+                            enhanced_participants.append({
+                                'name': participant,
+                                'original_name': participant,
+                                'past_due': None
+                            })
+                    else:
+                        enhanced_participants.append({
+                            'name': participant,
+                            'original_name': participant,
+                            'past_due': None
+                        })
+                
                 recent_events.append({
                     'id': event.get('id'),
                     'title': event.get('title'),
-                    'participants': ', '.join(event.get('participants', [])),
+                    'participants': enhanced_participants,  # Use enhanced names
                     'start_time': start_time,
                     'end_time': end_time,
                     'trainer': event.get('trainer', ''),
                     'location': event.get('location', ''),
                 })
             except Exception as e:
-                logger.error(f"Error formatting event {event}: {e}")
+                logger.error(f"Error formatting event {event.get('id', 'unknown')}: {str(e)}")
                 continue
         
         # Get bot stats and other data
@@ -95,7 +201,7 @@ def dashboard(day_offset=0):
         return render_template('dashboard.html', **dashboard_context)
         
     except Exception as e:
-        logger.error(f"Error in dashboard route: {e}")
+        logger.error(f"Error in dashboard route: {str(e)}")
         return render_template('dashboard.html', 
                             bot_stats={}, 
                             stats={}, 
@@ -105,138 +211,3 @@ def dashboard(day_offset=0):
                             target_date=datetime.now().date(),
                             day_name='Today',
                             date_formatted='Today')
-
-def dashboard():
-    """Main dashboard with overview."""
-    logger.info("=== DASHBOARD ROUTE TRIGGERED ===")
-    
-    # Check if we need to refresh data (but don't block the dashboard load)
-    if current_app.db_manager.needs_refresh():
-        logger.info("⚠️ Database data is stale, consider refreshing")
-    
-    # Get real data from database
-    total_members = current_app.db_manager.get_member_count()
-    total_prospects = current_app.db_manager.get_prospect_count()
-    total_training_clients = current_app.db_manager.get_training_client_count()
-    
-    # Check if we have cached data available
-    if hasattr(current_app, 'data_cache'):
-        cached_members = current_app.data_cache.get('members', [])
-        cached_prospects = current_app.data_cache.get('prospects', [])
-        cached_training_clients = current_app.data_cache.get('training_clients', [])
-        
-        if cached_members:
-            total_members = len(cached_members)
-            logger.info(f"📊 Using cached member count: {total_members}")
-        if cached_prospects:
-            total_prospects = len(cached_prospects)
-            logger.info(f"📊 Using cached prospect count: {total_prospects}")
-        if cached_training_clients:
-            total_training_clients = len(cached_training_clients)
-            logger.info(f"📊 Using cached training client count: {total_training_clients}")
-    
-    # Get recent data for display
-    recent_members = current_app.db_manager.get_recent_members(5)
-    recent_prospects = current_app.db_manager.get_recent_prospects(5)
-    
-    logger.info(f"📊 Dashboard data: {total_members} members, {total_prospects} prospects, {total_training_clients} training clients")
-    
-    # Get live data from ClubOS - ONLY TODAY'S EVENTS (LIGHTWEIGHT)
-    logger.info("=== STARTING CLUBOS INTEGRATION (LIGHTWEIGHT) ===")
-    today_events = []
-    clubos_status = "Disconnected"
-    
-    try:
-        logger.info("=== GETTING TODAY'S EVENTS WITHOUT FUNDING CHECKS ===")
-        
-        # Get today's events lightweight (no authentication needed for iCal)
-        today_events = current_app.clubos.get_todays_events_lightweight()
-        logger.info(f"=== GOT {len(today_events)} TODAY'S EVENTS (LIGHTWEIGHT) ===")
-                        
-        clubos_status = "Connected" if today_events else "No events today"
-    except Exception as e:
-        logger.error(f"=== CLUBOS ERROR: {e} ===")
-        clubos_status = f"Error: {str(e)[:50]}..."
-    
-    # Get current sync time
-    sync_time = datetime.now()
-    
-    # Categorize events for new metrics
-    training_sessions_count = 0
-    appointments_count = 0
-    
-    appointment_keywords = ['consult', 'meeting', 'appointment', 'tour', 'assessment', 'savannah']
-    
-    for event in today_events:
-        title = event.get('title', '').lower()
-        participants = event.get('participants', [])
-        participant_name = participants[0].lower() if participants and participants[0] else ''
-        
-        # Check if it's an appointment based on multiple criteria
-        is_appointment = (
-            any(keyword in title for keyword in appointment_keywords) or
-            'savannah' in participant_name or
-            'savannah' in title or
-            not participants or participants[0] == ''
-        )
-        
-        if is_appointment:
-            appointments_count += 1
-        else:
-            training_sessions_count += 1
-    
-    # Mock bot activity data (placeholder until real bot integration)
-    bot_activities = [
-        {
-            'id': 1,
-            'action': 'Sent Welcome Message',
-            'recipient': 'Sarah Johnson',
-            'preview': 'Welcome to Anytime Fitness! Ready to start your journey?',
-            'time': '2 minutes ago',
-            'icon': 'paper-plane',
-            'color': 'success',
-            'status': 'Delivered',
-            'status_color': 'success'
-        },
-        {
-            'id': 2,
-            'action': 'Payment Reminder',
-            'recipient': 'Mike Chen',
-            'preview': 'Your monthly payment is due in 3 days. Please update your payment method.',
-            'time': '15 minutes ago',
-            'icon': 'credit-card',
-            'color': 'warning',
-            'status': 'Sent',
-            'status_color': 'warning'
-        },
-        {
-            'id': 3,
-            'action': 'Training Session Reminder',
-            'recipient': 'Emily Rodriguez',
-            'preview': 'Your training session with Coach Alex is tomorrow at 10:00 AM.',
-            'time': '1 hour ago',
-            'icon': 'dumbbell',
-            'color': 'info',
-            'status': 'Delivered',
-            'status_color': 'info'
-        }
-    ]
-    
-    # Prepare dashboard context
-    dashboard_context = {
-        'total_members': total_members,
-        'total_prospects': total_prospects,
-        'total_training_clients': total_training_clients,
-        'recent_members': recent_members,
-        'recent_prospects': recent_prospects,
-        'today_events': today_events,
-        'clubos_status': clubos_status,
-        'sync_time': sync_time,
-        'training_sessions_count': training_sessions_count,
-        'appointments_count': appointments_count,
-        'bot_activities': bot_activities,
-        'data_refresh_status': current_app.data_refresh_status,
-        'bulk_checkin_status': current_app.bulk_checkin_status
-    }
-    
-    return render_template('dashboard.html', **dashboard_context)

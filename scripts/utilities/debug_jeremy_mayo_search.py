@@ -4,7 +4,7 @@ Debug script to print raw search results for Jeremy Mayo
 """
 
 from config.secrets_local import get_secret
-from services.api.clubos_api_client import ClubOSAPIClient
+from src.services.api.clubos_api_client import ClubOSAPIClient
 
 def debug_jeremy_mayo_search():
     """Debug the search results for Jeremy Mayo"""

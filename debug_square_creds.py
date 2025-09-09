@@ -6,7 +6,7 @@ import os
 import sys
 sys.path.append('src')
 
-from services.payments.square_client_simple import get_square_credentials, get_square_client
+from src.services.payments.square_client_simple import get_square_credentials, get_square_client
 from config.secrets_local import get_secret
 
 def debug_square_credentials():

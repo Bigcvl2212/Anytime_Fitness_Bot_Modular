@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 # Test the actual square client service
 try:
-    from services.payments.square_client_simple import get_square_client, create_square_invoice
+    from src.services.payments.square_client_simple import get_square_client, create_square_invoice
     
     print("🧪 TESTING SQUARE SERVICE INTEGRATION")
     print("=" * 50)

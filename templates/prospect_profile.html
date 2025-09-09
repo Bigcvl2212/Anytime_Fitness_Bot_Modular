@@ -593,6 +593,40 @@
             </div>
         </div>
     </div>
+
+    <!-- Message History Section -->
+    <div class="row">
+        <div class="col-12 mb-4">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-envelope me-2"></i>Message History
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control" id="messageSearch" placeholder="Search messages...">
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <button class="btn btn-primary" onclick="sendMessage()">
+                                <i class="fas fa-paper-plane me-1"></i>Send Message
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="messageHistory">
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="text-muted mt-2">Loading message history...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Custom Styles for Prospect Profile Page -->
@@ -661,5 +695,241 @@
     background: linear-gradient(135deg, #3742fa, #2f3542);
     color: white;
 }
+
+// Message History Functions
+function loadMessageHistory() {
+    const prospectName = '{{ prospect.name or ((prospect.first_name or "") + " " + (prospect.last_name or "")).strip() or "Unknown Prospect" }}';
+    
+    fetch(`/api/messages/member/${encodeURIComponent(prospectName)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayMessageHistory(data.messages);
+            } else {
+                document.getElementById('messageHistory').innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-exclamation-triangle fa-3x text-muted mb-3"></i>
+                        <h6 class="text-muted">Error loading messages</h6>
+                        <p class="text-muted">${data.error || 'Could not load message history'}</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading messages:', error);
+            document.getElementById('messageHistory').innerHTML = `
+                <div class="text-center py-4">
+                    <i class="fas fa-exclamation-triangle fa-3x text-muted mb-3"></i>
+                    <h6 class="text-muted">Error loading messages</h6>
+                    <p class="text-muted">Network error occurred</p>
+                </div>
+            `;
+        });
+}
+
+function displayMessageHistory(messages) {
+    const container = document.getElementById('messageHistory');
+    
+    if (!messages || messages.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <h6 class="text-muted">No messages found</h6>
+                <p class="text-muted">No message history available for this prospect.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const messagesHtml = messages.map(message => {
+        const timestamp = new Date(message.timestamp);
+        const timeString = timestamp.toLocaleDateString() + ' ' + timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
+        return `
+            <div class="message-item p-3 border-bottom">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px; font-size: 14px; font-weight: bold;">
+                                ${message.from_user ? message.from_user.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
+                            </div>
+                            <div>
+                                <strong class="d-block">${message.from_user || 'Unknown'}</strong>
+                                <small class="text-muted">${timeString}</small>
+                            </div>
+                        </div>
+                        <div class="message-content text-muted mb-2">
+                            ${message.content || 'No message content'}
+                        </div>
+                        <div class="d-flex gap-1">
+                            ${message.is_confirmation ? '<span class="badge bg-success">✓ Confirmed</span>' : ''}
+                            ${message.is_opt_in ? '<span class="badge bg-primary">📱 Opt-in</span>' : ''}
+                            ${message.is_opt_out ? '<span class="badge bg-warning">🚫 Opt-out</span>' : ''}
+                            ${message.has_emoji ? '<span class="badge bg-info">😊 Emoji</span>' : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = messagesHtml;
+}
+
+function sendMessage() {
+    const prospectName = '{{ prospect.name or ((prospect.first_name or "") + " " + (prospect.last_name or "")).strip() or "Unknown Prospect" }}';
+    
+    // Create a modal for message input
+    const modalHtml = `
+        <div class="modal fade" id="sendMessageModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Send Message to ${prospectName}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Message Type</label>
+                            <select class="form-select" id="messageType">
+                                <option value="sms">SMS Text Message</option>
+                                <option value="email">Email</option>
+                            </select>
+                        </div>
+                        <div class="mb-3" id="emailSubjectGroup" style="display: none;">
+                            <label class="form-label">Subject</label>
+                            <input type="text" class="form-control" id="emailSubject" placeholder="Email subject">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Message</label>
+                            <textarea class="form-control" id="messageContent" rows="4" placeholder="Type your message here..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Internal Notes (Managers Only)</label>
+                            <textarea class="form-control" id="messageNotes" rows="2" placeholder="Add internal notes for tracking (not sent to client)..."></textarea>
+                            <small class="form-text text-muted">These notes are only visible to managers and help track message history.</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" onclick="submitMessage()">
+                            <i class="fas fa-paper-plane me-1"></i>Send Message
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if any
+    const existingModal = document.getElementById('sendMessageModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Add modal to body
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('sendMessageModal'));
+    modal.show();
+    
+    // Handle message type change
+    document.getElementById('messageType').addEventListener('change', function() {
+        const emailSubjectGroup = document.getElementById('emailSubjectGroup');
+        if (this.value === 'email') {
+            emailSubjectGroup.style.display = 'block';
+        } else {
+            emailSubjectGroup.style.display = 'none';
+        }
+    });
+}
+
+function submitMessage() {
+    const prospectName = '{{ prospect.name or ((prospect.first_name or "") + " " + (prospect.last_name or "")).strip() or "Unknown Prospect" }}';
+    const messageType = document.getElementById('messageType').value;
+    const messageContent = document.getElementById('messageContent').value.trim();
+    const emailSubject = document.getElementById('emailSubject').value.trim();
+    const messageNotes = document.getElementById('messageNotes').value.trim();
+    
+    if (!messageContent) {
+        alert('Please enter a message');
+        return;
+    }
+    
+    if (messageType === 'email' && !emailSubject) {
+        alert('Please enter an email subject');
+        return;
+    }
+    
+    // Disable send button and show loading
+    const sendButton = document.querySelector('#sendMessageModal .btn-primary');
+    const originalText = sendButton.innerHTML;
+    sendButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Sending...';
+    sendButton.disabled = true;
+    
+    // Prepare request data
+    const requestData = {
+        member_name: prospectName,
+        message: messageContent,
+        message_type: messageType,
+        notes: messageNotes
+    };
+    
+    if (messageType === 'email') {
+        requestData.subject = emailSubject;
+    }
+    
+    // Send message
+    fetch('/api/messages/send', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`✅ ${data.message}`);
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('sendMessageModal'));
+            modal.hide();
+            // Reload message history
+            loadMessageHistory();
+        } else {
+            alert(`❌ Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        console.error('Error sending message:', error);
+        alert('❌ Error sending message. Please try again.');
+    })
+    .finally(() => {
+        // Re-enable send button
+        sendButton.innerHTML = originalText;
+        sendButton.disabled = false;
+    });
+}
+
+// Load message history when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadMessageHistory();
+    
+    // Add search functionality
+    document.getElementById('messageSearch').addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        const messageItems = document.querySelectorAll('.message-item');
+        
+        messageItems.forEach(item => {
+            const content = item.textContent.toLowerCase();
+            if (content.includes(searchTerm)) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+});
 </style>
 {% endblock %}

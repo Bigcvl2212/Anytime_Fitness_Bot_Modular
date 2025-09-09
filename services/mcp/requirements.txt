@@ -1,9 +1,0 @@
-# Minimal dependencies for a Python MCP server
-# Using the reference Python implementation of Model Context Protocol
-mcp>=0.3.0,<1
-pydantic>=2.5,<3
-# Developer utilities used by server tools
-ruff==0.4.10
-black==24.4.2
-flake8==7.1.0
-pytest==8.2.1

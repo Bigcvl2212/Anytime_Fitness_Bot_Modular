@@ -3,7 +3,7 @@
 Find Jeremy Mayo in ClubHub members and prospects at different gym locations
 """
 
-from services.api.clubhub_api_client import ClubHubAPIClient
+from src.services.api.clubhub_api_client import ClubHubAPIClient
 from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
 
 def find_jeremy_mayo():

@@ -15,22 +15,22 @@ def test_social_media_imports():
     print("Testing social media module imports...")
     
     try:
-        from services.social_media.content_generator import ContentGenerator
+        from src.services.social_media.content_generator import ContentGenerator
         print("✅ ContentGenerator import successful")
         
-        from services.social_media.mock_facebook_api import MockFacebookAPI
+        from src.services.social_media.mock_facebook_api import MockFacebookAPI
         print("✅ MockFacebookAPI import successful")
         
-        from services.social_media.facebook_manager import FacebookManager
+        from src.services.social_media.facebook_manager import FacebookManager
         print("✅ FacebookManager import successful")
         
-        from services.social_media.analytics import SocialMediaAnalytics
+        from src.services.social_media.analytics import SocialMediaAnalytics
         print("✅ SocialMediaAnalytics import successful")
         
-        from services.social_media.scheduler import PostScheduler
+        from src.services.social_media.scheduler import PostScheduler
         print("✅ PostScheduler import successful")
         
-        from services.social_media.social_media_manager import SocialMediaManager
+        from src.services.social_media.social_media_manager import SocialMediaManager
         print("✅ SocialMediaManager import successful")
         
         return True
@@ -45,7 +45,7 @@ def test_content_generator():
     print("Testing ContentGenerator...")
     
     try:
-        from services.social_media.content_generator import ContentGenerator
+        from src.services.social_media.content_generator import ContentGenerator
         
         # Initialize without AI client for testing
         generator = ContentGenerator(ai_client=None)
@@ -86,7 +86,7 @@ def test_mock_facebook_api():
     print("Testing MockFacebookAPI...")
     
     try:
-        from services.social_media.mock_facebook_api import MockFacebookAPI
+        from src.services.social_media.mock_facebook_api import MockFacebookAPI
         
         # Initialize API without delays for testing
         api = MockFacebookAPI(simulate_delays=False)
@@ -133,7 +133,7 @@ def test_facebook_manager():
     print("Testing FacebookManager...")
     
     try:
-        from services.social_media.facebook_manager import FacebookManager
+        from src.services.social_media.facebook_manager import FacebookManager
         
         # Initialize with mock API
         manager = FacebookManager(use_mock=True)
@@ -173,9 +173,9 @@ def test_post_scheduler():
     print("Testing PostScheduler...")
     
     try:
-        from services.social_media.content_generator import ContentGenerator
-        from services.social_media.facebook_manager import FacebookManager
-        from services.social_media.scheduler import PostScheduler, PostStatus
+        from src.services.social_media.content_generator import ContentGenerator
+        from src.services.social_media.facebook_manager import FacebookManager
+        from src.services.social_media.scheduler import PostScheduler, PostStatus
         
         # Initialize components
         content_gen = ContentGenerator()
@@ -225,7 +225,7 @@ def test_social_media_manager():
     print("Testing SocialMediaManager...")
     
     try:
-        from services.social_media.social_media_manager import SocialMediaManager
+        from src.services.social_media.social_media_manager import SocialMediaManager
         
         # Initialize manager
         manager = SocialMediaManager(use_mock_api=True)
@@ -276,7 +276,7 @@ def test_social_media_workflow():
     print("Testing complete social media workflow...")
     
     try:
-        from services.social_media.social_media_manager import SocialMediaManager
+        from src.services.social_media.social_media_manager import SocialMediaManager
         
         # Initialize manager
         manager = SocialMediaManager(use_mock_api=True)

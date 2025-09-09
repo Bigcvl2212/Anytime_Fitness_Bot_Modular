@@ -14,8 +14,8 @@ from datetime import datetime
 from pathlib import Path
 import logging
 
-from services.api.migration_service import SeleniumToAPIMigrationService
-from services.api.enhanced_clubos_service import ClubOSAPIService
+from src.services.api.migration_service import SeleniumToAPIMigrationService
+from src.services.api.enhanced_clubos_service import ClubOSAPIService
 from config.constants import CLUBOS_USERNAME_SECRET, CLUBOS_PASSWORD_SECRET
 from config.secrets import get_secret
 

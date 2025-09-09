@@ -1,207 +1,197 @@
 """
-Square Payment Service - PROVEN WORKING CODE FROM ARCHIVED SCRIPT
+Square Invoice Client - Working Implementation with Latest SDK
 """
 
-import os
+import logging
 from datetime import datetime, timedelta
-from square.client import Square as SquareClient
+from square.client import Square
 from square.environment import SquareEnvironment
+import sys
+import os
 
-from ...config.constants import (
-    SQUARE_ENVIRONMENT,
-    SQUARE_SANDBOX_ACCESS_TOKEN_SECRET,
-    SQUARE_PRODUCTION_ACCESS_TOKEN_SECRET,
-    SQUARE_LOCATION_ID_SECRET,
-    LATE_FEE_AMOUNT,
-    YELLOW_RED_MESSAGE_TEMPLATE
-)
-from ...config.secrets import get_secret
+# Add config path for secrets
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src', 'config'))
+from secrets_local import get_secret
 
+logger = logging.getLogger(__name__)
 
 def get_square_client():
-    """
-    Get configured Square client instance.
-    
-    PROVEN FUNCTION FROM ARCHIVED ANYTIME_BOT.PY
-    
-    Returns:
-        SquareClient: Configured Square client or None if failed
-    """
+    """Get configured Square client instance"""
     try:
-        access_token = get_secret(
-            SQUARE_SANDBOX_ACCESS_TOKEN_SECRET if SQUARE_ENVIRONMENT == 'sandbox' 
-            else SQUARE_PRODUCTION_ACCESS_TOKEN_SECRET
-        )
-        
-        if not access_token:
-            print("ERROR: Missing Square access token")
-            return None
-            
-        environment = SquareEnvironment.SANDBOX if SQUARE_ENVIRONMENT == 'sandbox' else SquareEnvironment.PRODUCTION
-        return SquareClient(
+        # Use PRODUCTION credentials
+        access_token = get_secret("square-production-access-token")
+        client = Square(
             token=access_token,
-            environment=environment
+            environment=SquareEnvironment.PRODUCTION
         )
+        return client
     except Exception as e:
-        print(f"ERROR: Failed to create Square client: {e}")
+        logger.error(f"❌ Error creating Square client: {e}")
         return None
 
-
-def create_square_invoice(member_name, amount, description="Overdue Payment"):
+def create_square_invoice(member_name, contact_info, amount, description, delivery_method="email"):
     """
-    Create a Square invoice for a member with overdue payments.
-    
-    PROVEN WORKING FUNCTION FROM ARCHIVED ANYTIME_BOT.PY
+    Create and send Square invoice using latest SDK
     
     Args:
-        member_name (str): Name of the member
-        amount (float): Amount owed
-        description (str): Description for the invoice
-        
+        member_name: Name of the member
+        contact_info: Email address or phone number
+        amount: Invoice amount in dollars
+        description: Invoice description
+        delivery_method: "email" or "sms"
+    
     Returns:
-        str: Payment URL if successful, None if failed
+        dict: Success/error response
     """
     try:
-        print(f"INFO: Creating Square invoice for {member_name}, amount: ${amount:.2f}")
+        logger.info(f"📧 Creating Square invoice for {member_name}: ${amount} via {delivery_method} to {contact_info}")
         
         # Initialize Square client
         client = get_square_client()
         if not client:
-            print("ERROR: Could not initialize Square client")
-            return None
+            return {
+                'success': False,
+                'error': 'Could not initialize Square client',
+                'message': f"Failed to create invoice for {member_name}"
+            }
         
         # Get location ID
-        location_id = get_secret(SQUARE_LOCATION_ID_SECRET)
+        location_id = get_secret("square-production-location-id")
         if not location_id:
-            print("ERROR: Could not retrieve Square location ID")
-            return None
+            return {
+                'success': False,
+                'error': 'Could not retrieve Square location ID',
+                'message': f"Failed to create invoice for {member_name}"
+            }
         
-        # Prepare invoice data using PROVEN WORKING STRUCTURE
-        invoice_data = {
-            "invoice_request": {
-                "request_method": "EMAIL",
-                "request_type": "BALANCE",
-                "due_date": (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d"),
+        # Step 1: Create customer
+        name_parts = member_name.split()
+        first_name = name_parts[0] if name_parts else "Customer"
+        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+        
+        customer_data = {
+            "given_name": first_name,
+            "family_name": last_name,
+        }
+        
+        # Add contact info based on delivery method
+        if delivery_method == "sms":
+            # For SMS delivery, use phone number and placeholder email
+            customer_data["phone_number"] = contact_info
+            customer_data["email_address"] = f"{first_name.lower()}.{last_name.lower()}@anytimefitness.com"
+        else:
+            # For EMAIL delivery, use the actual email from database
+            customer_data["email_address"] = contact_info
+            
+        try:
+            customer_result = client.customers.create(**customer_data)
+            customer_id = customer_result.customer.id
+        except Exception as e:
+            logger.error(f"❌ Failed to create customer: {e}")
+            return {
+                'success': False,
+                'error': f"Failed to create customer: {e}",
+                'message': f"Failed to create invoice for {member_name}"
+            }
+        logger.info(f"✅ Created customer {customer_id} for {member_name}")
+        
+        # Step 2: Create order
+        order_data = {
+            "location_id": location_id,
+            "line_items": [
+                {
+                    "name": description[:100],
+                    "quantity": "1",
+                    "base_price_money": {
+                        "amount": int(amount * 100),  # Convert to cents
+                        "currency": "USD"
+                    }
+                }
+            ]
+        }
+        
+        try:
+            order_result = client.orders.create(order=order_data)
+            order_id = order_result.order.id
+        except Exception as e:
+            logger.error(f"❌ Failed to create order: {e}")
+            return {
+                'success': False,
+                'error': f"Failed to create order: {e}",
+                'message': f"Failed to create invoice for {member_name}"
+            }
+        logger.info(f"✅ Created order {order_id}")
+        
+        # Step 3: Create invoice
+        invoice_request = {
+            "invoice": {
+                "location_id": location_id,
+                "order_id": order_id,
                 "primary_recipient": {
-                    "name": member_name
+                    "customer_id": customer_id
                 },
                 "payment_requests": [
                     {
-                        "request_method": "EMAIL",
                         "request_type": "BALANCE",
                         "due_date": (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d")
                     }
                 ],
-                "delivery_method": "EMAIL",
-                "invoice_number": f"AF-{datetime.now().strftime('%Y%m%d')}-{member_name.replace(' ', '')[:10]}",
+                "delivery_method": "EMAIL",  # Square API supports EMAIL only
+                "invoice_number": f"AF-{datetime.now().strftime('%Y%m%d%H%M%S')}-{member_name.replace(' ', '')[:10]}",
                 "title": "Anytime Fitness - Overdue Account Balance",
-                "description": f"{description} for {member_name}",
-                "order": {
-                    "location_id": location_id,
-                    "line_items": [
-                        {
-                            "name": description,
-                            "quantity": "1",
-                            "item_type": "ITEM",
-                            "base_price_money": {
-                                "amount": int(amount * 100),  # Convert to cents
-                                "currency": "USD"
-                            }
-                        }
-                    ]
+                "description": description,
+                "accepted_payment_methods": {
+                    "card": True,
+                    "square_gift_card": False,
+                    "bank_account": False,
+                    "buy_now_pay_later": False,
+                    "cash_app_pay": False
                 }
             }
         }
         
-        # Create the invoice using PROVEN WORKING METHOD
-        invoices_api = client.invoices
-        result = invoices_api.create_invoice(body=invoice_data)
+        # Create invoice
+        try:
+            invoice_result = client.invoices.create(invoice=invoice_request["invoice"])
+            invoice_id = invoice_result.invoice.id
+            invoice_version = invoice_result.invoice.version
+        except Exception as e:
+            logger.error(f"❌ Failed to create invoice: {e}")
+            return {
+                'success': False,
+                'error': f"Failed to create invoice: {e}",
+                'message': f"Failed to create invoice for {member_name}"
+            }
+        logger.info(f"✅ Created invoice {invoice_id} for {member_name}")
         
-        if result.is_success():
-            invoice = result.body.get('invoice', {})
-            invoice_id = invoice.get('id')
-            print(f"SUCCESS: Created invoice {invoice_id} for {member_name}")
-            
-            # Publish the invoice to make it active using PROVEN WORKING METHOD
-            try:
-                publish_result = invoices_api.publish_invoice(
-                    invoice_id=invoice_id,
-                    body={
-                        "request_method": "EMAIL"
-                    }
-                )
+        # Step 4: Publish invoice
+        try:
+            publish_result = client.invoices.publish(
+                invoice_id=invoice_id,
+                version=invoice_version
+            )
+        except Exception as e:
+            logger.error(f"❌ Failed to publish invoice: {e}")
+            return {
+                'success': False,
+                'error': f"Failed to publish invoice: {e}",
+                'message': f"Failed to create invoice for {member_name}"
+            }
                 
-                if publish_result.is_success():
-                    published_invoice = publish_result.body.get('invoice', {})
-                    invoice_url = published_invoice.get('public_url', '')
-                    print(f"SUCCESS: Published invoice with URL: {invoice_url}")
-                    return invoice_url
-                else:
-                    print(f"ERROR: Failed to publish invoice: {publish_result.errors}")
-                    return None
-                    
-            except Exception as publish_error:
-                print(f"ERROR: Failed to publish invoice: {publish_error}")
-                return None
-                
-        else:
-            print(f"ERROR: Failed to create invoice: {result.errors}")
-            return None
-            
+        logger.info(f"✅ Published invoice successfully")
+        
+        # Return success response
+        return {
+            'success': True,
+            'invoice_id': invoice_id,
+            'public_url': f"https://squareup.com/invoice/{invoice_id}",
+            'message': f"Successfully created and published invoice for {member_name}"
+        }
+        
     except Exception as e:
-        print(f"ERROR: Exception during invoice creation: {e}")
-        return None
-
-
-def test_square_connection():
-    """Test Square connection - PROVEN FUNCTION"""
-    client = get_square_client()
-    if client:
-        print("✅ Square connection successful")
-        return True
-    else:
-        print("❌ Square connection failed")
-        return False
-
-
-def create_overdue_payment_message_with_invoice(member_name, membership_amount, late_fee=LATE_FEE_AMOUNT):
-    """
-    Creates an overdue payment message with Square invoice link.
-    
-    PROVEN FUNCTION FROM ARCHIVED ANYTIME_BOT.PY
-    
-    Args:
-        member_name (str): Member's name
-        membership_amount (float): Base membership amount owed
-        late_fee (float): Late fee amount
-    
-    Returns:
-        tuple: (message_text, invoice_url) or (None, None) if failed
-    """
-    total_amount = membership_amount + late_fee
-    
-    # Create Square invoice
-    invoice_url = create_square_invoice(
-        member_name=member_name,
-        amount=total_amount, 
-        description=f"Overdue Membership Payment + Late Fee"
-    )
-    
-    if not invoice_url:
-        print(f"ERROR: Could not create invoice for {member_name}")
-        return None, None
-    
-    # Create message with invoice link
-    message = YELLOW_RED_MESSAGE_TEMPLATE.format(
-        member_name=member_name,
-        membership_amount=membership_amount,
-        late_fee=late_fee,
-        total_amount=total_amount,
-        invoice_link=invoice_url
-    )
-    
-    return message, invoice_url
-
-
-# Alias for backward compatibility
-create_invoice_for_member = create_square_invoice
+        logger.error(f"❌ Exception during invoice creation: {e}")
+        return {
+            'success': False,
+            'error': str(e),
+            'message': f"Failed to create invoice for {member_name}"
+        }

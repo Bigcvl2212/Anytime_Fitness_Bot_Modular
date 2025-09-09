@@ -6,7 +6,7 @@ import os
 import sys
 sys.path.append('src')
 
-from services.payments.square_client_simple import create_square_invoice
+from src.services.payments.square_client_simple import create_square_invoice
 
 def test_invoice_creation():
     """Test creating a Square invoice with the new credentials"""

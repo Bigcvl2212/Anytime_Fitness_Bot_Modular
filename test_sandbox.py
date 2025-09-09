@@ -9,7 +9,7 @@ sys.path.append('src')
 # Force sandbox environment
 os.environ['SQUARE_ENVIRONMENT'] = 'sandbox'
 
-from services.payments.square_client_simple import get_square_credentials, get_square_client
+from src.services.payments.square_client_simple import get_square_credentials, get_square_client
 
 def test_sandbox():
     print("🧪 Testing Square API in SANDBOX mode")
@@ -42,7 +42,7 @@ def test_sandbox():
         # If locations work, test a simple invoice creation
         if not result.is_error():
             print(f"\n🧪 Testing invoice creation in sandbox...")
-            from services.payments.square_client_simple import create_square_invoice
+            from src.services.payments.square_client_simple import create_square_invoice
             
             invoice_result = create_square_invoice(
                 member_name="Sandbox Test User",

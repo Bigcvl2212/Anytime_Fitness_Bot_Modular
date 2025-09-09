@@ -6,7 +6,7 @@ import os
 import sys
 sys.path.append('src')
 
-from services.payments.square_client_simple import create_square_invoice, get_square_client
+from src.services.payments.square_client_simple import create_square_invoice, get_square_client
 
 def test_square_client():
     """Test if Square client can be created"""

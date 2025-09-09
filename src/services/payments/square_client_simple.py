@@ -5,22 +5,40 @@ Square Invoice Client - Built from scratch using current SDK documentation
 import logging
 from datetime import datetime, timedelta
 from square.client import Square
-from square.core.api_error import ApiError
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'config'))
-from secrets_local import get_secret
+
+# Import secure secrets manager
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'authentication'))
+from secure_secrets_manager import SecureSecretsManager
 
 logger = logging.getLogger(__name__)
 
 def get_square_client():
-    """Get configured Square client instance"""
+    """Get configured Square client instance using SecureSecretsManager with fallback"""
     try:
-        # Use PRODUCTION credentials
-        access_token = get_secret("square-production-access-token")
-        client = Square(
-            token=access_token
-        )
+        access_token = None
+        
+        # First try SecureSecretsManager
+        try:
+            secrets_manager = SecureSecretsManager()
+            access_token = secrets_manager.get_secret("square-production-access-token")
+            if access_token:
+                logger.info("✅ Using Square access token from SecureSecretsManager")
+            else:
+                raise ValueError("Access token not found in SecureSecretsManager")
+        except Exception as secret_mgr_error:
+            # Fallback to environment variable (set by settings.py)
+            access_token = os.environ.get('SQUARE_PRODUCTION_ACCESS_TOKEN')
+            if access_token:
+                logger.info("✅ Using Square access token from environment variable")
+            else:
+                raise ValueError("Access token not found in environment variables either")
+        
+        if not access_token:
+            raise ValueError("No Square access token available")
+            
+        client = Square(token=access_token)
         return client
     except Exception as e:
         logger.error(f"❌ Error creating Square client: {e}")
@@ -52,12 +70,28 @@ def create_square_invoice(member_name, contact_info, amount, description, delive
                 'message': f"Failed to create invoice for {member_name}"
             }
         
-        # Get location ID
-        location_id = get_secret("square-production-location-id")
+        # Get location ID with fallback
+        location_id = None
+        try:
+            secrets_manager = SecureSecretsManager()
+            location_id = secrets_manager.get_secret("square-production-location-id")
+            if location_id:
+                logger.info("✅ Using Square location ID from SecureSecretsManager")
+            else:
+                # Fallback to environment variable
+                location_id = os.environ.get('SQUARE_LOCATION_ID')
+                if location_id:
+                    logger.info("✅ Using Square location ID from environment variable")
+        except Exception as e:
+            # Fallback to environment variable
+            location_id = os.environ.get('SQUARE_LOCATION_ID')
+            if location_id:
+                logger.info("✅ Using Square location ID from environment variable (fallback)")
+        
         if not location_id:
             return {
                 'success': False,
-                'error': 'Could not retrieve Square location ID',
+                'error': 'Could not retrieve Square location ID from any source',
                 'message': f"Failed to create invoice for {member_name}"
             }
         
@@ -83,7 +117,7 @@ def create_square_invoice(member_name, contact_info, amount, description, delive
         try:
             customer_result = client.customers.create(**customer_data)
             customer_id = customer_result.customer.id
-        except ApiError as e:
+        except Exception as e:
             logger.error(f"❌ Failed to create customer: {e}")
             return {
                 'success': False,
@@ -110,7 +144,7 @@ def create_square_invoice(member_name, contact_info, amount, description, delive
         try:
             order_result = client.orders.create(order=order_data)
             order_id = order_result.order.id
-        except ApiError as e:
+        except Exception as e:
             logger.error(f"❌ Failed to create order: {e}")
             return {
                 'success': False,
@@ -153,7 +187,7 @@ def create_square_invoice(member_name, contact_info, amount, description, delive
             invoice_result = client.invoices.create(invoice=invoice_request["invoice"])
             invoice_id = invoice_result.invoice.id
             invoice_version = invoice_result.invoice.version
-        except ApiError as e:
+        except Exception as e:
             logger.error(f"❌ Failed to create invoice: {e}")
             return {
                 'success': False,
@@ -168,7 +202,7 @@ def create_square_invoice(member_name, contact_info, amount, description, delive
                 invoice_id=invoice_id,
                 version=invoice_version
             )
-        except ApiError as e:
+        except Exception as e:
             logger.error(f"❌ Failed to publish invoice: {e}")
             return {
                 'success': False,

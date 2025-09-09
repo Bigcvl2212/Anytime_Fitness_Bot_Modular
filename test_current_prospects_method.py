@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from services.api.clubhub_api_client import ClubHubAPIClient
+from src.services.api.clubhub_api_client import ClubHubAPIClient
 
 def test_current_prospects():
     """Test exactly what clean_dashboard.py is doing"""

@@ -3,7 +3,7 @@
 Send SMS and Email to Jeremy Mayo via ClubOS API using confirmed member ID
 """
 
-from services.api.clubos_api_client import ClubOSAPIClient, ClubOSAPIAuthentication
+from src.services.api.clubos_api_client import ClubOSAPIClient, ClubOSAPIAuthentication
 from config.secrets_local import get_secret
 import time
 

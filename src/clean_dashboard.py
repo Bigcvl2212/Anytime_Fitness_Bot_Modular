@@ -82,7 +82,7 @@ try:
     os.environ['SQUARE_ENVIRONMENT'] = 'production'
     
     # Now import the Square function
-    from services.payments.square_client_simple import create_square_invoice
+    from src.services.payments.square_client_simple import create_square_invoice
     
     SQUARE_AVAILABLE = True
     logger.info("🔑 Using Square credentials from secrets_local.py")

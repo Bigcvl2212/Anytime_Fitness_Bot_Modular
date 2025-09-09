@@ -436,7 +436,7 @@ Anytime Fitness Fond du Lac"""
             # Send notification (if driver provided)
             if driver:
                 try:
-                    from ..services.clubos.messaging import send_clubos_message
+                    from src.services.clubos.messaging import send_clubos_message
                     success = send_clubos_message(
                         driver=driver,
                         member_name=client_name,

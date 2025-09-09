@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 import re
 from urllib.parse import urljoin, quote
 
-from services.api.clubos_api_client import ClubOSAPIClient, create_clubos_api_client
+from src.services.api.clubos_api_client import ClubOSAPIClient, create_clubos_api_client
 from config.constants import CLUBOS_CALENDAR_URL
 
 
@@ -480,7 +480,7 @@ class ClubOSCalendarAPIService:
         """Find member by name"""
         try:
             # Use existing member search functionality
-            from services.api.enhanced_clubos_service import ClubOSAPIService
+            from src.services.api.enhanced_clubos_service import ClubOSAPIService
             service = ClubOSAPIService(self.api_client.username, self.api_client.password)
             return service._api_search_member(member_name)
             

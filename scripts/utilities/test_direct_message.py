@@ -11,7 +11,7 @@ from datetime import datetime
 # Add the project root to the path for imports
 sys.path.insert(0, '.')
 
-from services.api.migration_service import get_migration_service
+from src.services.api.migration_service import get_migration_service
 from config.secrets import get_secret
 from config.constants import CLUBOS_USERNAME_SECRET, CLUBOS_PASSWORD_SECRET
 
@@ -71,7 +71,7 @@ def test_member_search():
     print("\n🔍 Testing member search for Jeremy Mayo...")
     
     try:
-        from services.api.enhanced_clubos_service import ClubOSAPIService
+        from src.services.api.enhanced_clubos_service import ClubOSAPIService
         from config.secrets import get_secret
         from config.constants import CLUBOS_USERNAME_SECRET, CLUBOS_PASSWORD_SECRET
         

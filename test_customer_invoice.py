@@ -6,7 +6,7 @@ import os
 import sys
 sys.path.append('src')
 
-from services.payments.square_client_simple import get_square_client, get_square_credentials
+from src.services.payments.square_client_simple import get_square_client, get_square_credentials
 from datetime import datetime, timedelta
 
 def create_customer_and_invoice():

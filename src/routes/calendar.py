@@ -11,7 +11,11 @@ logger = logging.getLogger(__name__)
 
 calendar_bp = Blueprint('calendar', __name__)
 
+# Import the authentication decorator
+from .auth import require_auth
+
 @calendar_bp.route('/calendar')
+@require_auth
 def calendar_page():
 	"""Calendar page."""
 	try:
@@ -54,7 +58,7 @@ def get_calendar_events():
 			else:
 				events = []
 		except Exception as e:
-			logger.error(f"❌ Error getting events from ClubOS: {e}")
+			logger.error(f"❌ Error getting events from ClubOS: {str(e)}")
 			events = []
 		
 		# Enhanced name lookup for attendees
@@ -62,35 +66,79 @@ def get_calendar_events():
 		for event in events:
 			enhanced_event = event.copy()
 			
-			# Process attendees with proper name lookup
+			# Process attendees with proper name lookup from training clients database
 			if 'attendees' in event and event['attendees']:
 				enhanced_attendees = []
 				for attendee in event['attendees']:
 					if attendee.get('name'):
+						original_name = attendee['name']
+						enhanced_name = original_name
+						
 						# Check if it's an email address
-						if '@' in attendee['name']:
+						if '@' in original_name:
 							# Look up proper name from database
-							proper_name = current_app.db_manager.lookup_member_name_by_email(attendee['name'])
+							proper_name = current_app.db_manager.lookup_member_name_by_email(original_name)
 							if proper_name:
-								enhanced_attendees.append({
-									'name': proper_name,
-									'email': attendee['name'],
-									'original_name': attendee['name']
-								})
+								enhanced_name = proper_name
 							else:
 								# Fallback: extract name from email
-								email_name = attendee['name'].split('@')[0].replace('.', ' ').title()
-								enhanced_attendees.append({
-									'name': email_name,
-									'email': attendee['name'],
-									'original_name': attendee['name']
-								})
+								enhanced_name = original_name.split('@')[0].replace('.', ' ').title()
 						else:
-							enhanced_attendees.append({
-								'name': attendee['name'],
-								'email': attendee.get('email', ''),
-								'original_name': attendee['name']
-							})
+							# Try to find the real name and past due info in training clients database
+							past_due_info = None
+							try:
+								conn = current_app.db_manager.get_connection()
+								cursor = conn.cursor()
+
+								# Look for training client by various name patterns
+								cursor.execute("""
+									SELECT member_name, first_name, last_name, full_name, member_id, prospect_id
+									FROM training_clients
+									WHERE LOWER(member_name) LIKE LOWER(?)
+									   OR LOWER(first_name || ' ' || last_name) LIKE LOWER(?)
+									   OR LOWER(full_name) LIKE LOWER(?)
+									   OR LOWER(?) LIKE LOWER(member_name)
+									ORDER BY created_at DESC
+									LIMIT 1
+								""", (f'%{original_name}%', f'%{original_name}%', f'%{original_name}%', original_name))
+
+								training_client = cursor.fetchone()
+								conn.close()
+
+								if training_client:
+									# Use the real name from training clients database
+									enhanced_name = training_client[0] or training_client[3] or f"{training_client[1]} {training_client[2]}".strip()
+									member_id = training_client[4]
+
+									# Get past due amount for this training client
+									if member_id:
+										try:
+											# Use the ClubOS training API to get payment status and amount
+											payment_data = current_app.clubos.get_complete_agreement_data(member_id)
+											if payment_data and payment_data.get('success'):
+												payment_status = payment_data.get('payment_status', 'Unknown')
+												amount_owed = payment_data.get('amount_owed', 0.0)
+
+												if payment_status == 'Past Due' and amount_owed > 0:
+													past_due_info = {
+														'status': payment_status,
+														'amount': amount_owed,
+														'formatted_amount': f"${amount_owed:.2f}"
+													}
+										except Exception as payment_error:
+											logger.warning(f"⚠️ Calendar error getting payment data for member {member_id}: {payment_error}")
+
+									logger.info(f"✅ Calendar mapped '{original_name}' to '{enhanced_name}' with past due: {past_due_info}")
+
+							except Exception as mapping_error:
+								logger.warning(f"⚠️ Calendar error mapping attendee '{original_name}': {mapping_error}")
+
+						enhanced_attendees.append({
+							'name': enhanced_name,
+							'email': attendee.get('email', ''),
+							'original_name': original_name,
+							'past_due': past_due_info
+						})
 				
 				enhanced_event['attendees'] = enhanced_attendees
 				enhanced_event['participants'] = ', '.join([att['name'] for att in enhanced_attendees])
@@ -127,7 +175,7 @@ def get_calendar_events():
 		})
 		
 	except Exception as e:
-		logger.error(f"❌ Error getting calendar events: {e}")
+		logger.error(f"❌ Error getting calendar events: {str(e)}")
 		return jsonify({
 			'success': False,
 			'error': str(e),
@@ -151,7 +199,7 @@ def get_calendar_events():
 		return jsonify(formatted_events)
 		
 	except Exception as e:
-		logger.error(f"❌ Error getting calendar events: {e}")
+		logger.error(f"❌ Error getting calendar events: {str(e)}")
 		return jsonify([]), 500
 
 @calendar_bp.route('/api/debug/agreement/<agreement_id>/invoices')

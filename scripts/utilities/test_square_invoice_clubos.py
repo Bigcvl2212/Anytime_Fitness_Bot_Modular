@@ -3,8 +3,8 @@
 Test Square invoice creation and sending via ClubOS SMS/Email
 """
 
-from services.payments.square_client_fixed import create_square_invoice
-from services.api.clubos_api_client import ClubOSAPIClient
+from src.services.payments.square_client_fixed import create_square_invoice
+from src.services.api.clubos_api_client import ClubOSAPIClient
 from config.secrets_local import get_secret
 import requests
 

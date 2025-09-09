@@ -147,13 +147,13 @@
     <div class="week-navigation">
         <button class="btn-week-nav" onclick="changeWeek(-1)">
             <i class="fas fa-chevron-left me-1"></i>Previous Week
-        </button>
+                    </button>
         <div class="current-week" id="currentWeekLabel">Loading...</div>
         <button class="btn-week-nav" onclick="changeWeek(1)">
             Next Week<i class="fas fa-chevron-right ms-1"></i>
-        </button>
-    </div>
-
+                    </button>
+                </div>
+                
     <!-- Weekly Calendar -->
     <div class="weekly-calendar" id="weeklyCalendar">
         <!-- Calendar will be populated by JavaScript -->
@@ -418,8 +418,8 @@ function renderWeeklyCalendar() {
         const dayNumber = currentDay.getDate();
         
         // Get events for this day
-        const dayEvents = events.filter(event => {
-            const eventDate = new Date(event.start_time || event.start);
+            const dayEvents = events.filter(event => {
+                const eventDate = new Date(event.start_time || event.start);
             return eventDate.toDateString() === currentDay.toDateString();
         });
         
@@ -430,22 +430,43 @@ function renderWeeklyCalendar() {
             return timeA - timeB;
         });
         
-        // Create appointments HTML
+        // Create appointments HTML with past due status
         let appointmentsHtml = '';
         if (dayEvents.length > 0) {
-            appointmentsHtml = dayEvents.map(event => {
+            appointmentsHtml = dayEvents.map((event, index) => {
                 const eventTime = new Date(event.start_time || event.start);
                 const timeString = eventTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 const title = event.title || event.summary || 'Appointment';
                 const client = event.client_name || event.attendees?.[0]?.name || '';
-                
+                const uniqueId = `calendar-funding-${index}-${event.id || 'unknown'}`;
+
+                // Check for past due information in attendees
+                let pastDueHtml = '';
+                if (event.attendees && event.attendees.length > 0) {
+                    const pastDueAttendee = event.attendees.find(att => att.past_due);
+                    if (pastDueAttendee && pastDueAttendee.past_due) {
+                        pastDueHtml = `<div class="appointment-funding" id="${uniqueId}">
+                            <span class="outlook-badge outlook-badge-danger" title="Past Due: ${pastDueAttendee.past_due.formatted_amount}">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                ${pastDueAttendee.past_due.formatted_amount}
+                            </span>
+                        </div>`;
+                    }
+                }
+
                 return `
                     <div class="appointment" onclick="showEventDetail('${event.id}')" title="${escapeHtml(title)}">
                         <div class="appointment-time">${timeString}</div>
                         <div class="appointment-title">${escapeHtml(title)}</div>
                         ${client ? `<div class="appointment-client">${escapeHtml(client)}</div>` : ''}
-                    </div>
-                `;
+                        ${pastDueHtml || (client ? `<div class="appointment-funding" id="${uniqueId}" data-participant="${escapeHtml(client)}" data-time="${timeString}">
+                            <span class="outlook-badge outlook-badge-success">
+                                <i class="fas fa-check-circle"></i>
+                                Current
+                            </span>
+                        </div>` : '')}
+                </div>
+            `;
             }).join('');
         } else {
             appointmentsHtml = '<div class="no-appointments">No appointments</div>';
@@ -459,12 +480,113 @@ function renderWeeklyCalendar() {
                 </div>
                 <div class="day-appointments">
                     ${appointmentsHtml}
-                </div>
             </div>
-        `;
+        </div>
+    `;
     }
     
     calendar.innerHTML = calendarHtml;
+    
+    // Check past due status for all calendar events
+    setTimeout(() => {
+        checkAllCalendarFundingStatuses();
+    }, 500);
+}
+
+// Check past due status for calendar events
+function checkAllCalendarFundingStatuses() {
+    console.log('🔍 Starting calendar funding status checks...');
+    
+    const fundingElements = document.querySelectorAll('[id^="calendar-funding-"]');
+    console.log(`Found ${fundingElements.length} calendar funding status elements to check`);
+    
+    fundingElements.forEach((element, index) => {
+        const participant = element.getAttribute('data-participant');
+        const time = element.getAttribute('data-time');
+        
+        console.log(`Calendar Element ${index + 1}: participant="${participant}", time="${time}"`);
+        
+        if (participant && participant.trim() !== '' && participant !== 'Unknown') {
+            setTimeout(() => {
+                checkCalendarEventFunding(element, participant, time);
+            }, index * 200);
+        } else {
+            console.log(`Skipping calendar element ${index + 1} - no valid participant`);
+            element.innerHTML = `
+                <span class="outlook-badge outlook-badge-secondary">
+                    <i class="fas fa-question-circle"></i>
+                    Unknown
+                </span>
+            `;
+        }
+    });
+}
+
+function checkCalendarEventFunding(element, participant, time) {
+    console.log(`💰 CHECKING CALENDAR PAST DUE STATUS for: ${participant}`);
+    
+    // Show loading state
+    element.innerHTML = `
+        <span class="outlook-badge outlook-badge-warning">
+            <i class="fas fa-sync fa-spin"></i>
+            Checking...
+        </span>
+    `;
+    element.title = 'Fetching past due status from database...';
+    
+    fetch('/api/member/past-due-status', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            participant: participant
+        })
+    })
+    .then(response => {
+        console.log('Calendar Past Due API response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Calendar Past Due API response data:', data);
+        if (data.success) {
+            const pastDueInfo = data.past_due_info;
+            console.log(`✅ Calendar past due data received for ${participant}:`, pastDueInfo);
+            
+            const statusIcon = pastDueInfo.status_icon || 'fas fa-question-circle';
+            const statusClass = `outlook-badge-${pastDueInfo.status_class || 'secondary'}`;
+            const statusText = pastDueInfo.status_text || 'Unknown';
+
+            // Show the calculated past due status from our training payment tracking system
+            element.innerHTML = `
+                <span class="outlook-badge ${statusClass}" title="Past due data from training payment tracking system">
+                    <i class="${statusIcon}"></i>
+                    ${statusText}
+                </span>
+            `;
+            element.title = 'Past due status from training payment tracking system';
+        } else {
+            console.error('❌ Calendar API error for', participant, ':', data.error);
+            element.innerHTML = `
+                <span class="outlook-badge outlook-badge-secondary">
+                    <i class="fas fa-question-circle"></i>
+                    Not Found
+                </span>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('❌ Calendar network error checking past due for', participant, ':', error);
+        element.innerHTML = `
+            <span class="outlook-badge outlook-badge-secondary">
+                <i class="fas fa-exclamation-triangle"></i>
+                Error
+            </span>
+        `;
+    });
 }
 
 // Week navigation
@@ -494,7 +616,7 @@ function createNewEvent() {
     resetEventForm();
     document.getElementById('eventModalTitle').innerHTML = '<i class="fas fa-calendar-plus me-2"></i>Create New Appointment';
     document.getElementById('deleteEventBtn').style.display = 'none';
-    
+
     const modal = new bootstrap.Modal(document.getElementById('eventModal'));
     modal.show();
 }
@@ -502,12 +624,12 @@ function createNewEvent() {
 function editEvent(eventId) {
     const event = events.find(e => e.id == eventId);
     if (!event) return;
-    
+
     selectedEventId = eventId;
     populateEventForm(event);
     document.getElementById('eventModalTitle').innerHTML = '<i class="fas fa-calendar-edit me-2"></i>Edit Appointment';
     document.getElementById('deleteEventBtn').style.display = 'block';
-    
+
     const modal = new bootstrap.Modal(document.getElementById('eventModal'));
     modal.show();
 }
@@ -529,17 +651,17 @@ function populateEventForm(event) {
     document.getElementById('eventId').value = event.id;
     document.getElementById('eventTitle').value = event.title || event.summary || '';
     document.getElementById('eventDescription').value = event.description || '';
-    
+
     if (event.start_time || event.start) {
         const startDate = new Date(event.start_time || event.start);
         document.getElementById('eventStartTime').value = startDate.toISOString().slice(0, 16);
     }
-    
+
     if (event.end_time || event.end) {
         const endDate = new Date(event.end_time || event.end);
         document.getElementById('eventEndTime').value = endDate.toISOString().slice(0, 16);
     }
-    
+
     // Populate trainer and client if available
     if (event.trainer_id) {
         document.getElementById('eventTrainer').value = event.trainer_id;
@@ -553,25 +675,25 @@ async function saveEvent() {
     const form = document.getElementById('eventForm');
     const formData = new FormData(form);
     const eventData = Object.fromEntries(formData);
-    
+
     try {
         const isEditing = !!selectedEventId;
         const url = isEditing ? `/api/calendar/events/${selectedEventId}` : '/api/calendar/events';
         const method = isEditing ? 'PUT' : 'POST';
-        
+
         const response = await fetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(eventData)
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             const modal = bootstrap.Modal.getInstance(document.getElementById('eventModal'));
             modal.hide();
             loadCalendarEvents(); // Refresh calendar
-            
+
             alert(isEditing ? 'Appointment updated successfully!' : 'Appointment created successfully!');
         } else {
             alert('Error saving appointment: ' + data.error);
@@ -595,21 +717,21 @@ function deleteEvent() {
 
 async function confirmDeleteEvent() {
     if (!selectedEventId) return;
-    
+
     try {
         const response = await fetch(`/api/calendar/events/${selectedEventId}`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ confirmed: true })
         });
-        
+
         const data = await response.json();
-        
+
         if (data.success) {
             const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
             modal.hide();
             loadCalendarEvents(); // Refresh calendar
-            
+
             alert('Appointment deleted successfully!');
         } else {
             alert('Error deleting appointment: ' + data.error);
@@ -622,28 +744,28 @@ async function confirmDeleteEvent() {
 function showEventDetail(eventId) {
     const event = events.find(e => e.id == eventId);
     if (!event) return;
-    
+
     selectedEventId = eventId;
-    
+
     const content = document.getElementById('eventDetailContent');
     content.innerHTML = `
         <div class="event-detail">
             <h5 class="mb-3">${escapeHtml(event.title || event.summary || 'Untitled Appointment')}</h5>
-            
+
             <div class="row g-3">
                 <div class="col-12">
                     <strong>Date & Time:</strong><br>
                     <i class="fas fa-clock me-1 text-muted"></i>
                     ${formatEventDateTime(event.start_time || event.start)} - ${formatEventDateTime(event.end_time || event.end)}
                 </div>
-                
+
                 ${event.description ? `
                 <div class="col-12">
                     <strong>Description:</strong><br>
                     ${escapeHtml(event.description)}
                 </div>
                 ` : ''}
-                
+
                 ${event.trainer_name ? `
                 <div class="col-md-6">
                     <strong>Trainer:</strong><br>
@@ -651,7 +773,7 @@ function showEventDetail(eventId) {
                     ${escapeHtml(event.trainer_name)}
                 </div>
                 ` : ''}
-                
+
                 ${event.client_name ? `
                 <div class="col-md-6">
                     <strong>Client:</strong><br>
@@ -662,7 +784,7 @@ function showEventDetail(eventId) {
             </div>
         </div>
     `;
-    
+
     const modal = new bootstrap.Modal(document.getElementById('eventDetailModal'));
     modal.show();
 }

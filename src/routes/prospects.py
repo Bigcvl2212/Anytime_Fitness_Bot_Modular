@@ -18,7 +18,11 @@ logger = logging.getLogger(__name__)
 
 prospects_bp = Blueprint('prospects', __name__)
 
+# Import the authentication decorator
+from .auth import require_auth
+
 @prospects_bp.route('/prospects')
+@require_auth
 def prospects_page():
 	"""Display prospects page with fast loading - data loads asynchronously via JavaScript."""
 	
@@ -132,7 +136,7 @@ def get_all_prospects():
     
     try:
         # Import ClubHub API client and credentials from proper config
-        from services.api.clubhub_api_client import ClubHubAPIClient
+        from src.services.api.clubhub_api_client import ClubHubAPIClient
         from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
         
         logger.info("🔍 Fetching ALL prospects using ClubHub API client (paginated)...")
@@ -209,7 +213,7 @@ def get_prospects_paginated():
             all_prospects = current_app.data_cache['prospects']
         else:
             # Fallback: get fresh prospects with authentication
-            from services.api.clubhub_api_client import ClubHubAPIClient
+            from src.services.api.clubhub_api_client import ClubHubAPIClient
             
             # Use direct credentials to avoid import issues
             CLUBHUB_EMAIL = "mayo.jeremy2212@gmail.com"

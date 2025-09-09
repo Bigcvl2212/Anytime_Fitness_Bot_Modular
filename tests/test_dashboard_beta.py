@@ -377,7 +377,7 @@ class TestSquareIntegration(unittest.TestCase):
         
         # Test invoice creation function
         try:
-            from services.payments.square_client_simple import create_square_invoice
+            from src.services.payments.square_client_simple import create_square_invoice
             
             result = create_square_invoice(
                 member_name="Test Member",

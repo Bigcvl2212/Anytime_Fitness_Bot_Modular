@@ -169,8 +169,17 @@
                 <!-- Schedule Items -->
                 {% if recent_events %}
                     {% for event in recent_events %}
-                    {% set participants_list = event.get('participants', '').split(', ') if event.get('participants') else [] %}
-                    {% set all_participants = participants_list | reject('equalto', '') | list %}
+                    {% set participants_list = event.get('participants', []) %}
+                    {% set all_participants = [] %}
+                    {% set participants_with_past_due = [] %}
+                    {% for participant in participants_list %}
+                        {% if participant.name %}
+                            {% set _ = all_participants.append(participant.name) %}
+                            {% if participant.past_due %}
+                                {% set _ = participants_with_past_due.append(participant) %}
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
                     {% set is_appointment = (
                         'savannah' in (event.get('title', '') + ' ' + event.get('participants', '')).lower() or
                         'consult' in event.get('title', '').lower() or
@@ -209,7 +218,14 @@
                                         <div class="fw-bold" style="font-size: 1.2em;">{{ event.get('title', 'Consultation') }}</div>
                                         {% if all_participants %}
                                             <div class="text-muted" style="font-size: 1.0em;">
-                                                with {% for participant in all_participants %}{{ participant }}{% if not loop.last %}, {% endif %}{% endfor %}
+                                                with {% for participant in participants_list %}
+                                                    {% if participant.past_due %}
+                                                        <span class="text-danger fw-bold" title="Past Due: {{ participant.past_due.formatted_amount }}">{{ participant.name }}</span>
+                                                    {% else %}
+                                                        {{ participant.name }}
+                                                    {% endif %}
+                                                    {% if not loop.last %}, {% endif %}
+                                                {% endfor %}
                                             </div>
                                         {% else %}
                                             <small class="text-muted">Prospect appointment</small>
@@ -222,7 +238,14 @@
                                     <div>
                                         {% if all_participants %}
                                             <div class="fw-bold" style="font-size: 1.3em; color: var(--af-purple-primary);">
-                                                {% for participant in all_participants %}{{ participant }}{% if not loop.last %}, {% endif %}{% endfor %}
+                                                {% for participant in participants_list %}
+                                                    {% if participant.past_due %}
+                                                        <span class="text-danger fw-bold" title="Past Due: {{ participant.past_due.formatted_amount }}">{{ participant.name }}</span>
+                                                    {% else %}
+                                                        {{ participant.name }}
+                                                    {% endif %}
+                                                    {% if not loop.last %}, {% endif %}
+                                                {% endfor %}
                                             </div>
                                             <small class="text-muted">{{ event.get('title', 'Training Session') }}</small>
                                         {% else %}
@@ -542,29 +565,28 @@ function openEventDetails(element) {
 }
 
 function checkMultipleParticipantsFunding(participants, time) {
-    console.log(`🔍 Checking funding for ${participants.length} participants:`, participants);
+    console.log(`� Checking past due status for ${participants.length} participants:`, participants);
     
-    const fundingPromises = participants.map(participant => 
-    fetch('/api/training/payment-status', {
+    const pastDuePromises = participants.map(participant => 
+        fetch('/api/member/past-due-status', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                participant: participant.trim(),
-                time: time
+                participant: participant.trim()
             })
         }).then(response => response.json())
     );
     
-    Promise.allSettled(fundingPromises).then(results => {
+    Promise.allSettled(pastDuePromises).then(results => {
         const fundingResults = [];
         
         results.forEach((result, index) => {
             if (result.status === 'fulfilled' && result.value.success) {
                 fundingResults.push({
                     participant: participants[index],
-                    funding: result.value.funding
+                    funding: result.value.past_due_info
                 });
             } else {
                 fundingResults.push({
@@ -919,55 +941,73 @@ function checkAllFundingStatusesAsync() {
 }
 
 function checkEventCardFunding(element, participant, time) {
-    console.log(`� LIVE FUNDING CHECK for event card: ${participant}`);
-    console.log('API endpoint: /api/training/payment-status');
-    console.log('Request data:', { participant, time });
+    console.log(`💰 CHECKING PAST DUE STATUS for event card: ${participant}`);
+    console.log('API endpoint: /api/member/past-due-status');
+    console.log('Request data:', { participant });
     
-    // Show live loading state
+    // Show loading state
     element.innerHTML = `
         <span class="outlook-badge outlook-badge-warning">
-            <i class="fas fa-wifi fa-pulse"></i>
-            Live...
+            <i class="fas fa-sync fa-spin"></i>
+            Checking...
         </span>
     `;
-    element.title = 'Fetching live funding data from ClubOS...';
+    element.title = 'Fetching past due status from database...';
     
-    fetch('/api/training/payment-status', {
+    fetch('/api/member/past-due-status', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            participant: participant,
-            time: time
+            participant: participant
         })
     })
     .then(response => {
-        console.log('LIVE API response status:', response.status);
+        console.log('Past Due API response status:', response.status);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         return response.json();
     })
     .then(data => {
-        console.log('LIVE API response data:', data);
+        console.log('Past Due API response data:', data);
         if (data.success) {
-            const funding = data.funding;
-            console.log(`✅ LIVE funding data received for ${participant}:`, funding);
+            const pastDueInfo = data.past_due_info;
+            console.log(`✅ Past due data received for ${participant}:`, pastDueInfo);
             
-            const statusIcon = funding.status_icon || 'fas fa-question-circle';
-            const statusClass = `outlook-badge-${funding.status_class || 'secondary'}`;
-            const amountOwed = typeof funding.amount_owed === 'number' ? funding.amount_owed : parseFloat(funding.amount_owed || 0) || 0;
-            const statusText = funding.status_text || (amountOwed > 0 ? `Past Due - $${amountOwed.toFixed(2)}` : 'Current');
+            const statusIcon = pastDueInfo.status_icon || 'fas fa-question-circle';
+            const statusClass = `outlook-badge-${pastDueInfo.status_class || 'secondary'}`;
+            const statusText = pastDueInfo.status_text || 'Unknown';
 
-            // Always show backend-provided status text, which already includes amount when past due
+            // Show the calculated past due status from our training payment tracking system
             element.innerHTML = `
-                <span class="outlook-badge ${statusClass}" title="Live data from ClubOS API">
+                <span class="outlook-badge ${statusClass}" title="Past due data from training payment tracking system">
                     <i class="${statusIcon}"></i>
                     ${statusText}
-                    <small style="opacity: 0.7; font-size: 0.7em;"> LIVE</small>
                 </span>
             `;
+            element.title = 'Past due status from training payment tracking system';
+        } else {
+            console.error('❌ API error for', participant, ':', data.error);
+            element.innerHTML = `
+                <span class="outlook-badge outlook-badge-secondary">
+                    <i class="fas fa-question-circle"></i>
+                    Not Found
+                </span>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('❌ Network error checking past due for', participant, ':', error);
+        element.innerHTML = `
+            <span class="outlook-badge outlook-badge-secondary">
+                <i class="fas fa-exclamation-triangle"></i>
+                Error
+            </span>
+        `;
+    });
+}
             element.title = 'Live funding status from ClubOS API';
         } else {
             console.error('❌ API error for', participant, ':', data.error);

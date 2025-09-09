@@ -8,7 +8,7 @@ import os
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from services.payments.square_client_simple import (
+from src.services.payments.square_client_simple import (
     get_square_client, 
     get_square_credentials, 
     create_square_invoice,

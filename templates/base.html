@@ -130,6 +130,44 @@
             margin-left: auto;
         }
         
+        .outlook-user .dropdown-toggle::after {
+            display: none;
+        }
+        
+        .outlook-user .dropdown-menu {
+            background: var(--af-black-secondary);
+            border: 1px solid var(--af-black-tertiary);
+            border-radius: var(--border-radius-medium);
+            margin-top: 8px;
+            min-width: 200px;
+        }
+        
+        .outlook-user .dropdown-item {
+            color: var(--af-gray-300);
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+        
+        .outlook-user .dropdown-item:hover {
+            background: var(--af-black-tertiary);
+            color: white;
+        }
+        
+        .outlook-user .dropdown-header {
+            color: var(--af-gray-600);
+            font-size: 12px;
+            font-weight: 600;
+            padding: 8px 16px 4px;
+        }
+        
+        .outlook-user .dropdown-item-text {
+            padding: 4px 16px;
+        }
+        
+        .outlook-user .dropdown-divider {
+            border-color: var(--af-black-tertiary);
+        }
+        
         .outlook-user-avatar {
             width: 28px;
             height: 28px;
@@ -545,8 +583,20 @@
         </div>
         
         <div class="outlook-user">
-            <span>Jeremy Mayo</span>
-            <div class="outlook-user-avatar">JM</div>
+            <div class="dropdown">
+                <div class="d-flex align-items-center" data-bs-toggle="dropdown" aria-expanded="false" style="cursor: pointer;">
+                    <span>Jeremy Mayo</span>
+                    <div class="outlook-user-avatar">JM</div>
+                </div>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><h6 class="dropdown-header">Account</h6></li>
+                    <li><span class="dropdown-item-text small text-muted">Logged in as Jeremy Mayo</span></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="/logout">
+                        <i class="fas fa-sign-out-alt me-2"></i>Logout
+                    </a></li>
+                </ul>
+            </div>
         </div>
     </div>
     

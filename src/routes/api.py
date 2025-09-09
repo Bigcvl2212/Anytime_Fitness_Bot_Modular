@@ -157,6 +157,126 @@ def api_training_payment_status():
         logger.error(f"❌ Error getting training payment status: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@api_bp.route('/member/past-due-status', methods=['POST'])
+def api_member_past_due_status():
+    """Get training client past due status for event cards."""
+    try:
+        data = request.get_json()
+        participant_name = data.get('participant', '').strip()
+        
+        if not participant_name or participant_name == 'Unknown':
+            return jsonify({
+                'success': False,
+                'error': 'Valid participant name is required'
+            }), 400
+        
+        logger.info(f"🔍 Getting training client past due status for: {participant_name}")
+        
+        # Try to find training client in database by name
+        try:
+            # Use database manager to get connection
+            conn = current_app.db_manager.get_connection()
+            cursor = conn.cursor()
+            
+            # First try exact match with member_name (from training_clients table)
+            cursor.execute("""
+                SELECT member_name, total_past_due, payment_status, sessions_remaining, 
+                       trainer_name, active_packages, last_session
+                FROM training_clients 
+                WHERE LOWER(member_name) = LOWER(?) 
+                ORDER BY created_at DESC 
+                LIMIT 1
+            """, (participant_name,))
+            
+            training_client = cursor.fetchone()
+            
+            if not training_client:
+                # Try partial match for cases like "First Last" vs "First M Last"
+                cursor.execute("""
+                    SELECT member_name, total_past_due, payment_status, sessions_remaining, 
+                           trainer_name, active_packages, last_session
+                    FROM training_clients 
+                    WHERE LOWER(member_name) LIKE LOWER(?) OR LOWER(?) LIKE LOWER(member_name)
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                """, (f'%{participant_name}%', f'%{participant_name}%'))
+                
+                training_client = cursor.fetchone()
+            
+            conn.close()
+            
+            if training_client:
+                total_past_due = float(training_client[1]) if training_client[1] else 0.0
+                payment_status = training_client[2] or 'Unknown'
+                sessions_remaining = int(training_client[3]) if training_client[3] else 0
+                trainer_name = training_client[4] or 'Jeremy Mayo'
+                active_packages = training_client[5] or 'Training Package'
+                last_session = training_client[6] or 'Never'
+                
+                # Determine status based on training package past due amounts
+                if total_past_due > 0:
+                    if total_past_due >= 500:
+                        status_class = 'danger'
+                        status_icon = 'fas fa-exclamation-circle'
+                        status_text = f'CRITICAL: ${total_past_due:.0f}'
+                    elif total_past_due >= 200:
+                        status_class = 'warning'
+                        status_icon = 'fas fa-exclamation-triangle'
+                        status_text = f'Past Due: ${total_past_due:.0f}'
+                    else:
+                        status_class = 'warning'
+                        status_icon = 'fas fa-clock'
+                        status_text = f'Due: ${total_past_due:.0f}'
+                else:
+                    status_class = 'success'
+                    status_icon = 'fas fa-check-circle'
+                    status_text = 'Training Paid'
+                
+                return jsonify({
+                    'success': True,
+                    'member_name': training_client[0],
+                    'past_due_info': {
+                        'amount_past_due': total_past_due,
+                        'payment_status': payment_status,
+                        'sessions_remaining': sessions_remaining,
+                        'trainer_name': trainer_name,
+                        'active_packages': active_packages,
+                        'last_session': last_session,
+                        'status_class': status_class,
+                        'status_icon': status_icon,
+                        'status_text': status_text
+                    }
+                })
+            else:
+                # Training client not found in database
+                logger.warning(f"⚠️ Training client not found in database: {participant_name}")
+                return jsonify({
+                    'success': True,
+                    'member_name': participant_name,
+                    'past_due_info': {
+                        'amount_past_due': 0.0,
+                        'payment_status': 'Not Found',
+                        'sessions_remaining': 0,
+                        'trainer_name': 'Jeremy Mayo',
+                        'active_packages': 'None',
+                        'last_session': 'Never',
+                        'status_class': 'secondary',
+                        'status_icon': 'fas fa-question-circle',
+                        'status_text': 'Not Training Client'
+                    }
+                })
+                
+        except Exception as db_error:
+            logger.error(f"❌ Database error looking up training client {participant_name}: {db_error}")
+            return jsonify({
+                'success': False,
+                'error': f'Database error: {str(db_error)}'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"❌ Error getting training client past due status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @api_bp.route('/bulk-checkin', methods=['POST'])
 def api_bulk_checkin():
     """Start bulk check-in process."""
@@ -868,7 +988,7 @@ def api_refresh_members():
         logger.info("🔄 Starting simple member refresh from ClubHub...")
         
         # Import ClubHub API client
-        from services.api.clubhub_api_client import ClubHubAPIClient
+        from src.services.api.clubhub_api_client import ClubHubAPIClient
         from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
         
         # Initialize and authenticate
@@ -935,7 +1055,7 @@ def refresh_training_clients():
         logger.info("🏋️ Starting training clients refresh from ClubHub...")
         
         # Import ClubHub API client
-        from services.api.clubhub_api_client import ClubHubAPIClient
+        from src.services.api.clubhub_api_client import ClubHubAPIClient
         from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
         
         # Initialize and authenticate
@@ -1302,4 +1422,151 @@ def api_get_member_billing_details(member_id):
             'success': False,
             'error': f'Error retrieving billing details: {str(e)}'
         }), 500
+
+@api_bp.route('/send-message', methods=['POST'])
+def send_single_message():
+    """Send a single message to a member using ClubOS messaging."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        member_id = data.get('member_id')
+        message = data.get('message')
+        
+        if not member_id or not message:
+            return jsonify({'success': False, 'error': 'member_id and message are required'}), 400
+        
+        logger.info(f"📨 Sending message to member {member_id}: {message[:50]}...")
+        
+        # Initialize messaging client
+        if hasattr(current_app, 'messaging_client') and current_app.messaging_client:
+            messaging_client = current_app.messaging_client
+        else:
+            # Initialize client if not available
+            try:
+                from ..services.clubos_messaging_client_simple import ClubOSMessagingClient
+                from ..config.secrets_local import get_secret
+                
+                username = get_secret('clubos-username')
+                password = get_secret('clubos-password')
+                
+                if username and password:
+                    messaging_client = ClubOSMessagingClient(username, password)
+                else:
+                    return jsonify({'success': False, 'error': 'ClubOS credentials not configured'}), 500
+                    
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize messaging client: {e}")
+                return jsonify({'success': False, 'error': 'Messaging service not available'}), 500
+        
+        # Send the message
+        try:
+            success = messaging_client.send_message(member_id, message)
+            
+            if success:
+                logger.info(f"✅ Message sent successfully to member {member_id}")
+                return jsonify({
+                    'success': True,
+                    'message': 'Message sent successfully',
+                    'member_id': member_id
+                })
+            else:
+                logger.warning(f"⚠️ Message sending failed for member {member_id}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to send message - check member ID and try again'
+                }), 500
+                
+        except Exception as e:
+            logger.error(f"❌ Error sending message to member {member_id}: {e}")
+            return jsonify({
+                'success': False,
+                'error': f'Message sending error: {str(e)}'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"❌ Error in send_single_message API: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/send-bulk-messages', methods=['POST'])
+def send_bulk_messages():
+    """Send bulk messages to multiple members using ClubOS messaging."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        member_ids = data.get('member_ids', [])
+        message = data.get('message')
+        
+        if not member_ids or not message:
+            return jsonify({'success': False, 'error': 'member_ids and message are required'}), 400
+        
+        if not isinstance(member_ids, list):
+            return jsonify({'success': False, 'error': 'member_ids must be an array'}), 400
+        
+        logger.info(f"📨 Sending bulk message to {len(member_ids)} members: {message[:50]}...")
+        
+        # Initialize messaging client
+        if hasattr(current_app, 'messaging_client') and current_app.messaging_client:
+            messaging_client = current_app.messaging_client
+        else:
+            # Initialize client if not available
+            try:
+                from ..services.clubos_messaging_client_simple import ClubOSMessagingClient
+                from ..config.secrets_local import get_secret
+                
+                username = get_secret('clubos-username')
+                password = get_secret('clubos-password')
+                
+                if username and password:
+                    messaging_client = ClubOSMessagingClient(username, password)
+                else:
+                    return jsonify({'success': False, 'error': 'ClubOS credentials not configured'}), 500
+                    
+            except Exception as e:
+                logger.error(f"❌ Failed to initialize messaging client: {e}")
+                return jsonify({'success': False, 'error': 'Messaging service not available'}), 500
+        
+        # Send messages to all member IDs
+        successful_sends = []
+        failed_sends = []
+        
+        for member_id in member_ids:
+            try:
+                success = messaging_client.send_message(member_id, message)
+                
+                if success:
+                    successful_sends.append(member_id)
+                    logger.info(f"✅ Message sent to member {member_id}")
+                else:
+                    failed_sends.append(member_id)
+                    logger.warning(f"⚠️ Message failed for member {member_id}")
+                    
+            except Exception as e:
+                failed_sends.append(member_id)
+                logger.error(f"❌ Error sending to member {member_id}: {e}")
+        
+        # Return results
+        total_sent = len(successful_sends)
+        total_failed = len(failed_sends)
+        
+        logger.info(f"📊 Bulk messaging complete: {total_sent} sent, {total_failed} failed")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Bulk messaging complete: {total_sent} sent, {total_failed} failed',
+            'results': {
+                'total_attempted': len(member_ids),
+                'successful_sends': total_sent,
+                'failed_sends': total_failed,
+                'successful_member_ids': successful_sends,
+                'failed_member_ids': failed_sends
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error in send_bulk_messages API: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 

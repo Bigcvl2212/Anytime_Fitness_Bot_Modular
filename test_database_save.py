@@ -5,8 +5,8 @@ import sys
 import os
 sys.path.insert(0, 'src')
 
-from services.database_manager import DatabaseManager
-from services.api.clubhub_api_client import ClubHubAPIClient  
+from src.services.database_manager import DatabaseManager
+from src.services.api.clubhub_api_client import ClubHubAPIClient  
 from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
 import sqlite3
 

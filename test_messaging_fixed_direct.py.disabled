@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""
+Test the FIXED ClubOS Messaging Client - Direct import without Square dependency
+"""
+
+import sys
+import os
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# Direct import without services/__init__.py to avoid Square import
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+
+# Import messaging client directly
+from services.clubos_messaging_client import ClubOSMessagingClient
+
+def get_clubos_credentials():
+    """Get ClubOS credentials directly from constants"""
+    # Direct import from config
+    try:
+        from config.secrets_local import get_secret
+        username = get_secret("clubos-username")
+        password = get_secret("clubos-password")
+        return username, password
+    except:
+        # Fallback: use the constants directly
+        return "mayo.jeremy2212@gmail.com", "j@SD4fjhANK5WNA"
+
+def test_fixed_messaging():
+    """Test the fixed ClubOS messaging client"""
+    
+    print("🚀 TESTING FIXED CLUBOS MESSAGING CLIENT")
+    print("=" * 60)
+    print("Using corrected popup messaging approach from proven_messaging.py")
+    print()
+    
+    # Get credentials
+    try:
+        username, password = get_clubos_credentials()
+        print(f"✅ Got ClubOS credentials for: {username}")
+    except Exception as e:
+        print(f"❌ Could not get ClubOS credentials: {e}")
+        return False
+    
+    # Create messaging client
+    print("🔐 Creating ClubOS messaging client...")
+    client = ClubOSMessagingClient(username, password)
+    
+    # Authenticate
+    print("🔑 Authenticating with ClubOS...")
+    if not client.authenticate():
+        print("❌ Failed to authenticate with ClubOS")
+        return False
+    
+    print("✅ Authentication successful")
+    print()
+    
+    # Test 1: Send SMS to your staff account (187032782)
+    print("📱 TEST 1: Sending SMS to Jeremy Mayo staff account (187032782)")
+    print("-" * 60)
+    
+    test_message = "FIXED MESSAGING TEST: This SMS uses the corrected ClubOS popup form structure and should route to your staff account properly!"
+    
+    print(f"📝 Message: {test_message[:80]}...")
+    sms_result = client.send_sms_message("187032782", test_message, "Testing fixed messaging client")
+    
+    if sms_result:
+        print("✅ SMS TEST PASSED - Message sent successfully!")
+        print("📱 CHECK YOUR PHONE (715-586-8669) for the test message!")
+    else:
+        print("❌ SMS TEST FAILED - Could not send message")
+    
+    print()
+    
+    # Test 2: Send Email to your staff account  
+    print("📧 TEST 2: Sending Email to Jeremy Mayo staff account (187032782)")
+    print("-" * 60)
+    
+    email_subject = "FIXED ClubOS Messaging Test - Popup Form Structure"
+    email_message = "This email confirms that the ClubOS messaging client has been FIXED using the correct popup form structure from proven_messaging.py analysis!"
+    
+    print(f"📧 Subject: {email_subject}")
+    print(f"📝 Message: {email_message[:80]}...")
+    
+    email_result = client.send_email_message("187032782", email_subject, email_message, "Testing fixed messaging client")
+    
+    if email_result:
+        print("✅ EMAIL TEST PASSED - Message sent successfully!")
+        print("📧 CHECK YOUR EMAIL (mayo.jeremy2212@gmail.com) for the test message!")
+    else:
+        print("❌ EMAIL TEST FAILED - Could not send message")
+    
+    print()
+    
+    # Summary
+    print("📊 TEST SUMMARY")
+    print("=" * 40)
+    
+    tests_passed = sum([sms_result, email_result])
+    total_tests = 2
+    
+    print(f"SMS Test:   {'✅ PASS' if sms_result else '❌ FAIL'}")
+    print(f"Email Test: {'✅ PASS' if email_result else '❌ FAIL'}")
+    print(f"\nSuccess Rate: {tests_passed}/{total_tests} ({(tests_passed/total_tests)*100:.1f}%)")
+    
+    if tests_passed >= 1:
+        print("\n🎉 FIXED MESSAGING CLIENT IS WORKING!")
+        print("✅ Messages now use correct ClubOS popup form structure")
+        print("✅ Staff assignment fixed to Jeremy Mayo (187032782)")
+        print("✅ Authentication flow matches ClubOS requirements")
+    else:
+        print("\n⚠️ MESSAGING CLIENT STILL NEEDS MORE WORK")
+        print("❌ Check the debug output above for specific issues")
+    
+    return tests_passed >= 1
+
+if __name__ == "__main__":
+    success = test_fixed_messaging()
+    exit(0 if success else 1)

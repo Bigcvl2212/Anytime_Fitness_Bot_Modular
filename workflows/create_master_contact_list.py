@@ -11,7 +11,7 @@ import time
 import requests
 from datetime import datetime
 from bs4 import BeautifulSoup
-from services.api.clubhub_api_client import ClubHubAPIClient
+from src.services.api.clubhub_api_client import ClubHubAPIClient
 from config.constants import CLUBHUB_HEADERS
 import os
 
@@ -39,7 +39,7 @@ def login_to_clubhub():
         print("   🔄 Attempting to get fresh tokens from token capture system...")
         
         try:
-            from services.authentication.clubhub_token_capture import ClubHubTokenCapture
+            from src.services.authentication.clubhub_token_capture import ClubHubTokenCapture
             
             capture = ClubHubTokenCapture()
             latest_tokens = capture.get_latest_valid_tokens()
@@ -80,7 +80,7 @@ def login_to_clubhub():
         print("   🔄 Trying automated login system...")
         
         try:
-            from services.authentication.clubhub_automated_login import ClubHubAutomatedLogin
+            from src.services.authentication.clubhub_automated_login import ClubHubAutomatedLogin
             
             auto_login = ClubHubAutomatedLogin()
             success, auth_data = auto_login.login()

@@ -1,0 +1,43 @@
+Form fields for Email to member 187032782:
+followUpStatus: 1
+followUpType: 3
+followUpSequence: 
+memberSalesFollowUpStatus: 
+followUpLog.id: 
+followUpLog.tfoUserId: 187032782
+emailSubject: Jeremy Mayo has sent you a message
+event.id: 
+event.startTime: 
+followUpLog.followUpWithOrig: 
+updateReferrals: 
+followUpLog.followUpDate: 
+_sourcePage: z8pO7cjGQgBxzq5GvfnTWG3w5esMy7u2LOXxy2Kiijs4PZ_lZZGWzA==
+__fp: vO5mNtY9ntcUn3hVvPfXmUAufvP_73vvfvqIXwCuyOFQ3v0IoRYE8dCWpV61VlsknznJ5VTzSr0JhAUVayXJxcqP5xe3pZR8WQ7KwsY0Wx6eAbLxwqMwhM3eflR5JHkr
+followUpLog.outcome: 2
+event.createdFor.tfoUserId: 187032782
+startTimeSlotId: 
+duration: 2
+event.remindAttendeesMins: 120
+followUpLog.reason: 
+followUpLog.followUpWith: 
+emailMessage: <p>Subject: Message from Anytime Fitness
+
+🧪 TEST: Email preferred with fallback system</p>
+followUpLog.followUpAction: 2
+followUpOutcomeNotes: Testing fallback system - Email preferred
+textMessage: 
+followUpUser.tfoUserId: 187032782
+followUpUser.role.id: 7
+followUpUser.clubId: 291
+followUpUser.clubLocationId: 3586
+followUpUser.firstName: Jeremy
+followUpUser.lastName: Mayo
+followUpUser.email: mayo.jeremy2212@gmail.com
+followUpUser.mobilePhone: +1 (715) 586-8669
+followUpUser.homePhone: 
+followUpUser.workPhone: 
+memberStudioSalesDefaultAccount: 187032782
+memberStudioSupportDefaultAccount: 187032782
+ptSalesDefaultAccount: 187032782
+ptSupportDefaultAccount: 187032782
+event.eventType: ORIENTATION

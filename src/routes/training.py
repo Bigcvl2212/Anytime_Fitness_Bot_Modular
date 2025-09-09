@@ -146,7 +146,11 @@ def get_training_client_financial_summary(member_id):
 
 training_bp = Blueprint('training', __name__)
 
+# Import the authentication decorator
+from .auth import require_auth
+
 @training_bp.route('/training-clients')
+@require_auth
 def training_clients_page():
     """Training clients page."""
     try:

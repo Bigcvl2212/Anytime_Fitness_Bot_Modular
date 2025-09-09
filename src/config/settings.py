@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
-Configuration settings for the Anytime Fitness Dashboard
+Application Settings for the Anytime Fitness Dashboard
 """
 
 import os
@@ -15,24 +15,87 @@ def create_app_config(app):
     # Basic Flask configuration
     app.secret_key = 'anytime-fitness-dashboard-secret-key-2025'
     
-    # Import Square invoice functionality - NO FALLBACKS
-    from .secrets_local import get_secret
-    from ..services.payments.square_client_simple import create_square_invoice
+    # Configure Flask sessions (in-memory only, cleared on restart)
+    app.config['SESSION_PERMANENT'] = False
+    app.config['SESSION_USE_SIGNER'] = True
+    app.config['SESSION_COOKIE_NAME'] = 'anytime_fitness_session'
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+    # IMPORTANT: Disable filesystem sessions to prevent authentication bypass
+    # Use null session type to prevent any persistent session storage
+    app.config['SESSION_TYPE'] = None  # Disable persistent session storage
     
-    # Get Square credentials from secrets (production by default)
-    access_token = get_secret("square-production-access-token")
-    location_id = get_secret("square-production-location-id")
-    
-    # Set environment variables
-    os.environ['SQUARE_PRODUCTION_ACCESS_TOKEN'] = access_token
-    os.environ['SQUARE_LOCATION_ID'] = location_id
-    os.environ['SQUARE_ENVIRONMENT'] = 'production'
-    
-    # Use the real Square client
-    app.config['SQUARE_AVAILABLE'] = True
-    app.config['SQUARE_CLIENT'] = create_square_invoice
-    logger.info("🔑 Using Square credentials from secrets_local.py")
-    logger.info("✅ Square client loaded successfully in PRODUCTION mode")
+    # Import Square invoice functionality - ENABLED
+    try:
+        # Initialize variables
+        access_token = None
+        location_id = None
+        
+        # First try SecureSecretsManager
+        try:
+            from ..services.authentication.secure_secrets_manager import SecureSecretsManager
+            secrets_manager = SecureSecretsManager()
+            access_token = secrets_manager.get_secret("square-production-access-token")
+            location_id = secrets_manager.get_secret("square-production-location-id")
+            
+            # Validate secrets were found
+            if access_token and location_id:
+                logger.info("✅ Using Square credentials from SecureSecretsManager")
+            else:
+                missing_secrets = []
+                if not access_token:
+                    missing_secrets.append("square-production-access-token")
+                if not location_id:
+                    missing_secrets.append("square-production-location-id")
+                raise ValueError(f"Missing secrets in SecretManager: {', '.join(missing_secrets)}")
+                
+        except Exception as secret_mgr_error:
+            # Fallback to secrets_local
+            logger.warning(f"❌ SecureSecretsManager failed: {secret_mgr_error}")
+            logger.info("ℹ️ Falling back to secrets_local.py...")
+            from .secrets_local import get_secret
+            access_token = get_secret("square-production-access-token")
+            location_id = get_secret("square-production-location-id")
+            
+            # Validate fallback secrets
+            if access_token and location_id:
+                logger.info("✅ Using Square credentials from secrets_local.py (fallback)")
+            else:
+                missing_local = []
+                if not access_token:
+                    missing_local.append("square-production-access-token")
+                if not location_id:
+                    missing_local.append("square-production-location-id")
+                raise ValueError(f"Missing secrets in local config: {', '.join(missing_local)}")
+        
+        # Validate we have both required secrets before proceeding
+        if not access_token or not location_id:
+            raise ValueError("Square credentials are incomplete - missing access token or location ID")
+            
+        from src.services.payments.square_client_simple import create_square_invoice
+        
+        # Set environment variables (now we know they're not None)
+        os.environ['SQUARE_PRODUCTION_ACCESS_TOKEN'] = access_token
+        os.environ['SQUARE_LOCATION_ID'] = location_id
+        os.environ['SQUARE_ENVIRONMENT'] = 'production'
+        
+        # Use the real Square client
+        app.config['SQUARE_AVAILABLE'] = True
+        app.config['SQUARE_CLIENT'] = create_square_invoice
+        logger.info("✅ Square client loaded successfully in PRODUCTION mode")
+        
+    except ImportError as e:
+        logger.warning(f"❌ Square client import failed: {e}")
+        logger.info("ℹ️ Square client disabled - continuing without payment functionality")
+        app.config['SQUARE_AVAILABLE'] = False
+        app.config['SQUARE_CLIENT'] = None
+    except Exception as e:
+        logger.warning(f"❌ Square client initialization failed: {e}")
+        logger.info("ℹ️ Square client disabled - continuing without payment functionality")
+        app.config['SQUARE_AVAILABLE'] = False
+        app.config['SQUARE_CLIENT'] = None
     
     # Database configuration
     app.config['DATABASE_PATH'] = 'gym_bot.db'

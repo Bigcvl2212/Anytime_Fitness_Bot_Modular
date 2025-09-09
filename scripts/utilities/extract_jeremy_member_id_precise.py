@@ -3,7 +3,7 @@
 Extract Jeremy Mayo's precise member ID from ClubOS search results
 """
 
-from services.api.clubos_api_client import ClubOSAPIClient
+from src.services.api.clubos_api_client import ClubOSAPIClient
 from config.secrets_local import get_secret
 from bs4 import BeautifulSoup
 import re

@@ -13,7 +13,11 @@ logger = logging.getLogger(__name__)
 
 members_bp = Blueprint('members', __name__)
 
+# Import the authentication decorator
+from .auth import require_auth
+
 @members_bp.route('/members')
+@require_auth
 def members_page():
     """Members page with categorized member lists."""
     try:

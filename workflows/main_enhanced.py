@@ -24,7 +24,7 @@ try:
         process_overdue_payments_api,
         compare_api_vs_selenium_payments
     )
-    from services.api.migration_service import get_migration_service
+    from src.services.api.migration_service import get_migration_service
 except ImportError as e:
     print(f"Warning: Some enhanced features not available: {e}")
     # Define stub functions

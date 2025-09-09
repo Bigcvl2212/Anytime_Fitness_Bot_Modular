@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """
-Clean Anytime Fitness Dashboard - Main Application
+Clean Anytime Fitness D    # Configure the app
+    create_app_config(app)
+    
+    # Create templates directory if it doesn't exist
+    templates_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')
+    if not os.path.exists(templates_dir):
+        os.makedirs(templates_dir)Main Application
 Main entry point for the Flask application
 """
 
@@ -10,28 +16,9 @@ import logging
 import threading
 import time
 from flask import Flask
-
-# Add src to Python path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-# Import database and ClubOS integration
-from .services.database_manager import DatabaseManager
-from .services.clubos_integration import ClubOSIntegration
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-from flask import Flask
 from datetime import datetime
 
-# Add parent directory to path for imports
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-
-# Import configuration and services
+# Imports are now relative to the 'src' package
 from .config.settings import create_app_config
 from .services.database_manager import DatabaseManager
 from .services.training_package_cache import TrainingPackageCache
@@ -39,7 +26,10 @@ from .services.clubos_integration import ClubOSIntegration
 from .routes import register_blueprints
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 # Ensure console streams can handle UTF-8 (Windows cp1252 workaround)
@@ -59,6 +49,7 @@ except Exception as e:
 
 def create_app():
     """Application factory pattern for creating Flask app"""
+    # The template and static folders are now correctly found relative to the project root
     app = Flask(__name__, 
                 template_folder='../templates', 
                 static_folder='../static')
@@ -82,10 +73,19 @@ def create_app():
         # Initialize ClubOS Integration
         app.clubos = ClubOSIntegration()
         
+        # Initialize ClubHub API Client for multi-club support
+        try:
+            from .services.api.clubhub_api_client import ClubHubAPIClient
+            app.clubhub_client = ClubHubAPIClient()
+            logger.info("✅ ClubHub client initialized for multi-club support")
+        except Exception as e:
+            logger.warning(f"⚠️ ClubHub client initialization failed: {e}")
+            app.clubhub_client = None
+        
         # Initialize ClubOS Messaging Client
         try:
-            from services.clubos_messaging_client import ClubOSMessagingClient
-            from config.secrets_local import get_secret
+            from .services.clubos_messaging_client_simple import ClubOSMessagingClient
+            from .config.secrets_local import get_secret
             
             username = get_secret('clubos-username')
             password = get_secret('clubos-password')
@@ -139,12 +139,13 @@ def create_app():
         
         logger.info("✅ All services initialized successfully")
         
+        # Don't run startup sync automatically - wait for user authentication
         # Kick off startup sync in a background thread so app doesn't block
-        try:
-            threading.Thread(target=startup_sync, args=(app,), daemon=True).start()
-            logger.info("🔄 Startup sync launched in background thread")
-        except Exception as e:
-            logger.warning(f"⚠️ Could not start background startup sync: {e}")
+        # try:
+        #     threading.Thread(target=enhanced_startup_sync, args=(app,), daemon=True).start()
+        #     logger.info("🔄 Enhanced multi-club startup sync launched in background thread")
+        # except Exception as e:
+        #     logger.warning(f"⚠️ Could not start background startup sync: {e}")
     
     # Register blueprints
     register_blueprints(app)
@@ -157,8 +158,8 @@ def startup_sync(app):
     
     try:
         # Import all required modules once at the start
-        from services.api.clubhub_api_client import ClubHubAPIClient
-        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        from .services.api.clubhub_api_client import ClubHubAPIClient
+        from .config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import threading
         
@@ -510,6 +511,50 @@ def startup_sync(app):
     except Exception as e:
         logger.error(f"❌ OPTIMIZED startup sync failed: {e}")
 
+def enhanced_startup_sync(app):
+    """Enhanced startup sync with multi-club support"""
+    logger.info("🚀 Starting enhanced multi-club startup sync...")
+    
+    try:
+        # Check if multi-club manager has selected clubs
+        from .services.multi_club_manager import multi_club_manager
+        selected_clubs = multi_club_manager.get_selected_clubs()
+        
+        if selected_clubs and len(selected_clubs) > 0:
+            # Multi-club sync
+            logger.info(f"🏢 Multi-club sync detected for {len(selected_clubs)} clubs")
+            
+            # Import the enhanced startup sync
+            from .services.multi_club_startup_sync import enhanced_startup_sync as multi_club_sync
+            
+            # Determine if we should use multi-club sync
+            use_multi_club = len(selected_clubs) > 1 or True  # Always use enhanced sync
+            
+            # Perform enhanced sync
+            sync_results = multi_club_sync(app, multi_club_enabled=use_multi_club)
+            
+            if sync_results['success']:
+                logger.info("🎉 Enhanced multi-club startup sync completed successfully!")
+                logger.info(f"📊 Combined totals: {sync_results['combined_totals']}")
+            else:
+                logger.error(f"❌ Enhanced startup sync failed: {sync_results.get('errors', [])}")
+                # Fallback to original sync
+                logger.info("🔄 Falling back to original startup sync...")
+                startup_sync(app)
+        else:
+            # No clubs selected yet or single-club mode - use original sync
+            logger.info("🔄 Using original startup sync (no multi-club selection)")
+            startup_sync(app)
+            
+    except ImportError as e:
+        logger.warning(f"⚠️ Multi-club sync not available: {e}")
+        logger.info("🔄 Falling back to original startup sync...")
+        startup_sync(app)
+    except Exception as e:
+        logger.error(f"❌ Enhanced startup sync error: {e}")
+        logger.info("🔄 Falling back to original startup sync...")
+        startup_sync(app)
+
 def periodic_sync(app):
     """Periodically sync data in the background"""
     logger.info("🔄 Starting periodic sync thread...")
@@ -534,17 +579,9 @@ def periodic_sync(app):
             
             # Sync prospects from ClubHub API
             try:
-                # Import with fallback paths
-                try:
-                    from services.api.clubhub_api_client import ClubHubAPIClient
-                    from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
-                except ImportError:
-                    # Fallback to root level imports
-                    import sys
-                    import os
-                    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-                    from services.api.clubhub_api_client import ClubHubAPIClient
-                    from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+                # Import with relative paths within the 'src' package
+                from .services.api.clubhub_api_client import ClubHubAPIClient
+                from .config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
                 
                 clubhub_client = ClubHubAPIClient()
                 
@@ -574,17 +611,9 @@ def periodic_sync(app):
             
             # Sync members from ClubHub API
             try:
-                # Import with fallback paths
-                try:
-                    from services.api.clubhub_api_client import ClubHubAPIClient
-                    from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
-                except ImportError:
-                    # Fallback to root level imports
-                    import sys
-                    import os
-                    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-                    from services.api.clubhub_api_client import ClubHubAPIClient
-                    from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+                # Import with relative paths within the 'src' package
+                from .services.api.clubhub_api_client import ClubHubAPIClient
+                from .config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
                 
                 clubhub_client = ClubHubAPIClient()
                 
@@ -639,10 +668,5 @@ def periodic_sync(app):
             logger.error(f"❌ Periodic sync error: {e}")
             time.sleep(60)  # Wait 1 minute on error before retrying
 
-# Create the app instance
-app = create_app()
-
-if __name__ == '__main__':
-    # On Windows, Werkzeug's reloader can trigger WinError 10038 (not a socket) during restarts.
-    # Keep debug features but disable the auto-reloader for stability.
-    app.run(debug=True, use_reloader=False, host='0.0.0.0', port=5000)
+# Remove the local app instance creation and run block.
+# The app is now created and run exclusively from run_dashboard.py.

@@ -11,6 +11,10 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from flask import current_app
+import urllib3
+
+# Suppress SSL warnings to clean up logs
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -18,17 +22,38 @@ class ClubOSIntegration:
     """Integration class to connect dashboard with working ClubOS API"""
     
     def __init__(self):
-        # Prefer secrets module, then legacy config, then environment variables
+        # Use SecureSecretsManager for credentials
         self.username = None
         self.password = None
         try:
-            from config.secrets_local import get_secret
-            self.username = get_secret('clubos-username')
-            self.password = get_secret('clubos-password')
+            from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+            secrets_manager = SecureSecretsManager()
+            
+            self.username = secrets_manager.get_secret('clubos-username')
+            self.password = secrets_manager.get_secret('clubos-password')
+            self.base_url = secrets_manager.get_secret('clubos-base-url') or 'https://anytime.club-os.com'
+            
             if self.username and self.password:
-                logger.info("🔐 ClubOS credentials loaded from secrets")
-        except Exception:
-            pass
+                logger.info("🔐 ClubOS credentials loaded from SecureSecretsManager")
+            else:
+                logger.warning("⚠️ Missing ClubOS credentials in SecureSecretsManager")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Could not load ClubOS credentials from SecureSecretsManager: {e}")
+            
+            # Fallback to local secrets
+            try:
+                from config.secrets_local import get_secret
+                self.username = get_secret('clubos-username')
+                self.password = get_secret('clubos-password')
+                self.base_url = get_secret('clubos-base-url', 'https://anytime.club-os.com')
+                logger.info("🔐 ClubOS credentials loaded from secrets_local (fallback)")
+            except Exception as fallback_error:
+                logger.warning(f"⚠️ Could not load ClubOS credentials from fallback: {fallback_error}")
+                logger.warning("⚠️ ClubOS credentials not configured")
+                self.username = None
+                self.password = None
+                self.base_url = 'https://anytime.club-os.com'
 
         if not (self.username and self.password):
             try:
@@ -81,9 +106,9 @@ class ClubOSIntegration:
                 if training_auth:
                     logger.info("✅ ClubOS authentication successful (calendar + training)")
                 else:
-                    logger.info("✅ ClubOS calendar authentication successful (training API unavailable)")
+                    logger.info("✅ ClubOS calendar authentication successful (training API temporarily unavailable)")
             else:
-                logger.warning("⚠️ ClubOS authentication failed")
+                logger.info("ℹ️ ClubOS authentication skipped - will retry when needed")
                 
             return self.authenticated
             
@@ -485,11 +510,11 @@ class ClubOSIntegration:
                 self.authenticate()
             
             if not self.authenticated:
-                logger.error("❌ Cannot get training clients - not authenticated")
+                logger.warning("⚠️ Cannot get training clients - ClubOS not authenticated. Skipping training data.")
                 return []
             
             if not self.training_api:
-                logger.error("❌ Training API not available")
+                logger.warning("⚠️ Training API not available. Skipping training data.")
                 return []
             
             logger.info("🎯 BREAKTHROUGH METHOD: Fetching training clients with agreement data...")

@@ -2775,26 +2775,93 @@ function displayMemberConversation(messages) {
     container.scrollTop = container.scrollHeight;
 }
 
-// Send message to the current member
+// Send message to the current member using ClubOS API
 function sendMessageToMember() {
     if (!currentMemberName) {
         alert('No member selected');
         return;
     }
     
-    const message = prompt(`Send message to ${currentMemberName}:`);
+    // Get member ID from the current member data
+    const memberId = getCurrentMemberId();
+    if (!memberId) {
+        alert('Member ID not found. Please refresh the member list.');
+        return;
+    }
+    
+    const message = prompt(`Send SMS to ${currentMemberName}:`);
     if (!message || message.trim() === '') {
         return;
     }
     
-    // For now, just show a success message
-    // In a real implementation, this would send via ClubOS API
-    alert(`Message sent to ${currentMemberName}: "${message}"`);
+    // Show sending indicator
+    const originalButtonText = document.querySelector('button[onclick="sendMessageToMember()"]')?.innerText;
+    if (originalButtonText) {
+        document.querySelector('button[onclick="sendMessageToMember()"]').innerText = 'Sending...';
+        document.querySelector('button[onclick="sendMessageToMember()"]').disabled = true;
+    }
     
-    // Refresh the conversation
-    setTimeout(() => {
-        loadMemberMessages();
-    }, 1000);
+    // Send via ClubOS API
+    fetch('/api/send-message', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            member_id: memberId,
+            message: message.trim(),
+            channel: 'sms'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`✅ Message sent successfully to ${currentMemberName}!`);
+        } else {
+            alert(`❌ Failed to send message: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        console.error('Error sending message:', error);
+        alert(`❌ Error sending message: ${error.message}`);
+    })
+    .finally(() => {
+        // Restore button
+        if (originalButtonText) {
+            document.querySelector('button[onclick="sendMessageToMember()"]').innerText = originalButtonText;
+            document.querySelector('button[onclick="sendMessageToMember()"]').disabled = false;
+        }
+        
+        // Refresh the conversation
+        setTimeout(() => {
+            loadMemberMessages();
+        }, 1000);
+    });
+}
+
+// Helper function to get current member ID
+function getCurrentMemberId() {
+    // Look for member ID in various places in the DOM
+    const memberCard = document.querySelector('.member-card.selected');
+    if (memberCard) {
+        return memberCard.dataset.memberId;
+    }
+    
+    // Try to find it in the global member data
+    if (window.currentMemberData && window.currentMemberData.member_id) {
+        return window.currentMemberData.member_id;
+    }
+    
+    // Last resort: search through loaded members
+    if (window.membersData) {
+        const member = window.membersData.find(m => 
+            (m.first_name + ' ' + m.last_name) === currentMemberName ||
+            m.name === currentMemberName
+        );
+        return member ? member.member_id : null;
+    }
+    
+    return null;
 }
 
 // Update the showMemberProfile function to load messages

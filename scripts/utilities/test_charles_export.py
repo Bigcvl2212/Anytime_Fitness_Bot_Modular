@@ -13,7 +13,7 @@ import logging
 # Add the project root to the path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from services.authentication.clubhub_token_capture import export_charles_session_robust
+from src.services.authentication.clubhub_token_capture import export_charles_session_robust
 
 def setup_logging():
     """Setup logging for the test"""

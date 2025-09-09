@@ -35,7 +35,7 @@ class EnhancedDataPuller:
         try:
             # Try to get from the token capture system
             try:
-                from services.authentication.clubhub_token_capture import ClubHubTokenCapture
+                from src.services.authentication.clubhub_token_capture import ClubHubTokenCapture
                 token_capturer = ClubHubTokenCapture()
                 token_data = token_capturer.get_latest_token()
                 
@@ -49,7 +49,7 @@ class EnhancedDataPuller:
             
             # Fallback to automated login
             try:
-                from services.authentication.clubhub_automated_login import ClubHubAutomatedLogin
+                from src.services.authentication.clubhub_automated_login import ClubHubAutomatedLogin
                 auto_login = ClubHubAutomatedLogin()
                 success, auth_data = auto_login.login()
                 
@@ -102,7 +102,7 @@ class EnhancedDataPuller:
         """Get ClubOS API headers for agreement data"""
         try:
             # Use existing ClubOS authentication system
-            from services.api.clubos_api_client import ClubOSAPIAuthentication
+            from src.services.api.clubos_api_client import ClubOSAPIAuthentication
             
             # Helper function to get secrets
             def get_secret(key):

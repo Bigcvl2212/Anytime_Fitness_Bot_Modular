@@ -52,6 +52,12 @@ except ImportError as e:
     logger.error(f"❌ Failed to import iCal Calendar Parser: {e}")
 
 try:
+    from src.services.clubos_messaging_client_simple import ClubOSMessagingClient
+    logger.info("✅ ClubOS Messaging Client imported successfully")
+except ImportError as e:
+    logger.error(f"❌ Failed to import ClubOS Messaging Client: {e}")
+
+try:
     from src.gym_bot_clean import ClubOSEventDeletion
     logger.info("✅ ClubOS Event Deletion imported successfully")
 except ImportError as e:
@@ -136,7 +142,7 @@ try:
     os.environ['SQUARE_ENVIRONMENT'] = 'production'
     
     # Now import the Square function
-    from services.payments.square_client_simple import create_square_invoice
+    from src.services.payments.square_client_simple import create_square_invoice
     
     SQUARE_AVAILABLE = True
     logger.info("🔑 Using Square credentials from secrets_local.py")
@@ -1308,7 +1314,7 @@ def import_fresh_clubhub_data():
     """Import fresh data from ClubHub API on startup with comprehensive prospect loading"""
     try:
         # Import ClubHub API client
-        from services.api.clubhub_api_client import ClubHubAPIClient
+        from src.services.api.clubhub_api_client import ClubHubAPIClient
         from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
         
         # Initialize and authenticate
@@ -2657,7 +2663,7 @@ def members_page():
     # Automatically refresh database with latest member data when members page loads
     try:
         # Import ClubHub API client for fresh data
-        from services.api.clubhub_api_client import ClubHubAPIClient
+        from src.services.api.clubhub_api_client import ClubHubAPIClient
         from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
         
         # Initialize and authenticate with ClubHub
@@ -4832,6 +4838,91 @@ def debug_agreement_v2_raw(agreement_id):
             'success': False, 
             'error': str(e),
             'traceback': traceback.format_exc()
+        }), 500
+
+# ================================
+# MESSAGING ROUTES - THE ONLY ONES
+# ================================
+
+@app.route('/api/send-message', methods=['POST'])
+def send_single_message():
+    """Send a single message to a member using ClubOS"""
+    try:
+        data = request.get_json()
+        member_id = data.get('member_id')
+        message_text = data.get('message')
+        channel = data.get('channel', 'sms')  # sms or email
+        
+        if not member_id or not message_text:
+            return jsonify({
+                'success': False,
+                'error': 'Missing member_id or message'
+            }), 400
+        
+        # Initialize messaging client
+        messaging_client = ClubOSMessagingClient()
+        
+        # Send the message
+        success = messaging_client.send_message(
+            member_id=str(member_id),
+            message_text=message_text,
+            channel=channel
+        )
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f'Message sent successfully to member {member_id}'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to send message - check logs for details'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"❌ Error in send_single_message: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/send-bulk-messages', methods=['POST'])
+def send_bulk_messages():
+    """Send bulk messages to multiple members using ClubOS"""
+    try:
+        data = request.get_json()
+        member_ids = data.get('member_ids', [])
+        message_text = data.get('message')
+        channel = data.get('channel', 'sms')
+        
+        if not member_ids or not message_text:
+            return jsonify({
+                'success': False,
+                'error': 'Missing member_ids or message'
+            }), 400
+        
+        # Initialize messaging client
+        messaging_client = ClubOSMessagingClient()
+        
+        # Send bulk messages
+        results = messaging_client.send_bulk_campaign(
+            member_ids=[str(mid) for mid in member_ids],
+            message=message_text,
+            message_type=channel
+        )
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'message': f'Bulk messaging completed: {results["successful"]}/{results["total"]} successful'
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error in send_bulk_messages: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
         }), 500
 
 if __name__ == '__main__':

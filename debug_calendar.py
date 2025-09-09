@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
-from services.clubos_integration import ClubOSIntegration
+from src.services.clubos_integration import ClubOSIntegration
 
 # Initialize ClubOS integration
 clubos = ClubOSIntegration()

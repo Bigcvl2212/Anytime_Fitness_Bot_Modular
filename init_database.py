@@ -7,7 +7,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 src_dir = os.path.join(current_dir, 'src')
 sys.path.insert(0, src_dir)
 
-from services.database_manager import DatabaseManager
+from src.services.database_manager import DatabaseManager
 
 # Initialize database
 db_mgr = DatabaseManager('src/gym_bot.db')

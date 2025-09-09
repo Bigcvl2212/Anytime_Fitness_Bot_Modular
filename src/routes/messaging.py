@@ -5,19 +5,19 @@ ClubOS messaging integration, conversation management, and campaign functionalit
 """
 
 from flask import Blueprint, render_template, request, jsonify, current_app
-import logging
-from datetime import datetime
+from functools import wraps
 from typing import Dict, List, Any
-import time # Added for retry logic
-import json # Added for json parsing
-import re # Added for regex
-import hashlib # Added for conversation ID generation
-
-# Import here to avoid circular imports
-from ..services.clubos_messaging_client import ClubOSMessagingClient
+import logging
+import time
+import json
+import re
+import hashlib
+import traceback
+from datetime import datetime
+from src.services.clubos_messaging_client_simple import ClubOSMessagingClient
+from .auth import require_auth
 
 logger = logging.getLogger(__name__)
-
 messaging_bp = Blueprint('messaging', __name__)
 
 def get_clubos_credentials(owner_id: str) -> Dict[str, str]:
@@ -193,6 +193,7 @@ def generate_conversation_id(member_id: str, owner_id: str) -> str:
     return hashlib.md5(conversation_key.encode()).hexdigest()[:16]
 
 @messaging_bp.route('/messaging')
+@require_auth
 def messaging_page():
 	"""Enhanced messaging center page with campaign interface."""
 	try:
@@ -406,44 +407,160 @@ def send_campaign():
 	"""Send bulk messaging campaign"""
 	try:
 		data = request.json
+		logger.info(f"📨 Campaign send request received: {data}")
+		
 		if not data:
+			logger.error("❌ No data provided in campaign request")
 			return jsonify({'success': False, 'error': 'No data provided'}), 400
 		
 		# Extract campaign parameters
 		message_text = data.get('message', '')
 		message_type = data.get('type', 'sms')  # 'sms' or 'email'
 		subject = data.get('subject', '')
-		member_categories = data.get('categories', ['green'])  # ['green', 'past_due', etc.]
+		member_categories = data.get('categories', [])  # Changed default from ['green'] to []
 		max_recipients = data.get('max_recipients', 100)
+		campaign_notes = data.get('notes', '')
+		
+		logger.info(f"📋 Campaign params - Message: '{message_text[:50]}...', Type: {message_type}, Categories: {member_categories}, Max: {max_recipients}")
+		logger.info(f"📝 Campaign notes: '{campaign_notes[:100]}...'")  # Log notes for debugging
 		
 		if not message_text:
+			logger.error("❌ Message text is required but not provided")
 			return jsonify({'success': False, 'error': 'Message text is required'}), 400
 		
-		# Get members from selected categories
+		if not member_categories:
+			logger.error("❌ No member categories selected")
+			return jsonify({'success': False, 'error': 'At least one member category must be selected'}), 400
+		
+		# Get members from selected categories with validation
 		member_ids = []
+		validated_members = []
 		conn = current_app.db_manager.get_connection()
 		cursor = conn.cursor()
 		
 		for category in member_categories:
+			logger.info(f"🔍 Processing category: '{category}'")
+			
+			# Check campaign progress to see where we left off
 			cursor.execute('''
-				SELECT id, prospect_id, email, mobile_phone, full_name
-				FROM members 
-				WHERE status = ? OR status LIKE ?
-				LIMIT ?
-			''', (category, f'%{category}%', max_recipients))
+				SELECT last_processed_member_id, last_processed_index, total_members_in_category
+				FROM campaign_progress 
+				WHERE category = ?
+				ORDER BY last_campaign_date DESC 
+				LIMIT 1
+			''', (category,))
+			
+			progress_row = cursor.fetchone()
+			start_after_member_id = None
+			start_index = 0
+			
+			if progress_row:
+				start_after_member_id = progress_row['last_processed_member_id']
+				start_index = progress_row['last_processed_index'] + 1  # Start after last processed
+				logger.info(f"📍 Resuming {category} from index {start_index} (after member {start_after_member_id})")
+			else:
+				logger.info(f"📍 Starting {category} from beginning (no previous progress)")
+			
+			if category == 'all_members':
+				# Special case: get all members regardless of status
+				logger.info("📊 Selecting all members from all categories")
+				if start_after_member_id:
+					cursor.execute('''
+						SELECT id, prospect_id, email, mobile_phone, full_name, status_message
+						FROM members 
+						WHERE id > (SELECT id FROM members WHERE prospect_id = ? OR id = ? LIMIT 1)
+						ORDER BY id
+						LIMIT ?
+					''', (start_after_member_id, start_after_member_id, max_recipients))
+				else:
+					cursor.execute('''
+						SELECT id, prospect_id, email, mobile_phone, full_name, status_message
+						FROM members 
+						ORDER BY id
+						LIMIT ?
+					''', (max_recipients,))
+			elif category == 'prospects':
+				# Special case: get prospects from prospects table (different column names)
+				logger.info("📊 Selecting prospects")
+				if start_after_member_id:
+					cursor.execute('''
+						SELECT prospect_id as id, prospect_id, email, phone as mobile_phone, full_name, status as status_message
+						FROM prospects 
+						WHERE prospect_id > ?
+						ORDER BY prospect_id
+						LIMIT ?
+					''', (start_after_member_id, max_recipients))
+				else:
+					cursor.execute('''
+						SELECT prospect_id as id, prospect_id, email, phone as mobile_phone, full_name, status as status_message
+						FROM prospects 
+						ORDER BY prospect_id
+						LIMIT ?
+					''', (max_recipients,))
+			else:
+				# Regular category: filter by status_message (members table only)
+				logger.info(f"📊 Selecting members with status_message: '{category}'")
+				if start_after_member_id:
+					cursor.execute('''
+						SELECT id, prospect_id, email, mobile_phone, full_name, status_message
+						FROM members 
+						WHERE status_message = ? AND id > (SELECT id FROM members WHERE prospect_id = ? OR id = ? LIMIT 1)
+						ORDER BY id
+						LIMIT ?
+					''', (category, start_after_member_id, start_after_member_id, max_recipients))
+				else:
+					cursor.execute('''
+						SELECT id, prospect_id, email, mobile_phone, full_name, status_message
+						FROM members 
+						WHERE status_message = ?
+						ORDER BY id
+						LIMIT ?
+					''', (category, max_recipients))
 			
 			category_members = cursor.fetchall()
+			logger.info(f"📋 Found {len(category_members)} members for category '{category}'")
+			
+			# Validate each member before adding
 			for member in category_members:
-				if len(member_ids) < max_recipients:
-					# Use prospect_id if available, otherwise use id
-					member_id = member['prospect_id'] or str(member['id'])
+				if len(member_ids) >= max_recipients:
+					break
+					
+				# Convert row to dict for validation
+				member_dict = {
+					'member_id': member['prospect_id'] or str(member['id']),
+					'prospect_id': member['prospect_id'],
+					'email': member['email'],
+					'mobile_phone': member['mobile_phone'],
+					'full_name': member['full_name'],
+					'status_message': member['status_message']
+				}
+				
+				# Basic validation for SMS campaigns
+				if message_type == 'sms':
+					phone = member_dict.get('mobile_phone', '').strip()
+					if not phone:
+						logger.warning(f"⚠️ Skipping member {member_dict['full_name']} - no phone number")
+						continue
+				
+				# Basic validation for email campaigns  
+				if message_type == 'email':
+					email = member_dict.get('email', '').strip()
+					if not email or '@' not in email:
+						logger.warning(f"⚠️ Skipping member {member_dict['full_name']} - no valid email")
+						continue
+				
+				member_id = member_dict['member_id']
+				if member_id and member_id not in member_ids:  # Avoid duplicates
 					member_ids.append(member_id)
+					validated_members.append(member_dict)
+		
+		logger.info(f"📊 Total validated members selected: {len(member_ids)}")
 		
 		if not member_ids:
-			return jsonify({'success': False, 'error': 'No members found in selected categories'}), 400
+			logger.error("❌ No valid members found in selected categories")
+			return jsonify({'success': False, 'error': 'No valid members found in selected categories (check phone/email data)'}), 400
 		
-		# Initialize ClubOS messaging client
-		from ..services.clubos_messaging_client import ClubOSMessagingClient
+		# Get ClubOS credentials and initialize messaging client
 		from ..config.secrets_local import get_secret
 		
 		username = get_secret('clubos-username')
@@ -452,23 +569,35 @@ def send_campaign():
 		if not username or not password:
 			return jsonify({'success': False, 'error': 'ClubOS credentials not configured'}), 400
 		
+		logger.info("🔄 Initializing ClubOS messaging client...")
+		
+		# Use the working implementation from clubos_messaging_client_simple.py
 		client = ClubOSMessagingClient(username, password)
 		
-		# Send bulk campaign
+		logger.info("🔐 Authenticating with ClubOS...")
+		if not client.authenticate():
+			logger.error("❌ ClubOS authentication failed")
+			return jsonify({'success': False, 'error': 'ClubOS authentication failed'}), 401
+		
+		logger.info("✅ ClubOS authentication successful, sending campaign...")
+		
+		# Send the campaign using the simple client with full member data
 		results = client.send_bulk_campaign(
-			member_ids=member_ids[:max_recipients],
+			member_data_list=validated_members[:max_recipients],
 			message=message_text,
-			message_type=message_type,
-			subject=subject
+			message_type=message_type
 		)
+		
+		results['method'] = 'simple_client'
 		
 		# Log campaign results
 		logger.info(f"📢 Campaign completed: {results['successful']}/{results['total']} sent successfully")
 		
-		# Ensure campaigns table exists
+		# Ensure campaigns table exists with progress tracking
 		cursor.execute('''
 			CREATE TABLE IF NOT EXISTS campaigns (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				name TEXT,
 				message_text TEXT,
 				message_type TEXT,
 				subject TEXT,
@@ -477,16 +606,31 @@ def send_campaign():
 				successful_sends INTEGER,
 				failed_sends INTEGER,
 				errors TEXT,
+				notes TEXT,
 				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 			)
 		''')
 		
-		# Store campaign in database
+		# Ensure campaign_progress table exists for tracking where we left off
 		cursor.execute('''
+			CREATE TABLE IF NOT EXISTS campaign_progress (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				category TEXT,
+				last_processed_member_id TEXT,
+				last_processed_index INTEGER,
+				last_campaign_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+				total_members_in_category INTEGER,
+				notes TEXT
+			)
+		''')
+		
+		# Store campaign in database
+		campaign_cursor = cursor.execute('''
 			INSERT INTO campaigns 
-			(message_text, message_type, subject, categories, total_recipients, successful_sends, failed_sends, errors)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			(campaign_name, message_text, message_type, subject, categories, total_recipients, successful_sends, failed_sends, errors, notes)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		''', (
+			data.get('campaignName', 'Untitled Campaign'),
 			message_text,
 			message_type,
 			subject,
@@ -494,8 +638,56 @@ def send_campaign():
 			results['total'],
 			results['successful'],
 			results['failed'],
-			'\n'.join(results['errors'])
+			'\n'.join(results['errors']),
+			campaign_notes
 		))
+		
+		campaign_id = campaign_cursor.lastrowid
+		
+		# Store individual messages sent in this campaign
+		if 'sent_messages' in results:
+			for msg_data in results['sent_messages']:
+				cursor.execute('''
+					INSERT INTO messages 
+					(id, message_type, content, timestamp, from_user, to_user, status, owner_id, 
+					 delivery_status, campaign_id, channel, member_id, conversation_id)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				''', (
+					f"campaign_{campaign_id}_{msg_data['member_id']}_{int(time.time())}",
+					message_type,
+					message_text,
+					datetime.now().isoformat(),
+					'j.mayo',  # from staff
+					msg_data.get('member_name', msg_data['member_id']),
+					'sent',
+					'187032782',  # owner_id
+					'sent',
+					str(campaign_id),
+					'clubos_sms',
+					msg_data['member_id'],
+					f"campaign_{campaign_id}_{msg_data['member_id']}"
+				))
+		
+		# Update campaign progress for each category
+		for category in member_categories:
+			if results['successful'] > 0:
+				# Get the last successfully processed member for this category
+				last_member_id = results.get('last_processed_member_id', '')
+				last_index = results.get('last_processed_index', 0)
+				
+				# Update or insert progress tracking
+				cursor.execute('''
+					INSERT OR REPLACE INTO campaign_progress 
+					(category, last_processed_member_id, last_processed_index, last_campaign_date, total_members_in_category, notes)
+					VALUES (?, ?, ?, ?, ?, ?)
+				''', (
+					category,
+					last_member_id,
+					last_index,
+					datetime.now().isoformat(),
+					len(validated_members),
+					f"Campaign: {data.get('campaignName', 'Untitled')} - {results['successful']}/{results['total']} sent"
+				))
 		
 		conn.commit()
 		conn.close()
@@ -508,6 +700,68 @@ def send_campaign():
 		
 	except Exception as e:
 		logger.error(f"❌ Error sending campaign: {e}")
+		return jsonify({'success': False, 'error': str(e)}), 500
+
+@messaging_bp.route('/api/campaigns/progress', methods=['GET'])
+def get_campaign_progress():
+	"""Get campaign progress tracking for all categories"""
+	try:
+		conn = current_app.db_manager.get_connection()
+		cursor = conn.cursor()
+		
+		# Ensure campaign_progress table exists
+		cursor.execute('''
+			CREATE TABLE IF NOT EXISTS campaign_progress (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				category TEXT,
+				last_processed_member_id TEXT,
+				last_processed_index INTEGER,
+				last_campaign_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+				total_members_in_category INTEGER,
+				notes TEXT
+			)
+		''')
+		
+		cursor.execute('''
+			SELECT category, last_processed_member_id, last_processed_index, 
+			       last_campaign_date, total_members_in_category, notes
+			FROM campaign_progress 
+			ORDER BY last_campaign_date DESC
+		''')
+		
+		progress = [dict(row) for row in cursor.fetchall()]
+		conn.close()
+		
+		return jsonify({'success': True, 'progress': progress})
+		
+	except Exception as e:
+		logger.error(f"❌ Error getting campaign progress: {e}")
+		return jsonify({'success': False, 'error': str(e)}), 500
+
+@messaging_bp.route('/api/campaigns/reset-progress', methods=['POST'])
+def reset_campaign_progress():
+	"""Reset campaign progress for a specific category or all categories"""
+	try:
+		data = request.json
+		category = data.get('category', 'all')
+		
+		conn = current_app.db_manager.get_connection()
+		cursor = conn.cursor()
+		
+		if category == 'all':
+			cursor.execute('DELETE FROM campaign_progress')
+			logger.info("🔄 Reset campaign progress for all categories")
+		else:
+			cursor.execute('DELETE FROM campaign_progress WHERE category = ?', (category,))
+			logger.info(f"🔄 Reset campaign progress for category: {category}")
+		
+		conn.commit()
+		conn.close()
+		
+		return jsonify({'success': True, 'message': f'Campaign progress reset for {category}'})
+		
+	except Exception as e:
+		logger.error(f"❌ Error resetting campaign progress: {e}")
 		return jsonify({'success': False, 'error': str(e)}), 500
 
 @messaging_bp.route('/api/campaigns/history', methods=['GET'])
@@ -523,6 +777,7 @@ def get_campaign_history():
 		cursor.execute('''
 			CREATE TABLE IF NOT EXISTS campaigns (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				name TEXT,
 				message_text TEXT,
 				message_type TEXT,
 				subject TEXT,
@@ -531,6 +786,7 @@ def get_campaign_history():
 				successful_sends INTEGER,
 				failed_sends INTEGER,
 				errors TEXT,
+				notes TEXT,
 				created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 			)
 		''')
@@ -626,34 +882,137 @@ def search_messages():
 
 @messaging_bp.route('/api/members/categories', methods=['GET'])
 def get_member_categories():
-	"""Get member categories for campaign targeting"""
+	"""Get member categories for campaign targeting based on actual ClubHub statusMessage values"""
 	try:
 		conn = current_app.db_manager.get_connection()
 		cursor = conn.cursor()
 		
-		# Get category counts
+		# Debug: Check what database we're connected to
+		cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='members'")
+		table_exists = cursor.fetchone()
+		logger.info(f"🔍 Database table check: members table exists = {table_exists is not None}")
+		
+		# Get actual status_message counts from ClubHub data
 		cursor.execute('''
 			SELECT 
-				status,
+				status_message,
 				COUNT(*) as count
 			FROM members 
-			WHERE status IS NOT NULL
-			GROUP BY status
+			WHERE status_message IS NOT NULL AND status_message != ''
+			GROUP BY status_message
 			ORDER BY count DESC
 		''')
 		
+		raw_results = cursor.fetchall()
+		logger.info(f"🔍 Raw database query results: {len(raw_results)} rows")
+		for i, row in enumerate(raw_results[:5]):  # Log first 5 results
+			logger.info(f"  Row {i+1}: status_message='{row[0]}', count={row[1]}")
+		
 		categories = []
-		for row in cursor.fetchall():
+		for row in raw_results:
+			status_msg = row[0]  # Use index instead of named access for compatibility
+			count = row[1]
 			categories.append({
-				'name': row['status'],
-				'count': row['count'],
-				'label': row['status'].title().replace('_', ' ')
+				'name': status_msg,
+				'count': count,
+				'label': status_msg,  # Use the actual ClubHub status message as label
+				'value': status_msg   # For consistent API response
 			})
 		
 		conn.close()
 		
+		logger.info(f"✅ Retrieved {len(categories)} real ClubHub status categories")
 		return jsonify({'success': True, 'categories': categories})
 		
 	except Exception as e:
 		logger.error(f"❌ Error getting member categories: {e}")
+		import traceback
+		logger.error(f"Full traceback: {traceback.format_exc()}")
 		return jsonify({'success': False, 'error': str(e)}), 500
+
+@messaging_bp.route('/api/messages/send', methods=['POST'])
+def send_message_route():
+    """Route to send a message to a member."""
+    if request.method == 'POST':
+        data = request.get_json()
+        member_id = data.get('member_id')
+        message = data.get('message')
+
+        if not member_id or not message:
+            return jsonify({'status': 'error', 'message': 'Member ID and message are required.'}), 400
+
+        try:
+            # Initialize the messaging client
+            messaging_client = ClubOSMessagingClient()
+            
+            # Send the message
+            success = messaging_client.send_message(member_id, message)
+            
+            if success:
+                return jsonify({'status': 'success', 'message': 'Message sent successfully.'})
+            else:
+                return jsonify({'status': 'error', 'message': 'Failed to send message.'}), 500
+        except Exception as e:
+            current_app.logger.error(f"Error sending message: {e}")
+            return jsonify({'status': 'error', 'message': 'An unexpected error occurred.'}), 500
+
+    return jsonify({'status': 'error', 'message': 'Invalid request method.'}), 405
+
+
+@messaging_bp.route('/api/messages/send_bulk', methods=['POST'])
+@require_auth
+def send_bulk_message_route():
+	"""Route to send a message to a member."""
+	if request.method == 'POST':
+		data = request.get_json()
+		member_ids = data.get('member_ids')
+		message = data.get('message')
+
+		if not member_ids or not message:
+			return jsonify({'status': 'error', 'message': 'Member IDs and message are required.'}), 400
+
+		try:
+			from src.services.clubos_messaging_client import ClubOSMessagingClient
+			messaging_client = ClubOSMessagingClient()
+			success_count = 0
+			failure_count = 0
+			failed_members = []
+			
+			# Send message to each member ID
+			for member_id in member_ids:
+				try:
+					success = messaging_client.send_message(member_id, message)
+					if success:
+						success_count += 1
+					else:
+						failure_count += 1
+						failed_members.append(member_id)
+				except Exception as e:
+					failure_count += 1
+					failed_members.append(member_id)
+					current_app.logger.error(f"Error sending message to {member_id}: {e}")
+			
+			return jsonify({
+				'success': True,
+				'sent': success_count,
+				'failed': failure_count,
+				'failed_members': failed_members
+			})
+		except Exception as e:
+			current_app.logger.error(f"Error in send_bulk_message_route: {e}")
+			return jsonify({'status': 'error', 'message': 'An unexpected error occurred.'}), 500
+
+@messaging_bp.route('/api/messages/templates', methods=['GET'])
+@require_auth
+def get_message_templates():
+	try:
+		from src.services.clubos_messaging_client import ClubOSMessagingClient
+		messaging_client = ClubOSMessagingClient()
+		templates = messaging_client.get_message_templates()
+		if templates is not None:
+			return jsonify({'status': 'success', 'templates': templates})
+		else:
+			return jsonify({'status': 'error', 'message': 'Failed to retrieve message templates.'}), 500
+	except Exception as e:
+		current_app.logger.error(f"Error getting message templates: {e}")
+		return jsonify({'status': 'error', 'message': 'An unexpected error occurred.'}), 500

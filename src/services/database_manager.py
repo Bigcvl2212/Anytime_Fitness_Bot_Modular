@@ -269,6 +269,25 @@ class DatabaseManager:
                 )
             """)
             
+            # Create events table for calendar functionality
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id TEXT UNIQUE,
+                    title TEXT,
+                    description TEXT,
+                    start_time TEXT,
+                    end_time TEXT,
+                    location TEXT,
+                    is_all_day BOOLEAN DEFAULT FALSE,
+                    is_training_session BOOLEAN DEFAULT FALSE,
+                    participants TEXT,
+                    participant_emails TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
             # Migrate existing database by adding missing columns if they don't exist
             try:
                 # Add phone column to prospects table if missing

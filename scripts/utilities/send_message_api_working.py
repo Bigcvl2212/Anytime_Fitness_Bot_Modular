@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
-from services.api.enhanced_clubos_service import ClubOSAPIService
+from src.services.api.enhanced_clubos_service import ClubOSAPIService
 from config.secrets_local import get_secret
 
 TARGET_NAME = "Jeremy Mayo"

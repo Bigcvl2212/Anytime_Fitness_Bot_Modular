@@ -20,8 +20,8 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 from pathlib import Path
 
-from services.api.network_analyzer import NetworkAnalyzer, run_network_analysis
-from services.api.clubos_api_client import create_clubos_api_client
+from src.services.api.network_analyzer import NetworkAnalyzer, run_network_analysis
+from src.services.api.clubos_api_client import create_clubos_api_client
 from config.constants import (
     CLUBOS_LOGIN_URL, CLUBOS_DASHBOARD_URL, CLUBOS_MESSAGES_URL, 
     CLUBOS_CALENDAR_URL

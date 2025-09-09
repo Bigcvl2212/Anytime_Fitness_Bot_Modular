@@ -26,8 +26,8 @@ sys.path.insert(0, os.path.join(current_dir, 'services', 'data'))
 sys.path.insert(0, os.path.join(current_dir, 'config'))
 
 try:
-    from services.api.enhanced_clubos_client import create_enhanced_clubos_client
-    from services.data.member_data import save_training_package_data_comprehensive
+    from src.services.api.enhanced_clubos_client import create_enhanced_clubos_client
+    from src.services.data.member_data import save_training_package_data_comprehensive
 except ImportError as e:
     print(f"❌ Import error: {e}")
     print("   Trying alternative import approach...")

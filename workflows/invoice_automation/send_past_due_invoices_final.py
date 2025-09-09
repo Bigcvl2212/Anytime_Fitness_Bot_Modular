@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Import the square client functions
 try:
-    from services.payments.square_client_fixed import create_square_invoice
+    from src.services.payments.square_client_fixed import create_square_invoice
 except ImportError as e:
     print(f"Import error: {e}")
     print("Trying alternative import method...")
