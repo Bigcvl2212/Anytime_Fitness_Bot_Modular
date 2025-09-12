@@ -401,14 +401,13 @@ class DatabaseManager:
                 existing_member = cursor.fetchone()
                 
                 if existing_member:
-                    # Update existing member
+                    # Update existing member - only use columns that exist in schema
                     cursor.execute(
                         """
                         UPDATE members SET 
                             guid = ?, first_name = ?, last_name = ?, full_name = ?, email = ?, 
                             mobile_phone = ?, status = ?, status_message = ?, user_type = ?, 
-                            amount_past_due = ?, base_amount_past_due = ?, missed_payments = ?, 
-                            late_fees = ?, agreement_recurring_cost = ?, date_of_next_payment = ?, 
+                            amount_past_due = ?, date_of_next_payment = ?, 
                             updated_at = CURRENT_TIMESTAMP
                         WHERE prospect_id = ?
                         """,
@@ -423,25 +422,20 @@ class DatabaseManager:
                             status_message,
                             member_type,  # Maps to user_type column
                             float(amount_past_due) if amount_past_due not in (None, '') else 0,
-                            float(m.get('base_amount_past_due', 0)),
-                            int(m.get('missed_payments', 0)),
-                            float(m.get('late_fees', 0)),
-                            float(m.get('agreement_recurring_cost', 0)),
                             date_of_next_payment,
                             str(prospect_id)  # WHERE condition
                         ),
                     )
                     updated_count += 1
                 else:
-                    # Insert new member
+                    # Insert new member - only use columns that exist in schema
                     cursor.execute(
                         """
                         INSERT INTO members (
                             prospect_id, guid, first_name, last_name, full_name, email, mobile_phone,
-                            status, status_message, user_type, amount_past_due, base_amount_past_due, 
-                            missed_payments, late_fees, agreement_recurring_cost, date_of_next_payment, 
+                            status, status_message, user_type, amount_past_due, date_of_next_payment, 
                             created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """,
                         (
                             str(prospect_id),  # prospect_id column
@@ -455,10 +449,6 @@ class DatabaseManager:
                             status_message,
                             member_type,  # Maps to user_type column
                             float(amount_past_due) if amount_past_due not in (None, '') else 0,
-                            float(m.get('base_amount_past_due', 0)),
-                            int(m.get('missed_payments', 0)),
-                            float(m.get('late_fees', 0)),
-                            float(m.get('agreement_recurring_cost', 0)),
                             date_of_next_payment,
                         ),
                     )
@@ -1163,7 +1153,7 @@ class DatabaseManager:
                     ))
                     updated_count += 1
                 else:
-                    # Insert new training client with all enhanced data
+                    # Insert new training client with all enhanced data  
                     cursor.execute("""
                         INSERT INTO training_clients (
                             member_id, clubos_member_id, first_name, last_name, member_name,
@@ -1171,9 +1161,8 @@ class DatabaseManager:
                             active_packages, package_summary, package_details,
                             past_due_amount, total_past_due, payment_status,
                             sessions_remaining, last_session, financial_summary,
-                            last_updated, created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
-                                CURRENT_TIMESTAMP)
+                            last_updated
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         str(member_id), str(clubos_member_id), first_name, last_name, member_name,
                         email, phone, trainer_name, membership_type, source,
@@ -1204,7 +1193,8 @@ class DatabaseManager:
         cursor = conn.cursor()
         
         try:
-            cursor.execute("SELECT id FROM data_refresh_log WHERE table_name = ?", (table_name,))
+            # Check if table_name already exists in log (without checking id column)
+            cursor.execute("SELECT table_name FROM data_refresh_log WHERE table_name = ?", (table_name,))
             existing = cursor.fetchone()
             
             if existing:

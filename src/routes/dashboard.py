@@ -48,6 +48,8 @@ def dashboard(day_offset=0):
         recent_events = []
         for event in day_events:
             try:
+                logger.info(f"🔍 Processing event: {event}")
+                
                 # Parse ISO format times to readable format
                 start_time = 'N/A'
                 end_time = 'N/A'
@@ -69,21 +71,37 @@ def dashboard(day_offset=0):
                 # Enhanced participant name mapping from training clients database with past due amounts
                 enhanced_participants = []
                 raw_participants = event.get('participants', [])
+                logger.info(f"🔍 Raw participants: {raw_participants} (type: {type(raw_participants)})")
                 
-                # Ensure participants is a proper list of strings
+                # Handle different participant data structures
+                clean_participants = []
                 if isinstance(raw_participants, str):
-                    raw_participants = [p.strip() for p in raw_participants.split(',') if p.strip()]
-                elif not isinstance(raw_participants, list):
-                    raw_participants = []
+                    clean_participants = [p.strip() for p in raw_participants.split(',') if p.strip()]
+                elif isinstance(raw_participants, list):
+                    for p in raw_participants:
+                        if isinstance(p, str):
+                            clean_participants.append(p.strip())
+                        elif isinstance(p, list):
+                            clean_participants.extend([str(item).strip() for item in p if item])
+                        elif p is not None:
+                            clean_participants.append(str(p).strip())
+                else:
+                    clean_participants = []
+                
+                # Filter out empty strings
+                clean_participants = [p for p in clean_participants if p]
+                logger.info(f"🔍 Clean participants: {clean_participants}")
 
-                for participant in raw_participants:
-                    if participant and isinstance(participant, str) and participant.strip():
+                for participant in clean_participants:
+                    if participant and participant.strip():
                         # Try to find the real name and past due info in training clients database
                         try:
                             conn = current_app.db_manager.get_connection()
                             cursor = conn.cursor()
 
                             # Look for training client by various name patterns
+                            participant_str = str(participant)
+                            logger.info(f"🔍 Looking up participant: '{participant_str}'")
                             cursor.execute("""
                                 SELECT member_name, first_name, last_name, member_id
                                 FROM training_clients
@@ -92,15 +110,19 @@ def dashboard(day_offset=0):
                                    OR LOWER(?) LIKE LOWER(member_name)
                                 ORDER BY created_at DESC
                                 LIMIT 1
-                            """, (f'%{participant}%', f'%{participant}%', participant))
+                            """, (f'%{participant_str}%', f'%{participant_str}%', participant_str))
 
                             training_client = cursor.fetchone()
                             conn.close()
 
                             if training_client:
                                 # Use the real name from training clients database
-                                real_name = training_client[0] or f"{training_client[1]} {training_client[2]}".strip()
+                                first_name = str(training_client[1]) if training_client[1] is not None else ''
+                                last_name = str(training_client[2]) if training_client[2] is not None else ''
+                                member_name = str(training_client[0]) if training_client[0] is not None else ''
+                                real_name = member_name or f"{first_name} {last_name}".strip()
                                 member_id = training_client[3]
+                                logger.info(f"🔍 Found training client: {real_name} (ID: {member_id})")
 
                                 # Get past due amount for this training client
                                 past_due_info = None
@@ -123,8 +145,8 @@ def dashboard(day_offset=0):
 
                                 # Create enhanced participant with past due info
                                 enhanced_participant = {
-                                    'name': real_name,
-                                    'original_name': participant,
+                                    'name': str(real_name),
+                                    'original_name': str(participant),
                                     'past_due': past_due_info
                                 }
                                 enhanced_participants.append(enhanced_participant)
@@ -132,8 +154,8 @@ def dashboard(day_offset=0):
                             else:
                                 # Keep original name if no mapping found
                                 enhanced_participants.append({
-                                    'name': participant,
-                                    'original_name': participant,
+                                    'name': str(participant),
+                                    'original_name': str(participant),
                                     'past_due': None
                                 })
                                 logger.debug(f"⚠️ No training client mapping found for '{participant}'")
@@ -141,14 +163,14 @@ def dashboard(day_offset=0):
                         except Exception as mapping_error:
                             logger.warning(f"⚠️ Error mapping participant '{participant}': {mapping_error}")
                             enhanced_participants.append({
-                                'name': participant,
-                                'original_name': participant,
+                                'name': str(participant),
+                                'original_name': str(participant),
                                 'past_due': None
                             })
                     else:
                         enhanced_participants.append({
-                            'name': participant,
-                            'original_name': participant,
+                            'name': str(participant) if participant else '',
+                            'original_name': str(participant) if participant else '',
                             'past_due': None
                         })
                 
@@ -167,6 +189,10 @@ def dashboard(day_offset=0):
         
         # Get bot stats and other data
         bot_stats = {
+            'messages_sent': 0,
+            'last_activity': 'None',
+            'unread_conversations': 0,
+            'response_rate': 95,
             'total_members': 0,
             'active_members': 0,
             'total_prospects': 0,
@@ -176,29 +202,36 @@ def dashboard(day_offset=0):
         stats = {
             'todays_events': len(recent_events),
             'total_members': 0,
-            'active_prospects': 0
+            'active_prospects': 0,
+            'revenue': '0',
+            'next_session_time': 'None scheduled' if not recent_events else recent_events[0].get('start_time', 'TBD')
         }
         
         sample_conversations = [
-            "Member: Hi, I have a question about my membership",
-            "Bot: Hello! I'd be happy to help with your membership. What would you like to know?",
-            "Member: Can you tell me when my next payment is due?",
-            "Bot: I'd be happy to check your payment schedule. Let me look that up for you."
+            {'id': '1', 'name': 'John Doe', 'preview': 'Hi, I have a question...', 'time': '2 min ago', 'unread': True},
+            {'id': '2', 'name': 'Jane Smith', 'preview': 'Thank you for the help!', 'time': '5 min ago', 'unread': False},
+            {'id': '3', 'name': 'Mike Johnson', 'preview': 'What are your hours?', 'time': '10 min ago', 'unread': True},
+            {'id': '4', 'name': 'Sarah Wilson', 'preview': 'I need to reschedule...', 'time': '15 min ago', 'unread': False}
         ]
         
         # Prepare context for template
-        dashboard_context = {
-            'bot_stats': bot_stats,
-            'stats': stats,
-            'recent_events': recent_events,
-            'sample_conversations': sample_conversations,
-            'day_offset': day_offset,
-            'target_date': target_date,
-            'day_name': target_date.strftime('%A'),
-            'date_formatted': target_date.strftime('%B %d, %Y')
-        }
-        
-        return render_template('dashboard.html', **dashboard_context)
+        try:
+            dashboard_context = {
+                'bot_stats': bot_stats,
+                'stats': stats,
+                'recent_events': recent_events,
+                'sample_conversations': sample_conversations,
+                'day_offset': day_offset,
+                'target_date': target_date,
+                'day_name': target_date.strftime('%A'),
+                'date_formatted': target_date.strftime('%B %d, %Y')
+            }
+            logger.info(f"🔍 Dashboard context prepared successfully with {len(recent_events)} events")
+            
+            return render_template('dashboard.html', **dashboard_context)
+        except Exception as template_error:
+            logger.error(f"❌ Error preparing template context: {template_error}")
+            raise template_error
         
     except Exception as e:
         logger.error(f"Error in dashboard route: {str(e)}")

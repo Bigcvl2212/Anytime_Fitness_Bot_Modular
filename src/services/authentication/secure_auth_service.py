@@ -275,9 +275,14 @@ class SecureAuthService:
         
         # Set session to expire
         session.permanent = True
+        session.modified = True  # Force Flask to save the session
         current_app.permanent_session_lifetime = self.session_timeout
         
+        # Debug: Log session contents after creation
         logger.info(f"✅ Created session for manager {manager_id}")
+        logger.info(f"🔍 Session contents after creation: {dict(session)}")
+        logger.info(f"🔍 Session.permanent = {session.permanent}")
+        
         return session_token
     
     def validate_session(self) -> Tuple[bool, str]:

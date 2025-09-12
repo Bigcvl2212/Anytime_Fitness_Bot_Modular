@@ -16,8 +16,18 @@ club_selection_bp = Blueprint('club_selection', __name__)
 def club_selection():
     """Display club selection screen"""
     try:
-        # Check if user is logged in
-        if 'manager_id' not in session:
+        # Debug session contents
+        logger.info(f"🔍 Club selection - Session contents: {dict(session)}")
+        
+        # Use proper session validation
+        from src.services.authentication.secure_auth_service import SecureAuthService
+        auth_service = SecureAuthService()
+        is_valid, manager_id = auth_service.validate_session()
+        
+        logger.info(f"🔍 Session validation result: is_valid={is_valid}, manager_id={manager_id}")
+        
+        if not is_valid:
+            logger.warning("❌ Session validation failed in club selection")
             flash('Please log in first', 'error')
             return redirect(url_for('auth.login'))
         
@@ -50,8 +60,12 @@ def club_selection():
 def select_clubs():
     """Handle club selection submission"""
     try:
-        # Check if user is logged in
-        if 'manager_id' not in session:
+        # Use proper session validation
+        from src.services.authentication.secure_auth_service import SecureAuthService
+        auth_service = SecureAuthService()
+        is_valid, manager_id = auth_service.validate_session()
+        
+        if not is_valid:
             return jsonify({'error': 'Not logged in'}), 401
         
         data = request.get_json()
@@ -114,7 +128,12 @@ def select_clubs():
 def api_get_clubs():
     """API endpoint to get available clubs"""
     try:
-        if 'manager_id' not in session:
+        # Use proper session validation
+        from src.services.authentication.secure_auth_service import SecureAuthService
+        auth_service = SecureAuthService()
+        is_valid, manager_id = auth_service.validate_session()
+        
+        if not is_valid:
             return jsonify({'error': 'Not logged in'}), 401
         
         available_clubs = multi_club_manager.get_available_clubs_for_selection()
@@ -134,7 +153,12 @@ def api_get_clubs():
 def change_clubs():
     """Allow user to change club selection"""
     try:
-        if 'manager_id' not in session:
+        # Use proper session validation
+        from src.services.authentication.secure_auth_service import SecureAuthService
+        auth_service = SecureAuthService()
+        is_valid, manager_id = auth_service.validate_session()
+        
+        if not is_valid:
             flash('Please log in first', 'error')
             return redirect(url_for('auth.login'))
         

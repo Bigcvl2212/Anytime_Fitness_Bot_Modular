@@ -1062,3 +1062,18 @@ class ClubOSIntegration:
         except Exception as e:
             logger.error(f"❌ Error getting events for date range: {e}")
             return []
+
+    def get_complete_agreement_data(self, member_id: str) -> dict:
+        """Get complete agreement data for a member using the training API."""
+        try:
+            if not self.training_api:
+                logger.warning("⚠️ Training API not available for agreement data")
+                return {'success': False, 'error': 'Training API not available'}
+            
+            logger.info(f"🔍 Getting complete agreement data for member {member_id}")
+            result = self.training_api.get_complete_agreement_data(str(member_id))
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting complete agreement data for member {member_id}: {e}")
+            return {'success': False, 'error': str(e)}

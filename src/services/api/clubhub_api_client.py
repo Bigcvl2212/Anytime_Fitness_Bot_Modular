@@ -490,6 +490,57 @@ class ClubHubAPIClient:
         print(f"🎉 FINAL RESULT: {len(all_prospects)} prospects fetched from {completed_pages} pages in {elapsed:.2f} seconds")
         return all_prospects
 
+    def checkin_member(self, member_id: str, member_name: str = None) -> bool:
+        """Check in a member using correct ClubHub API endpoint"""
+        if not self.auth_token:
+            print("❌ Not authenticated with ClubHub")
+            return False
+        
+        from datetime import datetime, timezone, timedelta
+        
+        # Create proper check-in data using the correct format discovered from API documentation
+        checkin_data = {
+            "date": datetime.now(timezone(timedelta(hours=-5))).strftime("%Y-%m-%dT%H:%M:%S-05:00"),  # Central Time
+            "door": {"id": 772},  # Door ID from the API documentation - you may need to adjust this
+            "club": {"id": int(self.club_id)},
+            "manual": True
+        }
+        
+        try:
+            print(f"🏋️ Checking in member: {member_name or member_id}")
+            result = self.post_member_usage(member_id, checkin_data)
+            
+            if result:
+                print(f"✅ Check-in successful for {member_name or member_id}")
+                return True
+            else:
+                print(f"❌ Check-in failed for {member_name or member_id}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Check-in error for {member_name or member_id}: {e}")
+            return False
+
+    def authenticate_from_env(self) -> bool:
+        """Authenticate using environment variables or stored credentials"""
+        try:
+            # Try to get credentials from environment or secrets manager
+            from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+            secrets_manager = SecureSecretsManager()
+            
+            email = secrets_manager.get_secret('clubhub-email')
+            password = secrets_manager.get_secret('clubhub-password')
+            
+            if email and password:
+                return self.authenticate(email, password)
+            else:
+                print("❌ No ClubHub credentials found in environment")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error authenticating from environment: {e}")
+            return False
+
 if __name__ == "__main__":
     # Test the ClubHub API client
     client = ClubHubAPIClient()

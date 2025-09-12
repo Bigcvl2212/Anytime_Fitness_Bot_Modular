@@ -15,17 +15,22 @@ def create_app_config(app):
     # Basic Flask configuration
     app.secret_key = 'anytime-fitness-dashboard-secret-key-2025'
     
-    # Configure Flask sessions (in-memory only, cleared on restart)
-    app.config['SESSION_PERMANENT'] = False
+    # Configure Flask sessions (secure client-side cookies)
+    app.config['SESSION_PERMANENT'] = True  # Allow persistent sessions
     app.config['SESSION_USE_SIGNER'] = True
     app.config['SESSION_COOKIE_NAME'] = 'anytime_fitness_session'
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['SESSION_COOKIE_PATH'] = '/'
+    app.config['SESSION_COOKIE_DOMAIN'] = None  # Allow localhost
+    
+    # Set session timeout to 8 hours
+    from datetime import timedelta
+    app.permanent_session_lifetime = timedelta(hours=8)
 
-    # IMPORTANT: Disable filesystem sessions to prevent authentication bypass
-    # Use null session type to prevent any persistent session storage
-    app.config['SESSION_TYPE'] = None  # Disable persistent session storage
+    # Use Flask's default signed cookie sessions (no external storage needed)
+    # This stores session data in secure signed cookies on the client side
     
     # Import Square invoice functionality - ENABLED
     try:

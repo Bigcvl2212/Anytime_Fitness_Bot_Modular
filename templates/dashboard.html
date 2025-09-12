@@ -181,7 +181,7 @@
                         {% endif %}
                     {% endfor %}
                     {% set is_appointment = (
-                        'savannah' in (event.get('title', '') + ' ' + event.get('participants', '')).lower() or
+                        'savannah' in (event.get('title', '') + ' ' + (all_participants | join(', ') if all_participants else '')).lower() or
                         'consult' in event.get('title', '').lower() or
                         'meeting' in event.get('title', '').lower() or
                         'appointment' in event.get('title', '').lower() or
@@ -190,7 +190,7 @@
                         not all_participants or all_participants[0] == ''
                     ) %}
                     <div class="d-flex align-items-center border-bottom session-row" style="padding: 16px 20px; transition: all 0.2s ease; cursor: pointer;" 
-                         data-participant="{{ ', '.join(all_participants) if all_participants else 'Unknown' }}"
+                         data-participant="{{ all_participants | join(', ') if all_participants else 'Unknown' }}"
                          data-time="{{ event.get('start_time', '') }} - {{ event.get('end_time', '') }}"
                          data-trainer="{{ event.get('trainer', 'Not specified') }}"
                          data-type="{{ event.get('title', 'Training Session') }}"
@@ -1004,27 +1004,6 @@ function checkEventCardFunding(element, participant, time) {
             <span class="outlook-badge outlook-badge-secondary">
                 <i class="fas fa-exclamation-triangle"></i>
                 Error
-            </span>
-        `;
-    });
-}
-            element.title = 'Live funding status from ClubOS API';
-        } else {
-            console.error('❌ API error for', participant, ':', data.error);
-            element.innerHTML = `
-                <span class="outlook-badge outlook-badge-danger">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    Error
-                </span>
-            `;
-        }
-    })
-    .catch(error => {
-        console.error('❌ Network error checking funding for', participant, ':', error);
-        element.innerHTML = `
-            <span class="outlook-badge outlook-badge-secondary">
-                <i class="fas fa-wifi"></i>
-                Network Error
             </span>
         `;
     });
