@@ -114,7 +114,7 @@ def get_calendar_events():
 									if member_id:
 										try:
 											# Use the ClubOS training API to get payment status and amount
-											payment_data = current_app.clubos.get_complete_agreement_data(member_id)
+											payment_data = current_app.clubos.training_api.get_complete_agreement_data(member_id)
 											if payment_data and payment_data.get('success'):
 												payment_status = payment_data.get('payment_status', 'Unknown')
 												amount_owed = payment_data.get('amount_owed', 0.0)

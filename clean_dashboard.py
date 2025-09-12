@@ -1294,6 +1294,220 @@ class DatabaseManager:
         
         logger.info(f"✅ Training clients import complete: {clients_count} clients")
         return clients_count
+    
+    def get_recent_message_threads(self, limit=10):
+        """Get recent message threads with latest message and unread status"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        try:
+            # Get message threads with latest message and member info
+            cursor.execute('''
+                SELECT DISTINCT
+                    mt.id as thread_id,
+                    mt.member_id,
+                    COALESCE(m.full_name, mt.member_name, 'Unknown') as member_name,
+                    COALESCE(m.email, mt.member_email) as member_email,
+                    mt.thread_type,
+                    mt.thread_subject,
+                    mt.status,
+                    mt.last_message_at,
+                    msg.message_content as last_message,
+                    msg.created_at as last_message_time,
+                    msg.sender_type as last_sender,
+                    msg.status as message_status,
+                    COUNT(CASE WHEN msg2.status IN ('sent', 'delivered') AND msg2.direction = 'inbound' THEN 1 END) as unread_count
+                FROM message_threads mt
+                LEFT JOIN members m ON mt.member_id = m.id
+                LEFT JOIN (
+                    SELECT thread_id, message_content, created_at, sender_type, status,
+                           ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY created_at DESC) as rn
+                    FROM messages
+                ) msg ON mt.id = msg.thread_id AND msg.rn = 1
+                LEFT JOIN messages msg2 ON mt.id = msg2.thread_id
+                WHERE mt.status != 'archived'
+                GROUP BY mt.id
+                ORDER BY COALESCE(mt.last_message_at, mt.created_at) DESC
+                LIMIT ?
+            ''', (limit,))
+            
+            threads = []
+            for row in cursor.fetchall():
+                thread = {
+                    'id': row[0],
+                    'member_id': row[1],
+                    'member_name': row[2],
+                    'member_full_name': row[2],
+                    'member_email': row[3],
+                    'thread_type': row[4] or 'system',
+                    'thread_subject': row[5],
+                    'status': row[6],
+                    'last_message_at': row[7],
+                    'latest_message': {
+                        'message_content': row[8],
+                        'created_at': row[9],
+                        'sender_type': row[10],
+                        'status': row[11]
+                    } if row[8] else None,
+                    'unread_count': row[12] or 0
+                }
+                threads.append(thread)
+            
+            return threads
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting recent message threads: {e}")
+            return []
+        finally:
+            conn.close()
+    
+    def get_thread_messages(self, member_id, limit=50):
+        """Get all messages for a specific member across all their threads"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        try:
+            # Get all threads for this member
+            cursor.execute('''
+                SELECT 
+                    mt.id as thread_id,
+                    mt.thread_type,
+                    mt.thread_subject,
+                    mt.status
+                FROM message_threads mt
+                WHERE mt.member_id = ?
+                ORDER BY mt.created_at DESC
+            ''', (member_id,))
+            
+            threads = []
+            for thread_row in cursor.fetchall():
+                thread_id = thread_row[0]
+                
+                # Get messages for this thread
+                cursor.execute('''
+                    SELECT 
+                        id, message_content, sender_type, sender_name, 
+                        direction, status, created_at, message_type
+                    FROM messages
+                    WHERE thread_id = ?
+                    ORDER BY created_at ASC
+                    LIMIT ?
+                ''', (thread_id, limit))
+                
+                messages = []
+                for msg_row in cursor.fetchall():
+                    message = {
+                        'id': msg_row[0],
+                        'message_content': msg_row[1],
+                        'sender_type': msg_row[2],
+                        'sender_name': msg_row[3],
+                        'direction': msg_row[4],
+                        'status': msg_row[5],
+                        'created_at': msg_row[6],
+                        'message_type': msg_row[7],
+                        'thread_type': thread_row[1]
+                    }
+                    messages.append(message)
+                
+                thread = {
+                    'thread_id': thread_id,
+                    'thread_type': thread_row[1],
+                    'thread_subject': thread_row[2],
+                    'status': thread_row[3],
+                    'messages': messages
+                }
+                threads.append(thread)
+            
+            return threads
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting thread messages for member {member_id}: {e}")
+            return []
+        finally:
+            conn.close()
+    
+    def add_sample_message_data(self):
+        """Add some sample message data for testing the inbox"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        try:
+            # Get some member IDs to use for sample data
+            cursor.execute('SELECT id, full_name, email FROM members LIMIT 5')
+            members = cursor.fetchall()
+            
+            if not members:
+                logger.warning("⚠️ No members found for sample message data")
+                return
+            
+            # Clear existing sample data
+            cursor.execute('DELETE FROM message_threads WHERE thread_subject LIKE "Sample%"')
+            cursor.execute('DELETE FROM messages WHERE message_content LIKE "Sample%"')
+            
+            sample_conversations = [
+                {
+                    'member': members[0] if len(members) > 0 else None,
+                    'subject': 'Sample: Training Schedule Question',
+                    'messages': [
+                        {'content': 'Sample: Hi, can I reschedule my PT session tomorrow?', 'sender': 'member', 'direction': 'inbound'},
+                        {'content': 'Sample: Of course! What time works better for you?', 'sender': 'staff', 'direction': 'outbound'}
+                    ]
+                },
+                {
+                    'member': members[1] if len(members) > 1 else None,
+                    'subject': 'Sample: Payment Question',
+                    'messages': [
+                        {'content': 'Sample: I have a question about my billing cycle', 'sender': 'member', 'direction': 'inbound'}
+                    ]
+                },
+                {
+                    'member': members[2] if len(members) > 2 else None,
+                    'subject': 'Sample: Class Information',
+                    'messages': [
+                        {'content': 'Sample: Are there any new yoga classes this month?', 'sender': 'member', 'direction': 'inbound'},
+                        {'content': 'Sample: Yes! We have a new hot yoga class on Wednesdays at 7pm', 'sender': 'staff', 'direction': 'outbound'},
+                        {'content': 'Sample: Perfect! How do I sign up?', 'sender': 'member', 'direction': 'inbound'}
+                    ]
+                }
+            ]
+            
+            for conv_data in sample_conversations:
+                if not conv_data['member']:
+                    continue
+                    
+                member_id, member_name, member_email = conv_data['member']
+                
+                # Create thread
+                cursor.execute('''
+                    INSERT INTO message_threads 
+                    (member_id, member_name, member_email, thread_type, thread_subject, status, created_at, last_message_at)
+                    VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                ''', (member_id, member_name, member_email, 'system', conv_data['subject'], 'active'))
+                
+                thread_id = cursor.lastrowid
+                
+                # Add messages
+                for i, msg_data in enumerate(conv_data['messages']):
+                    cursor.execute('''
+                        INSERT INTO messages
+                        (thread_id, member_id, sender_type, sender_name, message_content, 
+                         direction, status, created_at, message_type)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', '-' || ? || ' hours'), ?)
+                    ''', (
+                        thread_id, member_id, msg_data['sender'],
+                        member_name if msg_data['sender'] == 'member' else 'Staff',
+                        msg_data['content'], msg_data['direction'],
+                        'read' if msg_data['direction'] == 'outbound' else 'sent',
+                        (len(conv_data['messages']) - i), 'text'
+                    ))
+            
+            conn.commit()
+            logger.info("✅ Sample message data added successfully")
+            
+        except Exception as e:
+            logger.error(f"❌ Error adding sample message data: {e}")
+        finally:
+            conn.close()
 
 # Initialize database manager and import data
 # Use absolute path for gym_bot.db to ensure consistency
@@ -2008,31 +2222,99 @@ def dashboard():
         }
     ]
     
-    # Mock conversation data (placeholder until real bot integration)
-    bot_conversations = [
-        {
-            'id': 'conv_001',
-            'contact_name': 'Jessica Williams',
-            'last_message': 'Yes, I would like to schedule a session for tomorrow',
-            'last_time': '5 min ago',
-            'last_sender': 'user',
-            'unread': True,
-            'status': 'Hot Lead',
-            'status_color': 'success',
-            'needs_attention': False
-        },
-        {
-            'id': 'conv_002',
-            'contact_name': 'David Thompson',
-            'last_message': 'Can you help me with my payment plan?',
-            'last_time': '1 hour ago',
-            'last_sender': 'user',
-            'unread': True,
-            'status': 'Support',
-            'status_color': 'warning',
-            'needs_attention': True
-        }
-    ]
+    # Get real conversation data from database
+    try:
+        recent_threads = db_manager.get_recent_message_threads(limit=10)
+        bot_conversations = []
+        
+        for thread in recent_threads:
+            latest_msg = thread.get('latest_message', {})
+            
+            # Calculate time ago for display
+            if latest_msg.get('created_at'):
+                try:
+                    from datetime import datetime
+                    msg_time = datetime.fromisoformat(str(latest_msg['created_at']).replace('Z', '+00:00'))
+                    time_diff = datetime.now() - msg_time
+                    if time_diff.days > 0:
+                        time_ago = f"{time_diff.days} day{'s' if time_diff.days > 1 else ''} ago"
+                    elif time_diff.seconds > 3600:
+                        hours = time_diff.seconds // 3600
+                        time_ago = f"{hours} hour{'s' if hours > 1 else ''} ago"
+                    elif time_diff.seconds > 60:
+                        minutes = time_diff.seconds // 60
+                        time_ago = f"{minutes} min ago"
+                    else:
+                        time_ago = "Just now"
+                except:
+                    time_ago = "Recently"
+            else:
+                time_ago = "No recent activity"
+            
+            # Determine conversation status and priority
+            unread_count = thread.get('unread_count', 0)
+            thread_type = thread.get('thread_type', 'system')
+            
+            # Map thread types to conversation status
+            status_mapping = {
+                'sms': 'SMS',
+                'email': 'Email', 
+                'clubos': 'ClubOS',
+                'bot': 'Bot Chat',
+                'system': 'System'
+            }
+            
+            status_color_mapping = {
+                'sms': 'success',
+                'email': 'info',
+                'clubos': 'primary',
+                'bot': 'warning',
+                'system': 'secondary'
+            }
+            
+            conversation = {
+                'id': f"thread_{thread['id']}",
+                'contact_name': str(thread.get('member_name', 'Unknown Member')),
+                'last_message': str(latest_msg.get('message_content', 'No messages yet'))[:100],
+                'last_time': time_ago,
+                'last_sender': 'user' if latest_msg.get('sender_type') == 'member' else 'staff',
+                'unread': unread_count > 0,
+                'status': status_mapping.get(thread_type, 'Message'),
+                'status_color': status_color_mapping.get(thread_type, 'secondary'),
+                'needs_attention': unread_count > 0 and latest_msg.get('sender_type') == 'member',
+                'member_id': thread.get('member_id'),
+                'thread_type': thread_type,
+                'unread_count': unread_count
+            }
+            
+            bot_conversations.append(conversation)
+        
+        # If no real conversations found, add sample data
+        if not bot_conversations:
+            db_manager.add_sample_message_data()
+            recent_threads = db_manager.get_recent_message_threads(limit=10)
+            for thread in recent_threads:
+                latest_msg = thread.get('latest_message', {})
+                conversation = {
+                    'id': f"thread_{thread['id']}",
+                    'contact_name': str(thread.get('member_name', 'Unknown Member')),
+                    'last_message': str(latest_msg.get('message_content', 'No messages yet'))[:100],
+                    'last_time': "Recently",
+                    'last_sender': 'user' if latest_msg.get('sender_type') == 'member' else 'staff',
+                    'unread': thread.get('unread_count', 0) > 0,
+                    'status': 'Sample Data',
+                    'status_color': 'info',
+                    'needs_attention': False,
+                    'member_id': thread.get('member_id'),
+                    'thread_type': thread.get('thread_type', 'system'),
+                    'unread_count': thread.get('unread_count', 0)
+                }
+                bot_conversations.append(conversation)
+                
+    except Exception as e:
+        logger.error(f"❌ Error loading conversations: {e}")
+        # Fallback to empty conversations if database error
+        bot_conversations = []
     
     # Create bot_stats dictionary for template
     bot_stats = {
@@ -4924,6 +5206,88 @@ def send_bulk_messages():
             'success': False,
             'error': str(e)
         }), 500
+
+@app.route('/api/messaging/inbox/recent', methods=['GET'])
+def api_get_recent_inbox():
+    """Get recent message threads for inbox display"""
+    try:
+        limit = request.args.get('limit', 10, type=int)
+        threads = db_manager.get_recent_message_threads(limit=limit)
+        
+        return jsonify({
+            'success': True,
+            'threads': threads,
+            'count': len(threads)
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting recent inbox: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/messaging/thread', methods=['GET'])
+def api_get_thread_messages():
+    """Get all messages for a specific member"""
+    try:
+        member_id = request.args.get('memberId', type=int)
+        limit = request.args.get('limit', 50, type=int)
+        
+        if not member_id:
+            return jsonify({
+                'success': False,
+                'error': 'Missing memberId parameter'
+            }), 400
+        
+        threads = db_manager.get_thread_messages(member_id=member_id, limit=limit)
+        
+        return jsonify({
+            'success': True,
+            'threads': threads,
+            'member_id': member_id
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting thread messages: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/messaging')
+def messaging_page():
+    """Messaging center with real inbox data"""
+    try:
+        # Get recent threads for quick display
+        recent_threads = db_manager.get_recent_message_threads(limit=20)
+        
+        # Get recent members and prospects for compose functionality
+        conn = sqlite3.connect(db_manager.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id, full_name, email FROM members ORDER BY created_at DESC LIMIT 20")
+        recent_members = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
+        
+        cursor.execute("SELECT id, full_name, email FROM prospects ORDER BY created_at DESC LIMIT 20")
+        recent_prospects = [dict(zip([col[0] for col in cursor.description], row)) for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        return render_template('messaging.html',
+                             recent_threads=recent_threads,
+                             recent_members=recent_members,
+                             recent_prospects=recent_prospects,
+                             clubos_connected=clubos.authenticated)
+        
+    except Exception as e:
+        logger.error(f"❌ Error loading messaging page: {e}")
+        return render_template('messaging.html',
+                             recent_threads=[],
+                             recent_members=[],
+                             recent_prospects=[],
+                             clubos_connected=False,
+                             error=str(e))
 
 if __name__ == '__main__':
     # On Windows, Werkzeug's reloader can trigger WinError 10038 (not a socket) during restarts.

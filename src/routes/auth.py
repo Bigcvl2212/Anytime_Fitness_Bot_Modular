@@ -68,7 +68,6 @@ def login():
             session_token = auth_service.create_session(manager_id)
             
             logger.info(f"✅ Manager {manager_id} logged in successfully from {request.remote_addr}")
-            logger.info(f"🔍 Auth route - Session after creation: {dict(session)}")
             
             # Get authentication tokens to check for multi-club access
             from src.services.multi_club_manager import multi_club_manager
@@ -90,7 +89,6 @@ def login():
                     # If multi-club user, redirect to club selection
                     if len(club_ids) > 1:
                         flash(f'Welcome {user_info.get("name", "Manager")}! Please select your clubs.', 'success')
-                        logger.info(f"🔍 About to redirect to club selection - Session: {dict(session)}")
                         return redirect(url_for('club_selection.club_selection'))
                     else:
                         # Single club - auto-select and go to dashboard

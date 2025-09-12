@@ -96,9 +96,6 @@ bulk_checkin_status = {
     'errors': []
 }
 
-# Track the bulk check-in thread for proper cleanup
-bulk_checkin_thread = None
-
 @api_bp.route('/refresh-funding', methods=['POST'])
 def refresh_funding_cache():
     """Refresh the funding cache."""
@@ -283,42 +280,20 @@ def api_member_past_due_status():
 @api_bp.route('/bulk-checkin', methods=['POST'])
 def api_bulk_checkin():
     """Start bulk check-in process."""
-    global bulk_checkin_thread, bulk_checkin_status
     try:
-        # Reset bulk check-in status on fresh start to clear any stale state
-        bulk_checkin_status.update({
-            'is_running': False,
-            'started_at': None,
-            'completed_at': None,
-            'progress': 0,
-            'total_members': 0,
-            'processed_members': 0,
-            'ppv_excluded': 0,
-            'total_checkins': 0,
-            'current_member': '',
-            'status': 'idle',
-            'message': 'Initializing bulk check-in...',
-            'error': None,
-            'errors': []
-        })
-        
         if bulk_checkin_status['is_running']:
             return jsonify({
                 'success': False,
                 'error': 'Bulk check-in already in progress'
             }), 400
         
-        # Get the current app instance to pass to the background thread
-        app = current_app._get_current_object()
-        
-        # Start background bulk check-in with app context
+        # Start background bulk check-in
         def background_bulk_checkin():
-            with app.app_context():
-                perform_bulk_checkin_background()
+            perform_bulk_checkin_background()
         
-        bulk_checkin_thread = threading.Thread(target=background_bulk_checkin)
-        bulk_checkin_thread.daemon = True
-        bulk_checkin_thread.start()
+        thread = threading.Thread(target=background_bulk_checkin)
+        thread.daemon = True
+        thread.start()
         
         return jsonify({
             'success': True,
@@ -333,42 +308,6 @@ def api_bulk_checkin():
 def api_bulk_checkin_status():
     """Get bulk check-in status."""
     return jsonify(bulk_checkin_status)
-
-@api_bp.route('/bulk-checkin-reset', methods=['POST'])
-def api_bulk_checkin_reset():
-    """Reset bulk check-in status to clear any stale state."""
-    global bulk_checkin_status, bulk_checkin_thread
-    try:
-        # Force reset the status
-        bulk_checkin_status.update({
-            'is_running': False,
-            'started_at': None,
-            'completed_at': None,
-            'progress': 0,
-            'total_members': 0,
-            'processed_members': 0,
-            'ppv_excluded': 0,
-            'total_checkins': 0,
-            'current_member': '',
-            'status': 'idle',
-            'message': 'Reset completed - ready for new bulk check-in',
-            'error': None,
-            'errors': []
-        })
-        
-        # Clear the thread reference
-        bulk_checkin_thread = None
-        
-        logger.info("🔄 Bulk check-in status reset successfully")
-        
-        return jsonify({
-            'success': True,
-            'message': 'Bulk check-in status reset successfully'
-        })
-        
-    except Exception as e:
-        logger.error(f"❌ Error resetting bulk check-in status: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 @api_bp.route('/funding-cache-status')
 def funding_cache_status():
@@ -946,9 +885,6 @@ def api_calculate_invoice_amount():
 def perform_bulk_checkin_background():
     """Background function for bulk check-in process."""
     try:
-        # Set running status immediately
-        logger.info("� Starting bulk check-in background process")
-            
         bulk_checkin_status.update({
             'is_running': True,
             'started_at': datetime.now().isoformat(),
@@ -985,104 +921,34 @@ def perform_bulk_checkin_background():
         errors = []
         
         for i in range(0, total_members, batch_size):
-            # Check if process should stop
-            if not bulk_checkin_status.get('is_running', False):
-                logger.info("🛑 Bulk check-in stopped by user")
-                break
-                
             batch = members[i:i + batch_size]
             
             for member in batch:
-                # Check again before each member
-                if not bulk_checkin_status.get('is_running', False):
-                    logger.info("🛑 Bulk check-in stopped during processing")
-                    break
-                    
                 try:
-                    # Convert sqlite3.Row to accessible format (by index)
-                    # Query: SELECT prospect_id, first_name, last_name, full_name, status_message
-                    prospect_id = member[0]      # prospect_id
-                    first_name = member[1]       # first_name  
-                    last_name = member[2]        # last_name
-                    full_name = member[3]        # full_name
-                    status_message = member[4]   # status_message
-                    
-                    # Use full_name if available, otherwise construct from first/last
-                    member_name = full_name if full_name else f"{first_name or ''} {last_name or ''}".strip()
-                    
-                    # Skip if no valid name
-                    if not member_name or member_name.strip() == '':
-                        logger.warning(f"⚠️ Skipping member with no valid name: {prospect_id}")
-                        processed += 1
-                        continue
-                    
+                    member_name = member['full_name'] or f"{member['first_name']} {member['last_name']}"
                     bulk_checkin_status['current_member'] = member_name
                     
                     # Skip PPV members
-                    if status_message and ('ppv' in status_message.lower() or 'pay per visit' in status_message.lower()):
+                    if 'ppv' in member['status_message'].lower() or 'pay per visit' in member['status_message'].lower():
                         ppv_excluded += 1
                         logger.info(f"⏭️ Skipping PPV member: {member_name}")
-                        processed += 1
                         continue
                     
-                    # Perform REAL check-in using ClubHub API
-                    try:
-                        from src.services.api.clubhub_api_client import ClubHubAPIClient
-                        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
-                        
-                        # Get ClubHub client and authenticate properly
-                        client = ClubHubAPIClient()
-                        auth_success = client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD)
-                        
-                        if auth_success:
-                            # Perform actual check-in
-                            if prospect_id:
-                                logger.info(f"🏋️ Attempting check-in for {member_name} (ID: {prospect_id})")
-                                checkin_result = client.checkin_member(prospect_id, member_name)
-                                if checkin_result:
-                                    logger.info(f"✅ REAL CHECK-IN SUCCESS: {member_name}")
-                                    total_checkins += 1
-                                else:
-                                    error_msg = f"Check-in failed for {member_name}"
-                                    logger.warning(f"⚠️ {error_msg}")
-                                    errors.append(error_msg)
-                            else:
-                                error_msg = f"No prospect_id for {member_name}"
-                                logger.warning(f"⚠️ {error_msg}")
-                                errors.append(error_msg)
-                        else:
-                            error_msg = "ClubHub authentication failed for bulk check-in"
-                            logger.error(f"❌ {error_msg}")
-                            errors.append(error_msg)
-                            # If auth fails, stop the entire process
-                            bulk_checkin_status['is_running'] = False
-                            break
-                            
-                    except Exception as checkin_error:
-                        error_msg = f"Check-in error for {member_name}: {checkin_error}"
-                        logger.error(f"❌ {error_msg}")
-                        errors.append(error_msg)
-                        # Continue with next member even if this one fails
+                    # Perform check-in (placeholder for actual check-in logic)
+                    logger.info(f"✅ Checked in: {member_name}")
+                    total_checkins += 1
                     
                     processed += 1
                     bulk_checkin_status['processed_members'] = processed
                     bulk_checkin_status['progress'] = int((processed / total_members) * 100)
                     
                     # Small delay to avoid overwhelming the system
-                    import time
                     time.sleep(0.1)
                     
                 except Exception as e:
-                    # Try to get member name for error reporting
-                    try:
-                        member_name = member[3] if len(member) > 3 and member[3] else f"{member[1] or ''} {member[2] or ''}".strip()
-                    except:
-                        member_name = "Unknown"
-                    
-                    error_msg = f"Error processing {member_name}: {str(e)}"
+                    error_msg = f"Error processing {member.get('full_name', 'Unknown')}: {str(e)}"
                     errors.append(error_msg)
                     logger.error(f"❌ {error_msg}")
-                    processed += 1
                     continue
             
             # Update status

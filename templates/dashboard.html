@@ -170,34 +170,28 @@
                 {% if recent_events %}
                     {% for event in recent_events %}
                     {% set participants_list = event.get('participants', []) %}
-                    {% set all_participants = [] %}
-                    {% set participants_with_past_due = [] %}
-                    {% for participant in participants_list %}
-                        {% if participant.name %}
-                            {% set _ = all_participants.append(participant.name) %}
-                            {% if participant.past_due %}
-                                {% set _ = participants_with_past_due.append(participant) %}
-                            {% endif %}
-                        {% endif %}
-                    {% endfor %}
+                    {% set all_participants = participants_list|selectattr('name')|map(attribute='name')|list %}
+                    {% set participants_with_past_due = participants_list|selectattr('past_due')|list %}
                     {% set is_appointment = (
-                        'savannah' in (event.get('title', '') + ' ' + (all_participants | join(', ') if all_participants else '')).lower() or
-                        'consult' in event.get('title', '').lower() or
-                        'meeting' in event.get('title', '').lower() or
-                        'appointment' in event.get('title', '').lower() or
-                        'tour' in event.get('title', '').lower() or
-                        'assessment' in event.get('title', '').lower() or
-                        not all_participants or all_participants[0] == ''
+                        'savannah' in (event.get('title', '') | string).lower() or
+                        'consult' in (event.get('title', '') | string).lower() or
+                        'meeting' in (event.get('title', '') | string).lower() or
+                        'appointment' in (event.get('title', '') | string).lower() or
+                        'tour' in (event.get('title', '') | string).lower() or
+                        'assessment' in (event.get('title', '') | string).lower() or
+                        not all_participants or (all_participants | length) == 0
                     ) %}
                     <div class="d-flex align-items-center border-bottom session-row" style="padding: 16px 20px; transition: all 0.2s ease; cursor: pointer;" 
-                         data-participant="{{ all_participants | join(', ') if all_participants else 'Unknown' }}"
-                         data-time="{{ event.get('start_time', '') }} - {{ event.get('end_time', '') }}"
-                         data-trainer="{{ event.get('trainer', 'Not specified') }}"
-                         data-type="{{ event.get('title', 'Training Session') }}"
-                         data-location="{{ event.get('location', 'Training Floor') }}"
+                         data-participant="{{ (all_participants | join(', ')) if all_participants else 'Unknown' }}"
+                         data-time="{{ (event.get('start_time', '') | string) }} - {{ (event.get('end_time', '') | string) }}"
+                         data-trainer="{{ event.get('trainer', 'Not specified') | string }}"
+                         data-type="{{ event.get('title', 'Training Session') | string }}"
+                         data-location="{{ event.get('location', 'Training Floor') | string }}"
                          data-is-appointment="{{ 'true' if is_appointment else 'false' }}"
-                         data-event-id="{{ event.get('id', '') }}"
-                         data-all-participants="{{ all_participants | join(', ') }}">
+                         data-event-id="{{ event.get('id', '') | string }}"
+                         data-all-participants="{{ (all_participants | join(', ')) if all_participants else '' }}"
+                         onclick="console.log('🖱️ Inline click detected!'); if (typeof openEventDetails === 'function') { openEventDetails(this); } else { console.error('❌ openEventDetails function not found!'); }"
+                         title="Click to view session details">
                         
                         <!-- Time -->
                         <div style="width: 80px;">
@@ -220,9 +214,9 @@
                                             <div class="text-muted" style="font-size: 1.0em;">
                                                 with {% for participant in participants_list %}
                                                     {% if participant.past_due %}
-                                                        <span class="text-danger fw-bold" title="Past Due: {{ participant.past_due.formatted_amount }}">{{ participant.name }}</span>
+                                                        <span class="text-danger fw-bold" title="Past Due: {{ participant.past_due.formatted_amount | string }}">{{ participant.name | string }}</span>
                                                     {% else %}
-                                                        {{ participant.name }}
+                                                        {{ participant.name | string }}
                                                     {% endif %}
                                                     {% if not loop.last %}, {% endif %}
                                                 {% endfor %}
@@ -240,9 +234,9 @@
                                             <div class="fw-bold" style="font-size: 1.3em; color: var(--af-purple-primary);">
                                                 {% for participant in participants_list %}
                                                     {% if participant.past_due %}
-                                                        <span class="text-danger fw-bold" title="Past Due: {{ participant.past_due.formatted_amount }}">{{ participant.name }}</span>
+                                                        <span class="text-danger fw-bold" title="Past Due: {{ participant.past_due.formatted_amount | string }}">{{ participant.name | string }}</span>
                                                     {% else %}
-                                                        {{ participant.name }}
+                                                        {{ participant.name | string }}
                                                     {% endif %}
                                                     {% if not loop.last %}, {% endif %}
                                                 {% endfor %}
@@ -272,9 +266,9 @@
                                 <span class="outlook-badge outlook-badge-info">Free</span>
                             {% else %}
                                 <span id="funding-status-{{ loop.index }}" class="outlook-badge outlook-badge-warning" 
-                                      data-participant="{{ all_participants[0] if all_participants else '' }}"
-                                      data-time="{{ event.get('start_time', '') }} - {{ event.get('end_time', '') }}"
-                                      data-all-participants="{{ ', '.join(all_participants) if all_participants else '' }}"
+                                      data-participant="{{ (all_participants[0] | string) if all_participants else '' }}"
+                                      data-time="{{ (event.get('start_time', '') | string) }} - {{ (event.get('end_time', '') | string) }}"
+                                      data-all-participants="{{ (all_participants | join(', ')) if all_participants else '' }}"
                                       title="Loading live funding data...">
                                     <i class="fas fa-wifi"></i>
                                     Live...
@@ -287,7 +281,7 @@
                             <div class="d-flex gap-1">
                                 <button class="outlook-btn-icon outlook-btn-icon-sm" 
                                         title="Edit session" 
-                                        aria-label="Edit session for {{ ', '.join(all_participants) if all_participants else 'Unknown' }}">
+                                        aria-label="Edit session for {{ (all_participants | join(', ')) if all_participants else 'Unknown' }}">
                                     <i class="fas fa-edit"></i>
                                 </button>
                                 <form method="POST" action="/delete_event" style="display: inline;">
@@ -295,7 +289,7 @@
                                     <button type="submit" 
                                             class="outlook-btn-icon outlook-btn-icon-sm outlook-btn-danger" 
                                             title="Delete session"
-                                            aria-label="Delete session for {{ ', '.join(all_participants) if all_participants else 'Unknown' }}"
+                                            aria-label="Delete session for {{ (all_participants | join(', ')) if all_participants else 'Unknown' }}"
                                             onclick="return confirm('Delete this session?')">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -369,7 +363,7 @@
                     </div>
                     
                     <div id="bot-inbox">
-                        {% for conversation in sample_conversations %}
+                        {% for conversation in bot_conversations %}
                         <div class="border rounded p-2 mb-2" style="cursor: pointer;" onclick="viewConversation('{{ conversation.id }}')">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div class="d-flex align-items-center">
@@ -506,61 +500,110 @@ function openEventDetails(element) {
     console.log('🚀 openEventDetails called');
     console.log('Element:', element);
     
-    // Get data from the clicked row
+    // Get data from the clicked row with better error handling
     const participant = element.getAttribute('data-participant') || 'Unknown';
     const allParticipants = element.getAttribute('data-all-participants') || participant;
-    const time = element.getAttribute('data-time') || '';
+    const time = element.getAttribute('data-time') || 'Time not specified';
     const trainer = element.getAttribute('data-trainer') || 'Not specified';
     const eventType = element.getAttribute('data-type') || 'Training Session';
     const location = element.getAttribute('data-location') || 'Training Floor';
     const isAppointment = element.getAttribute('data-is-appointment') === 'true';
     const eventId = element.getAttribute('data-event-id') || '';
     
-    console.log(`🎯 Opening event details for: ${allParticipants}`);
+    console.log(`🎯 Opening event details for: ${allParticipants}`, {
+        participant,
+        allParticipants, 
+        time,
+        trainer,
+        eventType,
+        location,
+        isAppointment,
+        eventId
+    });
     
-    // Immediately show the modal with basic info
-    document.getElementById('modal-participant').textContent = allParticipants;
-    document.getElementById('modal-time').textContent = time;
-    document.getElementById('modal-trainer').textContent = trainer;
-    document.getElementById('modal-type').textContent = eventType;
-    document.getElementById('modal-location').textContent = location;
-    
-    // Show loading state for funding details
-    document.getElementById('modal-funding').innerHTML = `
-        <span class="outlook-badge outlook-badge-secondary">
-            <i class="fas fa-spinner fa-spin"></i>
-            Loading...
-        </span>
-    `;
-    document.getElementById('training-package-details').style.display = 'none';
-    
-    // Show the modal
-    const modalElement = document.getElementById('eventDetailsModal');
-    if (modalElement) {
-        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-            const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
-            modal.show();
-            console.log('✅ Modal opened with Bootstrap');
+    try {
+        // Update modal content with basic info
+        const modalParticipant = document.getElementById('modal-participant');
+        const modalTime = document.getElementById('modal-time');
+        const modalTrainer = document.getElementById('modal-trainer');
+        const modalType = document.getElementById('modal-type');
+        const modalLocation = document.getElementById('modal-location');
+        const modalFunding = document.getElementById('modal-funding');
+        const trainingPackageDetails = document.getElementById('training-package-details');
+        
+        if (modalParticipant) modalParticipant.textContent = allParticipants;
+        if (modalTime) modalTime.textContent = time;
+        if (modalTrainer) modalTrainer.textContent = trainer;
+        if (modalType) modalType.textContent = eventType;
+        if (modalLocation) modalLocation.textContent = location;
+        
+        // Show loading state for funding details
+        if (modalFunding) {
+            modalFunding.innerHTML = `
+                <span class="outlook-badge outlook-badge-secondary">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    Loading...
+                </span>
+            `;
+        }
+        
+        if (trainingPackageDetails) {
+            trainingPackageDetails.style.display = 'none';
+        }
+        
+        // Show the modal
+        const modalElement = document.getElementById('eventDetailsModal');
+        if (modalElement) {
+            console.log('📋 Modal element found, attempting to show...');
+            
+            // Try Bootstrap first
+            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                try {
+                    const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+                    modal.show();
+                    console.log('✅ Modal opened with Bootstrap');
+                } catch (bootstrapError) {
+                    console.error('❌ Bootstrap modal error:', bootstrapError);
+                    // Fallback to manual display
+                    modalElement.style.display = 'block';
+                    modalElement.classList.add('show');
+                    modalElement.setAttribute('aria-hidden', 'false');
+                    document.body.classList.add('modal-open');
+                    console.log('⚠️ Using manual modal display fallback');
+                }
+            } else {
+                console.log('⚠️ Bootstrap not available, using manual modal display');
+                modalElement.style.display = 'block';
+                modalElement.classList.add('show');
+                modalElement.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('modal-open');
+            }
         } else {
-            console.log('Bootstrap not available, using fallback');
-            modalElement.style.display = 'block';
-            modalElement.classList.add('show');
+            console.error('❌ Modal element not found!');
+            alert(`Event Details:\n\nClient: ${allParticipants}\nTime: ${time}\nTrainer: ${trainer}\nType: ${eventType}`);
         }
-    }
-    
-    // Load funding status in background
-    if (isAppointment) {
-        document.getElementById('modal-funding').innerHTML = `
-            <span class="outlook-badge outlook-badge-info">
-                <i class="fas fa-handshake"></i>
-                Free Consultation
-            </span>
-        `;
-    } else {
-        const participants = allParticipants.split(', ').filter(p => p && p !== 'Unknown');
-        if (participants.length > 0) {
-            checkMultipleParticipantsFunding(participants, time);
+        
+        // Load funding status in background
+        if (isAppointment) {
+            if (modalFunding) {
+                modalFunding.innerHTML = `
+                    <span class="outlook-badge outlook-badge-info">
+                        <i class="fas fa-handshake"></i>
+                        Free Consultation
+                    </span>
+                `;
+            }
+        } else {
+            const participants = allParticipants.split(', ').filter(p => p && p !== 'Unknown');
+            if (participants.length > 0) {
+                checkMultipleParticipantsFunding(participants, time);
+            }
         }
+        
+    } catch (error) {
+        console.error('❌ Error in openEventDetails:', error);
+        // Ultimate fallback
+        alert(`Event Details:\n\nClient: ${allParticipants}\nTime: ${time}\nTrainer: ${trainer}\nType: ${eventType}\n\n(Modal display error - see console)`);
     }
 }
 
@@ -1009,9 +1052,45 @@ function checkEventCardFunding(element, participant, time) {
     });
 }
 
+// Simple test function to verify event card clicking works
+function testEventCardClick() {
+    console.log('🧪 Testing event card click functionality...');
+    const testData = {
+        participant: 'Test Client',
+        time: '2:00 PM - 3:00 PM',
+        trainer: 'Test Trainer',
+        type: 'Test Session',
+        location: 'Training Floor',
+        eventId: 'test-123'
+    };
+    
+    // Create a mock element for testing
+    const mockElement = {
+        getAttribute: function(key) {
+            const mapping = {
+                'data-participant': testData.participant,
+                'data-all-participants': testData.participant,
+                'data-time': testData.time,
+                'data-trainer': testData.trainer,
+                'data-type': testData.type,
+                'data-location': testData.location,
+                'data-event-id': testData.eventId,
+                'data-is-appointment': 'false'
+            };
+            return mapping[key] || null;
+        }
+    };
+    
+    console.log('🧪 Calling openEventDetails with test data...');
+    openEventDetails(mockElement);
+}
+
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 Dashboard loaded - attaching event listeners');
+    
+    // Add test button for debugging
+    console.log('🧪 To test event card functionality, run: testEventCardClick()');
     
     checkAllFundingStatusesAsync();
     
@@ -1025,25 +1104,63 @@ document.addEventListener('DOMContentLoaded', function() {
         bulkCheckinBtn.addEventListener('click', performBulkCheckin);
     }
     
-    document.querySelectorAll('.session-row').forEach(row => {
+    // Add click handlers to all event cards
+    document.querySelectorAll('.session-row').forEach((row, index) => {
         row.style.cursor = 'pointer';
         
+        // Debug: Log what we found
+        console.log(`Found event row ${index + 1}:`, {
+            participant: row.getAttribute('data-participant'),
+            time: row.getAttribute('data-time'),
+            type: row.getAttribute('data-type')
+        });
+        
         row.addEventListener('click', function(e) {
-            if (e.target.closest('button, a, form')) return;
-            console.log('🖱️ Card clicked, opening details...');
+            // Don't trigger if clicking on buttons or forms
+            if (e.target.closest('button, a, form, .outlook-btn-icon')) {
+                console.log('🚫 Click ignored - target is button/form:', e.target);
+                return;
+            }
+            
+            console.log('🖱️ Event card clicked!');
+            console.log('Row data:', {
+                participant: this.getAttribute('data-participant'),
+                time: this.getAttribute('data-time'),
+                trainer: this.getAttribute('data-trainer'),
+                type: this.getAttribute('data-type'),
+                eventId: this.getAttribute('data-event-id')
+            });
+            
             openEventDetails(this);
         });
         
+        // Visual feedback on hover
         row.addEventListener('mouseenter', function() {
             this.style.background = 'var(--af-gray-100)';
             this.style.borderLeft = '4px solid var(--af-purple-primary)';
+            this.style.transform = 'translateX(2px)';
+            this.style.transition = 'all 0.2s ease';
         });
         
         row.addEventListener('mouseleave', function() {
             this.style.background = 'white';
             this.style.borderLeft = 'none';
+            this.style.transform = 'translateX(0)';
         });
     });
+    
+    const totalEventCards = document.querySelectorAll('.session-row').length;
+    console.log(`✅ Added click handlers to ${totalEventCards} event cards`);
+    
+    if (totalEventCards === 0) {
+        console.log('⚠️ No event cards found! This might be why clicking does nothing.');
+        console.log('💡 Try: testEventCardClick() to test the modal functionality');
+    } else {
+        console.log('✅ Event cards found and ready for clicking!');
+    }
+    
+    // Make test function available globally for debugging
+    window.testEventCardClick = testEventCardClick;
     
     console.log('✅ Dashboard initialization complete');
 });

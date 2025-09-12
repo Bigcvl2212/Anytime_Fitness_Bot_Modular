@@ -401,13 +401,14 @@ class DatabaseManager:
                 existing_member = cursor.fetchone()
                 
                 if existing_member:
-                    # Update existing member - only use columns that exist in schema
+                    # Update existing member
                     cursor.execute(
                         """
                         UPDATE members SET 
                             guid = ?, first_name = ?, last_name = ?, full_name = ?, email = ?, 
                             mobile_phone = ?, status = ?, status_message = ?, user_type = ?, 
-                            amount_past_due = ?, date_of_next_payment = ?, 
+                            amount_past_due = ?, base_amount_past_due = ?, missed_payments = ?, 
+                            late_fees = ?, agreement_recurring_cost = ?, date_of_next_payment = ?, 
                             updated_at = CURRENT_TIMESTAMP
                         WHERE prospect_id = ?
                         """,
@@ -422,20 +423,25 @@ class DatabaseManager:
                             status_message,
                             member_type,  # Maps to user_type column
                             float(amount_past_due) if amount_past_due not in (None, '') else 0,
+                            float(m.get('base_amount_past_due', 0)),
+                            int(m.get('missed_payments', 0)),
+                            float(m.get('late_fees', 0)),
+                            float(m.get('agreement_recurring_cost', 0)),
                             date_of_next_payment,
                             str(prospect_id)  # WHERE condition
                         ),
                     )
                     updated_count += 1
                 else:
-                    # Insert new member - only use columns that exist in schema
+                    # Insert new member
                     cursor.execute(
                         """
                         INSERT INTO members (
                             prospect_id, guid, first_name, last_name, full_name, email, mobile_phone,
-                            status, status_message, user_type, amount_past_due, date_of_next_payment, 
+                            status, status_message, user_type, amount_past_due, base_amount_past_due, 
+                            missed_payments, late_fees, agreement_recurring_cost, date_of_next_payment, 
                             created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """,
                         (
                             str(prospect_id),  # prospect_id column
@@ -449,6 +455,10 @@ class DatabaseManager:
                             status_message,
                             member_type,  # Maps to user_type column
                             float(amount_past_due) if amount_past_due not in (None, '') else 0,
+                            float(m.get('base_amount_past_due', 0)),
+                            int(m.get('missed_payments', 0)),
+                            float(m.get('late_fees', 0)),
+                            float(m.get('agreement_recurring_cost', 0)),
                             date_of_next_payment,
                         ),
                     )
@@ -1153,7 +1163,7 @@ class DatabaseManager:
                     ))
                     updated_count += 1
                 else:
-                    # Insert new training client with all enhanced data  
+                    # Insert new training client with all enhanced data
                     cursor.execute("""
                         INSERT INTO training_clients (
                             member_id, clubos_member_id, first_name, last_name, member_name,
@@ -1161,8 +1171,9 @@ class DatabaseManager:
                             active_packages, package_summary, package_details,
                             past_due_amount, total_past_due, payment_status,
                             sessions_remaining, last_session, financial_summary,
-                            last_updated
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            last_updated, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
+                                CURRENT_TIMESTAMP)
                     """, (
                         str(member_id), str(clubos_member_id), first_name, last_name, member_name,
                         email, phone, trainer_name, membership_type, source,
@@ -1193,8 +1204,7 @@ class DatabaseManager:
         cursor = conn.cursor()
         
         try:
-            # Check if table_name already exists in log (without checking id column)
-            cursor.execute("SELECT table_name FROM data_refresh_log WHERE table_name = ?", (table_name,))
+            cursor.execute("SELECT id FROM data_refresh_log WHERE table_name = ?", (table_name,))
             existing = cursor.fetchone()
             
             if existing:
@@ -1218,5 +1228,286 @@ class DatabaseManager:
             logger.error(f"❌ Error logging data refresh: {e}")
             conn.rollback()
             return False
+        finally:
+            conn.close()
+    
+    def get_recent_message_threads(self, limit=10):
+        """Get recent message threads with latest message and unread status"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Check if messages table exists, create if not
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id TEXT PRIMARY KEY,
+                    message_type TEXT,
+                    content TEXT,
+                    timestamp TEXT,
+                    from_user TEXT,
+                    to_user TEXT,
+                    status TEXT,
+                    owner_id TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    delivery_status TEXT DEFAULT 'received',
+                    campaign_id TEXT,
+                    channel TEXT DEFAULT 'clubos',
+                    member_id TEXT,
+                    message_actions TEXT,
+                    is_confirmation BOOLEAN DEFAULT FALSE,
+                    is_opt_in BOOLEAN DEFAULT FALSE,
+                    is_opt_out BOOLEAN DEFAULT FALSE,
+                    has_emoji BOOLEAN DEFAULT FALSE,
+                    emoji_reactions TEXT,
+                    conversation_id TEXT,
+                    thread_id TEXT
+                )
+            """)
+            
+            # Get recent conversations grouped by member/conversation
+            cursor.execute("""
+                SELECT DISTINCT
+                    COALESCE(member_id, from_user, to_user) as member_name,
+                    conversation_id,
+                    channel,
+                    MAX(timestamp) as last_message_time,
+                    COUNT(*) as message_count,
+                    SUM(CASE WHEN status = 'received' AND delivery_status != 'read' THEN 1 ELSE 0 END) as unread_count
+                FROM messages
+                WHERE owner_id = '187032782'
+                GROUP BY COALESCE(member_id, from_user, to_user), conversation_id
+                ORDER BY 
+                    SUM(CASE WHEN status = 'received' AND delivery_status != 'read' THEN 1 ELSE 0 END) DESC,
+                    MAX(timestamp) DESC
+                LIMIT ?
+            """, (limit,))
+            
+            rows = cursor.fetchall()
+            threads = []
+            
+            for row in rows:
+                # Get the latest message for this thread
+                cursor.execute("""
+                    SELECT content, timestamp, from_user, status
+                    FROM messages 
+                    WHERE (member_id = ? OR from_user = ? OR to_user = ?)
+                    AND conversation_id = ?
+                    ORDER BY timestamp DESC 
+                    LIMIT 1
+                """, (row[0], row[0], row[0], row[1]))
+                
+                latest_msg = cursor.fetchone()
+                
+                thread = {
+                    'id': row[1] or f"conv_{hash(row[0])}",
+                    'member_id': hash(row[0]) % 1000000,  # Generate numeric ID
+                    'member_name': row[0] or 'Unknown',
+                    'member_full_name': row[0] or 'Unknown',
+                    'member_email': f"{row[0].lower().replace(' ', '.')}@gym.com" if row[0] else '',
+                    'thread_type': row[2] or 'system',
+                    'thread_subject': f"Conversation with {row[0]}" if row[0] else 'System Message',
+                    'status': 'active',
+                    'last_message_at': row[3],
+                    'latest_message': {
+                        'message_content': latest_msg[0] if latest_msg else 'No messages',
+                        'created_at': latest_msg[1] if latest_msg else row[3],
+                        'sender_type': 'member' if latest_msg and latest_msg[2] != 'j.mayo' else 'staff',
+                        'status': latest_msg[3] if latest_msg else 'sent'
+                    } if latest_msg else None,
+                    'unread_count': row[5] or 0
+                }
+                threads.append(thread)
+            
+            return threads
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting recent message threads: {e}")
+            return []
+        finally:
+            conn.close()
+    
+    def get_thread_messages(self, member_id, limit=50):
+        """Get all messages for a specific member across all their threads"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Find member name from member_id hash
+            cursor.execute("""
+                SELECT DISTINCT 
+                    COALESCE(member_id, from_user, to_user) as member_name,
+                    conversation_id,
+                    channel
+                FROM messages
+                WHERE ABS(hash(COALESCE(member_id, from_user, to_user))) % 1000000 = ?
+                ORDER BY timestamp DESC
+            """, (member_id,))
+            
+            member_info = cursor.fetchone()
+            if not member_info:
+                return []
+            
+            member_name = member_info[0]
+            
+            # Get all messages for this member
+            cursor.execute("""
+                SELECT 
+                    id, content, from_user, to_user, status, timestamp, 
+                    message_type, channel, conversation_id
+                FROM messages
+                WHERE (member_id = ? OR from_user = ? OR to_user = ?)
+                ORDER BY timestamp ASC
+                LIMIT ?
+            """, (member_name, member_name, member_name, limit))
+            
+            messages = []
+            for msg_row in cursor.fetchall():
+                message = {
+                    'id': msg_row[0],
+                    'message_content': msg_row[1],
+                    'sender_type': 'member' if msg_row[2] != 'j.mayo' else 'staff',
+                    'sender_name': msg_row[2] or 'Unknown',
+                    'direction': 'inbound' if msg_row[2] != 'j.mayo' else 'outbound',
+                    'status': msg_row[4],
+                    'created_at': msg_row[5],
+                    'message_type': msg_row[6] or 'text',
+                    'thread_type': msg_row[7] or 'system'
+                }
+                messages.append(message)
+            
+            # Return in thread format expected by the template
+            threads = [{
+                'thread_id': 1,
+                'thread_type': member_info[2] or 'system',
+                'thread_subject': f"Conversation with {member_name}",
+                'status': 'active',
+                'messages': messages
+            }]
+            
+            return threads
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting thread messages for member {member_id}: {e}")
+            return []
+        finally:
+            conn.close()
+    
+    def add_sample_message_data(self):
+        """Add some sample message data for testing the inbox"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Ensure messages table exists
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id TEXT PRIMARY KEY,
+                    message_type TEXT,
+                    content TEXT,
+                    timestamp TEXT,
+                    from_user TEXT,
+                    to_user TEXT,
+                    status TEXT,
+                    owner_id TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    delivery_status TEXT DEFAULT 'received',
+                    campaign_id TEXT,
+                    channel TEXT DEFAULT 'clubos',
+                    member_id TEXT,
+                    message_actions TEXT,
+                    is_confirmation BOOLEAN DEFAULT FALSE,
+                    is_opt_in BOOLEAN DEFAULT FALSE,
+                    is_opt_out BOOLEAN DEFAULT FALSE,
+                    has_emoji BOOLEAN DEFAULT FALSE,
+                    emoji_reactions TEXT,
+                    conversation_id TEXT,
+                    thread_id TEXT
+                )
+            """)
+            
+            # Get some member names from training clients or create sample ones
+            cursor.execute("SELECT member_name FROM training_clients LIMIT 5")
+            existing_members = cursor.fetchall()
+            
+            sample_conversations = []
+            if existing_members:
+                for member_row in existing_members[:3]:
+                    member_name = member_row[0]
+                    conv_id = f"conv_{hash(member_name) % 10000}"
+                    
+                    sample_conversations.extend([
+                        {
+                            'id': f"{conv_id}_1",
+                            'content': f"Hi, this is {member_name}. I have a question about my training schedule.",
+                            'from_user': member_name,
+                            'to_user': 'j.mayo',
+                            'member_id': member_name,
+                            'conversation_id': conv_id,
+                            'timestamp': (datetime.now() - timedelta(hours=2)).isoformat(),
+                            'status': 'received'
+                        },
+                        {
+                            'id': f"{conv_id}_2", 
+                            'content': f"Hi {member_name}! I'd be happy to help with your training schedule. What specifically would you like to know?",
+                            'from_user': 'j.mayo',
+                            'to_user': member_name,
+                            'member_id': member_name,
+                            'conversation_id': conv_id,
+                            'timestamp': (datetime.now() - timedelta(hours=1, minutes=30)).isoformat(),
+                            'status': 'sent'
+                        }
+                    ])
+            else:
+                # Create default sample data
+                sample_conversations = [
+                    {
+                        'id': 'sample_1',
+                        'content': 'Hi, I have a question about my payment schedule',
+                        'from_user': 'Jessica Williams',
+                        'to_user': 'j.mayo',
+                        'member_id': 'Jessica Williams',
+                        'conversation_id': 'conv_jessica',
+                        'timestamp': (datetime.now() - timedelta(hours=3)).isoformat(),
+                        'status': 'received'
+                    },
+                    {
+                        'id': 'sample_2',
+                        'content': 'Can I reschedule my session for tomorrow?',
+                        'from_user': 'David Thompson',
+                        'to_user': 'j.mayo',
+                        'member_id': 'David Thompson',
+                        'conversation_id': 'conv_david',
+                        'timestamp': (datetime.now() - timedelta(hours=1)).isoformat(),
+                        'status': 'received'
+                    }
+                ]
+            
+            # Insert sample messages
+            for msg in sample_conversations:
+                cursor.execute("""
+                    INSERT OR REPLACE INTO messages 
+                    (id, message_type, content, timestamp, from_user, to_user, status, owner_id,
+                     delivery_status, channel, member_id, conversation_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    msg['id'],
+                    'text',
+                    msg['content'],
+                    msg['timestamp'],
+                    msg['from_user'],
+                    msg['to_user'],
+                    msg['status'],
+                    '187032782',
+                    msg['status'],
+                    'clubos',
+                    msg['member_id'],
+                    msg['conversation_id']
+                ))
+            
+            conn.commit()
+            logger.info(f"✅ Added {len(sample_conversations)} sample messages to database")
+            
+        except Exception as e:
+            logger.error(f"❌ Error adding sample message data: {e}")
         finally:
             conn.close()

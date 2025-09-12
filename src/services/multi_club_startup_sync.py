@@ -75,35 +75,6 @@ def enhanced_startup_sync(app, multi_club_enabled: bool = True) -> Dict[str, Any
             app.cached_prospects = combined_data.get('prospects', [])
             app.cached_training_clients = combined_data.get('training_clients', [])
             
-            # **CRITICAL FIX: Actually save data to database!**
-            logger.info("💾 Saving fresh data to database...")
-            try:
-                from src.services.database_manager import DatabaseManager
-                db_manager = DatabaseManager()
-                
-                # Save members to database
-                members_saved = db_manager.save_members_to_db(app.cached_members)
-                logger.info(f"{'✅' if members_saved else '❌'} Members saved to database: {members_saved}")
-                
-                # Save prospects to database  
-                prospects_saved = db_manager.save_prospects_to_db(app.cached_prospects)
-                logger.info(f"{'✅' if prospects_saved else '❌'} Prospects saved to database: {prospects_saved}")
-                
-                # Save training clients to database
-                training_saved = db_manager.save_training_clients_to_db(app.cached_training_clients)
-                logger.info(f"{'✅' if training_saved else '❌'} Training clients saved to database: {training_saved}")
-                
-                # Log data refresh operations
-                db_manager.log_data_refresh('members', len(app.cached_members))
-                db_manager.log_data_refresh('prospects', len(app.cached_prospects))  
-                db_manager.log_data_refresh('training_clients', len(app.cached_training_clients))
-                
-                logger.info("💾 Database save operations completed!")
-                
-            except Exception as db_error:
-                logger.error(f"❌ Database save error: {db_error}")
-                sync_results['errors'].append(f"Database save error: {db_error}")
-            
             logger.info(f"🎉 Multi-club sync complete! Members: {sync_results['combined_totals']['members']}, "
                        f"Prospects: {sync_results['combined_totals']['prospects']}, "
                        f"Training Clients: {sync_results['combined_totals']['training_clients']}")
@@ -126,35 +97,6 @@ def enhanced_startup_sync(app, multi_club_enabled: bool = True) -> Dict[str, Any
             app.cached_members = members or []
             app.cached_prospects = prospects or []
             app.cached_training_clients = training_clients or []
-            
-            # **CRITICAL FIX: Actually save data to database for single-club mode too!**
-            logger.info("💾 Saving fresh data to database (single-club mode)...")
-            try:
-                from src.services.database_manager import DatabaseManager
-                db_manager = DatabaseManager()
-                
-                # Save members to database
-                members_saved = db_manager.save_members_to_db(app.cached_members) if app.cached_members else True
-                logger.info(f"{'✅' if members_saved else '❌'} Members saved to database: {members_saved}")
-                
-                # Save prospects to database  
-                prospects_saved = db_manager.save_prospects_to_db(app.cached_prospects) if app.cached_prospects else True
-                logger.info(f"{'✅' if prospects_saved else '❌'} Prospects saved to database: {prospects_saved}")
-                
-                # Save training clients to database
-                training_saved = db_manager.save_training_clients_to_db(app.cached_training_clients) if app.cached_training_clients else True
-                logger.info(f"{'✅' if training_saved else '❌'} Training clients saved to database: {training_saved}")
-                
-                # Log data refresh operations
-                db_manager.log_data_refresh('members', len(app.cached_members))
-                db_manager.log_data_refresh('prospects', len(app.cached_prospects))  
-                db_manager.log_data_refresh('training_clients', len(app.cached_training_clients))
-                
-                logger.info("💾 Database save operations completed!")
-                
-            except Exception as db_error:
-                logger.error(f"❌ Database save error: {db_error}")
-                sync_results['errors'].append(f"Database save error: {db_error}")
         
         sync_results['total_time'] = time.time() - start_time
         logger.info(f"✅ Startup sync completed in {sync_results['total_time']:.2f} seconds")

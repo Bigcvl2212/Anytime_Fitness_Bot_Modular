@@ -72,12 +72,6 @@ def create_app():
         
         # Initialize ClubOS Integration
         app.clubos = ClubOSIntegration()
-        # Authenticate ClubOS Integration to initialize training API
-        try:
-            app.clubos.authenticate()
-            logger.info("✅ ClubOS integration authenticated successfully")
-        except Exception as e:
-            logger.warning(f"⚠️ ClubOS integration authentication failed: {e}")
         
         # Initialize ClubHub API Client for multi-club support
         try:

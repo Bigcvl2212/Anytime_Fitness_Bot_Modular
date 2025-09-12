@@ -5,9 +5,9 @@ Simple test script to check in a member using ClubHub API member lookup
 
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), 'services'))
 
-from services.api.clubhub_api_client import ClubHubAPIClient
+from api.clubhub_api_client import ClubHubAPIClient
 from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
 import logging
 
