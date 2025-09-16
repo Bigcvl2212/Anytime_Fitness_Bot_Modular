@@ -165,10 +165,14 @@ def import_fresh_clubhub_data():
             # Log the refresh with category breakdown
             category_breakdown = json.dumps(category_counts)
             cursor.execute("""
-                INSERT OR REPLACE INTO data_refresh_log 
+                INSERT INTO data_refresh_log 
                 (id, table_name, last_refresh, record_count, category_breakdown)
-                VALUES (1, 'members', ?, ?, ?)
-            """, (datetime.now(), member_count, category_breakdown))
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (id) DO UPDATE SET
+                    last_refresh = EXCLUDED.last_refresh,
+                    record_count = EXCLUDED.record_count,
+                    category_breakdown = EXCLUDED.category_breakdown
+            """, (1, 'members', datetime.now(), member_count, category_breakdown))
             
             # Commit changes
             conn.commit()

@@ -40,19 +40,75 @@ class DatabaseManager:
             logger.error("❌ PostgreSQL required but psycopg2 not installed")
             raise ImportError("psycopg2-binary required for PostgreSQL support")
         
-        self.postgres_config = {
-            'host': os.getenv('DB_HOST', os.getenv('POSTGRES_HOST', 'localhost')),
-            'port': int(os.getenv('DB_PORT', os.getenv('POSTGRES_PORT', '5432'))),
-            'dbname': os.getenv('DB_NAME', os.getenv('POSTGRES_DATABASE', 'gym_bot')),
-            'user': os.getenv('DB_USER', os.getenv('POSTGRES_USER', 'postgres')),
-            'password': os.getenv('DB_PASSWORD', os.getenv('POSTGRES_PASSWORD', ''))
-        }
+        # Parse DATABASE_URL or use individual environment variables
+        database_url = os.getenv('DATABASE_URL')
+        
+        if database_url:
+            # Parse Cloud SQL connection string
+            logger.info(f"🔗 Parsing DATABASE_URL: {database_url[:50]}...")
+            self.postgres_config = self._parse_database_url(database_url)
+        else:
+            # Fallback to individual environment variables
+            logger.info("📝 Using individual database environment variables")
+            self.postgres_config = {
+                'host': os.getenv('DB_HOST', os.getenv('POSTGRES_HOST', 'localhost')),
+                'port': int(os.getenv('DB_PORT', os.getenv('POSTGRES_PORT', '5432'))),
+                'dbname': os.getenv('DB_NAME', os.getenv('POSTGRES_DATABASE', 'gym_bot')),
+                'user': os.getenv('DB_USER', os.getenv('POSTGRES_USER', 'postgres')),
+                'password': os.getenv('DB_PASSWORD', os.getenv('POSTGRES_PASSWORD', ''))
+            }
         # Add convenience properties for health checks
         self.db_host = self.postgres_config['host']
         self.db_name = self.postgres_config['dbname']
         logger.info(f"🐘 Using PostgreSQL database: {self.postgres_config['host']}:{self.postgres_config['port']}/{self.postgres_config['dbname']}")
             
         self.init_database()
+    
+    def _parse_database_url(self, database_url):
+        """Parse DATABASE_URL for Cloud SQL connection"""
+        try:
+            from urllib.parse import urlparse, parse_qs
+            
+            # Parse the URL
+            parsed = urlparse(database_url)
+            
+            # Extract connection parameters
+            config = {
+                'user': parsed.username or 'postgres',
+                'password': parsed.password or '',
+                'dbname': parsed.path.lstrip('/') or 'gym_bot',
+                'port': parsed.port or 5432
+            }
+            
+            # Check for Cloud SQL socket connection
+            query_params = parse_qs(parsed.query)
+            
+            if 'host' in query_params and query_params['host'][0].startswith('/cloudsql/'):
+                # Cloud SQL Unix socket connection
+                config['host'] = query_params['host'][0]
+                logger.info(f"🌐 Using Cloud SQL socket: {config['host']}")
+            elif parsed.hostname:
+                # Regular TCP connection
+                config['host'] = parsed.hostname
+                logger.info(f"🌐 Using TCP connection: {config['host']}:{config['port']}")
+            else:
+                # Default to localhost
+                config['host'] = 'localhost'
+                logger.warning("⚠️ No host found in DATABASE_URL, defaulting to localhost")
+            
+            logger.info(f"🔗 Parsed database config: user={config['user']}, db={config['dbname']}, host={config['host'][:30]}...")
+            return config
+            
+        except Exception as e:
+            logger.error(f"❌ Error parsing DATABASE_URL: {e}")
+            # Fallback configuration
+            return {
+                'host': 'localhost',
+                'port': 5432,
+                'dbname': 'gym_bot',
+                'user': 'postgres',
+                'password': ''
+            }
     
     def get_connection(self):
         """Get PostgreSQL database connection"""
@@ -593,53 +649,29 @@ class DatabaseManager:
             status = member_data.get('status', '')
             status_message = member_data.get('status_message', '')
             
-            # Update billing fields - use correct placeholders
-            if self.db_type == 'postgresql':
-                cursor.execute("""
-                    UPDATE members SET 
-                        amount_past_due = %s,
-                        base_amount_past_due = %s,
-                        late_fees = %s,
-                        missed_payments = %s,
-                        date_of_next_payment = %s,
-                        status = %s,
-                        status_message = %s,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE prospect_id = %s OR guid = %s
-                """, (
-                    amount_past_due,
-                    base_amount_past_due, 
-                    late_fees,
-                    missed_payments,
-                    date_of_next_payment,
-                    status,
-                    status_message,
-                    member_id,
-                    member_id
-                ))
-            else:
-                cursor.execute("""
-                    UPDATE members SET 
-                        amount_past_due = ?,
-                        base_amount_past_due = ?,
-                        late_fees = ?,
-                        missed_payments = ?,
-                        date_of_next_payment = ?,
-                        status = ?,
-                        status_message = ?,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE prospect_id = ? OR guid = ?
-                """, (
-                    amount_past_due,
-                    base_amount_past_due, 
-                    late_fees,
-                    missed_payments,
-                    date_of_next_payment,
-                    status,
-                    status_message,
-                    member_id,
-                    member_id
-                ))
+            # Update billing fields
+            cursor.execute("""
+                UPDATE members SET 
+                    amount_past_due = %s,
+                    base_amount_past_due = %s,
+                    late_fees = %s,
+                    missed_payments = %s,
+                    date_of_next_payment = %s,
+                    status = %s,
+                    status_message = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE prospect_id = %s OR guid = %s
+            """, (
+                amount_past_due,
+                base_amount_past_due, 
+                late_fees,
+                missed_payments,
+                date_of_next_payment,
+                status,
+                status_message,
+                member_id,
+                member_id
+            ))
             
             if cursor.rowcount > 0:
                 conn.commit()
@@ -691,93 +723,50 @@ class DatabaseManager:
                 prospect_type = p.get('prospect_type') or p.get('prospectType') or p.get('type')
 
                 # Check if prospect already exists by prospect_id - use correct placeholders
-                if self.db_type == 'postgresql':
-                    cursor.execute("SELECT id FROM prospects WHERE prospect_id = %s", (str(prospect_id),))
-                else:
-                    cursor.execute("SELECT id FROM prospects WHERE prospect_id = ?", (str(prospect_id),))
+                cursor.execute("SELECT id FROM prospects WHERE prospect_id = %s", (str(prospect_id),))
                 existing_prospect = cursor.fetchone()
                 
                 if existing_prospect:
-                    # Update existing prospect - use correct placeholders
-                    if self.db_type == 'postgresql':
-                        cursor.execute(
-                            """
-                            UPDATE prospects SET 
-                                first_name = %s, last_name = %s, full_name = %s, email = %s, 
-                                phone = %s, status = %s, prospect_type = %s, updated_at = CURRENT_TIMESTAMP
-                            WHERE prospect_id = %s
-                            """,
-                            (
-                                first_name,
-                                last_name,
-                                full_name,
-                                email,
-                                phone,
-                                status,
-                                prospect_type,
-                                str(prospect_id)  # WHERE condition
-                            ),
-                        )
-                    else:
-                        cursor.execute(
-                            """
-                            UPDATE prospects SET 
-                                first_name = ?, last_name = ?, full_name = ?, email = ?, 
-                                phone = ?, status = ?, prospect_type = ?, updated_at = CURRENT_TIMESTAMP
-                            WHERE prospect_id = ?
-                            """,
-                            (
-                                first_name,
-                                last_name,
-                                full_name,
-                                email,
-                                phone,
-                                status,
-                                prospect_type,
-                                str(prospect_id)  # WHERE condition
-                            ),
-                        )
+                    # Update existing prospect
+                    cursor.execute(
+                        """
+                        UPDATE prospects SET 
+                            first_name = %s, last_name = %s, full_name = %s, email = %s, 
+                            phone = %s, status = %s, prospect_type = %s, updated_at = CURRENT_TIMESTAMP
+                        WHERE prospect_id = %s
+                        """,
+                        (
+                            first_name,
+                            last_name,
+                            full_name,
+                            email,
+                            phone,
+                            status,
+                            prospect_type,
+                            str(prospect_id)  # WHERE condition
+                        ),
+                    )
                     updated_count += 1
                 else:
-                    # Insert new prospect - use correct placeholders
-                    if self.db_type == 'postgresql':
-                        cursor.execute(
-                            """
-                            INSERT INTO prospects (
-                                prospect_id, first_name, last_name, full_name, email, phone,
-                                status, prospect_type, created_at, updated_at
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                            """,
-                            (
-                                str(prospect_id),  # prospect_id column
-                                first_name,
-                                last_name,
-                                full_name,
-                                email,
-                                phone,
-                                status,
-                                prospect_type,
-                            ),
-                        )
-                    else:
-                        cursor.execute(
-                            """
-                            INSERT INTO prospects (
-                                prospect_id, first_name, last_name, full_name, email, phone,
-                                status, prospect_type, created_at, updated_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                            """,
-                            (
-                                str(prospect_id),  # prospect_id column
-                                first_name,
-                                last_name,
-                                full_name,
-                                email,
-                                phone,
-                                status,
-                                prospect_type,
-                            ),
-                        )
+                    # Insert new prospect
+                    cursor.execute(
+                        """
+                        INSERT INTO prospects (
+                            prospect_id, first_name, last_name, full_name, email, phone,
+                            status, prospect_type, created_at, updated_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                        (
+                            str(prospect_id),  # prospect_id column
+                            first_name,
+                            last_name,
+                            full_name,
+                            email,
+                            phone,
+                            status,
+                            prospect_type,
+                        ),
+                    )
                     inserted_count += 1
             
             conn.commit()
@@ -1752,50 +1741,29 @@ class DatabaseManager:
             """)
             
             # Clear existing sample messages
-            if self.db_type == 'postgresql':
-                cursor.execute("DELETE FROM messages WHERE id LIKE 'sample_%%' OR id LIKE 'clubos_%%'")
-                # Insert new messages for PostgreSQL
-                for msg in messages:
-                    cursor.execute("""
-                        INSERT INTO messages (
-                            id, content, timestamp, from_user, status, delivery_status,
-                            channel, member_id, conversation_id
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (id) DO UPDATE SET
-                            content = EXCLUDED.content,
-                            timestamp = EXCLUDED.timestamp,
-                            delivery_status = EXCLUDED.delivery_status
-                    """, (
-                        msg['id'],
-                        msg['message_content'],
-                        msg['timestamp'],
-                        msg['member_name'],
-                        msg['status'],
-                        'unread' if msg['unread'] else 'read',
-                        msg['channel'],
-                        msg['member_name'].replace(' ', '_'),
-                        f"conv_{msg['member_name'].replace(' ', '_')}"
-                    ))
-            else:
-                cursor.execute("DELETE FROM messages WHERE id LIKE 'sample_%' OR id LIKE 'clubos_%'")
-                # Insert new messages for SQLite
-                for msg in messages:
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO messages (
-                            id, content, timestamp, from_user, status, delivery_status,
-                            channel, member_id, conversation_id
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        msg['id'],
-                        msg['message_content'],
-                        msg['timestamp'],
-                        msg['member_name'],
-                        msg['status'],
-                        'unread' if msg['unread'] else 'read',
-                        msg['channel'],
-                        msg['member_name'].replace(' ', '_'),
-                        f"conv_{msg['member_name'].replace(' ', '_')}"
-                    ))
+            cursor.execute("DELETE FROM messages WHERE id LIKE 'sample_%%' OR id LIKE 'clubos_%%'")
+            # Insert new messages
+            for msg in messages:
+                cursor.execute("""
+                    INSERT INTO messages (
+                        id, content, timestamp, from_user, status, delivery_status,
+                        channel, member_id, conversation_id
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id) DO UPDATE SET
+                        content = EXCLUDED.content,
+                        timestamp = EXCLUDED.timestamp,
+                        delivery_status = EXCLUDED.delivery_status
+                """, (
+                    msg['id'],
+                    msg['message_content'],
+                    msg['timestamp'],
+                    msg['member_name'],
+                    msg['status'],
+                    'unread' if msg['unread'] else 'read',
+                    msg['channel'],
+                    msg['member_name'].replace(' ', '_'),
+                    f"conv_{msg['member_name'].replace(' ', '_')}"
+                ))
             
             conn.commit()
             
@@ -1862,9 +1830,17 @@ class DatabaseManager:
     
     def get_recent_message_threads(self, limit=10):
         """Get recent message threads with latest message and unread status"""
-        # First, try to fetch and store real ClubOS messages
+        # Only fetch ClubOS messages if not recently fetched (cache for 5 minutes)
         try:
-            self.fetch_and_store_real_clubos_messages(limit * 2)  # Fetch more to have variety
+            cache_key = 'last_clubos_message_fetch'
+            last_fetch = getattr(self, cache_key, None)
+            current_time = datetime.now()
+            
+            if not last_fetch or (current_time - last_fetch).total_seconds() > 300:  # 5 minutes
+                self.fetch_and_store_real_clubos_messages(limit * 2)  # Fetch more to have variety
+                setattr(self, cache_key, current_time)
+            else:
+                logger.info(f"ℹ️ Using cached ClubOS messages (last fetch: {(current_time - last_fetch).total_seconds():.0f}s ago)")
         except Exception as e:
             logger.warning(f"⚠️ Could not fetch real ClubOS messages: {e}")
         
@@ -1876,10 +1852,7 @@ class DatabaseManager:
             self._ensure_messages_table_exists(cursor)
             
             # Check if we have any messages at all
-            if self.db_type == 'postgresql':
-                cursor.execute("SELECT COUNT(*) as count FROM messages")
-            else:
-                cursor.execute("SELECT COUNT(*) FROM messages")
+            cursor.execute("SELECT COUNT(*) as count FROM messages")
             
             count_result = cursor.fetchone()
             message_count = 0
@@ -1897,22 +1870,13 @@ class DatabaseManager:
                 return []
             
             # Simple query to get all messages, then group them in Python (more reliable)
-            if self.db_type == 'postgresql':
-                cursor.execute("""
-                    SELECT id, content, timestamp, from_user, status, delivery_status,
-                           channel, member_id, conversation_id
-                    FROM messages
-                    ORDER BY timestamp DESC
-                    LIMIT %s
-                """, (limit * 5,))  # Get more messages to have variety
-            else:
-                cursor.execute("""
-                    SELECT id, content, timestamp, from_user, status, delivery_status,
-                           channel, member_id, conversation_id
-                    FROM messages
-                    ORDER BY timestamp DESC
-                    LIMIT ?
-                """, (limit * 5,))  # Get more messages to have variety
+            cursor.execute("""
+                SELECT id, content, timestamp, from_user, status, delivery_status,
+                       channel, member_id, conversation_id
+                FROM messages
+                ORDER BY timestamp DESC
+                LIMIT %s
+            """, (limit * 5,))  # Get more messages to have variety
             
             # Fetch all recent messages
             all_messages = cursor.fetchall()
@@ -2058,7 +2022,7 @@ class DatabaseManager:
                     conversation_id,
                     channel
                 FROM messages
-                WHERE ABS(hash(COALESCE(member_id, from_user, to_user))) % 1000000 = ?
+                WHERE ABS(EXTRACT(EPOCH FROM timestamp)::INTEGER) % 1000000 = %s
                 ORDER BY timestamp DESC
             """, (member_id,))
             
@@ -2074,9 +2038,9 @@ class DatabaseManager:
                     id, content, from_user, to_user, status, timestamp, 
                     message_type, channel, conversation_id
                 FROM messages
-                WHERE (member_id = ? OR from_user = ? OR to_user = ?)
+                WHERE (member_id = %s OR from_user = %s OR to_user = %s)
                 ORDER BY timestamp ASC
-                LIMIT ?
+                LIMIT %s
             """, (member_name, member_name, member_name, limit))
             
             messages = []
@@ -2289,50 +2253,29 @@ class DatabaseManager:
             
             # Insert sample messages
             for msg in sample_conversations:
-                if self.db_type == 'postgresql':
-                    cursor.execute("""
-                        INSERT INTO messages 
-                        (id, message_type, content, timestamp, from_user, to_user, status, owner_id,
-                         delivery_status, channel, member_id, conversation_id)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        ON CONFLICT (id) DO UPDATE SET
-                            content = EXCLUDED.content,
-                            timestamp = EXCLUDED.timestamp,
-                            status = EXCLUDED.status
-                    """, (
-                        msg['id'],
-                        'text',
-                        msg['content'],
-                        msg['timestamp'],
-                        msg['from_user'],
-                        msg['to_user'],
-                        msg['status'],
-                        '187032782',
-                        msg['status'],
-                        'clubos',
-                        msg['member_id'],
-                        msg['conversation_id']
-                    ))
-                else:
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO messages 
-                        (id, message_type, content, timestamp, from_user, to_user, status, owner_id,
-                         delivery_status, channel, member_id, conversation_id)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        msg['id'],
-                        'text',
-                        msg['content'],
-                        msg['timestamp'],
-                        msg['from_user'],
-                        msg['to_user'],
-                        msg['status'],
-                        '187032782',
-                        msg['status'],
-                        'clubos',
-                        msg['member_id'],
-                        msg['conversation_id']
-                    ))
+                cursor.execute("""
+                    INSERT INTO messages 
+                    (id, message_type, content, timestamp, from_user, to_user, status, owner_id,
+                     delivery_status, channel, member_id, conversation_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id) DO UPDATE SET
+                        content = EXCLUDED.content,
+                        timestamp = EXCLUDED.timestamp,
+                        status = EXCLUDED.status
+                """, (
+                    msg['id'],
+                    'text',
+                    msg['content'],
+                    msg['timestamp'],
+                    msg['from_user'],
+                    msg['to_user'],
+                    msg['status'],
+                    '187032782',
+                    msg['status'],
+                    'clubos',
+                    msg['member_id'],
+                    msg['conversation_id']
+                ))
             
             conn.commit()
             logger.info(f"✅ Added {len(sample_conversations)} sample messages to database")
@@ -2345,24 +2288,16 @@ class DatabaseManager:
     def save_invoice(self, invoice_data: Dict[str, Any]) -> bool:
         """Save Square invoice data to database"""
         try:
-            if self.db_type == 'postgresql':
-                query = """
-                    INSERT INTO invoices 
-                    (member_id, square_invoice_id, amount, status, payment_method, 
-                     delivery_method, due_date, notes, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    ON CONFLICT (square_invoice_id) DO UPDATE SET
-                        amount = EXCLUDED.amount,
-                        status = EXCLUDED.status,
-                        updated_at = CURRENT_TIMESTAMP
-                """
-            else:
-                query = """
-                    INSERT OR REPLACE INTO invoices 
-                    (member_id, square_invoice_id, amount, status, payment_method, 
-                     delivery_method, due_date, notes, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """
+            query = """
+                INSERT INTO invoices 
+                (member_id, square_invoice_id, amount, status, payment_method, 
+                 delivery_method, due_date, notes, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT (square_invoice_id) DO UPDATE SET
+                    amount = EXCLUDED.amount,
+                    status = EXCLUDED.status,
+                    updated_at = CURRENT_TIMESTAMP
+            """
             
             params = (
                 invoice_data.get('member_id'),
@@ -2384,7 +2319,7 @@ class DatabaseManager:
         try:
             query = """
                 SELECT * FROM invoices 
-                WHERE member_id = ? 
+                WHERE member_id = %s 
                 ORDER BY created_at DESC
             """
             return self.execute_query(query, (member_id,))
@@ -2397,8 +2332,8 @@ class DatabaseManager:
         try:
             query = """
                 UPDATE invoices 
-                SET status = ?, payment_date = ?, square_payment_id = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE square_invoice_id = ?
+                SET status = %s, payment_date = %s, square_payment_id = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE square_invoice_id = %s
             """
             params = (status, payment_date, square_payment_id, square_invoice_id)
             return self.execute_query(query, params) is not None
