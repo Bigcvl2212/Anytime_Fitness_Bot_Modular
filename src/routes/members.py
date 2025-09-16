@@ -8,6 +8,7 @@ from flask import Blueprint, render_template, jsonify, request, current_app
 import logging
 import json
 from datetime import datetime
+import datetime as dt
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,7 @@ def get_member_profile(member_id):
         
         # Get basic member info
         cursor.execute("""
-            SELECT * FROM members WHERE prospect_id = ?
+            SELECT * FROM members WHERE prospect_id = %s
         """, (member_id,))
         
         member = cursor.fetchone()
@@ -97,7 +98,7 @@ def get_member_profile(member_id):
         
         # Get category info
         cursor.execute("""
-            SELECT category FROM member_categories WHERE member_id = ?
+            SELECT category FROM member_categories WHERE member_id = %s
         """, (member_id,))
         
         category_result = cursor.fetchone()
@@ -237,7 +238,7 @@ def search_members():
                 amount_past_due,
                 date_of_next_payment
             FROM members 
-            WHERE first_name LIKE ? OR last_name LIKE ? OR full_name LIKE ?
+            WHERE first_name LIKE %s OR last_name LIKE %s OR full_name LIKE %s
             ORDER BY full_name
             LIMIT 10
         """, (f'%{query}%', f'%{query}%', f'%{query}%'))
@@ -587,7 +588,7 @@ def member_profile(member_id):
         cursor = current_app.db_manager.get_cursor(conn)
         
         cursor.execute("""
-            SELECT * FROM members WHERE guid = ? OR prospect_id = ?
+            SELECT * FROM members WHERE guid = %s OR prospect_id = %s
         """, (member_id, member_id))
         
         member = cursor.fetchone()
@@ -596,14 +597,32 @@ def member_profile(member_id):
         
         member_data = dict(member)
         
+        # Convert datetime objects to strings for template compatibility
+        for key, value in member_data.items():
+            if isinstance(value, (dt.datetime, dt.date)):
+                member_data[key] = value.isoformat()
+        
         # Get category - use the actual guid from the member record
-        member_guid = member['guid'] or member['prospect_id'] or member_id
+        # Handle both dict and tuple access for cursor results
+        if hasattr(member, 'keys'):
+            member_guid = member.get('guid') or member.get('prospect_id') or member_id
+        else:
+            # If it's a tuple/list result, we need to access by index
+            # This is a fallback in case RealDictCursor is not working
+            member_guid = member[2] if len(member) > 2 else member_id  # Assuming guid is 3rd column
+        
         cursor.execute("""
-            SELECT category FROM member_categories WHERE member_id = ?
-        """, (member_guid,))
+            SELECT category FROM member_categories WHERE member_id = %s
+        """, (str(member_guid),))
         
         category_result = cursor.fetchone()
-        member_data['category'] = category_result[0] if category_result else 'Unknown'
+        if category_result:
+            if hasattr(category_result, 'keys'):
+                member_data['category'] = category_result.get('category', 'Unknown')
+            else:
+                member_data['category'] = category_result[0] if len(category_result) > 0 else 'Unknown'
+        else:
+            member_data['category'] = 'Unknown'
         
         conn.close()
         
@@ -611,4 +630,8 @@ def member_profile(member_id):
         
     except Exception as e:
         logger.error(f"❌ Error loading member profile {member_id}: {e}")
+        logger.error(f"❌ Exception type: {type(e).__name__}")
+        logger.error(f"❌ Full error details: {str(e)}")
+        import traceback
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
         return render_template('error.html', error=str(e))
