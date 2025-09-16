@@ -259,8 +259,9 @@
                     <input type="checkbox" 
                            id="club_{{ club.id }}" 
                            name="clubs" 
-                           value="{{ club.id }}">
-                    <div class="club-name">{{ club.name }}</div>
+                           value="{{ club.id }}"
+                           aria-labelledby="clubName_{{ club.id }}">
+                    <div class="club-name" id="clubName_{{ club.id }}">{{ club.name }}</div>
                     <div class="club-id">#{{ club.id }}</div>
                 </div>
                 {% endfor %}
@@ -384,6 +385,9 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
+                    credentials: 'same-origin', // ensure cookies/session are sent
+                    mode: 'same-origin',
+                    redirect: 'follow',
                     body: JSON.stringify({
                         club_ids: selectedClubs
                     })
@@ -392,19 +396,44 @@
                 const result = await response.json();
                 
                 if (result.success) {
+                    console.log('Club selection success:', result);
+                    console.log('Redirect URL received:', result.redirect_url);
+                    
                     showAlert(`Successfully selected: ${result.club_names.join(', ')}`, 'info');
                     
-                    // Redirect after short delay
+                    // Debug: log the redirect URL before using it
+                    console.log('About to redirect to:', result.redirect_url);
+                    
+                    // Multiple redirect methods for reliability
+                    console.log('Executing redirect to:', result.redirect_url);
+                    
+                    // Method 1: Direct redirect
                     setTimeout(() => {
                         window.location.href = result.redirect_url;
+                    }, 100);
+                    
+                    // Method 2: Fallback redirect to root
+                    setTimeout(() => {
+                        if (window.location.pathname === '/club-selection') {
+                            console.log('Fallback redirect to dashboard');
+                            window.location.href = '/';
+                        }
                     }, 1500);
+                    
+                    // Method 3: Force reload if still on club selection page
+                    setTimeout(() => {
+                        if (window.location.pathname === '/club-selection') {
+                            console.log('Force redirect - reloading dashboard');
+                            window.location.replace('/');
+                        }
+                    }, 3000);
                     
                 } else {
                     throw new Error(result.error || 'Unknown error');
                 }
                 
             } catch (error) {
-                console.error('Error selecting clubs:', error);
+                debugError('Error selecting clubs:', error);
                 showAlert(error.message || 'Error selecting clubs. Please try again.');
                 
                 // Hide loading

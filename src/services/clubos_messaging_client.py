@@ -16,6 +16,7 @@ import json
 import uuid
 import re
 from bs4 import BeautifulSoup
+from src.services.authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
 
 logger = logging.getLogger(__name__)
 
@@ -25,27 +26,17 @@ class ClubOSMessagingClient:
     """
     
     def __init__(self, username: str = None, password: str = None):
-        # Import credentials from secure service if not provided
-        if not username or not password:
-            try:
-                from ..config.clubos_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD
-                username = username or CLUBOS_USERNAME
-                password = password or CLUBOS_PASSWORD
-            except ImportError:
-                logger.warning("ClubOS credentials not found in config file")
-                
-        if not username or not password:
-            logger.warning("ClubOS credentials not available - messaging client will be in limited mode")
-            username = "placeholder"
-            password = "placeholder"
-                
         self.username = username
         self.password = password
-        self.session = requests.Session()
         self.base_url = "https://anytime.club-os.com"
-        self.authenticated = False
         
-        # Dynamic authentication data - populated during authenticate()
+        # Get unified authentication service
+        self.auth_service = get_unified_auth_service()
+        self.auth_session: Optional[AuthenticationSession] = None
+        
+        # Legacy attributes for backward compatibility
+        self.session = None
+        self.authenticated = False
         self.logged_in_user_id = None
         self.delegated_user_id = None  
         self.staff_delegated_user_id = None
@@ -53,138 +44,37 @@ class ClubOSMessagingClient:
         self.club_id = None
         self.club_location_id = None
         
-        # Standard headers for ClubOS API requests (same as calendar API)
-        self.standard_headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0',
-            'Accept': '*/*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br, zstd',
-            'Sec-Ch-Ua': '"Not)A;Brand";v="8", "Chromium";v="138", "Microsoft Edge";v="138"',
-            'Sec-Ch-Ua-Mobile': '?0',
-            'Sec-Ch-Ua-Platform': '"Windows"',
-            'Sec-Fetch-Site': 'same-origin',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Dest': 'empty',
-            'X-Requested-With': 'XMLHttpRequest',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-        }
-        
-        # Apply standard headers to session
-        self.session.headers.update(self.standard_headers)
     
     def authenticate(self) -> bool:
         """
-        Authenticate using ClubOS login following the exact HAR sequence
+        Authenticate using the unified authentication service
         """
         try:
-            logger.info(f"Authenticating {self.username} using HAR sequence")
+            logger.info("Authenticating ClubOS Messaging Client")
             
-            # Step 1: Get login page and extract CSRF token  
-            login_url = f"{self.base_url}/action/Login/view"
-            login_response = self.session.get(login_url, verify=False)
-            login_response.raise_for_status()
+            # Use unified authentication service
+            self.auth_session = self.auth_service.authenticate_clubos(self.username, self.password)
             
-            soup = BeautifulSoup(login_response.text, 'html.parser')
-            
-            # Extract required form fields
-            source_page = soup.find('input', {'name': '_sourcePage'})
-            fp_token = soup.find('input', {'name': '__fp'})
-            
-            logger.info("Extracted form fields successfully")
-            
-            # Step 2: Submit login form with correct field names
-            login_data = {
-                'login': 'Submit',
-                'username': self.username,
-                'password': self.password,
-                '_sourcePage': source_page.get('value') if source_page else '',
-                '__fp': fp_token.get('value') if fp_token else ''
-            }
-            
-            login_headers = {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Referer': login_url,
-                'User-Agent': self.standard_headers['User-Agent']
-            }
-            
-            auth_response = self.session.post(
-                f"{self.base_url}/action/Login",
-                data=login_data,
-                headers=login_headers,
-                allow_redirects=True,
-                verify=False
-            )
-            
-            # Step 3: Extract session information from cookies AND bearer token
-            session_id = self.session.cookies.get('JSESSIONID')
-            logged_in_user_id = self.session.cookies.get('loggedInUserId')
-            delegated_user_id = self.session.cookies.get('delegatedUserId') 
-            api_access_token = self.session.cookies.get('apiV3AccessToken')
-            
-            if not session_id or not logged_in_user_id:
-                logger.error("Authentication failed - missing session cookies")
+            if not self.auth_session or not self.auth_session.authenticated:
+                logger.error("ClubOS authentication failed")
                 return False
             
-            # Store dynamic values for API calls
-            self.bearer_token = api_access_token
-            self.logged_in_user_id = logged_in_user_id
-            self.delegated_user_id = delegated_user_id or logged_in_user_id
-            
-            # Extract club information dynamically from dashboard
-            self.club_id = None
-            self.club_location_id = None
-            
-            try:
-                dashboard_response = self.session.get(f"{self.base_url}/action/Dashboard/view", verify=False)
-                if dashboard_response.status_code == 200:
-                    dashboard_soup = BeautifulSoup(dashboard_response.text, 'html.parser')
-                    
-                    # Look for JavaScript variables containing club info
-                    scripts = dashboard_soup.find_all('script')
-                    for script in scripts:
-                        if script.string:
-                            # Look for club configuration in JavaScript
-                            if 'clubId' in script.string and 'clubLocationId' in script.string:
-                                # Extract club info using regex
-                                club_id_match = re.search(r'clubId["\']?\s*[:=]\s*["\']?(\d+)', script.string)
-                                location_id_match = re.search(r'clubLocationId["\']?\s*[:=]\s*["\']?(\d+)', script.string)
-                                
-                                if club_id_match:
-                                    self.club_id = club_id_match.group(1)
-                                if location_id_match:
-                                    self.club_location_id = location_id_match.group(1)
-                                break
-                    
-                    # Fallback: extract from form elements or meta tags
-                    if not self.club_id:
-                        club_input = dashboard_soup.find('input', {'name': re.compile(r'.*[Cc]lub[Ii]d.*')})
-                        if club_input:
-                            self.club_id = club_input.get('value')
-                    
-                    if not self.club_location_id:
-                        location_input = dashboard_soup.find('input', {'name': re.compile(r'.*[Ll]ocation[Ii]d.*')})
-                        if location_input:
-                            self.club_location_id = location_input.get('value')
-                            
-                    # Final fallback from HAR data patterns
-                    if not self.club_id:
-                        self.club_id = "291"
-                    if not self.club_location_id:  
-                        self.club_location_id = "3586"
-                        
-            except Exception as e:
-                logger.warning(f"Could not extract club info dynamically: {e}")
-                # Use fallback values from HAR analysis
-                self.club_id = "291"
-                self.club_location_id = "3586"
-            
-            # Create authorization header for API calls using dynamic values
-            if api_access_token:
-                self.api_bearer_token = self._create_dynamic_jwt_token()
-            
+            # Update legacy attributes for backward compatibility
+            self.session = self.auth_session.session
             self.authenticated = True
-            logger.info(f"Authentication successful - User ID: {logged_in_user_id}, Delegated: {self.delegated_user_id}")
+            self.logged_in_user_id = self.auth_session.logged_in_user_id
+            self.delegated_user_id = self.auth_session.delegated_user_id
+            self.bearer_token = self.auth_session.bearer_token
+            self.club_id = self.auth_session.club_id
+            self.club_location_id = self.auth_session.club_location_id
+            
+            # Update username from session for legacy compatibility
+            self.username = self.auth_session.username
+            
+            # Create JWT token for messaging API compatibility
+            self.api_bearer_token = self._create_dynamic_jwt_token()
+            
+            logger.info(f"Authentication successful - User ID: {self.logged_in_user_id}, Delegated: {self.delegated_user_id}")
             logger.info(f"Club ID: {self.club_id}, Location ID: {self.club_location_id}")
             return True
                 

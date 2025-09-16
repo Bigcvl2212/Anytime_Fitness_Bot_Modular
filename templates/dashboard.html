@@ -2,6 +2,10 @@
 
 {% block title %}Dashboard - Anytime Fitness{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
+
 {% block page_icon %}<i class="fas fa-tachometer-alt"></i>{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 
@@ -31,8 +35,8 @@
             <div class="outlook-stat-card h-100">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <h6 class="fw-bold mb-1" style="color: var(--af-purple-primary);">
-                            <i class="fas fa-robot me-2"></i>Bot Activity
+                        <h6 class="fw-bold mb-1 dashboard-card-title">
+                            <i class="fas fa-robot me-2 dashboard-icon"></i>Bot Activity
                         </h6>
                         <div class="h4 fw-bold mb-1">{{ bot_stats['messages_sent'] }}</div>
                         <small class="text-muted">Messages sent today</small>
@@ -40,8 +44,8 @@
                             <small class="text-muted">{{ bot_stats['last_activity'] }}</small>
                         </div>
                     </div>
-                    <div class="outlook-icon-circle" style="background: var(--af-purple-light);">
-                        <i class="fas fa-robot" style="color: var(--af-purple-primary);"></i>
+                    <div class="outlook-icon-circle dashboard-icon-circle">
+                        <i class="fas fa-robot dashboard-icon"></i>
                     </div>
                 </div>
             </div>
@@ -52,8 +56,8 @@
             <div class="outlook-stat-card h-100">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <h6 class="fw-bold mb-1" style="color: var(--af-purple-primary);">
-                            <i class="fas fa-inbox me-2"></i>Inbox
+                        <h6 class="fw-bold mb-1 dashboard-card-title">
+                            <i class="fas fa-inbox me-2 dashboard-icon"></i>Inbox
                         </h6>
                         <div class="h4 fw-bold mb-1">{{ bot_stats['unread_conversations'] }}</div>
                         <small class="text-muted">Unread conversations</small>
@@ -64,8 +68,8 @@
                             </small>
                         </div>
                     </div>
-                    <div class="outlook-icon-circle" style="background: var(--af-purple-light);">
-                        <i class="fas fa-inbox" style="color: var(--af-purple-primary);"></i>
+                    <div class="outlook-icon-circle dashboard-icon-circle">
+                        <i class="fas fa-inbox dashboard-icon"></i>
                     </div>
                 </div>
             </div>
@@ -76,8 +80,8 @@
             <div class="outlook-stat-card h-100">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <h6 class="fw-bold mb-1" style="color: var(--af-purple-primary);">
-                            <i class="fas fa-calendar-day me-2"></i>Today's Sessions
+                        <h6 class="fw-bold mb-1 dashboard-card-title">
+                            <i class="fas fa-calendar-day me-2 dashboard-icon"></i>Today's Sessions
                         </h6>
                         <div class="h4 fw-bold mb-1">{{ stats['todays_events'] }}</div>
                         <small class="text-muted">Training sessions</small>
@@ -88,8 +92,8 @@
                             </small>
                         </div>
                     </div>
-                    <div class="outlook-icon-circle" style="background: var(--af-purple-light);">
-                        <i class="fas fa-dumbbell" style="color: var(--af-purple-primary);"></i>
+                    <div class="outlook-icon-circle dashboard-icon-circle">
+                        <i class="fas fa-dumbbell dashboard-icon"></i>
                     </div>
                 </div>
             </div>
@@ -100,8 +104,8 @@
             <div class="outlook-stat-card h-100">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
-                        <h6 class="fw-bold mb-1" style="color: var(--af-purple-primary);">
-                            <i class="fas fa-dollar-sign me-2"></i>Today's Revenue
+                        <h6 class="fw-bold mb-1 dashboard-card-title">
+                            <i class="fas fa-dollar-sign me-2 dashboard-icon"></i>Today's Revenue
                         </h6>
                         <div class="h4 fw-bold mb-1">${{ stats['revenue'] }}</div>
                         <small class="text-muted">Training & packages</small>
@@ -112,8 +116,8 @@
                             </small>
                         </div>
                     </div>
-                    <div class="outlook-icon-circle" style="background: var(--af-purple-light);">
-                        <i class="fas fa-chart-line" style="color: var(--af-purple-primary);"></i>
+                    <div class="outlook-icon-circle dashboard-icon-circle">
+                        <i class="fas fa-chart-line dashboard-icon"></i>
                     </div>
                 </div>
             </div>
@@ -125,11 +129,11 @@
         <!-- Schedule Column -->
         <div class="col-md-8">
             <div class="outlook-card h-100">
-                <div class="p-3 border-bottom" style="background: var(--af-gray-50);">
+                <div class="p-3 border-bottom dashboard-section-header">
                                     <div class="d-flex align-items-center justify-content-between">
                     <div class="d-flex align-items-center">
                         <h5 class="fw-bold mb-0 me-3">
-                            <i class="fas fa-calendar-check me-2" style="color: var(--af-purple-primary);"></i>
+                            <i class="fas fa-calendar-check me-2 dashboard-calendar-icon"></i>
                             {% if day_offset == 0 %}
                                 Today's Schedule
                             {% elif day_offset == 1 %}
@@ -158,12 +162,12 @@
                 </div>
 
                 <!-- Schedule Header -->
-                <div class="d-flex fw-bold text-muted small border-bottom" style="padding: 12px 20px; background: var(--af-gray-25);">
-                    <div style="width: 80px;">TIME</div>
-                    <div style="flex: 1;">CLIENT</div>
-                    <div style="width: 120px;">TYPE</div>
-                    <div style="width: 160px;">FUNDING</div>
-                    <div style="width: 80px;">ACTIONS</div>
+                <div class="d-flex fw-bold text-muted small border-bottom dashboard-columns">
+                    <div class="col-time">TIME</div>
+                    <div class="col-client">CLIENT</div>
+                    <div class="col-type">TYPE</div>
+                    <div class="col-funding">FUNDING</div>
+                    <div class="col-actions">ACTIONS</div>
                 </div>
 
                 <!-- Schedule Items -->
@@ -181,7 +185,7 @@
                         'assessment' in (event.get('title', '') | string).lower() or
                         not all_participants or (all_participants | length) == 0
                     ) %}
-                    <div class="d-flex align-items-center border-bottom session-row" style="padding: 16px 20px; transition: all 0.2s ease; cursor: pointer;" 
+                    <div class="d-flex align-items-center border-bottom session-row" 
                          data-participant="{{ (all_participants | join(', ')) if all_participants else 'Unknown' }}"
                          data-time="{{ (event.get('start_time', '') | string) }} - {{ (event.get('end_time', '') | string) }}"
                          data-trainer="{{ event.get('trainer', 'Not specified') | string }}"
@@ -190,12 +194,12 @@
                          data-is-appointment="{{ 'true' if is_appointment else 'false' }}"
                          data-event-id="{{ event.get('id', '') | string }}"
                          data-all-participants="{{ (all_participants | join(', ')) if all_participants else '' }}"
-                         onclick="console.log('🖱️ Inline click detected!'); if (typeof openEventDetails === 'function') { openEventDetails(this); } else { console.error('❌ openEventDetails function not found!'); }"
+                         onclick="debugLog('🖱️ Inline click detected!'); if (typeof openEventDetails === 'function') { openEventDetails(this); } else { debugError('❌ openEventDetails function not found!'); }"
                          title="Click to view session details">
                         
                         <!-- Time -->
-                        <div style="width: 80px;">
-                            <div class="fw-bold" style="color: var(--af-purple-primary);">
+                        <div class="col-time">
+                            <div class="fw-bold session-client-name">
                                 {{ event.get('start_time', 'TBD') }}
                             </div>
                             <small class="text-muted">
@@ -204,14 +208,14 @@
                         </div>
 
                         <!-- Client Name -->
-                        <div style="flex: 1;">
+                        <div class="col-client">
                             {% if is_appointment %}
                                 <div class="d-flex align-items-center">
                                     <span class="outlook-badge outlook-badge-warning me-2">APPT</span>
                                     <div>
-                                        <div class="fw-bold" style="font-size: 1.2em;">{{ event.get('title', 'Consultation') }}</div>
+                                        <div class="fw-bold session-client-name">{{ event.get('title', 'Consultation') }}</div>
                                         {% if all_participants %}
-                                            <div class="text-muted" style="font-size: 1.0em;">
+                                            <div class="text-muted session-time-text">
                                                 with {% for participant in participants_list %}
                                                     {% if participant.past_due %}
                                                         <span class="text-danger fw-bold" title="Past Due: {{ participant.past_due.formatted_amount | string }}">{{ participant.name | string }}</span>
@@ -231,7 +235,7 @@
                                     <span class="outlook-badge outlook-badge-success me-2">PT</span>
                                     <div>
                                         {% if all_participants %}
-                                            <div class="fw-bold" style="font-size: 1.3em; color: var(--af-purple-primary);">
+                                            <div class="fw-bold session-stats-large">
                                                 {% for participant in participants_list %}
                                                     {% if participant.past_due %}
                                                         <span class="text-danger fw-bold" title="Past Due: {{ participant.past_due.formatted_amount | string }}">{{ participant.name | string }}</span>
@@ -243,7 +247,7 @@
                                             </div>
                                             <small class="text-muted">{{ event.get('title', 'Training Session') }}</small>
                                         {% else %}
-                                            <div class="fw-bold" style="font-size: 1.2em;">{{ event.get('title', 'Training Session') }}</div>
+                                            <div class="fw-bold session-title-text">{{ event.get('title', 'Training Session') }}</div>
                                             <small class="text-muted">No participants specified</small>
                                         {% endif %}
                                     </div>
@@ -252,7 +256,7 @@
                         </div>
 
                         <!-- Session Type -->
-                        <div style="width: 120px;">
+                        <div class="col-type">
                             {% if is_appointment %}
                                 <span class="outlook-badge outlook-badge-warning">Consultation</span>
                             {% else %}
@@ -261,7 +265,7 @@
                         </div>
 
                         <!-- Funding Status -->
-                        <div style="width: 160px;">
+                        <div class="col-funding">
                             {% if is_appointment %}
                                 <span class="outlook-badge outlook-badge-info">Free</span>
                             {% else %}
@@ -277,15 +281,16 @@
                         </div>
 
                         <!-- Actions -->
-                        <div style="width: 80px;">
+                        <div class="col-actions">
                             <div class="d-flex gap-1">
                                 <button class="outlook-btn-icon outlook-btn-icon-sm" 
                                         title="Edit session" 
                                         aria-label="Edit session for {{ (all_participants | join(', ')) if all_participants else 'Unknown' }}">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <form method="POST" action="/delete_event" style="display: inline;">
-                                    <input type="hidden" name="event_id" value="{{ event.get('id', '') }}">
+                                <form method="POST" action="/delete_event" class="d-inline">
+                                    <label for="event-id-{{ event.get('id', '') }}" class="visually-hidden">Event ID for deletion</label>
+                                    <input type="hidden" name="event_id" id="event-id-{{ event.get('id', '') }}" value="{{ event.get('id', '') }}">
                                     <button type="submit" 
                                             class="outlook-btn-icon outlook-btn-icon-sm outlook-btn-danger" 
                                             title="Delete session"
@@ -300,7 +305,7 @@
                     {% endfor %}
                     
                     <!-- Quick Add Section -->
-                    <div class="p-3 text-center" style="background: var(--af-gray-50); border-top: 1px solid var(--af-gray-200);">
+                    <div class="p-3 text-center quick-add-section">
                         <a href="/calendar" class="outlook-btn outlook-btn-primary">
                             <i class="fas fa-plus"></i>
                             Add New Session
@@ -326,9 +331,9 @@
         <!-- Bot Supervision Column -->
         <div class="col-md-4">
             <div class="outlook-card h-100">
-                <div class="p-3 border-bottom" style="background: var(--af-gray-50);">
+                <div class="p-3 border-bottom dashboard-message-header">
                     <h5 class="fw-bold mb-0">
-                        <i class="fas fa-robot me-2" style="color: var(--af-purple-primary);"></i>
+                        <i class="fas fa-robot me-2 dashboard-message-icon"></i>
                         Bot Supervision
                     </h5>
                 </div>
@@ -364,11 +369,10 @@
                     
                     <div id="bot-inbox">
                         {% for conversation in bot_conversations %}
-                        <div class="border rounded p-2 mb-2" style="cursor: pointer;" onclick="viewConversation('{{ conversation.id }}')">
+                        <div class="border rounded p-2 mb-2 conversation-item" onclick="viewConversation('{{ conversation.id }}')">
                             <div class="d-flex align-items-center justify-content-between">
                                 <div class="d-flex align-items-center">
-                                    <div class="rounded-circle me-2"
-                                         style="width: 8px; height: 8px; background: {{ 'var(--af-purple-primary)' if conversation.unread else 'var(--af-gray-300)' }};"></div>
+                                    <div class="rounded-circle me-2 conversation-status-dot {{ 'conversation-unread' if conversation.unread else 'conversation-read' }}"></div>
                                     <div>
                                         <div class="fw-bold small">{{ conversation.name }}</div>
                                         <div class="text-muted small">{{ conversation.preview }}</div>
@@ -388,8 +392,8 @@
 <!-- Event Details Modal -->
 <div class="modal fade" id="eventDetailsModal" tabindex="-1" aria-labelledby="eventDetailsModalLabel">
     <div class="modal-dialog modal-lg">
-        <div class="modal-content" style="border-radius: var(--border-radius-large); border: none;" aria-live="polite">
-            <div class="modal-header" style="background: linear-gradient(135deg, var(--af-purple-primary) 0%, var(--af-purple-dark) 100%); color: white; border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;">
+        <div class="modal-content dashboard-modal-content" aria-live="polite">
+            <div class="modal-header dashboard-modal-header">
                 <h5 class="modal-title" id="eventDetailsModalLabel">
                     <i class="fas fa-calendar-alt me-2"></i>Session Details
                 </h5>
@@ -399,29 +403,29 @@
                 <div class="row">
                     <div class="col-md-6">
                         <div class="mb-4">
-                            <label class="fw-bold text-muted small">CLIENT</label>
+                            <div class="fw-bold text-muted small">CLIENT</div>
                             <div class="fs-5 fw-bold" id="modal-participant">-</div>
                         </div>
                         <div class="mb-4">
-                            <label class="fw-bold text-muted small">TIME</label>
+                            <div class="fw-bold text-muted small">TIME</div>
                             <div class="fs-6" id="modal-time">-</div>
                         </div>
                         <div class="mb-4">
-                            <label class="fw-bold text-muted small">TRAINER</label>
+                            <div class="fw-bold text-muted small">TRAINER</div>
                             <div class="fs-6" id="modal-trainer">-</div>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="mb-4">
-                            <label class="fw-bold text-muted small">SESSION TYPE</label>
+                            <div class="fw-bold text-muted small">SESSION TYPE</div>
                             <div id="modal-type">-</div>
                         </div>
                         <div class="mb-4">
-                            <label class="fw-bold text-muted small">LOCATION</label>
+                            <div class="fw-bold text-muted small">LOCATION</div>
                             <div class="fs-6" id="modal-location">Training Floor</div>
                         </div>
                         <div class="mb-4">
-                            <label class="fw-bold text-muted small">FUNDING STATUS</label>
+                            <div class="fw-bold text-muted small">FUNDING STATUS</div>
                             <div id="modal-funding">
                                 <span class="outlook-badge outlook-badge-warning">
                                     <i class="fas fa-spinner fa-spin"></i>
@@ -433,7 +437,7 @@
                 </div>
                 
                 <!-- Training Package Details -->
-                <div id="training-package-details" style="display: none;">
+                <div id="training-package-details" class="dashboard-hidden">
                     <hr class="my-4">
                     <h6 class="fw-bold mb-3">
                         <i class="fas fa-file-contract me-2"></i>Training Package Details
@@ -441,19 +445,19 @@
                     <div class="row">
                         <div class="col-md-4">
                             <div class="mb-3">
-                                <label class="fw-bold text-muted small">SESSIONS REMAINING</label>
+                                <div class="fw-bold text-muted small">SESSIONS REMAINING</div>
                                 <div class="fs-4 fw-bold text-success" id="sessions-remaining">-</div>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="mb-3">
-                                <label class="fw-bold text-muted small">PACKAGE TYPE</label>
+                                <div class="fw-bold text-muted small">PACKAGE TYPE</div>
                                 <div id="package-type">-</div>
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="mb-3">
-                                <label class="fw-bold text-muted small">EXPIRATION</label>
+                                <div class="fw-bold text-muted small">EXPIRATION</div>
                                 <div id="package-expiration">-</div>
                             </div>
                         </div>
@@ -461,13 +465,13 @@
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="fw-bold text-muted small">PURCHASE DATE</label>
+                                <div class="fw-bold text-muted small">PURCHASE DATE</div>
                                 <div id="purchase-date">-</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="fw-bold text-muted small">TOTAL PAID</label>
+                                <div class="fw-bold text-muted small">TOTAL PAID</div>
                                 <div class="fw-bold text-success" id="total-paid">-</div>
                             </div>
                         </div>
@@ -495,10 +499,29 @@
 
 {% block extra_js %}
 <script>
+        // Debug logging system - set to false for production
+        const DEBUG_MODE = false;
+        
+        function debugLog(...args) {
+            if (DEBUG_MODE) {
+                debugLog(...args);
+            }
+        }
+        
+        function debugError(...args) {
+            debugError(...args); // Always show errors
+        }
+        
+        function debugWarn(...args) {
+            if (DEBUG_MODE) {
+                debugWarn(...args);
+            }
+        }
+
 // Event details popup functions
 function openEventDetails(element) {
-    console.log('🚀 openEventDetails called');
-    console.log('Element:', element);
+    debugLog('🚀 openEventDetails called');
+    debugLog('Element:', element);
     
     // Get data from the clicked row with better error handling
     const participant = element.getAttribute('data-participant') || 'Unknown';
@@ -510,7 +533,7 @@ function openEventDetails(element) {
     const isAppointment = element.getAttribute('data-is-appointment') === 'true';
     const eventId = element.getAttribute('data-event-id') || '';
     
-    console.log(`🎯 Opening event details for: ${allParticipants}`, {
+    debugLog(`🎯 Opening event details for: ${allParticipants}`, {
         participant,
         allParticipants, 
         time,
@@ -554,32 +577,32 @@ function openEventDetails(element) {
         // Show the modal
         const modalElement = document.getElementById('eventDetailsModal');
         if (modalElement) {
-            console.log('📋 Modal element found, attempting to show...');
+            debugLog('📋 Modal element found, attempting to show...');
             
             // Try Bootstrap first
             if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
                 try {
                     const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
                     modal.show();
-                    console.log('✅ Modal opened with Bootstrap');
+                    debugLog('✅ Modal opened with Bootstrap');
                 } catch (bootstrapError) {
-                    console.error('❌ Bootstrap modal error:', bootstrapError);
+                    debugError('❌ Bootstrap modal error:', bootstrapError);
                     // Fallback to manual display
                     modalElement.style.display = 'block';
                     modalElement.classList.add('show');
                     modalElement.setAttribute('aria-hidden', 'false');
                     document.body.classList.add('modal-open');
-                    console.log('⚠️ Using manual modal display fallback');
+                    debugLog('⚠️ Using manual modal display fallback');
                 }
             } else {
-                console.log('⚠️ Bootstrap not available, using manual modal display');
+                debugLog('⚠️ Bootstrap not available, using manual modal display');
                 modalElement.style.display = 'block';
                 modalElement.classList.add('show');
                 modalElement.setAttribute('aria-hidden', 'false');
                 document.body.classList.add('modal-open');
             }
         } else {
-            console.error('❌ Modal element not found!');
+            debugError('❌ Modal element not found!');
             alert(`Event Details:\n\nClient: ${allParticipants}\nTime: ${time}\nTrainer: ${trainer}\nType: ${eventType}`);
         }
         
@@ -601,14 +624,14 @@ function openEventDetails(element) {
         }
         
     } catch (error) {
-        console.error('❌ Error in openEventDetails:', error);
+        debugError('❌ Error in openEventDetails:', error);
         // Ultimate fallback
         alert(`Event Details:\n\nClient: ${allParticipants}\nTime: ${time}\nTrainer: ${trainer}\nType: ${eventType}\n\n(Modal display error - see console)`);
     }
 }
 
 function checkMultipleParticipantsFunding(participants, time) {
-    console.log(`� Checking past due status for ${participants.length} participants:`, participants);
+    debugLog(`� Checking past due status for ${participants.length} participants:`, participants);
     
     const pastDuePromises = participants.map(participant => 
         fetch('/api/member/past-due-status', {
@@ -683,7 +706,7 @@ function displayMultipleParticipantsFunding(fundingResults) {
 }
 
 function refreshFundingCache() {
-    console.log('🔄 Refreshing funding cache...');
+    debugLog('🔄 Refreshing funding cache...');
     
     const refreshBtn = document.getElementById('refresh-funding-btn');
     const originalText = refreshBtn.innerHTML;
@@ -701,7 +724,7 @@ function refreshFundingCache() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            console.log('✅ Funding cache refreshed:', data);
+            debugLog('✅ Funding cache refreshed:', data);
             refreshBtn.innerHTML = '<i class="fas fa-check"></i> Updated ' + data.success_count + ' clients';
             refreshBtn.className = 'outlook-btn outlook-btn-success';
             
@@ -715,7 +738,7 @@ function refreshFundingCache() {
                 refreshBtn.disabled = false;
             }, 3000);
         } else {
-            console.error('❌ Funding cache refresh failed:', data.error);
+            debugError('❌ Funding cache refresh failed:', data.error);
             refreshBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
             refreshBtn.className = 'outlook-btn outlook-btn-danger';
             
@@ -727,7 +750,7 @@ function refreshFundingCache() {
         }
     })
     .catch(error => {
-        console.error('❌ Network error:', error);
+        debugError('❌ Network error:', error);
         refreshBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Network Error';
         refreshBtn.className = 'outlook-btn outlook-btn-danger';
         
@@ -740,7 +763,7 @@ function refreshFundingCache() {
 }
 
 function performBulkCheckin() {
-    console.log('🏋️ Starting bulk member check-in...');
+    debugLog('🏋️ Starting bulk member check-in...');
     
     const bulkBtn = document.getElementById('bulk-checkin-btn');
     const originalText = bulkBtn.innerHTML;
@@ -751,14 +774,14 @@ function performBulkCheckin() {
         progressContainer = document.createElement('div');
         progressContainer.id = 'bulk-checkin-progress';
         progressContainer.innerHTML = `
-            <div class="card mt-3" style="border-left: 4px solid var(--af-purple-primary);">
+            <div class="card mt-3 bulk-progress-card">
                 <div class="card-body">
                     <h6 class="card-title mb-3">
                         <i class="fas fa-users text-primary"></i> Bulk Check-in Progress
                     </h6>
-                    <div class="progress mb-2" style="height: 20px;">
-                        <div id="bulk-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
-                             role="progressbar" style="width: 0%; background-color: var(--af-purple-primary);">
+                    <div class="progress mb-2 bulk-progress-bar-container">
+                        <div id="bulk-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bulk-progress-bar-initial" 
+                             role="progressbar">
                             0%
                         </div>
                     </div>
@@ -782,7 +805,7 @@ function performBulkCheckin() {
                         </div>
                     </div>
                     <div id="current-member" class="mt-2 small text-info"></div>
-                    <div id="bulk-errors" class="mt-2" style="display: none;">
+                    <div id="bulk-errors" class="mt-2 bulk-errors-container">
                         <small class="text-danger">Errors:</small>
                         <div id="error-list" class="small text-danger"></div>
                     </div>
@@ -807,13 +830,13 @@ function performBulkCheckin() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            console.log('✅ Bulk check-in started:', data);
+            debugLog('✅ Bulk check-in started:', data);
             bulkBtn.innerHTML = '<i class="fas fa-cog fa-spin"></i> Running in Background...';
             
             // Start polling for status updates
             pollBulkCheckinStatus(bulkBtn, originalText, progressContainer);
         } else {
-            console.error('❌ Failed to start bulk check-in:', data.error);
+            debugError('❌ Failed to start bulk check-in:', data.error);
             bulkBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Failed to Start';
             bulkBtn.className = 'outlook-btn outlook-btn-danger';
             
@@ -828,7 +851,7 @@ function performBulkCheckin() {
         }
     })
     .catch(error => {
-        console.error('❌ Network error:', error);
+        debugError('❌ Network error:', error);
         bulkBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Network Error';
         bulkBtn.className = 'outlook-btn outlook-btn-danger';
         
@@ -950,29 +973,29 @@ function pollBulkCheckinStatus(bulkBtn, originalText, progressContainer) {
             }
         })
         .catch(error => {
-            console.error('❌ Error polling status:', error);
+            debugError('❌ Error polling status:', error);
         });
     }, 1000); // Poll every 1 second for faster updates
 }
 
 function checkAllFundingStatusesAsync() {
-    console.log('🔍 Starting asynchronous funding status checks...');
+    debugLog('🔍 Starting asynchronous funding status checks...');
     
     const fundingElements = document.querySelectorAll('[id^="funding-status-"]');
-    console.log(`Found ${fundingElements.length} funding status elements to check`);
+    debugLog(`Found ${fundingElements.length} funding status elements to check`);
     
     fundingElements.forEach((element, index) => {
         const participant = element.getAttribute('data-participant');
         const time = element.getAttribute('data-time');
         
-        console.log(`Element ${index + 1}: participant="${participant}", time="${time}"`);
+        debugLog(`Element ${index + 1}: participant="${participant}", time="${time}"`);
         
         if (participant && participant.trim() !== '' && participant !== 'Unknown') {
             setTimeout(() => {
                 checkEventCardFunding(element, participant, time);
             }, index * 300);
         } else {
-            console.log(`Skipping element ${index + 1} - no valid participant`);
+            debugLog(`Skipping element ${index + 1} - no valid participant`);
             element.innerHTML = `
                 <span class="outlook-badge outlook-badge-secondary">
                     <i class="fas fa-question-circle"></i>
@@ -984,9 +1007,9 @@ function checkAllFundingStatusesAsync() {
 }
 
 function checkEventCardFunding(element, participant, time) {
-    console.log(`💰 CHECKING PAST DUE STATUS for event card: ${participant}`);
-    console.log('API endpoint: /api/member/past-due-status');
-    console.log('Request data:', { participant });
+    debugLog(`💰 CHECKING PAST DUE STATUS for event card: ${participant}`);
+    debugLog('API endpoint: /api/member/past-due-status');
+    debugLog('Request data:', { participant });
     
     // Show loading state
     element.innerHTML = `
@@ -1007,17 +1030,17 @@ function checkEventCardFunding(element, participant, time) {
         })
     })
     .then(response => {
-        console.log('Past Due API response status:', response.status);
+        debugLog('Past Due API response status:', response.status);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         return response.json();
     })
     .then(data => {
-        console.log('Past Due API response data:', data);
+        debugLog('Past Due API response data:', data);
         if (data.success) {
             const pastDueInfo = data.past_due_info;
-            console.log(`✅ Past due data received for ${participant}:`, pastDueInfo);
+            debugLog(`✅ Past due data received for ${participant}:`, pastDueInfo);
             
             const statusIcon = pastDueInfo.status_icon || 'fas fa-question-circle';
             const statusClass = `outlook-badge-${pastDueInfo.status_class || 'secondary'}`;
@@ -1032,7 +1055,7 @@ function checkEventCardFunding(element, participant, time) {
             `;
             element.title = 'Past due status from training payment tracking system';
         } else {
-            console.error('❌ API error for', participant, ':', data.error);
+            debugError('❌ API error for', participant, ':', data.error);
             element.innerHTML = `
                 <span class="outlook-badge outlook-badge-secondary">
                     <i class="fas fa-question-circle"></i>
@@ -1042,7 +1065,7 @@ function checkEventCardFunding(element, participant, time) {
         }
     })
     .catch(error => {
-        console.error('❌ Network error checking past due for', participant, ':', error);
+        debugError('❌ Network error checking past due for', participant, ':', error);
         element.innerHTML = `
             <span class="outlook-badge outlook-badge-secondary">
                 <i class="fas fa-exclamation-triangle"></i>
@@ -1054,7 +1077,7 @@ function checkEventCardFunding(element, participant, time) {
 
 // Simple test function to verify event card clicking works
 function testEventCardClick() {
-    console.log('🧪 Testing event card click functionality...');
+    debugLog('🧪 Testing event card click functionality...');
     const testData = {
         participant: 'Test Client',
         time: '2:00 PM - 3:00 PM',
@@ -1081,16 +1104,16 @@ function testEventCardClick() {
         }
     };
     
-    console.log('🧪 Calling openEventDetails with test data...');
+    debugLog('🧪 Calling openEventDetails with test data...');
     openEventDetails(mockElement);
 }
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Dashboard loaded - attaching event listeners');
+    debugLog('🚀 Dashboard loaded - attaching event listeners');
     
     // Add test button for debugging
-    console.log('🧪 To test event card functionality, run: testEventCardClick()');
+    debugLog('🧪 To test event card functionality, run: testEventCardClick()');
     
     checkAllFundingStatusesAsync();
     
@@ -1109,7 +1132,7 @@ document.addEventListener('DOMContentLoaded', function() {
         row.style.cursor = 'pointer';
         
         // Debug: Log what we found
-        console.log(`Found event row ${index + 1}:`, {
+        debugLog(`Found event row ${index + 1}:`, {
             participant: row.getAttribute('data-participant'),
             time: row.getAttribute('data-time'),
             type: row.getAttribute('data-type')
@@ -1118,12 +1141,12 @@ document.addEventListener('DOMContentLoaded', function() {
         row.addEventListener('click', function(e) {
             // Don't trigger if clicking on buttons or forms
             if (e.target.closest('button, a, form, .outlook-btn-icon')) {
-                console.log('🚫 Click ignored - target is button/form:', e.target);
+                debugLog('🚫 Click ignored - target is button/form:', e.target);
                 return;
             }
             
-            console.log('🖱️ Event card clicked!');
-            console.log('Row data:', {
+            debugLog('🖱️ Event card clicked!');
+            debugLog('Row data:', {
                 participant: this.getAttribute('data-participant'),
                 time: this.getAttribute('data-time'),
                 trainer: this.getAttribute('data-trainer'),
@@ -1150,19 +1173,19 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     const totalEventCards = document.querySelectorAll('.session-row').length;
-    console.log(`✅ Added click handlers to ${totalEventCards} event cards`);
+    debugLog(`✅ Added click handlers to ${totalEventCards} event cards`);
     
     if (totalEventCards === 0) {
-        console.log('⚠️ No event cards found! This might be why clicking does nothing.');
-        console.log('💡 Try: testEventCardClick() to test the modal functionality');
+        debugLog('⚠️ No event cards found! This might be why clicking does nothing.');
+        debugLog('💡 Try: testEventCardClick() to test the modal functionality');
     } else {
-        console.log('✅ Event cards found and ready for clicking!');
+        debugLog('✅ Event cards found and ready for clicking!');
     }
     
     // Make test function available globally for debugging
     window.testEventCardClick = testEventCardClick;
     
-    console.log('✅ Dashboard initialization complete');
+    debugLog('✅ Dashboard initialization complete');
 });
 </script>
 {% endblock %}

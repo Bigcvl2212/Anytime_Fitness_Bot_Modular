@@ -5,9 +5,13 @@ Check Alexander Ovanin's funding status directly from ClubOS API
 
 import sys
 import os
-sys.path.append('.')
 
-from clubos_training_api import ClubOSTrainingPackageAPI
+# Ensure project root is on sys.path so 'src' is imported as a package
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from src.clubos_training_api import ClubOSTrainingPackageAPI
 import logging
 
 # Configure logging
@@ -70,7 +74,8 @@ def test_alexander_funding():
     print("\n=== Step 4: Testing the funding lookup function directly ===")
     try:
         # Import the training package cache to test the lookup function
-        from clean_dashboard import training_package_cache
+        from src.services.training_package_cache import TrainingPackageCache
+        training_package_cache = TrainingPackageCache()
         
         # Test the lookup function that the dashboard uses
         funding_data = training_package_cache.lookup_participant_funding("Alexander Ovanin")

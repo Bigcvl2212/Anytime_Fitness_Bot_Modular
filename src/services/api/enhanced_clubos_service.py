@@ -544,6 +544,276 @@ class ClubOSAPIService:
         except Exception as e:
             print(f"   ⚠️ Error in conversation HTML scraping: {e}")
             return []
+    
+    def get_dashboard_messages(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Fetch recent messages from ClubOS Dashboard messages endpoint.
+        
+        Args:
+            limit: Maximum number of messages to retrieve
+            
+        Returns:
+            List of message dictionaries formatted for dashboard display
+        """
+        print(f"📡 API: Fetching dashboard messages from ClubOS...")
+        
+        try:
+            # Try GET request to dashboard messages endpoint
+            messages_url = urljoin(self.base_url, "/action/Dashboard/messages")
+            
+            # Add timestamp to avoid caching issues
+            import time
+            timestamp = int(time.time() * 1000)
+            
+            response = self.session.get(
+                f"{messages_url}?_={timestamp}",
+                headers=self._get_dashboard_headers(),
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                # Parse HTML response to extract messages
+                messages = self._parse_dashboard_messages_html(response.text, limit)
+                print(f"   ✅ Retrieved {len(messages)} dashboard messages via GET")
+                return messages
+            else:
+                print(f"   ⚠️ Dashboard messages GET failed with status {response.status_code}")
+                
+                # Try POST request as fallback (some endpoints require POST)
+                return self._try_dashboard_messages_post(limit)
+                
+        except Exception as e:
+            print(f"   ❌ Error fetching dashboard messages: {e}")
+            return []
+    
+    def _try_dashboard_messages_post(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Try POST request to dashboard messages endpoint as fallback"""
+        try:
+            messages_url = urljoin(self.base_url, "/action/Dashboard/messages")
+            
+            # Some endpoints require POST with userId parameter (from API captures)
+            post_data = {
+                "userId": "187032782"  # Your user ID from the API captures
+            }
+            
+            response = self.session.post(
+                messages_url,
+                data=post_data,
+                headers=self._get_dashboard_headers(),
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                messages = self._parse_dashboard_messages_html(response.text, limit)
+                print(f"   ✅ Retrieved {len(messages)} dashboard messages via POST")
+                return messages
+            else:
+                print(f"   ❌ Dashboard messages POST also failed with status {response.status_code}")
+                return []
+                
+        except Exception as e:
+            print(f"   ❌ Error in POST fallback for dashboard messages: {e}")
+            return []
+    
+    def _get_dashboard_headers(self) -> Dict[str, str]:
+        """Get headers appropriate for dashboard requests"""
+        headers = self.auth.get_headers()
+        headers.update({
+            "Accept": "text/html, */*; q=0.01",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": f"{self.base_url}/action/Dashboard/view",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
+        })
+        return headers
+    
+    def _parse_dashboard_messages_html(self, html_content: str, limit: int) -> List[Dict[str, Any]]:
+        """Parse ClubOS dashboard messages HTML and convert to dashboard format"""
+        try:
+            from bs4 import BeautifulSoup
+            import datetime as dt_module
+            
+            soup = BeautifulSoup(html_content, 'html.parser')
+            messages = []
+            
+            # Look for message containers in the HTML
+            # Based on the HTML structure seen in the exported data
+            message_containers = soup.find_all(['div', 'li'], class_=lambda x: x and any(
+                keyword in x.lower() for keyword in ['message', 'conversation', 'thread', 'item']
+            ))
+            
+            # Also try to find message list containers
+            if not message_containers:
+                message_containers = soup.find_all(['div', 'section'], id=lambda x: x and 'message' in x.lower())
+            
+            # Extract text-based message data if HTML parsing fails
+            if not message_containers:
+                messages = self._extract_messages_from_text(html_content, limit)
+            else:
+                messages = self._extract_messages_from_containers(message_containers, limit)
+            
+            # Format messages for dashboard consumption
+            formatted_messages = []
+            for i, message in enumerate(messages[:limit]):
+                if i >= limit:
+                    break
+                    
+                formatted_message = self._format_message_for_dashboard(message, i)
+                if formatted_message:
+                    formatted_messages.append(formatted_message)
+            
+            return formatted_messages
+            
+        except Exception as e:
+            print(f"   ⚠️ Error parsing dashboard messages HTML: {e}")
+            return []
+    
+    def _extract_messages_from_containers(self, containers: list, limit: int) -> List[Dict[str, Any]]:
+        """Extract message data from HTML containers"""
+        messages = []
+        
+        for container in containers[:limit * 2]:  # Get extra in case some don't have useful data
+            try:
+                # Extract member name (look for name patterns)
+                member_name = "Unknown Member"
+                text_content = container.get_text().strip()
+                
+                # Try to extract member name from various patterns
+                lines = text_content.split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if len(line) > 5 and len(line) < 50:
+                        # Look for name patterns (First Last)
+                        import re
+                        name_match = re.match(r'^([A-Z][a-z]+\s+[A-Z][a-z]+)', line)
+                        if name_match:
+                            member_name = name_match.group(1)
+                            break
+                
+                # Extract message content
+                message_content = text_content[:200] if text_content else "No message content"
+                
+                # Try to extract timestamp if present
+                timestamp = dt_module.datetime.now().isoformat()
+                time_patterns = [
+                    r'(\d{1,2}:\d{2}\s*[AP]M)',
+                    r'(\d{4}-\d{2}-\d{2})',
+                    r'(\d{1,2}/\d{1,2}/\d{4})'
+                ]
+                
+                for pattern in time_patterns:
+                    time_match = re.search(pattern, text_content, re.IGNORECASE)
+                    if time_match:
+                        try:
+                            # Try to parse the time (simplified)
+                            timestamp = dt_module.datetime.now().replace(
+                                hour=12, minute=0, second=0
+                            ).isoformat()
+                        except:
+                            pass
+                        break
+                
+                message = {
+                    "id": f"clubos_msg_{len(messages)}",
+                    "member_name": member_name,
+                    "message_content": message_content,
+                    "created_at": timestamp,
+                    "sender_type": "member",
+                    "thread_type": "clubos",
+                    "unread_count": 1,
+                    "raw_html": str(container)[:500]  # Keep some raw HTML for debugging
+                }
+                
+                messages.append(message)
+                if len(messages) >= limit:
+                    break
+                    
+            except Exception as e:
+                print(f"   ⚠️ Error extracting message from container: {e}")
+                continue
+        
+        return messages
+    
+    def _extract_messages_from_text(self, html_content: str, limit: int) -> List[Dict[str, Any]]:
+        """Extract messages from raw text when HTML parsing fails"""
+        import re
+        import datetime as dt_module
+        
+        messages = []
+        
+        # Look for member names in the text (common ClubOS patterns)
+        name_pattern = r'([A-Z][a-z]+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)'  # First Last, possibly Middle
+        names = re.findall(name_pattern, html_content)
+        
+        # Remove common non-name matches
+        excluded_words = {'Email Message', 'Text Message', 'Dashboard View', 'Recent Activity'}
+        filtered_names = [name for name in names if name not in excluded_words and len(name.split()) >= 2]
+        
+        # Create message objects from found names
+        for i, name in enumerate(set(filtered_names[:limit])):
+            message = {
+                "id": f"clubos_text_msg_{i}",
+                "member_name": name,
+                "message_content": f"Recent message from {name} (from ClubOS Dashboard)",
+                "created_at": dt_module.datetime.now().isoformat(),
+                "sender_type": "member",
+                "thread_type": "clubos",
+                "unread_count": 1
+            }
+            messages.append(message)
+        
+        return messages
+    
+    def _format_message_for_dashboard(self, message: Dict[str, Any], index: int) -> Dict[str, Any]:
+        """Format a ClubOS message for dashboard template consumption"""
+        try:
+            import datetime as dt_module
+            
+            member_name = message.get('member_name', 'Unknown Member')
+            message_content = message.get('message_content', 'No message content')
+            created_at = message.get('created_at', dt_module.datetime.now().isoformat())
+            
+            # Calculate time ago
+            try:
+                msg_time = dt_module.datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                time_diff = dt_module.datetime.now() - msg_time
+                
+                if time_diff.days > 0:
+                    time_ago = f"{time_diff.days} day{'s' if time_diff.days > 1 else ''} ago"
+                elif time_diff.seconds > 3600:
+                    hours = time_diff.seconds // 3600
+                    time_ago = f"{hours} hour{'s' if hours > 1 else ''} ago"
+                elif time_diff.seconds > 60:
+                    minutes = time_diff.seconds // 60
+                    time_ago = f"{minutes} min ago"
+                else:
+                    time_ago = "Just now"
+            except:
+                time_ago = "Recently"
+            
+            # Format for dashboard template
+            formatted_message = {
+                'id': f"clubos_dashboard_{index}",
+                'name': member_name,
+                'preview': message_content[:100],
+                'time': time_ago,
+                'contact_name': member_name,
+                'last_message': message_content[:100],
+                'last_time': time_ago,
+                'last_sender': 'user',  # Assuming member messages
+                'unread': True,  # ClubOS messages are typically unread when fetched
+                'status': 'ClubOS Live',
+                'status_color': 'primary',
+                'needs_attention': True,
+                'member_id': None,
+                'thread_type': 'clubos',
+                'unread_count': message.get('unread_count', 1)
+            }
+            
+            return formatted_message
+            
+        except Exception as e:
+            print(f"   ⚠️ Error formatting message for dashboard: {e}")
+            return None
 
 
 # Convenience functions that maintain the same interface as the original Selenium functions

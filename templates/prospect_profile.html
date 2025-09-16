@@ -716,7 +716,7 @@ function loadMessageHistory() {
             }
         })
         .catch(error => {
-            console.error('Error loading messages:', error);
+            debugError('Error loading messages:', error);
             document.getElementById('messageHistory').innerHTML = `
                 <div class="text-center py-4">
                     <i class="fas fa-exclamation-triangle fa-3x text-muted mb-3"></i>
@@ -902,7 +902,7 @@ function submitMessage() {
         }
     })
     .catch(error => {
-        console.error('Error sending message:', error);
+        debugError('Error sending message:', error);
         alert('❌ Error sending message. Please try again.');
     })
     .finally(() => {

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 # Import ClubOS Training API for real package data
 try:
-    from src.clubos_training_api import ClubOSTrainingPackageAPI
+    from src.services.api.clubos_training_api import ClubOSTrainingPackageAPI
 except ImportError:
     try:
         from clubos_training_api import ClubOSTrainingPackageAPI
@@ -222,7 +222,7 @@ def training_client_profile(member_id):
         
         # Fallback: try database
         conn = current_app.db_manager.get_connection()
-        cursor = conn.cursor()
+        cursor = current_app.db_manager.get_cursor(conn)
         
         cursor.execute("""
             SELECT tc.*, m.first_name, m.last_name, m.full_name, m.email, m.mobile_phone, m.status_message
@@ -264,13 +264,95 @@ def training_client_profile(member_id):
         logger.error(f"❌ Error loading training client profile {member_id}: {e}")
         return render_template('error.html', error=str(e))
 
+@training_bp.route('/api/training/clients')
+def get_training_clients():
+    """Get training clients data for messaging interface."""
+    try:
+        # Get training clients from database first (prioritized)
+        conn = current_app.db_manager.get_connection()
+        cursor = current_app.db_manager.get_cursor(conn)
+        
+        # Get all training clients with their payment status
+        cursor.execute("""
+            SELECT tc.*, m.first_name, m.last_name, m.full_name, m.email, m.mobile_phone, m.status_message
+            FROM training_clients tc
+            LEFT JOIN members m ON (tc.member_id = m.guid OR tc.member_id = m.prospect_id)
+            ORDER BY tc.member_name, tc.created_at DESC
+        """)
+        
+        training_clients = []
+        for row in cursor.fetchall():
+            client = dict(row)
+            
+            # Ensure member_name is properly set
+            client['member_name'] = (client.get('member_name') or 
+                                   client.get('full_name') or 
+                                   f"{client.get('first_name', '')} {client.get('last_name', '')}".strip() or
+                                   f"Training Client #{str(client.get('clubos_member_id', 'Unknown'))[-4:]}")
+            
+            # Set member_id for routing compatibility
+            client['member_id'] = client.get('clubos_member_id') or client.get('member_id')
+            client['prospect_id'] = client.get('clubos_member_id') or client.get('prospect_id')
+            
+            # Include payment information
+            client['payment_status'] = client.get('payment_status') or 'Current'
+            client['total_past_due'] = float(client.get('total_past_due', 0))
+            client['past_due_amount'] = float(client.get('past_due_amount', 0))
+            
+            # Include trainer and session info
+            client['trainer_name'] = client.get('trainer_name') or 'Jeremy Mayo'
+            client['sessions_remaining'] = client.get('sessions_remaining') or 0
+            client['last_session'] = client.get('last_session') or 'Never'
+            
+            training_clients.append(client)
+        
+        conn.close()
+        
+        if training_clients:
+            logger.info(f"✅ Retrieved {len(training_clients)} training clients from database for messaging interface")
+            return jsonify({'success': True, 'training_clients': training_clients})
+        
+        # Fallback to cache if database is empty
+        if hasattr(current_app, 'data_cache') and current_app.data_cache.get('training_clients'):
+            cached_clients = current_app.data_cache['training_clients']
+            enhanced_clients = []
+            
+            for client in cached_clients:
+                enhanced_client = client.copy()
+                
+                # Ensure consistent field names for the messaging interface
+                enhanced_client['member_name'] = (client.get('name') or 
+                                                client.get('member_name') or 
+                                                'Unknown Training Client')
+                enhanced_client['member_id'] = client.get('clubos_member_id') or client.get('member_id') or client.get('id')
+                enhanced_client['prospect_id'] = client.get('clubos_member_id') or client.get('prospect_id')
+                enhanced_client['payment_status'] = client.get('payment_status') or 'Current'
+                enhanced_client['total_past_due'] = float(client.get('total_past_due', 0))
+                enhanced_client['past_due_amount'] = float(client.get('past_due_amount', 0))
+                enhanced_client['trainer_name'] = client.get('trainer_name') or 'Jeremy Mayo'
+                enhanced_client['sessions_remaining'] = client.get('sessions_remaining') or 0
+                enhanced_client['last_session'] = client.get('last_session') or 'Never'
+                
+                enhanced_clients.append(enhanced_client)
+            
+            logger.info(f"✅ Retrieved {len(enhanced_clients)} training clients from cache for messaging interface")
+            return jsonify({'success': True, 'training_clients': enhanced_clients})
+        
+        # Empty result if no data found
+        logger.info("ℹ️ No training clients found for messaging interface")
+        return jsonify({'success': True, 'training_clients': []})
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting training clients for messaging interface: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @training_bp.route('/api/training-clients/all')
 def get_all_training_clients():
 	"""Get all training clients from database (prioritized) or cache."""
 	try:
 		# Prioritize database data since it has the correct names from ClubOS assignees
 		conn = current_app.db_manager.get_connection()
-		cursor = conn.cursor()
+		cursor = current_app.db_manager.get_cursor(conn)
 		
 		# Get all training clients directly from database
 		cursor.execute("""
@@ -320,6 +402,13 @@ def get_all_training_clients():
 			c['sessions_remaining'] = c.get('sessions_remaining') or 0
 			c['last_session'] = c.get('last_session') or 'Never'
 			c['payment_status'] = c.get('payment_status') or 'Unknown'
+			
+			# Include training package past due amounts from database
+			c['past_due_amount'] = float(c.get('past_due_amount', 0))
+			c['total_past_due'] = float(c.get('total_past_due', 0))
+			
+			# Ensure these fields are available for frontend display
+			c['amount_past_due'] = c['past_due_amount']  # For compatibility with frontend
 			
 			training_clients.append(c)
 		
@@ -413,7 +502,7 @@ def get_all_training_clients():
 
 		# Fallback to database
 		conn = current_app.db_manager.get_connection()
-		cursor = conn.cursor()
+		cursor = current_app.db_manager.get_cursor(conn)
 		
 		# Get all training clients with member info joined
 		cursor.execute(
@@ -512,7 +601,7 @@ def get_member_package_agreements(member_id):
         
         # Fallback to database
         conn = current_app.db_manager.get_connection()
-        cursor = conn.cursor()
+        cursor = current_app.db_manager.get_cursor(conn)
         
         cursor.execute("""
             SELECT package_details, total_past_due, payment_status, sessions_remaining

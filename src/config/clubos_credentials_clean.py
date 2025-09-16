@@ -24,7 +24,7 @@ if not CLUBOS_USERNAME or not CLUBOS_PASSWORD:
         import sys
         import os
         sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-        from config.clubhub_credentials_clean import CLUBOS_USERNAME as REAL_USERNAME, CLUBOS_PASSWORD as REAL_PASSWORD
+        from config.clubhub_credentials import CLUBOS_USERNAME as REAL_USERNAME, CLUBOS_PASSWORD as REAL_PASSWORD
         CLUBOS_USERNAME = CLUBOS_USERNAME or REAL_USERNAME
         CLUBOS_PASSWORD = CLUBOS_PASSWORD or REAL_PASSWORD
     except ImportError:
@@ -39,10 +39,15 @@ if not CLUBOS_USERNAME or not CLUBOS_PASSWORD:
     except ImportError:
         pass
 
-# Use the working credentials directly
+# Use SecureSecretsManager if still not found
 if not CLUBOS_USERNAME or not CLUBOS_PASSWORD:
-    CLUBOS_USERNAME = "j.mayo"
-    CLUBOS_PASSWORD = "j@SD4fjhANK5WNA"
+    try:
+        from ..services.authentication.secure_secrets_manager import SecureSecretsManager
+        secrets_manager = SecureSecretsManager()
+        CLUBOS_USERNAME = CLUBOS_USERNAME or secrets_manager.get_secret('clubos-username')
+        CLUBOS_PASSWORD = CLUBOS_PASSWORD or secrets_manager.get_secret('clubos-password')
+    except ImportError:
+        pass
 
 def is_configured() -> bool:
     """Check if ClubOS credentials are properly configured"""

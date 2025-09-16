@@ -3,7 +3,7 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from clubos_integration_fixed import RobustClubOSClient
 from clubos_training_api import ClubOSTrainingPackageAPI
-from config.clubhub_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD
+from config.clubhub_credentials import CLUBOS_USERNAME, CLUBOS_PASSWORD
 
 def find_dennis_in_clubos():
     """Try multiple approaches to find Dennis in ClubOS"""

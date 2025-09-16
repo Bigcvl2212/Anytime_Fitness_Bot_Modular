@@ -387,10 +387,10 @@ let currentTrainerFilter = '';
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Training Clients page loaded');
+    debugLog('🚀 Training Clients page loaded');
     
     // Check for cached data first
-     console.log('🔍 Checking for cached training client data...');
+     debugLog('🔍 Checking for cached training client data...');
      checkCachedData();
      
      // Function to check for cached data
@@ -401,12 +401,12 @@ document.addEventListener('DOMContentLoaded', function() {
              
              if (data.success && data.training_clients) {
                  window.cachedTrainingClients = data.training_clients;
-                 console.log(`✅ Loaded ${data.training_clients.length} training clients from cache`);
+                 debugLog(`✅ Loaded ${data.training_clients.length} training clients from cache`);
              } else {
-                 console.log('⚠️ No cached training clients found');
+                 debugLog('⚠️ No cached training clients found');
              }
          } catch (error) {
-             console.error('❌ Error checking cached training clients:', error);
+             debugError('❌ Error checking cached training clients:', error);
          }
      }
     
@@ -445,10 +445,10 @@ function setupSearch() {
 }
 
 function filterTrainingClients(searchTerm) {
-    console.log(`🔍 Filtering training clients with: "${searchTerm}"`);
+    debugLog(`🔍 Filtering training clients with: "${searchTerm}"`);
     
     if (!window.cachedTrainingClients) {
-        console.log('⚠️ No cached training clients data available');
+        debugLog('⚠️ No cached training clients data available');
         return;
     }
     
@@ -753,7 +753,7 @@ async function fetchAndRenderClientAgreements(memberId, attempts = 0) {
             
             totalPastDue = Math.round(totalPastDue * 100) / 100; // Round to 2 decimal places
         } catch (e) {
-            console.warn('Error calculating total past due:', e);
+            debugWarn('Error calculating total past due:', e);
         }
         
         // Update the agreement name display - ONLY show the primary package name
@@ -860,7 +860,7 @@ async function showClientDetail(clientId) {
     );
     
     if (!client) {
-        console.error('Client not found:', clientId);
+        debugError('Client not found:', clientId);
         return;
     }
     
@@ -897,7 +897,7 @@ async function showClientDetail(clientId) {
             `;
         }
     } catch (error) {
-        console.error('Error fetching package agreements:', error);
+        debugError('Error fetching package agreements:', error);
         document.getElementById('clientDetailsContent').innerHTML = `
             <div class="alert alert-danger">
                 <i class="fas fa-times-circle me-2"></i>
@@ -1179,7 +1179,7 @@ function displayClientDetailsWithAgreements(client, agreements) {
                                          
                                          return invoiceHtml;
                                      } catch (e) {
-                                         console.error('Error processing invoice data:', e);
+                                         debugError('Error processing invoice data:', e);
                                          return '<div class="text-muted small">Error loading invoice data</div>';
                                      }
                                  })()}

@@ -266,3 +266,61 @@ class SecureSecretsManager:
         except Exception as e:
             logger.error(f"❌ Failed to get legacy secret {secret_name}: {e}")
             return None
+    
+    def set_secret(self, secret_name: str, secret_value: str) -> bool:
+        """
+        Create or update a secret in Google Secret Manager
+        
+        Args:
+            secret_name: Name of the secret
+            secret_value: Value to store
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.client:
+            logger.error("❌ SecretManager client not initialized")
+            return False
+        
+        try:
+            # Check if secret exists
+            secret_path = f"projects/{self.project_id}/secrets/{secret_name}"
+            
+            try:
+                # Try to get the secret to see if it exists
+                self.client.get_secret(request={"name": secret_path})
+                logger.info(f"📝 Updating existing secret: {secret_name}")
+                
+                # Add a new version to the existing secret
+                parent = secret_path
+                payload = {"data": secret_value.encode("UTF-8")}
+                response = self.client.add_secret_version(
+                    request={"parent": parent, "payload": payload}
+                )
+                logger.info(f"✅ Successfully updated secret: {secret_name}")
+                return True
+                
+            except gcp_exceptions.NotFound:
+                # Secret doesn't exist, create it
+                logger.info(f"🆕 Creating new secret: {secret_name}")
+                
+                # Create the secret
+                parent = f"projects/{self.project_id}"
+                secret = {
+                    "replication": {"automatic": {}}
+                }
+                self.client.create_secret(
+                    request={"parent": parent, "secret_id": secret_name, "secret": secret}
+                )
+                
+                # Add the secret value
+                payload = {"data": secret_value.encode("UTF-8")}
+                response = self.client.add_secret_version(
+                    request={"parent": secret_path, "payload": payload}
+                )
+                logger.info(f"✅ Successfully created secret: {secret_name}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"❌ Failed to set secret {secret_name}: {e}")
+            return False

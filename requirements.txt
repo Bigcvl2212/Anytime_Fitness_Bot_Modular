@@ -6,5 +6,27 @@ python-dotenv>=1.0
 pandas>=1.2
 lxml>=4.6
 
+# Security dependencies
+Flask-Talisman>=1.0.0
+Flask-WTF>=1.1.0
+WTForms>=3.0.0
+cryptography>=3.4.8
+bcrypt>=3.2.0
+
+# Validation dependencies  
+validators>=0.20.0
+bleach>=6.0.0
+
+# Database dependencies
+psycopg2-binary>=2.9.5  # PostgreSQL adapter for production
+
+# Google Cloud dependencies  
+google-cloud-secret-manager>=2.16.0
+google-cloud-sql-connector>=1.2.0
+
+# Additional production dependencies
+sqlalchemy>=2.0.0  # Database ORM if needed
+Flask-Migrate>=4.0.0  # Database migrations
+
 # Application specific (add extras as needed)
-# sqlite3 is in stdlib
+# sqlite3 is in stdlib for development

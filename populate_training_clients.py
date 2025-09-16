@@ -4,10 +4,15 @@ Populate training_clients table with real ClubOS training clients
 """
 
 import sys
-sys.path.append('.')
+import os
+
+# Ensure project root is on sys.path so 'src' is imported as a package
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 import sqlite3
-from clubos_training_api_fixed import ClubOSTrainingPackageAPI
+from src.clubos_training_api import ClubOSTrainingPackageAPI
 import json
 import time
 
@@ -16,9 +21,10 @@ def populate_training_clients():
     
     # Import and set up credentials
     try:
-        from config.secrets_local import get_secret
-        username = get_secret('clubos-username')
-        password = get_secret('clubos-password')
+        from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+        secrets_manager = SecureSecretsManager()
+        username = secrets_manager.get_secret('clubos-username')
+        password = secrets_manager.get_secret('clubos-password')
         
         if not username or not password:
             print("❌ ClubOS credentials not found in secrets")
@@ -163,7 +169,8 @@ def populate_training_clients():
     
     # Now test the funding lookup system
     try:
-        from clean_dashboard import training_package_cache
+        from src.services.training_package_cache import TrainingPackageCache
+        training_package_cache = TrainingPackageCache()
         
         funding_data = training_package_cache.lookup_participant_funding("Dennis Rost")
         if funding_data:

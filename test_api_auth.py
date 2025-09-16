@@ -8,7 +8,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import time
-from config.clubhub_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD
+from config.clubhub_credentials import CLUBOS_USERNAME, CLUBOS_PASSWORD
 
 def test_api_auth_methods():
     """Try different ways to authenticate with ClubOS APIs"""

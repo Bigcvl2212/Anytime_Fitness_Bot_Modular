@@ -8,9 +8,13 @@ import os
 import sys
 import logging
 import json
-from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional
+from typing import List, Dict, Any, Optional
+from datetime import datetime
 from flask import current_app
+try:
+    from .authentication.unified_auth_service import get_unified_auth_service
+except ImportError:
+    from src.services.authentication.unified_auth_service import get_unified_auth_service
 import urllib3
 
 # Suppress SSL warnings to clean up logs
@@ -26,12 +30,15 @@ class ClubOSIntegration:
         self.username = None
         self.password = None
         try:
-            from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+            try:
+                from .authentication.secure_secrets_manager import SecureSecretsManager
+            except ImportError:
+                from src.services.authentication.secure_secrets_manager import SecureSecretsManager
             secrets_manager = SecureSecretsManager()
             
             self.username = secrets_manager.get_secret('clubos-username')
             self.password = secrets_manager.get_secret('clubos-password')
-            self.base_url = secrets_manager.get_secret('clubos-base-url') or 'https://anytime.club-os.com'
+            self.base_url = os.getenv('CLUBOS_BASE_URL', 'https://anytime.club-os.com')
             
             if self.username and self.password:
                 logger.info("🔐 ClubOS credentials loaded from SecureSecretsManager")
@@ -41,33 +48,24 @@ class ClubOSIntegration:
         except Exception as e:
             logger.warning(f"⚠️ Could not load ClubOS credentials from SecureSecretsManager: {e}")
             
-            # Fallback to local secrets
-            try:
-                from config.secrets_local import get_secret
-                self.username = get_secret('clubos-username')
-                self.password = get_secret('clubos-password')
-                self.base_url = get_secret('clubos-base-url', 'https://anytime.club-os.com')
-                logger.info("🔐 ClubOS credentials loaded from secrets_local (fallback)")
-            except Exception as fallback_error:
-                logger.warning(f"⚠️ Could not load ClubOS credentials from fallback: {fallback_error}")
-                logger.warning("⚠️ ClubOS credentials not configured")
-                self.username = None
-                self.password = None
-                self.base_url = 'https://anytime.club-os.com'
+            # No fallback - SecureSecretsManager is the only secure source
+            logger.warning("⚠️ ClubOS credentials not configured in SecureSecretsManager")
+            self.username = None
+            self.password = None
+            self.base_url = os.getenv('CLUBOS_BASE_URL', 'https://anytime.club-os.com')
 
         if not (self.username and self.password):
             try:
-                from config.clubos_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD
-                self.username = CLUBOS_USERNAME
-                self.password = CLUBOS_PASSWORD
-                logger.info("🔐 ClubOS credentials loaded from legacy config")
-            except Exception:
                 self.username = os.getenv('CLUBOS_USERNAME')
                 self.password = os.getenv('CLUBOS_PASSWORD')
                 if self.username and self.password:
                     logger.info("🔐 ClubOS credentials loaded from environment variables")
                 else:
                     logger.warning("⚠️ ClubOS credentials not configured")
+            except Exception as e:
+                logger.warning(f"⚠️ Error accessing environment variables: {e}")
+                self.username = None
+                self.password = None
         
         # Initialize API instances
         self.api = None
@@ -76,44 +74,48 @@ class ClubOSIntegration:
         self.authenticated = False
         
     def authenticate(self):
-        """Authenticate with ClubOS"""
+        """Authenticate with ClubOS using unified authentication service"""
         try:
+            # Get unified authentication service  
+            auth_service = get_unified_auth_service()
+            auth_session = auth_service.authenticate_clubos(self.username, self.password)
+            
+            if not auth_session or not auth_session.authenticated:
+                logger.error("❌ ClubOS authentication failed")
+                self.authenticated = False
+                return False
+            
             # Import APIs here to avoid circular imports
-            from src.clubos_real_calendar_api import ClubOSRealCalendarAPI
-            from clubos_training_api_fixed import ClubOSTrainingPackageAPI
-            from src.gym_bot_clean import ClubOSEventDeletion
+            try:
+                from .api.clubos_real_calendar_api import ClubOSRealCalendarAPI
+                from .api.clubos_training_api import ClubOSTrainingPackageAPI
+                from ..gym_bot_clean import ClubOSEventDeletion
+            except ImportError:
+                from services.api.clubos_real_calendar_api import ClubOSRealCalendarAPI
+                from services.api.clubos_training_api import ClubOSTrainingPackageAPI
+                from gym_bot_clean import ClubOSEventDeletion
             
-            # Initialize APIs
-            self.api = ClubOSRealCalendarAPI(self.username, self.password)
+            # Initialize APIs with authenticated session
+            self.api = ClubOSRealCalendarAPI()
+            self.api.auth_session = auth_session
+            self.api.authenticated = True
+            self.api.session = auth_session.session
+            
             self.training_api = ClubOSTrainingPackageAPI()
+            self.training_api.auth_session = auth_session
+            self.training_api.authenticated = True
+            self.training_api.session = auth_session.session
+            
             self.event_manager = ClubOSEventDeletion()
+            self.event_manager.authenticated = True
             
-            # Set credentials for training API
-            if self.username and self.password:
-                self.training_api.username = self.username
-                self.training_api.password = self.password
-            
-            # Authenticate both calendar and training APIs
-            calendar_auth = self.api.authenticate()
-            training_auth = self.training_api.authenticate() if self.username and self.password else False
-            
-            # Consider authentication successful if at least calendar works
-            self.authenticated = calendar_auth
-            
-            if calendar_auth:
-                # Also authenticate the event manager
-                self.event_manager.authenticated = True
-                if training_auth:
-                    logger.info("✅ ClubOS authentication successful (calendar + training)")
-                else:
-                    logger.info("✅ ClubOS calendar authentication successful (training API temporarily unavailable)")
-            else:
-                logger.info("ℹ️ ClubOS authentication skipped - will retry when needed")
-                
-            return self.authenticated
+            self.authenticated = True
+            logger.info("✅ ClubOS authentication successful via unified service")
+            return True
             
         except Exception as e:
             logger.error(f"❌ ClubOS authentication failed: {e}")
+            self.authenticated = False
             return False
     
     def get_live_events(self):
@@ -121,10 +123,25 @@ class ClubOSIntegration:
         try:
             logger.info("📅 Using iCAL METHOD FOR REAL EVENT DATA...")
             
-            # Use the iCal calendar sync URL found in ClubOS
-            calendar_sync_url = "https://anytime.club-os.com/CalendarSync/4984a5b2aac135a95b6bc173054e95716b27e6b9"
+            # Get the iCal calendar sync URL from SecureSecretsManager
+            try:
+                from .authentication.secure_secrets_manager import SecureSecretsManager
+            except ImportError:
+                from src.services.authentication.secure_secrets_manager import SecureSecretsManager
             
-            from src.ical_calendar_parser import iCalClubOSParser
+            secrets_manager = SecureSecretsManager()
+            calendar_sync_url = secrets_manager.get_secret('clubos-calendar-sync-url')
+            
+            if not calendar_sync_url:
+                logger.error("❌ ClubOS calendar sync URL not found in SecureSecretsManager")
+                return []
+            
+            logger.info("🔐 Using calendar sync URL from SecureSecretsManager")
+            
+            try:
+                from ..ical_calendar_parser import iCalClubOSParser
+            except ImportError:
+                from ical_calendar_parser import iCalClubOSParser
             ical_parser = iCalClubOSParser(calendar_sync_url)
             
             # Get real events from iCal feed
@@ -173,13 +190,13 @@ class ClubOSIntegration:
         try:
             for name in attendee_names:
                 if name and name.strip():
-                    # Check if this person exists in our training clients
+                    # Check if this person exists in our training clients using PostgreSQL
                     conn = current_app.db_manager.get_connection()
                     cursor = conn.cursor()
                     
                     cursor.execute("""
                         SELECT COUNT(*) FROM training_clients 
-                        WHERE LOWER(full_name) LIKE LOWER(?)
+                        WHERE LOWER(full_name) LIKE LOWER(%s)
                     """, (f"%{name.strip()}%",))
                     
                     count = cursor.fetchone()[0]
@@ -243,9 +260,15 @@ class ClubOSIntegration:
             # Use the same approach as clean_dashboard.py for prospects, but for members endpoint
             import requests
             
-            # ClubHub credentials - direct definition to avoid import issues
-            CLUBHUB_EMAIL = "mayo.jeremy2212@gmail.com"
-            CLUBHUB_PASSWORD = "SruLEqp464_GLrF"
+            # Get ClubHub credentials from SecureSecretsManager
+            from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+            secrets_manager = SecureSecretsManager()
+            CLUBHUB_EMAIL = secrets_manager.get_secret('clubhub-email')
+            CLUBHUB_PASSWORD = secrets_manager.get_secret('clubhub-password')
+            
+            if not CLUBHUB_EMAIL or not CLUBHUB_PASSWORD:
+                logger.error("❌ ClubHub credentials not found in SecureSecretsManager for members")
+                return []
             
             CLUBHUB_LOGIN_URL = "https://clubhub-ios-api.anytimefitness.com/api/login"
             USERNAME = CLUBHUB_EMAIL
@@ -348,9 +371,15 @@ class ClubOSIntegration:
             # Use the same approach as clean_dashboard.py but with CORRECT API endpoint
             import requests
             
-            # ClubHub credentials - direct definition to avoid import issues
-            CLUBHUB_EMAIL = "mayo.jeremy2212@gmail.com"
-            CLUBHUB_PASSWORD = "SruLEqp464_GLrF"
+            # Get ClubHub credentials from SecureSecretsManager
+            from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+            secrets_manager = SecureSecretsManager()
+            CLUBHUB_EMAIL = secrets_manager.get_secret('clubhub-email')
+            CLUBHUB_PASSWORD = secrets_manager.get_secret('clubhub-password')
+            
+            if not CLUBHUB_EMAIL or not CLUBHUB_PASSWORD:
+                logger.error("❌ ClubHub credentials not found in SecureSecretsManager for prospects")
+                return []
             
             CLUBHUB_LOGIN_URL = "https://clubhub-ios-api.anytimefitness.com/api/login"
             USERNAME = CLUBHUB_EMAIL
@@ -725,23 +754,31 @@ class ClubOSIntegration:
                                             'amount': invoice_amount
                                         })
                                         
-                                        # Check for past due status (5 = past due, but also check other possible statuses)
-                                        if invoice_status == 5:  # Past due status from breakthrough method
+                                        # Debug: Log all invoice statuses to understand what we're working with
+                                        logger.info(f"🔍 Invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
+                                        
+                                        # Only count invoices that are actually past due, not just unpaid
+                                        # Status 4 = Overdue, Status 5 = Past Due are the only ones that should count
+                                        if invoice_status in [4, 5] and invoice_amount > 0:  # Only overdue and past due
                                             agreement_past_due += invoice_amount
                                             past_due_invoices.append({
                                                 'id': invoice_id,
                                                 'amount': invoice_amount,
                                                 'status': invoice_status
                                             })
-                                            logger.debug(f"💰 Thread {threading.get_ident()}: Found past due invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
-                                        elif invoice_status == 4: # Check if status 4 is also past due
-                                            agreement_past_due += invoice_amount
-                                            past_due_invoices.append({
-                                                'id': invoice_id,
-                                                'amount': invoice_amount,
-                                                'status': invoice_status
-                                            })
-                                            logger.debug(f"💰 Thread {threading.get_ident()}: Found past due invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
+                                            logger.info(f"💰 Found past due invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
+                                        elif invoice_status == 1:
+                                            # Status 1 is paid
+                                            logger.debug(f"✅ Paid invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
+                                        elif invoice_status == 2:
+                                            # Status 2 is unpaid but not past due
+                                            logger.debug(f"📋 Unpaid invoice {invoice_id}: ${invoice_amount} (status: {invoice_status}) - not past due")
+                                        elif invoice_status == 3:
+                                            # Status 3 is partial payment
+                                            logger.debug(f"🔄 Partial invoice {invoice_id}: ${invoice_amount} (status: {invoice_status}) - not past due")
+                                        else:
+                                            # Other statuses
+                                            logger.debug(f"❓ Unknown invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
                                     
                                     logger.debug(f"📊 Thread {threading.get_ident()}: Invoice analysis for {agreement_id}: {len(past_due_invoices)} past due out of {len(invoices)} total invoices")
                                     
@@ -752,15 +789,21 @@ class ClubOSIntegration:
                                     
                                     active_packages.append(package_name)
                                     package_details.append({
-                                        'agreement_id': agreement_id,
-                                        'package_name': package_name,
-                                        'payment_status': payment_status,
-                                        'amount_owed': agreement_past_due,
-                                        'invoice_count': len(invoices),
-                                        'scheduled_payments_count': len(scheduled_payments),
-                                        'has_billing_data': True,
-                                        'has_v2_data': True
-                                    })
+                        'agreement_id': agreement_id,
+                        'package_name': package_name,
+                        'payment_status': payment_status,
+                        'amount_owed': agreement_past_due,
+                        'invoice_count': len(invoices),
+                        'scheduled_payments_count': len(scheduled_payments),
+                        'has_billing_data': True,
+                        'has_v2_data': True,
+                        # Add billing_status structure for database manager compatibility
+                        'billing_status': {
+                            'past': [{'amount': agreement_past_due, 'dueDate': 'See ClubOS'}] if agreement_past_due > 0 else [],
+                            'current': [],
+                            'total_past_due': agreement_past_due
+                        }
+                    })
                                     
                                     logger.debug(f"✅ Thread {threading.get_ident()}: Package: {package_name} - ${agreement_past_due:.2f} past due - Status: {payment_status} - {len(invoices)} invoices")
                                 
@@ -777,7 +820,13 @@ class ClubOSIntegration:
                                         'invoice_count': 0,
                                         'scheduled_payments_count': 0,
                                         'has_billing_data': False,
-                                        'has_v2_data': False
+                                        'has_v2_data': False,
+                                        # Add empty billing_status for database manager compatibility
+                                        'billing_status': {
+                                            'past': [],
+                                            'current': [],
+                                            'total_past_due': 0
+                                        }
                                     })
                                     
                                     logger.debug(f"⚠️ Thread {threading.get_ident()}: Added basic package info for {agreement_id} (no billing data)")
@@ -795,7 +844,13 @@ class ClubOSIntegration:
                                     'invoice_count': 0,
                                     'scheduled_payments_count': 0,
                                     'has_billing_data': False,
-                                    'has_v2_data': False
+                                    'has_v2_data': False,
+                                    # Add empty billing_status for database manager compatibility  
+                                    'billing_status': {
+                                        'past': [],
+                                        'current': [],
+                                        'total_past_due': 0
+                                    }
                                 })
                         
                         # Create the enhanced training client with real agreement data

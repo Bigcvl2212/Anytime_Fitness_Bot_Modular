@@ -39,8 +39,8 @@ class MultiClubManager:
             token_data = json.loads(decoded)
             
             logger.info(f"✅ JWT token parsed successfully")
-            logger.info(f"👤 User: {token_data.get('given_name', 'Unknown')} ({token_data.get('email', 'No email')})")
-            logger.info(f"🏢 Available clubs: {token_data.get('club_ids', [])}")
+            logger.info(f"👤 User authenticated: {token_data.get('given_name', 'Unknown')}")
+            logger.info(f"🏢 Available clubs: {len(token_data.get('club_ids', []))} clubs")
             logger.info(f"🔑 Role: {token_data.get('role', 'Unknown')}")
             
             return token_data
@@ -75,9 +75,10 @@ class MultiClubManager:
         if club_id in self.club_names_cache:
             return self.club_names_cache[club_id]
         
-        # Known club mappings (can be expanded)
+        # Known club mappings (can be expanded from environment or config)
+        import os
         club_names = {
-            "1156": "Fond du Lac, WI",
+            os.getenv('DEFAULT_CLUB_ID', '1156'): "Fond du Lac, WI",
             "1657": "Green Bay East, WI", 
             "1234": "Milwaukee Downtown, WI",
             "1111": "Madison West, WI"
@@ -111,12 +112,13 @@ class MultiClubManager:
         """Get currently selected club IDs"""
         return self.selected_clubs
     
-    def sync_multi_club_data(self, clubhub_client, sync_functions: Dict[str, callable]) -> Dict[str, Any]:
+    def sync_multi_club_data(self, clubhub_client, sync_functions: Dict[str, callable], app=None) -> Dict[str, Any]:
         """Synchronize data from multiple clubs in parallel
         
         Args:
             clubhub_client: ClubHubAPIClient instance
             sync_functions: Dict mapping data type to sync function
+            app: Flask application instance (optional, for shared database access)
             
         Returns:
             Dict with combined data from all clubs
@@ -154,7 +156,8 @@ class MultiClubManager:
                 for data_type, sync_func in sync_functions.items():
                     try:
                         logger.info(f"  📊 Syncing {data_type} for {self.get_club_name(club_id)}...")
-                        data = sync_func(club_id=club_id)
+                        # Pass both club_id and app parameters to sync functions
+                        data = sync_func(club_id=club_id, app=app)
                         
                         if data:
                             club_data[data_type] = data

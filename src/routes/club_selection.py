@@ -16,8 +16,24 @@ club_selection_bp = Blueprint('club_selection', __name__)
 def club_selection():
     """Display club selection screen"""
     try:
-        # Debug session contents
-        logger.info(f"🔍 Club selection - Session contents: {dict(session)}")
+        # Enhanced session debugging
+        logger.info(f"🔍 Club selection - Full session object: {session}")
+        logger.info(f"🔍 Club selection - Session authenticated: {session.get('authenticated')}")
+        logger.info(f"🔍 Club selection - Session manager_id: {session.get('manager_id')}")
+        logger.info(f"🔍 Club selection - Session keys: {list(session.keys())}")
+        logger.info(f"🔍 Club selection - Session permanent: {session.permanent}")
+        logger.info(f"🔍 Club selection - Session modified: {session.modified}")
+        
+        # Check Flask app session config
+        logger.info(f"🔍 Flask session config - Cookie name: {current_app.config.get('SESSION_COOKIE_NAME')}")
+        logger.info(f"🔍 Flask session config - Cookie secure: {current_app.config.get('SESSION_COOKIE_SECURE')}")
+        logger.info(f"🔍 Flask session config - Cookie httponly: {current_app.config.get('SESSION_COOKIE_HTTPONLY')}")
+        
+        # Check if session exists at all
+        if not session or 'authenticated' not in session:
+            logger.warning("❌ No session data found in club selection")
+            flash('Session expired. Please log in again.', 'error')
+            return redirect(url_for('auth.login'))
         
         # Use proper session validation
         from src.services.authentication.secure_auth_service import SecureAuthService
@@ -28,7 +44,7 @@ def club_selection():
         
         if not is_valid:
             logger.warning("❌ Session validation failed in club selection")
-            flash('Please log in first', 'error')
+            flash('Session expired. Please log in again.', 'error')
             return redirect(url_for('auth.login'))
         
         # Get available clubs from multi_club_manager
@@ -80,17 +96,31 @@ def select_clubs():
         if not valid_clubs:
             return jsonify({'error': 'No valid clubs selected'}), 400
         
-        # Store in session
+        # Store in session and force persistence
         session['selected_clubs'] = valid_clubs
+        session.modified = True  # Force Flask to save session
+        
+        # Ensure the session is committed immediately
+        try:
+            # Just mark session as modified - Flask will handle the saving
+            session.permanent = True
+            session.modified = True
+            logger.info(f"🔍 Session marked for save with selected_clubs: {session.get('selected_clubs')}")
+        except Exception as save_error:
+            logger.warning(f"⚠️ Could not mark session for save: {save_error}")
         
         # Get club names for display
         club_names = [multi_club_manager.get_club_name(club_id) for club_id in valid_clubs]
         
         logger.info(f"✅ User selected clubs: {club_names}")
         
+        # Debug session after modification
+        logger.info(f"🔍 Session after club selection: authenticated={session.get('authenticated')}, selected_clubs={session.get('selected_clubs')}")
+        
         # Trigger startup sync for selected clubs
         try:
             import threading
+            import time
             from src.services.multi_club_startup_sync import enhanced_startup_sync
             
             logger.info(f"🔄 Attempting to start data sync for clubs: {club_names}")
@@ -106,6 +136,9 @@ def select_clubs():
             
             logger.info(f"✅ Successfully started sync thread '{sync_thread.name}' for clubs: {club_names}")
             
+            # Longer pause to ensure session is saved before returning redirect
+            time.sleep(0.3)
+            
         except ImportError as import_error:
             logger.error(f"❌ Failed to import sync module: {import_error}")
         except Exception as sync_error:
@@ -113,12 +146,27 @@ def select_clubs():
             import traceback
             logger.error(f"Sync error traceback: {traceback.format_exc()}")
         
-        return jsonify({
+        # Force session save before generating response
+        import time
+        time.sleep(0.5)  # Give session time to save
+        
+        # Debug the generated redirect URL
+        redirect_url = url_for('dashboard.dashboard')
+        logger.info(f"🔍 Generated redirect URL: {redirect_url}")
+        
+        # Verify session was saved correctly
+        logger.info(f"🔍 Final session state: authenticated={session.get('authenticated')}, selected_clubs={session.get('selected_clubs')}")
+        
+        response_data = {
             'success': True,
             'selected_clubs': valid_clubs,
             'club_names': club_names,
-            'redirect_url': url_for('dashboard.dashboard')
-        })
+            'redirect_url': redirect_url,
+            'message': f'Successfully selected: {", ".join(club_names)}'
+        }
+        
+        logger.info(f"🚀 Sending response: {response_data}")
+        return jsonify(response_data)
         
     except Exception as e:
         logger.error(f"❌ Error selecting clubs: {e}")

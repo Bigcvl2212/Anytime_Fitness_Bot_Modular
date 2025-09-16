@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 import re
 import time
 import json
-from config.clubhub_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD
+from config.clubhub_credentials import CLUBOS_USERNAME, CLUBOS_PASSWORD
 
 def test_complete_clubos_flow():
     """Test the complete ClubOS API flow matching your browser exactly"""

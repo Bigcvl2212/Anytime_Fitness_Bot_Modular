@@ -1,0 +1,1134 @@
+{% extends "base.html" %}
+
+{% block title %}Members - Anytime Fitness Management{% endblock %}
+
+{% block extra_css %}
+<link href="/static/css/members.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="h3 mb-0 member-page-title">
+                    <i class="fas fa-users me-2"></i>Members
+                </h1>
+                <a href="/member/new" class="btn btn-purple">
+                    <i class="fas fa-plus me-2"></i>Add New Member
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filter Row -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <form method="GET" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="search" class="form-label">Search Members</label>
+                            <input type="text" class="form-control" id="search" name="search" 
+                                   value="{{ search }}" placeholder="Name, email, or phone...">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="status" class="form-label">Status</label>
+                            <select class="form-select" id="status" name="status">
+                                <option value="">All Statuses</option>
+                                {% for status in statuses %}
+                                <option value="{{ status }}" {% if status == status_filter %}selected{% endif %}>
+                                    {{ status }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="submit" class="btn btn-purple me-2" aria-label="Search members">
+                                <i class="fas fa-search me-1" aria-hidden="true"></i>Search
+                            </button>
+                            <a href="/members" class="btn btn-outline-secondary" aria-label="Clear search filters">
+                                <i class="fas fa-times me-1" aria-hidden="true"></i>Clear
+                            </a>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="button" class="btn btn-outline-purple" onclick="refreshData()" aria-label="Refresh member data">
+                                <i class="fas fa-sync-alt me-1" aria-hidden="true"></i>Refresh Now
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <ul class="nav nav-tabs mb-4" id="memberTabs" role="tablist" aria-label="Member sections">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="all-members-tab" data-bs-toggle="tab" data-bs-target="#all-members" 
+                    type="button" role="tab" aria-controls="all-members" aria-selected="true">
+                <i class="fas fa-users me-1" aria-hidden="true"></i>All Members ({{ total_members }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="past-due-tab" data-bs-toggle="tab" data-bs-target="#past-due" 
+                    type="button" role="tab" aria-controls="past-due" aria-selected="false">
+                <i class="fas fa-exclamation-triangle me-1" aria-hidden="true"></i>Past Due 
+                <span class="badge bg-danger ms-1" id="red-count-badge">0</span>
+                <span class="badge bg-warning ms-1" id="yellow-count-badge">0</span>
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="memberTabContent">
+        <!-- All Members Tab -->
+        <div class="tab-pane fade show active" id="all-members" role="tabpanel">
+            {% if members %}
+            <div class="row">
+                {% for member in members %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card member-card h-100" tabindex="0" role="button" 
+                         aria-label="View profile for {{ member.full_name }}"
+                         onclick="openMemberProfile('{{ member.id }}', '{{ member.full_name }}', '{{ member.email }}')"
+                         onkeydown="if(event.key==='Enter'||event.key===' '){openMemberProfile('{{ member.id }}', '{{ member.full_name }}', '{{ member.email }}');}">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="outlook-icon-circle me-3">
+                                    <i class="fas fa-user" aria-hidden="true"></i>
+                                </div>
+                                <div>
+                                    <h5 class="fw-bold mb-1 member-name">{{ member.full_name }}</h5>
+                                    <small class="text-muted">{{ member.email }}</small>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-2">
+                                <small class="text-muted">Status:</small>
+                                <span class="outlook-badge outlook-badge-{{ member.payment_status_class or 'success' }}">
+                                    {{ member.payment_status_text or member.status or 'Active' }}
+                                </span>
+                            </div>
+                            
+                            {% if member.mobile_phone %}
+                            <div class="mb-2">
+                                <small class="text-muted">Phone:</small>
+                                <small class="d-block">{{ member.mobile_phone }}</small>
+                            </div>
+                            {% endif %}
+                            
+                            {% if member.date_of_next_payment %}
+                            <div class="mb-2">
+                                <small class="text-muted">Next Payment:</small>
+                                <small class="d-block">{{ member.date_of_next_payment }}</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <div class="row mt-4">
+                <div class="col-12">
+                    <nav aria-label="Members pagination">
+                        <ul class="pagination justify-content-center">
+                            {% if page > 1 %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page - 1 }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+                                   aria-label="Go to previous page">
+                                    <i class="fas fa-chevron-left" aria-hidden="true"></i>
+                                    <span class="sr-only">Previous</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                            
+                            {% for p in range(1, total_pages + 1) %}
+                                {% if p == page %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ p }}</span>
+                                </li>
+                                {% elif p <= 5 or p > total_pages - 5 or (p >= page - 2 and p <= page + 2) %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ p }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+                                       aria-label="Go to page {{ p }}">{{ p }}</a>
+                                </li>
+                                {% elif p == 6 or p == total_pages - 5 %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if page < total_pages %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page + 1 }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}"
+                                   aria-label="Go to next page">
+                                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                                    <span class="sr-only">Next</span>
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    
+                    <div class="text-center text-muted">
+                        Showing {{ ((page - 1) * per_page) + 1 }} to {{ (page * per_page if page * per_page < total_members else total_members) }} of {{ total_members }} members
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body text-center py-5">
+                            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No members found</h5>
+                            {% if search %}
+                            <p class="text-muted">Try adjusting your search criteria.</p>
+                            <a href="/members" class="btn btn-purple">Show All Members</a>
+                            {% else %}
+                            <p class="text-muted">Get started by adding your first member.</p>
+                            <a href="/member/new" class="btn btn-purple">Add Member</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Past Due Members Tab -->
+        <div class="tab-pane fade" id="past-due" role="tabpanel" aria-labelledby="past-due-tab">
+            <!-- Loading State -->
+            <div id="past-due-loading" class="text-center py-5">
+                <i class="fas fa-spinner fa-spin loading-spinner" aria-hidden="true"></i>
+                <p class="text-muted">Loading past due members...</p>
+            </div>
+            
+            <!-- Past Due Content -->
+            <div id="past-due-content" style="display: none;">
+                <div class="row" id="past-due-members-container">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+            
+            <!-- No Past Due Members -->
+            <div id="no-past-due" style="display: none;" class="text-center py-5">
+                <i class="fas fa-check-circle empty-state-icon text-success" aria-hidden="true"></i>
+                <h5 class="text-success">All Caught Up!</h5>
+                <p class="empty-state-text">No past due members at this time.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Member Profile Modal -->
+<div class="modal fade" id="memberProfileModal" tabindex="-1" aria-labelledby="memberProfileModalLabel">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header modal-header-purple">
+                <h5 class="modal-title" id="memberProfileModalLabel">
+                    <i class="fas fa-user me-2" aria-hidden="true"></i>
+                    <span id="modal-member-name">Member Profile</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Loading State -->
+                <div id="member-profile-loading" class="text-center py-5">
+                    <i class="fas fa-spinner fa-spin loading-spinner" aria-hidden="true"></i>
+                    <p class="text-muted">Loading member profile...</p>
+                    <div class="sr-only" aria-live="polite">Loading member profile data</div>
+                </div>
+                
+                <!-- Profile Content -->
+                <div id="member-profile-content" style="display: none;">
+                    <!-- Member Navigation Tabs -->
+                    <ul class="nav nav-tabs mb-4" id="memberProfileTabs" role="tablist" aria-label="Member profile sections">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="profile-info-tab" data-bs-toggle="tab" data-bs-target="#profile-info" 
+                                    type="button" role="tab" aria-controls="profile-info" aria-selected="true">
+                                <i class="fas fa-user me-1" aria-hidden="true"></i>Profile
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="agreements-tab" data-bs-toggle="tab" data-bs-target="#agreements" 
+                                    type="button" role="tab" aria-controls="agreements" aria-selected="false">
+                                <i class="fas fa-file-contract me-1" aria-hidden="true"></i>Agreements
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="payments-tab" data-bs-toggle="tab" data-bs-target="#payments" 
+                                    type="button" role="tab" aria-controls="payments" aria-selected="false">
+                                <i class="fas fa-credit-card me-1" aria-hidden="true"></i>Payments
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="conversations-tab" data-bs-toggle="tab" data-bs-target="#conversations" 
+                                    type="button" role="tab" aria-controls="conversations" aria-selected="false">
+                                <i class="fas fa-comments me-1" aria-hidden="true"></i>Messages
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="invoices-tab" data-bs-toggle="tab" data-bs-target="#invoices" 
+                                    type="button" role="tab" aria-controls="invoices" aria-selected="false">
+                                <i class="fas fa-receipt me-1" aria-hidden="true"></i>Invoices
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <!-- Tab Content -->
+                    <div class="tab-content" id="memberProfileTabContent">
+                        <!-- Profile Info Tab -->
+                        <div class="tab-pane fade show active" id="profile-info" role="tabpanel" aria-labelledby="profile-info-tab" tabindex="0">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6 class="tab-content-header">Personal Information</h6>
+                                    <div id="personal-info-content">
+                                        <!-- Will be populated by JavaScript -->
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="tab-content-header">Contact Information</h6>
+                                    <div id="contact-info-content">
+                                        <!-- Will be populated by JavaScript -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Agreements Tab -->
+                        <div class="tab-pane fade" id="agreements" role="tabpanel" aria-labelledby="agreements-tab" tabindex="0">
+                            <div id="agreements-content">
+                                <!-- Will be populated by JavaScript -->
+                            </div>
+                        </div>
+                        
+                        <!-- Payments Tab -->
+                        <div class="tab-pane fade" id="payments" role="tabpanel" aria-labelledby="payments-tab" tabindex="0">
+                            <div id="payments-content">
+                                <!-- Will be populated by JavaScript -->
+                            </div>
+                        </div>
+                        
+                        <!-- Conversations Tab -->
+                        <div class="tab-pane fade" id="conversations" role="tabpanel" aria-labelledby="conversations-tab" tabindex="0">
+                            <div id="conversations-content">
+                                <div class="text-center py-4">
+                                    <i class="fas fa-comments fa-3x text-muted mb-3" aria-hidden="true"></i>
+                                    <p class="text-muted">Conversation history will be integrated with ClubOS, Twilio, and Gmail</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Invoices Tab -->
+                        <div class="tab-pane fade" id="invoices" role="tabpanel" aria-labelledby="invoices-tab" tabindex="0">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <h6 class="fw-bold mb-0">Square Invoices</h6>
+                                <button class="btn btn-purple btn-sm" onclick="createSquareInvoice()" aria-label="Create new Square invoice">
+                                    <i class="fas fa-plus me-1" aria-hidden="true"></i>Send Invoice
+                                </button>
+                            </div>
+                            <div id="invoices-content">
+                                <div class="text-center py-4">
+                                    <i class="fas fa-receipt fa-3x text-muted mb-3" aria-hidden="true"></i>
+                                    <p class="text-muted">Square integration will be implemented here</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+
+<script>
+function refreshData() {
+    // Show loading state
+    const refreshButton = document.querySelector('button[onclick="refreshData()"]');
+    if (refreshButton) {
+        refreshButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Refreshing...';
+        refreshButton.disabled = true;
+    }
+    
+    // Call the refresh API
+    fetch('/api/refresh-data', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success message and reload page
+            alert(`Data refreshed successfully!\nMembers: ${data.counts.members}\nProspects: ${data.counts.prospects}`);
+            window.location.reload();
+        } else {
+            alert('Error refreshing data: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error refreshing data. Please try again.');
+    })
+    .finally(() => {
+        // Reset button state
+        if (refreshButton) {
+            refreshButton.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Refresh Now';
+            refreshButton.disabled = false;
+        }
+    });
+}
+
+// Auto-check data status every 5 minutes
+setInterval(function() {
+    fetch('/api/data-status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.needs_refresh) {
+                // Show notification that data is stale
+                console.log('Data is stale, consider refreshing');
+            }
+        })
+        .catch(error => console.error('Error checking data status:', error));
+}, 300000); // 5 minutes
+
+// Member Profile Modal Functions
+function openMemberProfile(memberId, memberName, memberEmail) {
+    console.log(`Opening profile for member: ${memberName} (ID: ${memberId})`);
+    
+    // Set member name in modal
+    document.getElementById('modal-member-name').textContent = memberName;
+    
+    // Show loading state
+    document.getElementById('member-profile-loading').style.display = 'block';
+    document.getElementById('member-profile-content').style.display = 'none';
+    
+    // Show modal - Bootstrap 5 handles ARIA attributes automatically
+    const modalElement = document.getElementById('memberProfileModal');
+    const modal = new bootstrap.Modal(modalElement);
+    
+    // Focus management for keyboard accessibility
+    modalElement.addEventListener('shown.bs.modal', function() {
+        const closeButton = modalElement.querySelector('.btn-close');
+        if (closeButton) {
+            closeButton.focus();
+        }
+    }, { once: true });
+    
+    modal.show();
+    
+    // Fetch member details
+    fetchMemberDetails(memberId, memberName, memberEmail);
+}
+
+function fetchMemberDetails(memberId, memberName, memberEmail) {
+    // Make real API call to get member details
+    fetch(`/api/member/${memberId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Hide loading and show content
+                document.getElementById('member-profile-loading').style.display = 'none';
+                document.getElementById('member-profile-content').style.display = 'block';
+                
+                // Populate profile information with real data
+                populatePersonalInfo(data.member, data.payment_status);
+                populateContactInfo(data.member);
+                populateAgreements(data.agreements);
+                populatePayments(data.payments);
+            } else {
+                // Show error
+                document.getElementById('member-profile-loading').innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                        <p class="text-danger">Error loading member profile: ${data.error}</p>
+                        <button class="btn btn-outline-secondary" onclick="fetchMemberDetails(${memberId}, '${memberName}', '${memberEmail}')">
+                            <i class="fas fa-redo me-1"></i>Try Again
+                        </button>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching member details:', error);
+            document.getElementById('member-profile-loading').innerHTML = `
+                <div class="text-center py-5">
+                    <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                    <p class="text-danger">Network error loading member profile</p>
+                    <button class="btn btn-outline-secondary" onclick="fetchMemberDetails(${memberId}, '${memberName}', '${memberEmail}')">
+                        <i class="fas fa-redo me-1"></i>Try Again
+                    </button>
+                </div>
+            `;
+        });
+}
+
+function populatePersonalInfo(member, paymentStatus) {
+    const personalInfoContent = document.getElementById('personal-info-content');
+    
+    // Format member since date
+    let memberSince = 'Unknown';
+    if (member.membership_start) {
+        try {
+            const startDate = new Date(member.membership_start);
+            memberSince = startDate.toLocaleDateString();
+        } catch (e) {
+            memberSince = member.membership_start;
+        }
+    } else if (member.created_at) {
+        try {
+            const createdDate = new Date(member.created_at);
+            memberSince = createdDate.toLocaleDateString();
+        } catch (e) {
+            memberSince = member.created_at;
+        }
+    }
+    
+    // Payment status badge
+    const statusBadge = `<span class="outlook-badge outlook-badge-${paymentStatus.class}">${paymentStatus.text}</span>`;
+    
+    personalInfoContent.innerHTML = `
+        <div class="mb-3">
+            <label class="form-label-muted">Full Name</label>
+            <div class="member-detail-value">${member.full_name || (member.first_name + ' ' + member.last_name) || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label-muted">Email</label>
+            <div class="member-detail-value">${member.email || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label-muted">Member ID</label>
+            <div class="member-detail-value">${member.id}</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label-muted">Member Status</label>
+            <div>${member.status ? '<span class="outlook-badge outlook-badge-info">' + member.status + '</span>' : 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label-muted">Payment Status</label>
+            <div>${statusBadge}</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label-muted">Member Since</label>
+            <div class="member-detail-value">${memberSince}</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label-muted">User Type</label>
+            <div class="member-detail-value">${member.user_type || 'N/A'}</div>
+        </div>
+    `;
+}
+
+function populateContactInfo(member) {
+    const contactInfoContent = document.getElementById('contact-info-content');
+    contactInfoContent.innerHTML = `
+        <div class="mb-3">
+            <label class="form-label-muted">Mobile Phone</label>
+            <div class="member-detail-value">${member.mobile_phone || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label-muted">Home Phone</label>
+            <div class="member-detail-value">${member.home_phone || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label-muted">Address</label>
+            <div class="member-detail-value">${member.address || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label-muted">Emergency Contact</label>
+            <div class="member-detail-value">${member.emergency_contact || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label-muted">Date of Birth</label>
+            <div class="member-detail-value">${member.date_of_birth || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label-muted">Gender</label>
+            <div class="member-detail-value">${member.gender || 'N/A'}</div>
+        </div>
+    `;
+}
+
+function populateAgreements(agreements) {
+    const agreementsContent = document.getElementById('agreements-content');
+    
+    if (!agreements || agreements.length === 0) {
+        agreementsContent.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-file-contract fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No agreements found</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let agreementsHtml = '<div class="row">';
+    agreements.forEach(agreement => {
+        agreementsHtml += `
+            <div class="col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title">${agreement.agreement_type || 'Agreement'}</h6>
+                        <p class="card-text">
+                            <small class="text-muted">Start: ${agreement.start_date || 'N/A'}</small><br>
+                            <small class="text-muted">End: ${agreement.end_date || 'N/A'}</small><br>
+                            <small class="text-muted">Rate: $${agreement.rate || '0.00'}</small>
+                        </p>
+                        ${agreement.status ? '<span class="outlook-badge outlook-badge-info">' + agreement.status + '</span>' : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    agreementsHtml += '</div>';
+    
+    agreementsContent.innerHTML = agreementsHtml;
+}
+
+function populatePayments(payments) {
+    const paymentsContent = document.getElementById('payments-content');
+    
+    if (!payments || payments.length === 0) {
+        paymentsContent.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-credit-card fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No payment history found</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let paymentsHtml = `
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Amount</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    payments.forEach(payment => {
+        const paymentDate = payment.payment_date ? new Date(payment.payment_date).toLocaleDateString() : 'N/A';
+        const amount = payment.amount ? `$${parseFloat(payment.amount).toFixed(2)}` : 'N/A';
+        
+        paymentsHtml += `
+            <tr>
+                <td>${paymentDate}</td>
+                <td>${amount}</td>
+                <td>${payment.payment_type || 'N/A'}</td>
+                <td>
+                    ${payment.status ? '<span class="outlook-badge outlook-badge-' + (payment.status === 'completed' ? 'success' : 'warning') + '">' + payment.status + '</span>' : 'N/A'}
+                </td>
+            </tr>
+        `;
+    });
+    
+    paymentsHtml += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    paymentsContent.innerHTML = paymentsHtml;
+}
+
+function createSquareInvoice(memberId, memberName) {
+    if (!memberId) {
+        alert('No member selected for invoice creation.');
+        return;
+    }
+    
+    // Calculate proper invoice amount
+    fetch('/api/calculate-invoice-amount', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            member_id: memberId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const amount = prompt(
+                `Enter invoice amount for ${data.member_name}:\n` +
+                `Suggested: $${data.total_amount.toFixed(2)} ` +
+                `(Past Due: $${data.past_due_amount.toFixed(2)} + Late Fee: $${data.late_fee.toFixed(2)})`,
+                data.total_amount.toFixed(2)
+            );
+            
+            if (!amount || isNaN(amount)) return;
+            
+            const description = prompt('Enter invoice description:', data.description);
+            if (!description) return;
+            
+            // Create the actual Square invoice
+            return fetch('/api/invoices/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    member_id: memberId,
+                    amount: parseFloat(amount),
+                    description: description
+                })
+            });
+        } else {
+            // Fallback to simple invoice creation
+            const amount = prompt(`Enter invoice amount for ${memberName}:`, '50.00');
+            if (!amount || isNaN(amount)) return;
+            
+            const description = prompt('Enter invoice description:', 'Membership Payment');
+            if (!description) return;
+            
+            return fetch('/api/invoices/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    member_id: memberId,
+                    amount: parseFloat(amount),
+                    description: description
+                })
+            });
+        }
+    })
+    .then(response => {
+        if (!response) return; // User cancelled
+        return response.json();
+    })
+    .then(data => {
+        if (!data) return; // User cancelled
+        if (data.success) {
+            alert(`Invoice created successfully for ${memberName}!\nInvoice URL: ${data.invoice_url}`);
+            // Optionally refresh the page or update the member's status
+        } else {
+            alert('Error creating invoice: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error creating Square invoice:', error);
+        alert('Network error: ' + error.message);
+    });
+}
+
+// Debug function for manual testing
+window.debugLoadPastDue = function() {
+    console.log('🐛 DEBUG: Manual trigger clicked');
+    console.log('🐛 DEBUG: pastDueMembersLoaded:', pastDueMembersLoaded);
+    
+    // First, let's test if we can just show a simple message
+    const container = document.getElementById('past-due-members-container');
+    if (container) {
+        container.innerHTML = '<div class="alert alert-info">🐛 DEBUG: Container found and updated!</div>';
+        console.log('🐛 DEBUG: Set test content in container');
+    } else {
+        console.log('🐛 DEBUG: Container NOT found!');
+    }
+    
+    // Reset the loaded flag and force load
+    pastDueMembersLoaded = false;
+    loadPastDueMembers();
+};
+
+// Past Due Members Loading
+let pastDueMembersLoaded = false;
+
+// Listen for tab changes to load past due members when needed
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🔄 DOMContentLoaded event fired');
+    const pastDueTab = document.getElementById('past-due-tab');
+    console.log('🔍 Past due tab element:', pastDueTab);
+    
+    if (pastDueTab) {
+        // Bootstrap 5 tab events - primary method
+        pastDueTab.addEventListener('shown.bs.tab', function(event) {
+            console.log('🎯 Past due tab shown.bs.tab event fired', event);
+            console.log('🎯 Tab classes:', pastDueTab.classList.toString());
+            // Always reset and reload to ensure fresh data
+            pastDueMembersLoaded = false;
+            console.log('🔄 Reset pastDueMembersLoaded to false, loading fresh data');
+            loadPastDueMembers();
+        });
+        
+        // IMMEDIATE TEST: Load past due members right now for testing
+        console.log('🚀 IMMEDIATE TEST: Loading past due members on page load');
+        setTimeout(function() {
+            // First test: Can we populate the container directly?
+            const testContainer = document.getElementById('past-due-members-container');
+            if (testContainer) {
+                testContainer.innerHTML = '<div class="alert alert-success">✅ CONTAINER FOUND! Now testing API...</div>';
+                console.log('✅ Container test successful');
+            }
+            
+            // Now try the real API call
+            loadPastDueMembers();
+        }, 1000);
+        
+        // Fallback click event - secondary method
+        pastDueTab.addEventListener('click', function(event) {
+            console.log('👆 Past due tab clicked', event);
+            setTimeout(() => {
+                console.log('⏰ Checking after click timeout...');
+                console.log('⏰ pastDueMembersLoaded:', pastDueMembersLoaded);
+                console.log('⏰ Tab active class:', pastDueTab.classList.contains('active'));
+                if (pastDueTab.classList.contains('active') && !pastDueMembersLoaded) {
+                    console.log('🚀 Loading past due members after click');
+                    pastDueMembersLoaded = false;
+                    loadPastDueMembers();
+                }
+            }, 200);
+        });
+        
+        // Additional Bootstrap tab event
+        pastDueTab.addEventListener('show.bs.tab', function(event) {
+            console.log('🔄 Past due tab show.bs.tab event fired (before shown)', event);
+        });
+        
+        console.log('✅ Event listeners added to past due tab');
+        
+        // Test immediate load if tab is already active (shouldn't happen but just in case)
+        if (pastDueTab.classList.contains('active')) {
+            console.log('🎯 Tab is already active on page load, loading data');
+            loadPastDueMembers();
+        }
+    } else {
+        console.error('❌ Past due tab element not found');
+    }
+});
+
+function loadPastDueMembers() {
+    console.log('🔄 loadPastDueMembers called, pastDueMembersLoaded:', pastDueMembersLoaded);
+    if (pastDueMembersLoaded) {
+        console.log('✅ Already loaded, returning early');
+        return;
+    }
+    
+    console.log('🔄 Setting loading state...');
+    // Show loading state
+    document.getElementById('past-due-loading').style.display = 'block';
+    document.getElementById('past-due-content').style.display = 'none';
+    document.getElementById('no-past-due').style.display = 'none';
+    
+    console.log('📡 Making fetch request to /api/members/past-due');
+    fetch('/api/members/past-due')
+        .then(response => {
+            console.log('📥 Response received:', response.status, response.statusText);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 Data received:', data);
+            console.log('📊 Data type:', typeof data);
+            console.log('📊 Data keys:', Object.keys(data));
+            console.log('📊 past_due_members exists:', !!data.past_due_members);
+            console.log('📊 past_due_members is array:', Array.isArray(data.past_due_members));
+            if (data.past_due_members) {
+                console.log('📊 past_due_members length:', data.past_due_members.length);
+                console.log('📊 First member sample:', data.past_due_members[0]);
+            }
+            
+            // Handle the actual API response format: { "count": 305, "past_due_members": [...] }
+            if (data.past_due_members && Array.isArray(data.past_due_members)) {
+                pastDueMembersLoaded = true;
+                console.log('🎯 Setting pastDueMembersLoaded to true');
+                
+                // Update the tab badges with fresh counts
+                console.log('🔢 Updating badges - Red:', data.red_count, 'Yellow:', data.yellow_count);
+                document.getElementById('red-count-badge').textContent = data.red_count || 0;
+                document.getElementById('yellow-count-badge').textContent = data.yellow_count || 0;
+                
+                if (data.past_due_members.length === 0) {
+                    // No past due members
+                    console.log('📭 No past due members found');
+                    console.log('🔍 Hiding loading div...');
+                    document.getElementById('past-due-loading').style.display = 'none';
+                    console.log('🔍 Showing no-past-due div...');
+                    const noPastDueDiv = document.getElementById('no-past-due');
+                    console.log('🔍 no-past-due element:', noPastDueDiv);
+                    noPastDueDiv.style.display = 'block';
+                    console.log('✅ Should now be showing "All Caught Up!" message');
+                } else {
+                    // Display past due members
+                    console.log('📋 Displaying', data.past_due_members.length, 'past due members');
+                    displayPastDueMembers(data.past_due_members);
+                    document.getElementById('past-due-loading').style.display = 'none';
+                    document.getElementById('past-due-content').style.display = 'block';
+                    console.log('✅ Past due content should now be visible');
+                }
+            } else if (data.success && data.past_due_members) {
+                // Handle legacy success format
+                pastDueMembersLoaded = true;
+                console.log('🎯 Using legacy success format');
+                
+                if (data.past_due_members.length === 0) {
+                    console.log('📭 No past due members found (legacy)');
+                    document.getElementById('past-due-loading').style.display = 'none';
+                    document.getElementById('no-past-due').style.display = 'block';
+                } else {
+                    console.log('📋 Displaying', data.past_due_members.length, 'past due members (legacy)');
+                    displayPastDueMembers(data.past_due_members);
+                    document.getElementById('past-due-loading').style.display = 'none';
+                    document.getElementById('past-due-content').style.display = 'block';
+                }
+            } else if (Array.isArray(data) && data.length > 0) {
+                // Handle direct array response
+                pastDueMembersLoaded = true;
+                console.log('📋 Displaying', data.length, 'past due members (direct array)');
+                displayPastDueMembers(data);
+                document.getElementById('past-due-loading').style.display = 'none';
+                document.getElementById('past-due-content').style.display = 'block';
+            } else {
+                console.error('❌ API returned unexpected format:', data);
+                // Show error
+                document.getElementById('past-due-loading').innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                        <p class="text-danger">Error loading past due members: Unexpected data format</p>
+                        <button class="btn btn-outline-secondary" onclick="retryLoadPastDue()">
+                            <i class="fas fa-redo me-1"></i>Try Again
+                        </button>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading past due members:', error);
+            document.getElementById('past-due-loading').innerHTML = `
+                <div class="text-center py-5">
+                    <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                    <p class="text-danger">Network error loading past due members</p>
+                    <button class="btn btn-outline-secondary" onclick="retryLoadPastDue()">
+                        <i class="fas fa-redo me-1"></i>Try Again
+                    </button>
+                </div>
+            `;
+        });
+}
+
+function retryLoadPastDue() {
+    pastDueMembersLoaded = false;
+    loadPastDueMembers();
+}
+
+function displayPastDueMembers(members) {
+    console.log('🎨 displayPastDueMembers called with', members.length, 'members');
+    const container = document.getElementById('past-due-members-container');
+    console.log('🎨 Container element:', container);
+    
+    if (!container) {
+        console.error('❌ past-due-members-container not found!');
+        return;
+    }
+    
+    let html = '';
+    
+    members.forEach((member, index) => {
+        if (index < 3) { // Log first 3 members for debugging
+            console.log(`🎨 Processing member ${index + 1}:`, {
+                name: member.full_name,
+                email: member.email,
+                priority_status: member.priority_status,
+                status_text: member.status_text
+            });
+        }
+        
+        const cardClass = member.priority_status === 'red' ? 'past-due-card-red' : 'past-due-card-yellow';
+        const iconClass = member.priority_status === 'red' ? 'past-due-icon-red' : 'past-due-icon-yellow';
+        const badgeClass = member.priority_status === 'red' ? 'outlook-badge-danger' : 'outlook-badge-warning';
+        
+        html += `
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card member-card h-100 ${cardClass}" tabindex="0" role="button" 
+                     aria-label="View profile for ${member.full_name} - ${member.status_text}"
+                     onclick="openMemberProfile('${member.id}', '${member.full_name}', '${member.email}')"
+                     onkeydown="if(event.key==='Enter'||event.key===' '){openMemberProfile('${member.id}', '${member.full_name}', '${member.email}');}">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="outlook-icon-circle me-3 ${iconClass}">
+                                <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+                            </div>
+                            <div>
+                                <h5 class="fw-bold mb-1 member-name">${member.full_name || member.first_name + ' ' + member.last_name}</h5>
+                                <small class="text-muted">${member.email || 'No email'}</small>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-2">
+                            <small class="text-muted">Status:</small>
+                            <span class="outlook-badge ${badgeClass}">${member.status_text}</span>
+                        </div>
+                        
+                        ${member.mobile_phone ? `
+                        <div class="mb-2">
+                            <small class="text-muted">Phone:</small>
+                            <small class="d-block">${member.mobile_phone}</small>
+                        </div>
+                        ` : ''}
+                        
+                        ${member.amount_of_next_payment ? `
+                        <div class="mb-2">
+                            <small class="text-muted">Next Payment:</small>
+                            <small class="d-block">$${parseFloat(member.amount_of_next_payment).toFixed(2)}</small>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    console.log('🎨 Generated HTML length:', html.length);
+    console.log('🎨 Setting container innerHTML...');
+    container.innerHTML = html;
+    console.log('🎨 Container innerHTML set successfully');
+    
+    // Announce to screen readers
+    const announcement = document.createElement('div');
+    announcement.setAttribute('aria-live', 'polite');
+    announcement.className = 'sr-only';
+    announcement.textContent = `Loaded ${members.length} past due member${members.length !== 1 ? 's' : ''}`;
+    container.appendChild(announcement);
+    
+    console.log('✅ displayPastDueMembers completed successfully');
+}
+
+// Debug function - you can call this from browser console
+function testPastDueDisplay() {
+    console.log('🧪 TEST: Forcing past due display');
+    document.getElementById('past-due-loading').style.display = 'none';
+    document.getElementById('past-due-content').style.display = 'none';
+    document.getElementById('no-past-due').style.display = 'block';
+    console.log('🧪 TEST: Should now show "All Caught Up!" message');
+}
+
+// Debug function to force API call
+function testApiCall() {
+    console.log('🧪 TEST: Forcing API call');
+    pastDueMembersLoaded = false;
+    loadPastDueMembers();
+}
+
+// Simple test functions for debugging
+function testSimple() {
+    alert('✅ JavaScript is working! Now testing container...');
+    const container = document.getElementById('past-due-members-container');
+    if (container) {
+        container.innerHTML = '<div class="alert alert-success">✅ Container found and updated!</div>';
+        document.getElementById('past-due-content').style.display = 'block';
+        alert('✅ Container test passed!');
+    } else {
+        alert('❌ Container not found!');
+    }
+}
+
+function testAPI() {
+    alert('📡 Testing API call...');
+    fetch('/api/members/past-due')
+        .then(response => response.json())
+        .then(data => {
+            alert(`📊 API Success! Got ${data.total_count} members (${data.red_count} red, ${data.yellow_count} yellow)`);
+            console.log('API Response:', data);
+        })
+        .catch(error => {
+            alert('❌ API Failed: ' + error.message);
+            console.error('API Error:', error);
+        });
+}
+
+function showMembers() {
+    alert('👥 Loading real members...');
+    
+    // Show content area
+    document.getElementById('past-due-loading').style.display = 'none';
+    document.getElementById('past-due-content').style.display = 'block';
+    document.getElementById('no-past-due').style.display = 'none';
+    
+    fetch('/api/members/past-due')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('past-due-members-container');
+            
+            if (!data.past_due_members || data.past_due_members.length === 0) {
+                container.innerHTML = '<div class="alert alert-info">No past due members found</div>';
+                return;
+            }
+            
+            let html = `<div class="col-12 mb-3"><div class="alert alert-info">Found ${data.total_count} past due members</div></div>`;
+            
+            // Show first 6 members as test
+            data.past_due_members.slice(0, 6).forEach(member => {
+                const cardClass = member.priority_status === 'red' ? 'border-danger' : 'border-warning';
+                html += `
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card ${cardClass}">
+                            <div class="card-body">
+                                <h6 class="card-title">${member.full_name || 'Unknown Name'}</h6>
+                                <p class="card-text">
+                                    <small class="text-muted">${member.email || 'No email'}</small><br>
+                                    <span class="badge bg-${member.priority_status === 'red' ? 'danger' : 'warning'}">${member.status_text}</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+            alert('✅ Members loaded successfully!');
+        })
+        .catch(error => {
+            alert('❌ Error loading members: ' + error.message);
+        });
+}
+
+// Force show past due content for testing
+function forceShowPastDue() {
+    console.log('🎯 FORCE: Showing past due content directly');
+    
+    // Hide loading, show content
+    document.getElementById('past-due-loading').style.display = 'none';
+    document.getElementById('past-due-content').style.display = 'block';
+    document.getElementById('no-past-due').style.display = 'none';
+    
+    // Put test content directly
+    const container = document.getElementById('past-due-members-container');
+    if (container) {
+        container.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <h4>🎯 FORCE TEST SUCCESSFUL!</h4>
+                    <p>The Past Due tab container is working! API returned 33 members (12 red, 21 yellow).</p>
+                    <p>Click the "🔄 Load Past Due Members (TEST)" button to load the real data.</p>
+                </div>
+            </div>
+        `;
+        console.log('✅ Force content loaded successfully');
+    } else {
+        console.error('❌ Container still not found');
+    }
+}
+</script>
+
+{% endblock %}

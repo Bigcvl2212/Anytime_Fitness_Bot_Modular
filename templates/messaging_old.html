@@ -210,7 +210,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     })
     .catch(error => {
-                    console.error('Error loading campaigns:', error);
+                    debugError('Error loading campaigns:', error);
                     displayCampaigns([]);
                 });
         }
@@ -258,7 +258,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         function loadMessages() {
-            console.log('🔄 Loading messages...');
+            debugLog('🔄 Loading messages...');
             // Add cache-busting parameter to force fresh data
             fetch('/api/messages?t=' + Date.now())
     .then(response => response.json())
@@ -270,7 +270,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     })
     .catch(error => {
-                    console.error('Error loading messages:', error);
+                    debugError('Error loading messages:', error);
                     displayMessages([]);
                 });
         }
@@ -291,13 +291,13 @@ function displayMessages(messages) {
     
             const messagesHtml = messages.map(message => {
                 // Extract member name from message content
-                console.log('Processing message:', message.content);
+                debugLog('Processing message:', message.content);
                 const extractedName = extractMemberNameFromContent(message.content);
-                console.log('Extracted name:', extractedName);
-                console.log('Message member_id:', message.member_id);
-                console.log('Message from_user:', message.from_user);
+                debugLog('Extracted name:', extractedName);
+                debugLog('Message member_id:', message.member_id);
+                debugLog('Message from_user:', message.from_user);
                 const memberName = extractedName || message.member_id || message.from_user || 'Unknown';
-                console.log('Final member name:', memberName);
+                debugLog('Final member name:', memberName);
                 
                 // Clean up the message content for display
                 let displayContent = message.content;
@@ -310,7 +310,7 @@ function displayMessages(messages) {
                 const timestamp = new Date(message.timestamp);
                 const timeString = timestamp.toLocaleDateString() + ' ' + timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                 
-                console.log(`🎨 Rendering message for: ${memberName}`);
+                debugLog(`🎨 Rendering message for: ${memberName}`);
         return `
                     <div class="message-item p-3 border-bottom" onclick="goToMemberProfile('${memberName}')">
                     <div class="d-flex justify-content-between align-items-start">
@@ -346,7 +346,7 @@ function displayMessages(messages) {
             }).join('');
 
             container.innerHTML = messagesHtml;
-            console.log(`✅ Rendered ${messages.length} messages with names`);
+            debugLog(`✅ Rendered ${messages.length} messages with names`);
         }
 
         function searchMessages() {
@@ -364,7 +364,7 @@ function displayMessages(messages) {
         }
     })
     .catch(error => {
-                    console.error('Error searching messages:', error);
+                    debugError('Error searching messages:', error);
                 });
         }
 
@@ -391,7 +391,7 @@ function displayMessages(messages) {
                 }
             })
             .catch(error => {
-                console.error('Error syncing messages:', error);
+                debugError('Error syncing messages:', error);
                 showAlert('danger', 'Error syncing messages');
             })
             .finally(() => {
@@ -434,15 +434,15 @@ function displayMessages(messages) {
                 }
             })
             .catch(error => {
-                console.error('Error creating campaign:', error);
+                debugError('Error creating campaign:', error);
                 showAlert('danger', 'Error creating campaign');
             });
         }
 
         function extractMemberNameFromContent(content) {
-            console.log('🔍 extractMemberNameFromContent called with:', content);
+            debugLog('🔍 extractMemberNameFromContent called with:', content);
             if (!content) {
-                console.log('❌ No content provided');
+                debugLog('❌ No content provided');
                 return null;
             }
             
@@ -486,7 +486,7 @@ function displayMessages(messages) {
 }
 
 function goToMemberProfile(memberName) {
-            console.log(`🔍 Searching for: ${memberName}`);
+            debugLog(`🔍 Searching for: ${memberName}`);
     
             // Search for the name in members
     fetch(`/api/members/search?q=${encodeURIComponent(memberName)}`)
@@ -496,7 +496,7 @@ function goToMemberProfile(memberName) {
                         // Found member - navigate to member page
                         const member = memberData.members[0];
                         const memberId = member.guid || member.prospect_id || member.id;
-                        console.log(`✅ Found member: ${member.full_name} (ID: ${memberId})`);
+                        debugLog(`✅ Found member: ${member.full_name} (ID: ${memberId})`);
                         window.location.href = `/member/${memberId}`;
         return;
     }
@@ -521,18 +521,18 @@ function goToMemberProfile(memberName) {
                         if (prospect) {
                             // Found prospect - navigate to prospect page
                             const prospectId = prospect.prospect_id || prospect.id;
-                            console.log(`✅ Found prospect: ${prospect.firstName} ${prospect.lastName} (ID: ${prospectId})`);
+                            debugLog(`✅ Found prospect: ${prospect.firstName} ${prospect.lastName} (ID: ${prospectId})`);
                             window.location.href = `/prospect/${prospectId}`;
         return;
     }
                     }
                     
                     // Not found anywhere - show error
-                    console.log(`❌ Not found: ${memberName}`);
+                    debugLog(`❌ Not found: ${memberName}`);
                     // Don't show alert since navigation might still work
     })
     .catch(error => {
-                    console.error('❌ Error searching:', error);
+                    debugError('❌ Error searching:', error);
                     alert(`Error searching for ${memberName}`);
                 });
         }

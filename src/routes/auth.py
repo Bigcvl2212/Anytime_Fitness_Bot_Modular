@@ -21,11 +21,16 @@ def require_auth(f):
             from src.services.authentication.secure_auth_service import SecureAuthService
             auth_service = SecureAuthService()
             
+            # Debug session state before validation
+            logger.info(f"🔍 Auth check for {request.endpoint} - Session keys: {list(session.keys()) if session else 'No session'}")
+            logger.info(f"🔍 Auth check - Session authenticated: {session.get('authenticated') if session else 'N/A'}")
+            
             # Check if session is valid
             is_valid, manager_id = auth_service.validate_session()
             
             if not is_valid:
                 logger.warning(f"❌ Unauthenticated access attempt to {request.endpoint}")
+                logger.warning(f"❌ Session state at auth failure: {dict(session) if session else 'No session data'}")
                 return redirect(url_for('auth.login'))
             
             # Session is valid, proceed with the request
@@ -44,15 +49,23 @@ def login():
         return render_template('login.html')
     
     try:
-        # Get form data
-        clubos_username = request.form.get('clubos_username', '').strip()
-        clubos_password = request.form.get('clubos_password', '').strip()
-        clubhub_email = request.form.get('clubhub_email', '').strip()
-        clubhub_password = request.form.get('clubhub_password', '').strip()
+        # Import validation functions
+        from src.utils.validation import FormValidator
         
-        if not all([clubos_username, clubos_password, clubhub_email, clubhub_password]):
-            flash('All fields are required.', 'error')
+        # Validate form data
+        validation_result = FormValidator.validate_login_form(request.form)
+        
+        if not validation_result['is_valid']:
+            for error in validation_result['errors']:
+                flash(error, 'error')
             return render_template('login.html')
+        
+        # Use sanitized data
+        form_data = validation_result['sanitized_data']
+        clubos_username = form_data['clubos_username']
+        clubos_password = form_data['clubos_password']
+        clubhub_email = form_data['clubhub_email']
+        clubhub_password = form_data['clubhub_password']
         
         # Import authentication service
         from src.services.authentication.secure_auth_service import SecureAuthService
@@ -66,6 +79,9 @@ def login():
         if success:
             # Create session
             session_token = auth_service.create_session(manager_id)
+            
+            # Debug: Check session immediately after creation
+            logger.info(f"🔍 Session immediately after creation: authenticated={session.get('authenticated')}, manager_id={session.get('manager_id')}")
             
             logger.info(f"✅ Manager {manager_id} logged in successfully from {request.remote_addr}")
             
@@ -86,6 +102,9 @@ def login():
                     session['user_info'] = user_info
                     session['available_clubs'] = club_ids
                     
+                    # Force session to be saved after adding club data
+                    session.modified = True
+                    
                     # If multi-club user, redirect to club selection
                     if len(club_ids) > 1:
                         flash(f'Welcome {user_info.get("name", "Manager")}! Please select your clubs.', 'success')
@@ -94,6 +113,10 @@ def login():
                         # Single club - auto-select and go to dashboard
                         multi_club_manager.set_selected_clubs(club_ids)
                         session['selected_clubs'] = club_ids
+                        
+                        # Force session to be saved after setting selected clubs
+                        session.modified = True
+                        
                         club_name = multi_club_manager.get_club_name(club_ids[0])
                         
                         # Trigger startup sync for this club

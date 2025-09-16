@@ -355,7 +355,7 @@ function refreshData() {
         }
     })
     .catch(error => {
-        console.error('Error:', error);
+        debugError('Error:', error);
         alert('Error refreshing data. Please try again.');
     })
     .finally(() => {
@@ -374,15 +374,15 @@ setInterval(function() {
         .then(data => {
             if (data.success && data.needs_refresh) {
                 // Show notification that data is stale
-                console.log('Data is stale, consider refreshing');
+                debugLog('Data is stale, consider refreshing');
             }
         })
-        .catch(error => console.error('Error checking data status:', error));
+        .catch(error => debugError('Error checking data status:', error));
 }, 300000); // 5 minutes
 
 // Member Profile Modal Functions
 function openMemberProfile(memberId, memberName, memberEmail) {
-    console.log(`Opening profile for member: ${memberName} (ID: ${memberId})`);
+    debugLog(`Opening profile for member: ${memberName} (ID: ${memberId})`);
     
     // Set member name in modal
     document.getElementById('modal-member-name').textContent = memberName;
@@ -428,7 +428,7 @@ function fetchMemberDetails(memberId, memberName, memberEmail) {
             }
         })
         .catch(error => {
-            console.error('Error fetching member details:', error);
+            debugError('Error fetching member details:', error);
             document.getElementById('member-profile-loading').innerHTML = `
                 <div class="text-center py-5">
                     <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
@@ -693,7 +693,7 @@ function createSquareInvoice(memberId, memberName) {
         }
     })
     .catch(error => {
-        console.error('Error creating Square invoice:', error);
+        debugError('Error creating Square invoice:', error);
         alert('Network error: ' + error.message);
     });
 }
@@ -751,7 +751,7 @@ function loadPastDueMembers() {
             }
         })
         .catch(error => {
-            console.error('Error loading past due members:', error);
+            debugError('Error loading past due members:', error);
             document.getElementById('past-due-loading').innerHTML = `
                 <div class="text-center py-5">
                     <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>

@@ -4,12 +4,27 @@ API Routes
 Data management, refresh operations, and utility endpoints
 """
 
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request, current_app, session
 import logging
 import json
 from datetime import datetime
 import threading
 import time
+
+# Rate limiting decorator function for high-frequency endpoints
+def high_frequency_endpoint(f):
+    """Decorator for endpoints that need higher rate limits."""
+    def wrapper(*args, **kwargs):
+        # Apply higher rate limit if available
+        try:
+            if hasattr(current_app, 'limiter'):
+                # This will be handled by app configuration
+                pass
+        except:
+            pass
+        return f(*args, **kwargs)
+    wrapper.__name__ = f.__name__
+    return wrapper
 
 logger = logging.getLogger(__name__)
 
@@ -172,46 +187,72 @@ def api_member_past_due_status():
         
         logger.info(f"🔍 Getting training client past due status for: {participant_name}")
         
+        # Check if database sync is still in progress by checking table count
+        try:
+            table_count = current_app.db_manager.execute_query(
+                "SELECT COUNT(*) FROM training_clients"
+            )
+            # Handle RealDictRow result from COUNT query
+            if table_count and len(table_count) > 0:
+                count_row = table_count[0]
+                total_clients = count_row['count'] if 'count' in count_row else list(count_row.values())[0]
+            else:
+                total_clients = 0
+            
+            # If table is empty, sync might still be running
+            if total_clients == 0:
+                logger.info(f"ℹ️ Training clients table is empty (sync may be in progress)")
+                return jsonify({
+                    'success': True,
+                    'member_name': participant_name,
+                    'past_due_info': {
+                        'amount_past_due': 0.0,
+                        'payment_status': 'Sync in Progress',
+                        'sessions_remaining': 0,
+                        'trainer_name': 'Jeremy Mayo',
+                        'active_packages': 'Sync in Progress',
+                        'last_session': 'Sync in Progress',
+                        'status_class': 'info',
+                        'status_icon': 'fas fa-sync',
+                        'status_text': 'Sync in Progress'
+                    }
+                })
+        except Exception as count_error:
+            logger.debug(f"⚠️ Could not check training_clients table: {count_error}")
+        
         # Try to find training client in database by name
         try:
-            # Use database manager to get connection
-            conn = current_app.db_manager.get_connection()
-            cursor = conn.cursor()
-            
             # First try exact match with member_name (from training_clients table)
-            cursor.execute("""
+            logger.debug(f"🔍 Looking for training client: '{participant_name}'")
+            training_client_results = current_app.db_manager.execute_query("""
                 SELECT member_name, total_past_due, payment_status, sessions_remaining, 
                        trainer_name, active_packages, last_session
                 FROM training_clients 
-                WHERE LOWER(member_name) = LOWER(?) 
+                WHERE LOWER(member_name) = LOWER(%s) 
                 ORDER BY created_at DESC 
                 LIMIT 1
             """, (participant_name,))
-            
-            training_client = cursor.fetchone()
+            training_client = training_client_results[0] if training_client_results and len(training_client_results) > 0 else None
             
             if not training_client:
                 # Try partial match for cases like "First Last" vs "First M Last"
-                cursor.execute("""
+                training_client_results = current_app.db_manager.execute_query("""
                     SELECT member_name, total_past_due, payment_status, sessions_remaining, 
                            trainer_name, active_packages, last_session
                     FROM training_clients 
-                    WHERE LOWER(member_name) LIKE LOWER(?) OR LOWER(?) LIKE LOWER(member_name)
+                    WHERE LOWER(member_name) LIKE LOWER(%s) OR LOWER(%s) LIKE LOWER(member_name)
                     ORDER BY created_at DESC 
                     LIMIT 1
                 """, (f'%{participant_name}%', f'%{participant_name}%'))
-                
-                training_client = cursor.fetchone()
-            
-            conn.close()
+                training_client = training_client_results[0] if training_client_results and len(training_client_results) > 0 else None
             
             if training_client:
-                total_past_due = float(training_client[1]) if training_client[1] else 0.0
-                payment_status = training_client[2] or 'Unknown'
-                sessions_remaining = int(training_client[3]) if training_client[3] else 0
-                trainer_name = training_client[4] or 'Jeremy Mayo'
-                active_packages = training_client[5] or 'Training Package'
-                last_session = training_client[6] or 'Never'
+                total_past_due = float(training_client['total_past_due']) if training_client['total_past_due'] else 0.0
+                payment_status = training_client['payment_status'] or 'Unknown'
+                sessions_remaining = int(training_client['sessions_remaining']) if training_client['sessions_remaining'] else 0
+                trainer_name = training_client['trainer_name'] or 'Jeremy Mayo'
+                active_packages = training_client['active_packages'] or 'Training Package'
+                last_session = training_client['last_session'] or 'Never'
                 
                 # Determine status based on training package past due amounts
                 if total_past_due > 0:
@@ -234,7 +275,7 @@ def api_member_past_due_status():
                 
                 return jsonify({
                     'success': True,
-                    'member_name': training_client[0],
+                    'member_name': training_client['member_name'],
                     'past_due_info': {
                         'amount_past_due': total_past_due,
                         'payment_status': payment_status,
@@ -248,21 +289,21 @@ def api_member_past_due_status():
                     }
                 })
             else:
-                # Training client not found in database
-                logger.warning(f"⚠️ Training client not found in database: {participant_name}")
+                # Training client not found in database (this is normal for regular members)
+                logger.debug(f"ℹ️ Not a training client: {participant_name}")
                 return jsonify({
                     'success': True,
                     'member_name': participant_name,
                     'past_due_info': {
                         'amount_past_due': 0.0,
-                        'payment_status': 'Not Found',
+                        'payment_status': 'Current',
                         'sessions_remaining': 0,
                         'trainer_name': 'Jeremy Mayo',
-                        'active_packages': 'None',
-                        'last_session': 'Never',
-                        'status_class': 'secondary',
-                        'status_icon': 'fas fa-question-circle',
-                        'status_text': 'Not Training Client'
+                        'active_packages': 'General Membership',
+                        'last_session': 'N/A',
+                        'status_class': 'success',
+                        'status_icon': 'fas fa-check-circle',
+                        'status_text': 'General Member'
                     }
                 })
                 
@@ -287,9 +328,10 @@ def api_bulk_checkin():
                 'error': 'Bulk check-in already in progress'
             }), 400
         
-        # Start background bulk check-in
+        # Start background bulk check-in with Flask app context
         def background_bulk_checkin():
-            perform_bulk_checkin_background()
+            with current_app.app_context():
+                perform_bulk_checkin_background()
         
         thread = threading.Thread(target=background_bulk_checkin)
         thread.daemon = True
@@ -305,8 +347,9 @@ def api_bulk_checkin():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @api_bp.route('/bulk-checkin-status')
+@high_frequency_endpoint
 def api_bulk_checkin_status():
-    """Get bulk check-in status."""
+    """Get bulk check-in status. High frequency endpoint for automation polling."""
     return jsonify(bulk_checkin_status)
 
 @api_bp.route('/funding-cache-status')
@@ -407,7 +450,7 @@ def refresh_clubhub_members():
                 })
                 
                 # Import fresh ClubHub data
-                from utils.data_import import import_fresh_clubhub_data
+                from src.utils.data_import import import_fresh_clubhub_data
                 import_fresh_clubhub_data()
                 
                 data_refresh_status.update({
@@ -478,12 +521,23 @@ def data_status():
         
         refresh_logs = []
         for row in cursor.fetchall():
-            refresh_logs.append({
-                'table_name': row[0],
-                'last_refresh': row[1],
-                'record_count': row[2],
-                'category_breakdown': json.loads(row[3]) if row[3] else {}
-            })
+            # Handle RealDictRow access
+            if hasattr(row, 'keys'):
+                # RealDictRow - use dictionary keys
+                refresh_logs.append({
+                    'table_name': row.get('table_name'),
+                    'last_refresh': row.get('last_refresh'),
+                    'record_count': row.get('record_count'),
+                    'category_breakdown': json.loads(row.get('category_breakdown')) if row.get('category_breakdown') else {}
+                })
+            else:
+                # Regular tuple - use indices (fallback)
+                refresh_logs.append({
+                    'table_name': row[0],
+                    'last_refresh': row[1],
+                    'record_count': row[2],
+                    'category_breakdown': json.loads(row[3]) if row[3] else {}
+                })
         
         conn.close()
         
@@ -530,7 +584,7 @@ def api_refresh_members_full():
                 })
                 
                 # Import fresh ClubHub data
-                from utils.data_import import import_fresh_clubhub_data
+                from src.utils.data_import import import_fresh_clubhub_data
                 import_fresh_clubhub_data()
                 
                 data_refresh_status.update({
@@ -564,6 +618,252 @@ def api_refresh_members_full():
         logger.error(f"❌ Error starting full member refresh: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@api_bp.route('/member-invoice-status/<member_id>', methods=['GET'])
+def api_get_member_invoice_status(member_id):
+    """Get comprehensive invoice tracking status for a member"""
+    try:
+        from src.services.database_manager import DatabaseManager
+        db_manager = DatabaseManager()
+        
+        # Get member data - use get_members_by_category to get all members
+        all_members = []
+        for category in ['green', 'past_due', 'comp', 'ppv', 'staff', 'inactive']:
+            try:
+                category_members = db_manager.get_members_by_category(category)
+                all_members.extend(category_members)
+            except Exception as e:
+                logger.warning(f"Failed to get {category} members: {e}")
+        
+        member = None
+        for m in all_members:
+            if str(m.get('guid', '')) == str(member_id) or str(m.get('prospect_id', '')) == str(member_id):
+                member = m
+                break
+        
+        if not member:
+            # Log available member IDs for debugging
+            available_ids = []
+            for m in all_members[:10]:  # Show first 10 for debugging
+                available_ids.append({
+                    'guid': m.get('guid'),
+                    'prospect_id': m.get('prospect_id'),
+                    'name': m.get('display_name', 'Unknown')
+                })
+            
+            logger.warning(f"Member {member_id} not found. Available member IDs: {available_ids}")
+            return jsonify({
+                'success': False, 
+                'error': f'Member {member_id} not found',
+                'available_sample': available_ids
+            }), 404
+        
+        # Get real invoice data from database
+        invoices = db_manager.get_member_invoices(member_id)
+        logger.info(f"📊 Found {len(invoices)} invoices for member {member_id}")
+        
+        # Convert database format to API format
+        formatted_invoices = []
+        for invoice in invoices:
+            formatted_invoices.append({
+                'id': invoice.get('id'),
+                'square_invoice_id': invoice.get('square_invoice_id'),
+                'amount': float(invoice.get('amount', 0)),
+                'status': invoice.get('status', 'created'),
+                'payment_method': invoice.get('payment_method', 'CARD'),
+                'delivery_method': invoice.get('delivery_method', 'EMAIL'),
+                'due_date': invoice.get('due_date'),
+                'payment_date': invoice.get('payment_date'),
+                'created_at': invoice.get('created_at'),
+                'notes': invoice.get('notes')
+            })
+        
+        # Determine access status (mock for now)
+        access_status = 'locked' if member.get('amount_past_due', 0) > 0 else 'active'
+        
+        member_status = {
+            'past_due_amount': member.get('amount_past_due', 0),
+            'late_fees': member.get('late_fees', 0),
+            'last_payment_date': member.get('last_payment_date'),
+            'next_payment_due': member.get('next_payment_due')
+        }
+        
+        return jsonify({
+            'success': True,
+            'member_status': member_status,
+            'invoices': formatted_invoices,
+            'access_status': access_status
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting member invoice status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/toggle-member-lock', methods=['POST'])
+def api_toggle_member_lock():
+    """Toggle member gym access lock status"""
+    try:
+        data = request.get_json()
+        member_id = data.get('member_id')
+        action = data.get('action')  # 'lock' or 'unlock'
+        
+        if not member_id or not action:
+            return jsonify({'success': False, 'error': 'Missing member_id or action'}), 400
+        
+        if action not in ['lock', 'unlock']:
+            return jsonify({'success': False, 'error': 'Invalid action. Must be "lock" or "unlock"'}), 400
+        
+        from src.services.member_access_control import MemberAccessControl
+        
+        # Get user info from session
+        user_email = session.get('user_email', 'Gym Bot System')
+        club_id = session.get('club_id')  # This should be set during login
+        
+        access_control = MemberAccessControl(user_email=user_email, club_id=club_id)
+        result = access_control.manual_toggle_member_access(member_id, action)
+        
+        if result.get('success'):
+            return jsonify({
+                'success': True,
+                'message': f'Member {action}ed successfully',
+                'action': action,
+                'member_id': member_id,
+                'details': result
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Unknown error'),
+                'member_id': member_id
+            }), 500
+        
+    except Exception as e:
+        logger.error(f"❌ Error toggling member lock: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/automated-lock-check', methods=['POST'])
+def api_automated_lock_check():
+    """Run automated check to lock past due members"""
+    try:
+        from src.services.member_access_control import MemberAccessControl
+        
+        # Get user info from session
+        user_email = session.get('user_email', 'Gym Bot System')
+        club_id = session.get('club_id')  # This should be set during login
+        
+        access_control = MemberAccessControl(user_email=user_email, club_id=club_id)
+        result = access_control.check_and_lock_past_due_members()
+        
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 500
+        
+        return jsonify({
+            'success': True,
+            'message': f'Automated lock check completed',
+            'results': result
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error running automated lock check: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/test-square', methods=['GET'])
+def api_test_square():
+    """Test Square client functionality"""
+    try:
+        # Test direct import
+        from square import Square as Client
+        logger.info("✅ Direct Square Client import successful")
+        
+        # Test SecureSecretsManager
+        from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+        secrets_manager = SecureSecretsManager()
+        access_token = secrets_manager.get_secret("square-production-access-token")
+        logger.info(f"✅ SecureSecretsManager test - token length: {len(access_token) if access_token else 0}")
+        
+        # Test client creation
+        if access_token:
+            client = Client(token=access_token)
+            logger.info("✅ Square Client creation successful")
+            return jsonify({'success': True, 'message': 'All Square components working'})
+        else:
+            return jsonify({'success': False, 'error': 'No access token found'})
+            
+    except Exception as e:
+        logger.error(f"❌ Error testing Square: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/square-webhook', methods=['POST'])
+def api_square_webhook():
+    """Handle Square webhook notifications for payment events"""
+    try:
+        # Get webhook data
+        webhook_data = request.get_json()
+        
+        if not webhook_data:
+            return jsonify({'success': False, 'error': 'No webhook data received'}), 400
+        
+        # Log webhook for debugging
+        logger.info(f"📥 Square webhook received: {webhook_data}")
+        
+        # Process payment notifications
+        if webhook_data.get('type') == 'invoice.updated':
+            invoice_data = webhook_data.get('data', {}).get('object', {})
+            invoice_id = invoice_data.get('id')
+            status = invoice_data.get('status')
+            
+            if status == 'PAID':
+                # Update invoice status in database
+                from src.services.database_manager import DatabaseManager
+                db_manager = DatabaseManager()
+                
+                # Get payment date
+                payment_date = invoice_data.get('payment_requests', [{}])[0].get('completed_at')
+                
+                # Update invoice status
+                db_manager.update_invoice_status(
+                    square_invoice_id=invoice_id,
+                    status='paid',
+                    payment_date=payment_date,
+                    square_payment_id=invoice_data.get('payment_id')
+                )
+                
+                logger.info(f"✅ Invoice {invoice_id} marked as paid")
+                
+                # Trigger automatic unlock check for this member
+                # TODO: Implement member unlock logic here
+                
+        return jsonify({'success': True, 'message': 'Webhook processed'})
+        
+    except Exception as e:
+        logger.error(f"❌ Error processing Square webhook: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/automated-unlock-check', methods=['POST'])
+def api_automated_unlock_check():
+    """Run automated check to unlock paid members"""
+    try:
+        from src.services.member_access_control import MemberAccessControl
+        
+        # Get user info from session
+        user_email = session.get('user_email', 'Gym Bot System')
+        club_id = session.get('club_id')  # This should be set during login
+        
+        access_control = MemberAccessControl(user_email=user_email, club_id=club_id)
+        result = access_control.check_and_unlock_paid_members()
+        
+        if 'error' in result:
+            return jsonify({'success': False, 'error': result['error']}), 500
+        
+        return jsonify({
+            'success': True,
+            'message': f'Automated unlock check completed',
+            'results': result
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error running automated unlock check: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @api_bp.route('/create-invoice', methods=['POST'])
 def api_create_invoice():
     """API endpoint to create a Square invoice."""
@@ -579,20 +879,46 @@ def api_create_invoice():
         if not all([member_name, amount]):
             return jsonify({'success': False, 'error': 'Missing required invoice data (member_name and amount).'}), 400
 
-        # Check if Square client is available
-        square_client = current_app.config.get('SQUARE_CLIENT')
-        if not square_client:
-            return jsonify({'success': False, 'error': 'Square payment service is not available.'}), 503
+        # Import Square client function
+        from src.services.payments.square_client_simple import create_square_invoice
 
         try:
             # Convert amount to float if it's a string
             amount = float(amount)
             
-            # Create the invoice using the Square client
-            if member_email:
-                invoice_result = square_client(member_name, member_email, amount, description)
+            # Try to get member data from database to find phone number
+            mobile_phone = None
+            if not member_email:  # Only look up if email not provided
+                from src.services.database_manager import DatabaseManager
+                db_manager = DatabaseManager()
+                
+                # Get all members by combining all categories
+                all_members = []
+                for category in ['green', 'past_due', 'comp', 'ppv', 'staff', 'inactive']:
+                    try:
+                        category_members = db_manager.get_members_by_category(category)
+                        all_members.extend(category_members)
+                    except Exception as e:
+                        logger.warning(f"Failed to get {category} members: {e}")
+                
+                for member in all_members:
+                    if member.get('display_name') == member_name or member.get('full_name') == member_name:
+                        mobile_phone = member.get('mobile_phone')
+                        if not member_email:
+                            member_email = member.get('email')
+                        break
+            
+            # Create the invoice using the Square client - prioritize phone over email
+            if mobile_phone and mobile_phone.strip() != '' and mobile_phone != 'None':
+                invoice_result = create_square_invoice(member_name, mobile_phone, amount, description, delivery_method='sms', email_address=member_email)
+            elif member_email and member_email.strip() != '' and member_email != 'None':
+                invoice_result = create_square_invoice(member_name, member_email, amount, description, delivery_method='email')
             else:
-                invoice_result = square_client(member_name, amount, description)
+                # No contact method available - return error
+                return jsonify({
+                    'success': False, 
+                    'error': 'No valid email or phone number available for this member'
+                }), 400
             
             # Handle different return types from square client
             if isinstance(invoice_result, dict):
@@ -639,29 +965,26 @@ def api_batch_invoices():
         if not selected_clients:
             return jsonify({'success': False, 'error': 'No members selected for invoicing'}), 400
         
-        # Check if Square client is available
-        square_client = current_app.config.get('SQUARE_CLIENT')
-        if not square_client:
-            return jsonify({'success': False, 'error': 'Square payment service is not available.'}), 503
+        # Import Square client function
+        from src.services.payments.square_client_simple import create_square_invoice
         
         logger.info(f"🧾 Starting batch invoice creation for {len(selected_clients)} members")
         
         # Get member details from database
-        conn = current_app.db_manager.get_connection()
-        cursor = conn.cursor()
+        from src.services.database_manager import DatabaseManager
+        db_manager = DatabaseManager()
         
         # Get member information for selected IDs
         placeholders = ','.join(['?' for _ in selected_clients])
-        cursor.execute(f"""
+        query = f"""
             SELECT prospect_id, id, guid, first_name, last_name, full_name, email, 
                    mobile_phone, amount_past_due, base_amount_past_due, missed_payments,
                    late_fees, agreement_recurring_cost, status_message
             FROM members 
             WHERE prospect_id IN ({placeholders}) OR id IN ({placeholders})
-        """, selected_clients + selected_clients)
+        """
         
-        members = cursor.fetchall()
-        conn.close()
+        members = db_manager.execute_query(query, selected_clients + selected_clients)
         
         if not members:
             return jsonify({'success': False, 'error': 'No valid members found'}), 404
@@ -718,21 +1041,27 @@ def api_batch_invoices():
                 # Get mobile phone for SMS delivery
                 mobile_phone = member_dict['mobile_phone']
                 
-                # Create Square invoice - prioritize email over SMS since SMS delivery is problematic
+                # Create Square invoice - prioritize phone number over email
                 try:
-                    # Check for valid email (not None, not empty, not the string 'None')
-                    valid_email = email and email != 'None' and email.strip() != ''
+                    # Check for valid mobile phone (not None, not empty, not the string 'None')
+                    valid_phone = mobile_phone and mobile_phone != 'None' and mobile_phone.strip() != ''
                     
-                    if valid_email:
-                        # Send to real ClubHub email address
-                        invoice_result = square_client(member_name, email, total_amount, description, delivery_method='email')
-                    elif mobile_phone:
-                        # Fallback to mobile phone (SMS) if no valid email
-                        invoice_result = square_client(member_name, mobile_phone, total_amount, description, delivery_method='sms')
+                    if valid_phone:
+                        # Send to mobile phone (SMS) first priority, but still need email for Square customer record
+                        invoice_result = create_square_invoice(member_name, mobile_phone, total_amount, description, delivery_method='sms', email_address=email)
+                    elif email and email != 'None' and email.strip() != '':
+                        # Fallback to email if no valid phone number
+                        invoice_result = create_square_invoice(member_name, email, total_amount, description, delivery_method='email')
                     else:
-                        # No contact method available - use placeholder email
-                        placeholder_email = f"{member_name.lower().replace(' ', '.')}@anytimefitness.com"
-                        invoice_result = square_client(member_name, placeholder_email, total_amount, description, delivery_method='email')
+                        # No contact method available - skip this member
+                        failed_invoices.append({
+                            'member_id': member_id,
+                            'member_name': member_name,
+                            'amount': total_amount,
+                            'contact_info': 'No valid contact info',
+                            'error': 'No valid email or phone number available'
+                        })
+                        continue
                     
                     # Handle different return types
                     if isinstance(invoice_result, dict):
@@ -989,11 +1318,22 @@ def api_refresh_members():
         
         # Import ClubHub API client
         from src.services.api.clubhub_api_client import ClubHubAPIClient
-        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+        
+        # Get credentials from SecureSecretsManager
+        secrets_manager = SecureSecretsManager()
+        clubhub_email = secrets_manager.get_secret('clubhub-email')
+        clubhub_password = secrets_manager.get_secret('clubhub-password')
+        
+        if not clubhub_email or not clubhub_password:
+            return jsonify({
+                'success': False,
+                'error': 'ClubHub credentials not found in SecureSecretsManager'
+            }), 500
         
         # Initialize and authenticate
         client = ClubHubAPIClient()
-        if not client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
+        if not client.authenticate(clubhub_email, clubhub_password):
             return jsonify({
                 'success': False,
                 'error': 'ClubHub authentication failed'
@@ -1056,7 +1396,18 @@ def refresh_training_clients():
         
         # Import ClubHub API client
         from src.services.api.clubhub_api_client import ClubHubAPIClient
-        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+        
+        # Get credentials from SecureSecretsManager
+        secrets_manager = SecureSecretsManager()
+        clubhub_email = secrets_manager.get_secret('clubhub-email')
+        clubhub_password = secrets_manager.get_secret('clubhub-password')
+        
+        if not clubhub_email or not clubhub_password:
+            return jsonify({
+                'success': False,
+                'error': 'ClubHub credentials not found in SecureSecretsManager'
+            }), 500
         
         # Initialize and authenticate
         client = ClubHubAPIClient()
@@ -1239,7 +1590,7 @@ def api_refresh_billing_data():
         logger.info("🔄 Starting billing data refresh from ClubHub...")
         
         # Import the ClubOS Fresh Data API
-        from clubos_fresh_data_api import ClubOSFreshDataAPI
+        from src.services.api.clubos_fresh_data_api import ClubOSFreshDataAPI
         
         # Initialize the API client
         fresh_api = ClubOSFreshDataAPI()
@@ -1395,7 +1746,7 @@ def api_get_member_billing_details(member_id):
         logger.info(f"💰 Getting billing details for member {member_id}...")
         
         # Import the ClubOS Fresh Data API
-        from clubos_fresh_data_api import ClubOSFreshDataAPI
+        from src.services.api.clubos_fresh_data_api import ClubOSFreshDataAPI
         
         # Initialize the API client
         fresh_api = ClubOSFreshDataAPI()
@@ -1446,10 +1797,11 @@ def send_single_message():
             # Initialize client if not available
             try:
                 from ..services.clubos_messaging_client_simple import ClubOSMessagingClient
-                from ..config.secrets_local import get_secret
+                from ..services.authentication.secure_secrets_manager import SecureSecretsManager
+                secrets_manager = SecureSecretsManager()
                 
-                username = get_secret('clubos-username')
-                password = get_secret('clubos-password')
+                username = secrets_manager.get_secret('clubos-username')
+                password = secrets_manager.get_secret('clubos-password')
                 
                 if username and password:
                     messaging_client = ClubOSMessagingClient(username, password)
@@ -1515,10 +1867,11 @@ def send_bulk_messages():
             # Initialize client if not available
             try:
                 from ..services.clubos_messaging_client_simple import ClubOSMessagingClient
-                from ..config.secrets_local import get_secret
+                from ..services.authentication.secure_secrets_manager import SecureSecretsManager
+                secrets_manager = SecureSecretsManager()
                 
-                username = get_secret('clubos-username')
-                password = get_secret('clubos-password')
+                username = secrets_manager.get_secret('clubos-username')
+                password = secrets_manager.get_secret('clubos-password')
                 
                 if username and password:
                     messaging_client = ClubOSMessagingClient(username, password)

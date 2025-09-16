@@ -9,13 +9,15 @@ import sys
 # Set environment variable to trigger data import
 os.environ['IMPORT_FRESH_DATA_ON_STARTUP'] = 'true'
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+# Ensure project root is on sys.path so 'src' is imported as a package
+project_root = os.path.dirname(os.path.abspath(__file__))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
-# Import the function directly
+# Import from the modular services
 try:
-    from clean_dashboard import import_fresh_clubhub_data
-    print("🔄 Starting manual data import...")
+    from src.services.multi_club_startup_sync import import_fresh_clubhub_data
+    print("🔄 Starting manual data import using modular services...")
     import_fresh_clubhub_data()
     print("✅ Manual data import completed!")
 except Exception as e:

@@ -384,7 +384,7 @@ function createInvoice() {
         }
     })
     .catch(error => {
-        console.error('Error:', error);
+        debugError('Error:', error);
         alert('Error creating invoice');
     });
 }

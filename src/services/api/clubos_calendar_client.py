@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Any
 import json
 import requests
 from dataclasses import dataclass
+from src.services.authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
 
 # Import the existing ClubOS client
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -60,8 +61,14 @@ class ClubOSCalendarClient:
     
     def __init__(self, username: str = None, password: str = None):
         """Initialize with ClubOS credentials"""
-        self.username = username or os.getenv('CLUBOS_USERNAME')
-        self.password = password or os.getenv('CLUBOS_PASSWORD')
+        self.username = username
+        self.password = password
+        
+        # Get unified authentication service
+        self.auth_service = get_unified_auth_service()
+        self.auth_session: Optional[AuthenticationSession] = None
+        
+        # Legacy attributes
         self.client = None
         self.is_authenticated = False
         
@@ -88,21 +95,32 @@ class ClubOSCalendarClient:
         }
     
     def authenticate(self) -> bool:
-        """Authenticate with ClubOS using the robust client"""
+        """Authenticate using the unified authentication service"""
         try:
             print("🔐 Initializing ClubOS Calendar API...")
-            self.client = RobustClubOSClient(self.username, self.password)
-            self.is_authenticated = self.client.authenticate()
             
-            if self.is_authenticated:
-                print("✅ ClubOS Calendar API ready!")
-                return True
-            else:
+            # Use unified authentication service
+            self.auth_session = self.auth_service.authenticate_clubos(self.username, self.password)
+            
+            if not self.auth_session or not self.auth_session.authenticated:
                 print("❌ ClubOS Calendar API authentication failed")
+                self.is_authenticated = False
                 return False
+            
+            # Create legacy client wrapper for compatibility
+            self.client = type('MockClient', (), {
+                'session': self.auth_session.session,
+                'base_url': self.auth_session.base_url,
+                '_get_request_headers': lambda self, content_type: {'Content-Type': content_type}
+            })()
+            
+            self.is_authenticated = True
+            print("✅ ClubOS Calendar API ready!")
+            return True
                 
         except Exception as e:
             print(f"❌ Calendar API authentication error: {e}")
+            self.is_authenticated = False
             return False
     
     def ensure_authenticated(self) -> bool:

@@ -1,8 +1,8 @@
 <script>
 // Event details popup functions
 function openEventDetails(element) {
-    console.log('🚀 openEventDetails called');
-    console.log('Element:', element);
+    debugLog('🚀 openEventDetails called');
+    debugLog('Element:', element);
     
     // Get data from the clicked row
     const participant = element.getAttribute('data-participant') || 'Unknown';
@@ -14,7 +14,7 @@ function openEventDetails(element) {
     const isAppointment = element.getAttribute('data-is-appointment') === 'true';
     const eventId = element.getAttribute('data-event-id') || '';
     
-    console.log(`🎯 Opening event details for: ${allParticipants}`);
+    debugLog(`🎯 Opening event details for: ${allParticipants}`);
     
     // Immediately show the modal with basic info
     document.getElementById('modal-participant').textContent = allParticipants;
@@ -38,9 +38,9 @@ function openEventDetails(element) {
         if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
             const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
             modal.show();
-            console.log('✅ Modal opened with Bootstrap');
+            debugLog('✅ Modal opened with Bootstrap');
         } else {
-            console.log('Bootstrap not available, using fallback');
+            debugLog('Bootstrap not available, using fallback');
             modalElement.style.display = 'block';
             modalElement.classList.add('show');
         }
@@ -63,7 +63,7 @@ function openEventDetails(element) {
 }
 
 function checkMultipleParticipantsFunding(participants, time) {
-    console.log(`🔍 Checking funding for ${participants.length} participants:`, participants);
+    debugLog(`🔍 Checking funding for ${participants.length} participants:`, participants);
     
     const fundingPromises = participants.map(participant => 
     fetch('/api/training/payment-status', {
@@ -139,7 +139,7 @@ function displayMultipleParticipantsFunding(fundingResults) {
 }
 
 function refreshFundingCache() {
-    console.log('🔄 Refreshing funding cache...');
+    debugLog('🔄 Refreshing funding cache...');
     
     const refreshBtn = document.getElementById('refresh-funding-btn');
     const originalText = refreshBtn.innerHTML;
@@ -157,7 +157,7 @@ function refreshFundingCache() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            console.log('✅ Funding cache refreshed:', data);
+            debugLog('✅ Funding cache refreshed:', data);
             refreshBtn.innerHTML = '<i class="fas fa-check"></i> Updated ' + data.success_count + ' clients';
             refreshBtn.className = 'outlook-btn outlook-btn-success';
             
@@ -171,7 +171,7 @@ function refreshFundingCache() {
                 refreshBtn.disabled = false;
             }, 3000);
         } else {
-            console.error('❌ Funding cache refresh failed:', data.error);
+            debugError('❌ Funding cache refresh failed:', data.error);
             refreshBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
             refreshBtn.className = 'outlook-btn outlook-btn-danger';
             
@@ -183,7 +183,7 @@ function refreshFundingCache() {
         }
     })
     .catch(error => {
-        console.error('❌ Network error:', error);
+        debugError('❌ Network error:', error);
         refreshBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Network Error';
         refreshBtn.className = 'outlook-btn outlook-btn-danger';
         
@@ -196,23 +196,23 @@ function refreshFundingCache() {
 }
 
 function checkAllFundingStatusesAsync() {
-    console.log('🔍 Starting asynchronous funding status checks...');
+    debugLog('🔍 Starting asynchronous funding status checks...');
     
     const fundingElements = document.querySelectorAll('[id^="funding-status-"]');
-    console.log(`Found ${fundingElements.length} funding status elements to check`);
+    debugLog(`Found ${fundingElements.length} funding status elements to check`);
     
     fundingElements.forEach((element, index) => {
         const participant = element.getAttribute('data-participant');
         const time = element.getAttribute('data-time');
         
-        console.log(`Element ${index + 1}: participant="${participant}", time="${time}"`);
+        debugLog(`Element ${index + 1}: participant="${participant}", time="${time}"`);
         
         if (participant && participant.trim() !== '' && participant !== 'Unknown') {
             setTimeout(() => {
                 checkEventCardFunding(element, participant, time);
             }, index * 300);
         } else {
-            console.log(`Skipping element ${index + 1} - no valid participant`);
+            debugLog(`Skipping element ${index + 1} - no valid participant`);
             element.innerHTML = `
                 <span class="outlook-badge outlook-badge-secondary">
                     <i class="fas fa-question-circle"></i>
@@ -224,9 +224,9 @@ function checkAllFundingStatusesAsync() {
 }
 
 function checkEventCardFunding(element, participant, time) {
-    console.log(`🔍 Checking funding for event card: ${participant}`);
-    console.log('API endpoint: /api/training/payment-status');
-    console.log('Request data:', { participant, time });
+    debugLog(`🔍 Checking funding for event card: ${participant}`);
+    debugLog('API endpoint: /api/training/payment-status');
+    debugLog('Request data:', { participant, time });
     
     fetch('/api/training/payment-status', {
         method: 'POST',
@@ -239,17 +239,17 @@ function checkEventCardFunding(element, participant, time) {
         })
     })
     .then(response => {
-        console.log('API response status:', response.status);
+        debugLog('API response status:', response.status);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         return response.json();
     })
     .then(data => {
-        console.log('API response data:', data);
+        debugLog('API response data:', data);
         if (data.success) {
             const funding = data.funding;
-            console.log(`✅ Funding data received for ${participant}:`, funding);
+            debugLog(`✅ Funding data received for ${participant}:`, funding);
             
             const statusIcon = funding.status_icon || 'fas fa-question-circle';
             const statusText = funding.status_text || 'Unknown';
@@ -262,7 +262,7 @@ function checkEventCardFunding(element, participant, time) {
                 </span>
             `;
         } else {
-            console.error('❌ API error for', participant, ':', data.error);
+            debugError('❌ API error for', participant, ':', data.error);
             element.innerHTML = `
                 <span class="outlook-badge outlook-badge-danger">
                     <i class="fas fa-exclamation-triangle"></i>
@@ -272,7 +272,7 @@ function checkEventCardFunding(element, participant, time) {
         }
     })
     .catch(error => {
-        console.error('❌ Network error checking funding for', participant, ':', error);
+        debugError('❌ Network error checking funding for', participant, ':', error);
         element.innerHTML = `
             <span class="outlook-badge outlook-badge-secondary">
                 <i class="fas fa-wifi"></i>
@@ -284,7 +284,7 @@ function checkEventCardFunding(element, participant, time) {
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Dashboard loaded - attaching event listeners');
+    debugLog('🚀 Dashboard loaded - attaching event listeners');
     
     checkAllFundingStatusesAsync();
     
@@ -298,7 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         row.addEventListener('click', function(e) {
             if (e.target.closest('button, a, form')) return;
-            console.log('🖱️ Card clicked, opening details...');
+            debugLog('🖱️ Card clicked, opening details...');
             openEventDetails(this);
         });
         
@@ -313,7 +313,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    console.log('✅ Dashboard initialization complete');
+    debugLog('✅ Dashboard initialization complete');
 });
 </script>
 {% endblock %}

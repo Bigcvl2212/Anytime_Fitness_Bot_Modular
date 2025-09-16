@@ -21,7 +21,7 @@ def analyze_agreement_html():
     session = requests.Session()
     
     try:
-        from config.clubhub_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD
+        from config.clubhub_credentials import CLUBOS_USERNAME, CLUBOS_PASSWORD
         username = CLUBOS_USERNAME
         password = CLUBOS_PASSWORD
     except ImportError:

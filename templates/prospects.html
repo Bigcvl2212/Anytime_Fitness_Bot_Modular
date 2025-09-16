@@ -2,6 +2,10 @@
 
 {% block title %}Prospects - Anytime Fitness Management{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/prospects.css') }}">
+{% endblock %}
+
 {% block content %}
 <div class="row mb-4">
     <div class="col-12">
@@ -17,17 +21,20 @@
 <!-- Search and Controls -->
 <div class="row mb-4">
     <div class="col-md-6">
+        <label for="searchInput" class="visually-hidden">Search prospects</label>
         <div class="input-group">
             <input type="text" id="searchInput" class="form-control search-bar" 
                    placeholder="Search prospects by name, email, or phone..." 
-                   value="">
-            <button type="button" id="searchButton" class="btn btn-purple">
+                   value=""
+                   aria-label="Search prospects by name, email, or phone">
+            <button type="button" id="searchButton" class="btn btn-purple" aria-label="Search">
                 <i class="fas fa-search"></i>
             </button>
         </div>
     </div>
     <div class="col-md-3">
-        <select id="perPageSelect" class="form-select">
+        <label for="perPageSelect" class="visually-hidden">Results per page</label>
+        <select id="perPageSelect" class="form-select" aria-label="Select number of results per page">
             <option value="25">25 per page</option>
             <option value="50" selected>50 per page</option>
             <option value="100">100 per page</option>
@@ -62,7 +69,7 @@
 </div>
 
 <!-- No Prospects Found -->
-<div id="no-prospects" class="col-12" style="display: none;">
+<div id="no-prospects" class="col-12 hidden">
     <div class="card">
         <div class="card-body text-center py-5">
             <i class="fas fa-user-plus fa-3x text-muted mb-3"></i>
@@ -76,7 +83,7 @@
 <script>
 // Load prospects asynchronously
 async function loadProspects() {
-    console.log('🔄 Loading prospects from ClubHub API...');
+    debugLog('🔄 Loading prospects from ClubHub API...');
     
     const prospectsContainer = document.getElementById('prospectsContainer');
     const loadingElement = document.getElementById('prospects-loading');
@@ -90,7 +97,7 @@ async function loadProspects() {
         if (loadingElement) loadingElement.style.display = 'none';
         
         if (data.success && data.prospects.length > 0) {
-            console.log(`✅ Loaded ${data.prospects.length} prospects from ClubHub`);
+            debugLog(`✅ Loaded ${data.prospects.length} prospects from ClubHub`);
             
             // Cache the prospects data for search functionality
             window.cachedProspects = data.prospects;
@@ -105,11 +112,11 @@ async function loadProspects() {
             }
             
         } else {
-            console.log('ℹ️ No prospects found or API returned empty result');
+            debugLog('ℹ️ No prospects found or API returned empty result');
             if (noProspectsElement) noProspectsElement.style.display = 'block';
         }
     } catch (error) {
-        console.error('❌ Error loading prospects:', error);
+        debugError('❌ Error loading prospects:', error);
         
         // Hide loading state
         if (loadingElement) loadingElement.style.display = 'none';
@@ -131,24 +138,24 @@ async function loadProspects() {
 
 // Check for cached data and load it if available
 async function checkCachedData() {
-    console.log('🔍 Checking for cached prospect data...');
+    debugLog('🔍 Checking for cached prospect data...');
     try {
         const response = await fetch('/api/prospects/all');
         const data = await response.json();
         
         if (data.success && data.source === 'cache') {
-            console.log('✅ Using cached prospect data:', data.prospects.length, 'prospects');
+            debugLog('✅ Using cached prospect data:', data.prospects.length, 'prospects');
             // Cache the data locally for faster access
             window.cachedProspects = data.prospects;
         } else if (data.success) {
-            console.log('📊 Using database prospect data:', data.prospects.length, 'prospects');
+            debugLog('📊 Using database prospect data:', data.prospects.length, 'prospects');
             // Cache the data locally for faster access
             window.cachedProspects = data.prospects;
         } else {
-            console.log('⚠️ No prospect data available');
+            debugLog('⚠️ No prospect data available');
         }
     } catch (error) {
-        console.error('❌ Error checking cached data:', error);
+        debugError('❌ Error checking cached data:', error);
     }
 }
 
@@ -180,10 +187,10 @@ function setupSearch() {
 }
 
 function filterProspects(searchTerm) {
-    console.log(`🔍 Filtering prospects with: "${searchTerm}"`);
+    debugLog(`🔍 Filtering prospects with: "${searchTerm}"`);
     
     if (!window.cachedProspects) {
-        console.log('⚠️ No cached prospects data available');
+        debugLog('⚠️ No cached prospects data available');
         return;
     }
     
@@ -315,10 +322,10 @@ function showProspectProfile(prospectId) {
 
 // Load prospects when page loads
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Prospects page loaded');
+    debugLog('🚀 Prospects page loaded');
     
     // Check for cached data first
-    console.log('🔍 Checking for cached prospect data...');
+    debugLog('🔍 Checking for cached prospect data...');
     checkCachedData();
     
     // Load prospects data
@@ -331,7 +338,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const searchParam = urlParams.get('search');
     if (searchParam) {
-        console.log(`🔍 Found search parameter: "${searchParam}"`);
+        debugLog(`🔍 Found search parameter: "${searchParam}"`);
         const searchInput = document.getElementById('searchInput');
         if (searchInput) {
             searchInput.value = searchParam;

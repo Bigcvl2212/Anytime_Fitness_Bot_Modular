@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
-import sqlite3
 
-conn = sqlite3.connect('gym_bot.db')
+from src.services.database_manager import DatabaseManager
+
+db = DatabaseManager()
+conn = db.get_connection()
 cursor = conn.cursor()
 
-# Check past due members
-cursor.execute("""
-    SELECT full_name, amount_past_due, base_amount_past_due, missed_payments, late_fees, status_message 
-    FROM members 
-    WHERE status_message LIKE '%Past Due%' 
-    LIMIT 10
-""")
+# Check what's actually in the database right now
+cursor.execute('SELECT member_name, past_due_amount, total_past_due, payment_status FROM training_clients WHERE payment_status = "Past Due" LIMIT 10')
 
 results = cursor.fetchall()
-print("Past due members:")
+print('Training clients marked as Past Due in database:')
 for row in results:
-    print(f"{row[0]}: ${row[1]:.2f}, Base: ${row[2]:.2f}, Missed: {row[3]}, Late: ${row[4]:.2f}, Status: {row[5]}")
+    print(f'  {row[0]}: past_due={row[1]}, total={row[2]}, status={row[3]}')
 
-# Check total count
-cursor.execute("SELECT COUNT(*) FROM members WHERE status_message LIKE '%Past Due%'")
-count = cursor.fetchone()[0]
-print(f"\nTotal past due members: {count}")
+# Check if any have actual past due amounts
+cursor.execute('SELECT COUNT(*) FROM training_clients WHERE past_due_amount > 0 OR total_past_due > 0')
+actual_count = cursor.fetchone()[0]
+print(f'\nTraining clients with actual past due amounts > 0: {actual_count}')
+
+# Check all training clients to see the data
+cursor.execute('SELECT member_name, past_due_amount, total_past_due, payment_status FROM training_clients LIMIT 5')
+all_results = cursor.fetchall()
+print('\nSample of all training clients:')
+for row in all_results:
+    print(f'  {row[0]}: past_due={row[1]}, total={row[2]}, status={row[3]}')
 
 conn.close()

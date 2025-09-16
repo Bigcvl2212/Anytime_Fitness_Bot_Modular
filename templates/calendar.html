@@ -347,6 +347,25 @@
 
 {% block extra_js %}
 <script>
+        // Debug logging system - set to false for production
+        const DEBUG_MODE = false;
+        
+        function debugLog(...args) {
+            if (DEBUG_MODE) {
+                console.log(...args);
+            }
+        }
+        
+        function debugError(...args) {
+            console.error(...args); // Always show errors
+        }
+        
+        function debugWarn(...args) {
+            if (DEBUG_MODE) {
+                console.warn(...args);
+            }
+        }
+
 let currentDate = new Date();
 let events = [];
 let selectedEventId = null;
@@ -365,22 +384,22 @@ async function loadCalendarEvents() {
         const startOfWeek = getStartOfWeek(currentDate);
         const endOfWeek = getEndOfWeek(currentDate);
         
-        console.log('Loading events for week:', startOfWeek.toISOString(), 'to', endOfWeek.toISOString());
+        debugLog('Loading events for week:', startOfWeek.toISOString(), 'to', endOfWeek.toISOString());
         
         const response = await fetch(`/api/calendar/events?start=${startOfWeek.toISOString().split('T')[0]}&end=${endOfWeek.toISOString().split('T')[0]}`);
         const data = await response.json();
         
-        console.log('Calendar API response:', data);
+        debugLog('Calendar API response:', data);
         
         if (data.success) {
             events = data.events || [];
-            console.log('Loaded events:', events);
+            debugLog('Loaded events:', events);
             renderWeeklyCalendar();
         } else {
-            console.error('Failed to load events:', data.error);
+            debugError('Failed to load events:', data.error);
         }
     } catch (error) {
-        console.error('Network error loading events:', error);
+        debugError('Network error loading events:', error);
     }
 }
 
@@ -495,23 +514,23 @@ function renderWeeklyCalendar() {
 
 // Check past due status for calendar events
 function checkAllCalendarFundingStatuses() {
-    console.log('🔍 Starting calendar funding status checks...');
+    debugLog('🔍 Starting calendar funding status checks...');
     
     const fundingElements = document.querySelectorAll('[id^="calendar-funding-"]');
-    console.log(`Found ${fundingElements.length} calendar funding status elements to check`);
+    debugLog(`Found ${fundingElements.length} calendar funding status elements to check`);
     
     fundingElements.forEach((element, index) => {
         const participant = element.getAttribute('data-participant');
         const time = element.getAttribute('data-time');
         
-        console.log(`Calendar Element ${index + 1}: participant="${participant}", time="${time}"`);
+        debugLog(`Calendar Element ${index + 1}: participant="${participant}", time="${time}"`);
         
         if (participant && participant.trim() !== '' && participant !== 'Unknown') {
             setTimeout(() => {
                 checkCalendarEventFunding(element, participant, time);
             }, index * 200);
         } else {
-            console.log(`Skipping calendar element ${index + 1} - no valid participant`);
+            debugLog(`Skipping calendar element ${index + 1} - no valid participant`);
             element.innerHTML = `
                 <span class="outlook-badge outlook-badge-secondary">
                     <i class="fas fa-question-circle"></i>
@@ -523,7 +542,7 @@ function checkAllCalendarFundingStatuses() {
 }
 
 function checkCalendarEventFunding(element, participant, time) {
-    console.log(`💰 CHECKING CALENDAR PAST DUE STATUS for: ${participant}`);
+    debugLog(`💰 CHECKING CALENDAR PAST DUE STATUS for: ${participant}`);
     
     // Show loading state
     element.innerHTML = `
@@ -544,17 +563,17 @@ function checkCalendarEventFunding(element, participant, time) {
         })
     })
     .then(response => {
-        console.log('Calendar Past Due API response status:', response.status);
+        debugLog('Calendar Past Due API response status:', response.status);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         return response.json();
     })
     .then(data => {
-        console.log('Calendar Past Due API response data:', data);
+        debugLog('Calendar Past Due API response data:', data);
         if (data.success) {
             const pastDueInfo = data.past_due_info;
-            console.log(`✅ Calendar past due data received for ${participant}:`, pastDueInfo);
+            debugLog(`✅ Calendar past due data received for ${participant}:`, pastDueInfo);
             
             const statusIcon = pastDueInfo.status_icon || 'fas fa-question-circle';
             const statusClass = `outlook-badge-${pastDueInfo.status_class || 'secondary'}`;
@@ -569,7 +588,7 @@ function checkCalendarEventFunding(element, participant, time) {
             `;
             element.title = 'Past due status from training payment tracking system';
         } else {
-            console.error('❌ Calendar API error for', participant, ':', data.error);
+            debugError('❌ Calendar API error for', participant, ':', data.error);
             element.innerHTML = `
                 <span class="outlook-badge outlook-badge-secondary">
                     <i class="fas fa-question-circle"></i>
@@ -579,7 +598,7 @@ function checkCalendarEventFunding(element, participant, time) {
         }
     })
     .catch(error => {
-        console.error('❌ Calendar network error checking past due for', participant, ':', error);
+        debugError('❌ Calendar network error checking past due for', participant, ':', error);
         element.innerHTML = `
             <span class="outlook-badge outlook-badge-secondary">
                 <i class="fas fa-exclamation-triangle"></i>

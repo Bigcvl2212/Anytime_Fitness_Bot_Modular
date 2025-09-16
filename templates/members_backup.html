@@ -378,7 +378,7 @@ function refreshData() {
         }
     })
     .catch(error => {
-        console.error('Error:', error);
+        debugError('Error:', error);
         alert('Error refreshing data. Please try again.');
     })
     .finally(() => {
@@ -397,15 +397,15 @@ setInterval(function() {
         .then(data => {
             if (data.success && data.needs_refresh) {
                 // Show notification that data is stale
-                console.log('Data is stale, consider refreshing');
+                debugLog('Data is stale, consider refreshing');
             }
         })
-        .catch(error => console.error('Error checking data status:', error));
+        .catch(error => debugError('Error checking data status:', error));
 }, 300000); // 5 minutes
 
 // Member Profile Modal Functions
 function openMemberProfile(memberId, memberName, memberEmail) {
-    console.log(`Opening profile for member: ${memberName} (ID: ${memberId})`);
+    debugLog(`Opening profile for member: ${memberName} (ID: ${memberId})`);
     
     // Set member name in modal
     document.getElementById('modal-member-name').textContent = memberName;
@@ -461,7 +461,7 @@ function fetchMemberDetails(memberId, memberName, memberEmail) {
             }
         })
         .catch(error => {
-            console.error('Error fetching member details:', error);
+            debugError('Error fetching member details:', error);
             document.getElementById('member-profile-loading').innerHTML = `
                 <div class="text-center py-5">
                     <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
@@ -726,23 +726,23 @@ function createSquareInvoice(memberId, memberName) {
         }
     })
     .catch(error => {
-        console.error('Error creating Square invoice:', error);
+        debugError('Error creating Square invoice:', error);
         alert('Network error: ' + error.message);
     });
 }
 
 // Debug function for manual testing
 window.debugLoadPastDue = function() {
-    console.log('🐛 DEBUG: Manual trigger clicked');
-    console.log('🐛 DEBUG: pastDueMembersLoaded:', pastDueMembersLoaded);
+    debugLog('🐛 DEBUG: Manual trigger clicked');
+    debugLog('🐛 DEBUG: pastDueMembersLoaded:', pastDueMembersLoaded);
     
     // First, let's test if we can just show a simple message
     const container = document.getElementById('past-due-members-container');
     if (container) {
         container.innerHTML = '<div class="alert alert-info">🐛 DEBUG: Container found and updated!</div>';
-        console.log('🐛 DEBUG: Set test content in container');
+        debugLog('🐛 DEBUG: Set test content in container');
     } else {
-        console.log('🐛 DEBUG: Container NOT found!');
+        debugLog('🐛 DEBUG: Container NOT found!');
     }
     
     // Reset the loaded flag and force load
@@ -755,29 +755,29 @@ let pastDueMembersLoaded = false;
 
 // Listen for tab changes to load past due members when needed
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🔄 DOMContentLoaded event fired');
+    debugLog('🔄 DOMContentLoaded event fired');
     const pastDueTab = document.getElementById('past-due-tab');
-    console.log('🔍 Past due tab element:', pastDueTab);
+    debugLog('🔍 Past due tab element:', pastDueTab);
     
     if (pastDueTab) {
         // Bootstrap 5 tab events - primary method
         pastDueTab.addEventListener('shown.bs.tab', function(event) {
-            console.log('🎯 Past due tab shown.bs.tab event fired', event);
-            console.log('🎯 Tab classes:', pastDueTab.classList.toString());
+            debugLog('🎯 Past due tab shown.bs.tab event fired', event);
+            debugLog('🎯 Tab classes:', pastDueTab.classList.toString());
             // Always reset and reload to ensure fresh data
             pastDueMembersLoaded = false;
-            console.log('🔄 Reset pastDueMembersLoaded to false, loading fresh data');
+            debugLog('🔄 Reset pastDueMembersLoaded to false, loading fresh data');
             loadPastDueMembers();
         });
         
         // IMMEDIATE TEST: Load past due members right now for testing
-        console.log('🚀 IMMEDIATE TEST: Loading past due members on page load');
+        debugLog('🚀 IMMEDIATE TEST: Loading past due members on page load');
         setTimeout(function() {
             // First test: Can we populate the container directly?
             const testContainer = document.getElementById('past-due-members-container');
             if (testContainer) {
                 testContainer.innerHTML = '<div class="alert alert-success">✅ CONTAINER FOUND! Now testing API...</div>';
-                console.log('✅ Container test successful');
+                debugLog('✅ Container test successful');
             }
             
             // Now try the real API call
@@ -786,13 +786,13 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Fallback click event - secondary method
         pastDueTab.addEventListener('click', function(event) {
-            console.log('👆 Past due tab clicked', event);
+            debugLog('👆 Past due tab clicked', event);
             setTimeout(() => {
-                console.log('⏰ Checking after click timeout...');
-                console.log('⏰ pastDueMembersLoaded:', pastDueMembersLoaded);
-                console.log('⏰ Tab active class:', pastDueTab.classList.contains('active'));
+                debugLog('⏰ Checking after click timeout...');
+                debugLog('⏰ pastDueMembersLoaded:', pastDueMembersLoaded);
+                debugLog('⏰ Tab active class:', pastDueTab.classList.contains('active'));
                 if (pastDueTab.classList.contains('active') && !pastDueMembersLoaded) {
-                    console.log('🚀 Loading past due members after click');
+                    debugLog('🚀 Loading past due members after click');
                     pastDueMembersLoaded = false;
                     loadPastDueMembers();
                 }
@@ -801,93 +801,93 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Additional Bootstrap tab event
         pastDueTab.addEventListener('show.bs.tab', function(event) {
-            console.log('🔄 Past due tab show.bs.tab event fired (before shown)', event);
+            debugLog('🔄 Past due tab show.bs.tab event fired (before shown)', event);
         });
         
-        console.log('✅ Event listeners added to past due tab');
+        debugLog('✅ Event listeners added to past due tab');
         
         // Test immediate load if tab is already active (shouldn't happen but just in case)
         if (pastDueTab.classList.contains('active')) {
-            console.log('🎯 Tab is already active on page load, loading data');
+            debugLog('🎯 Tab is already active on page load, loading data');
             loadPastDueMembers();
         }
     } else {
-        console.error('❌ Past due tab element not found');
+        debugError('❌ Past due tab element not found');
     }
 });
 
 function loadPastDueMembers() {
-    console.log('🔄 loadPastDueMembers called, pastDueMembersLoaded:', pastDueMembersLoaded);
+    debugLog('🔄 loadPastDueMembers called, pastDueMembersLoaded:', pastDueMembersLoaded);
     if (pastDueMembersLoaded) {
-        console.log('✅ Already loaded, returning early');
+        debugLog('✅ Already loaded, returning early');
         return;
     }
     
-    console.log('🔄 Setting loading state...');
+    debugLog('🔄 Setting loading state...');
     // Show loading state
     document.getElementById('past-due-loading').style.display = 'block';
     document.getElementById('past-due-content').style.display = 'none';
     document.getElementById('no-past-due').style.display = 'none';
     
-    console.log('📡 Making fetch request to /api/members/past-due');
+    debugLog('📡 Making fetch request to /api/members/past-due');
     fetch('/api/members/past-due')
         .then(response => {
-            console.log('📥 Response received:', response.status, response.statusText);
+            debugLog('📥 Response received:', response.status, response.statusText);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             return response.json();
         })
         .then(data => {
-            console.log('📊 Data received:', data);
-            console.log('📊 Data type:', typeof data);
-            console.log('📊 Data keys:', Object.keys(data));
-            console.log('📊 past_due_members exists:', !!data.past_due_members);
-            console.log('📊 past_due_members is array:', Array.isArray(data.past_due_members));
+            debugLog('📊 Data received:', data);
+            debugLog('📊 Data type:', typeof data);
+            debugLog('📊 Data keys:', Object.keys(data));
+            debugLog('📊 past_due_members exists:', !!data.past_due_members);
+            debugLog('📊 past_due_members is array:', Array.isArray(data.past_due_members));
             if (data.past_due_members) {
-                console.log('📊 past_due_members length:', data.past_due_members.length);
-                console.log('📊 First member sample:', data.past_due_members[0]);
+                debugLog('📊 past_due_members length:', data.past_due_members.length);
+                debugLog('📊 First member sample:', data.past_due_members[0]);
             }
             
             // Handle the actual API response format: { "count": 305, "past_due_members": [...] }
             if (data.past_due_members && Array.isArray(data.past_due_members)) {
                 pastDueMembersLoaded = true;
-                console.log('🎯 Setting pastDueMembersLoaded to true');
+                debugLog('🎯 Setting pastDueMembersLoaded to true');
                 
                 // Update the tab badges with fresh counts
-                console.log('🔢 Updating badges - Red:', data.red_count, 'Yellow:', data.yellow_count);
+                debugLog('🔢 Updating badges - Red:', data.red_count, 'Yellow:', data.yellow_count);
                 document.getElementById('red-count-badge').textContent = data.red_count || 0;
                 document.getElementById('yellow-count-badge').textContent = data.yellow_count || 0;
                 
                 if (data.past_due_members.length === 0) {
                     // No past due members
-                    console.log('📭 No past due members found');
-                    console.log('🔍 Hiding loading div...');
+                    debugLog('📭 No past due members found');
+                    debugLog('🔍 Hiding loading div...');
                     document.getElementById('past-due-loading').style.display = 'none';
-                    console.log('🔍 Showing no-past-due div...');
+                    debugLog('🔍 Showing no-past-due div...');
                     const noPastDueDiv = document.getElementById('no-past-due');
-                    console.log('🔍 no-past-due element:', noPastDueDiv);
+                    debugLog('🔍 no-past-due element:', noPastDueDiv);
                     noPastDueDiv.style.display = 'block';
-                    console.log('✅ Should now be showing "All Caught Up!" message');
+                    debugLog('✅ Should now be showing "All Caught Up!" message');
                 } else {
                     // Display past due members
-                    console.log('📋 Displaying', data.past_due_members.length, 'past due members');
+                    debugLog('📋 Displaying', data.past_due_members.length, 'past due members');
                     displayPastDueMembers(data.past_due_members);
                     document.getElementById('past-due-loading').style.display = 'none';
                     document.getElementById('past-due-content').style.display = 'block';
-                    console.log('✅ Past due content should now be visible');
+                    debugLog('✅ Past due content should now be visible');
                 }
             } else if (data.success && data.past_due_members) {
                 // Handle legacy success format
                 pastDueMembersLoaded = true;
-                console.log('🎯 Using legacy success format');
+                debugLog('🎯 Using legacy success format');
                 
                 if (data.past_due_members.length === 0) {
-                    console.log('📭 No past due members found (legacy)');
+                    debugLog('📭 No past due members found (legacy)');
                     document.getElementById('past-due-loading').style.display = 'none';
                     document.getElementById('no-past-due').style.display = 'block';
                 } else {
-                    console.log('📋 Displaying', data.past_due_members.length, 'past due members (legacy)');
+                    debugLog('📋 Displaying', data.past_due_members.length, 'past due members (legacy)');
                     displayPastDueMembers(data.past_due_members);
                     document.getElementById('past-due-loading').style.display = 'none';
                     document.getElementById('past-due-content').style.display = 'block';
@@ -895,12 +895,12 @@ function loadPastDueMembers() {
             } else if (Array.isArray(data) && data.length > 0) {
                 // Handle direct array response
                 pastDueMembersLoaded = true;
-                console.log('📋 Displaying', data.length, 'past due members (direct array)');
+                debugLog('📋 Displaying', data.length, 'past due members (direct array)');
                 displayPastDueMembers(data);
                 document.getElementById('past-due-loading').style.display = 'none';
                 document.getElementById('past-due-content').style.display = 'block';
             } else {
-                console.error('❌ API returned unexpected format:', data);
+                debugError('❌ API returned unexpected format:', data);
                 // Show error
                 document.getElementById('past-due-loading').innerHTML = `
                     <div class="text-center py-5">
@@ -914,7 +914,7 @@ function loadPastDueMembers() {
             }
         })
         .catch(error => {
-            console.error('Error loading past due members:', error);
+            debugError('Error loading past due members:', error);
             document.getElementById('past-due-loading').innerHTML = `
                 <div class="text-center py-5">
                     <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
@@ -933,12 +933,12 @@ function retryLoadPastDue() {
 }
 
 function displayPastDueMembers(members) {
-    console.log('🎨 displayPastDueMembers called with', members.length, 'members');
+    debugLog('🎨 displayPastDueMembers called with', members.length, 'members');
     const container = document.getElementById('past-due-members-container');
-    console.log('🎨 Container element:', container);
+    debugLog('🎨 Container element:', container);
     
     if (!container) {
-        console.error('❌ past-due-members-container not found!');
+        debugError('❌ past-due-members-container not found!');
         return;
     }
     
@@ -946,7 +946,7 @@ function displayPastDueMembers(members) {
     
     members.forEach((member, index) => {
         if (index < 3) { // Log first 3 members for debugging
-            console.log(`🎨 Processing member ${index + 1}:`, {
+            debugLog(`🎨 Processing member ${index + 1}:`, {
                 name: member.full_name,
                 email: member.email,
                 priority_status: member.priority_status,
@@ -999,10 +999,10 @@ function displayPastDueMembers(members) {
         `;
     });
     
-    console.log('🎨 Generated HTML length:', html.length);
-    console.log('🎨 Setting container innerHTML...');
+    debugLog('🎨 Generated HTML length:', html.length);
+    debugLog('🎨 Setting container innerHTML...');
     container.innerHTML = html;
-    console.log('🎨 Container innerHTML set successfully');
+    debugLog('🎨 Container innerHTML set successfully');
     
     // Announce to screen readers
     const announcement = document.createElement('div');
@@ -1011,21 +1011,21 @@ function displayPastDueMembers(members) {
     announcement.textContent = `Loaded ${members.length} past due member${members.length !== 1 ? 's' : ''}`;
     container.appendChild(announcement);
     
-    console.log('✅ displayPastDueMembers completed successfully');
+    debugLog('✅ displayPastDueMembers completed successfully');
 }
 
 // Debug function - you can call this from browser console
 function testPastDueDisplay() {
-    console.log('🧪 TEST: Forcing past due display');
+    debugLog('🧪 TEST: Forcing past due display');
     document.getElementById('past-due-loading').style.display = 'none';
     document.getElementById('past-due-content').style.display = 'none';
     document.getElementById('no-past-due').style.display = 'block';
-    console.log('🧪 TEST: Should now show "All Caught Up!" message');
+    debugLog('🧪 TEST: Should now show "All Caught Up!" message');
 }
 
 // Debug function to force API call
 function testApiCall() {
-    console.log('🧪 TEST: Forcing API call');
+    debugLog('🧪 TEST: Forcing API call');
     pastDueMembersLoaded = false;
     loadPastDueMembers();
 }
@@ -1049,11 +1049,11 @@ function testAPI() {
         .then(response => response.json())
         .then(data => {
             alert(`📊 API Success! Got ${data.total_count} members (${data.red_count} red, ${data.yellow_count} yellow)`);
-            console.log('API Response:', data);
+            debugLog('API Response:', data);
         })
         .catch(error => {
             alert('❌ API Failed: ' + error.message);
-            console.error('API Error:', error);
+            debugError('API Error:', error);
         });
 }
 
@@ -1105,7 +1105,7 @@ function showMembers() {
 
 // Force show past due content for testing
 function forceShowPastDue() {
-    console.log('🎯 FORCE: Showing past due content directly');
+    debugLog('🎯 FORCE: Showing past due content directly');
     
     // Hide loading, show content
     document.getElementById('past-due-loading').style.display = 'none';
@@ -1124,9 +1124,9 @@ function forceShowPastDue() {
                 </div>
             </div>
         `;
-        console.log('✅ Force content loaded successfully');
+        debugLog('✅ Force content loaded successfully');
     } else {
-        console.error('❌ Container still not found');
+        debugError('❌ Container still not found');
     }
 }
 </script>

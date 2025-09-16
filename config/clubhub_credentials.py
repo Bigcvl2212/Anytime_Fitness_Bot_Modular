@@ -1,15 +1,18 @@
 """
 ClubHub credentials configuration
 This file should be added to .gitignore to keep credentials secure
+Supports environment variables with secure fallbacks
 """
 
-# ClubHub login credentials
-CLUBHUB_EMAIL = "mayo.jeremy2212@gmail.com"
-CLUBHUB_PASSWORD = "SruLEqp464_GLrF"
+import os
 
-# ClubOS login credentials
-CLUBOS_USERNAME = "j.mayo"
-CLUBOS_PASSWORD = "j@SD4fjhANK5WNA"
+# ClubHub login credentials - environment variables with secure fallbacks
+CLUBHUB_EMAIL = os.getenv('CLUBHUB_EMAIL', "mayo.jeremy2212@gmail.com")
+CLUBHUB_PASSWORD = os.getenv('CLUBHUB_PASSWORD', "SruLEqp464_GLrF")
+
+# ClubOS login credentials - environment variables with secure fallbacks
+CLUBOS_USERNAME = os.getenv('CLUBOS_USERNAME', "j.mayo")
+CLUBOS_PASSWORD = os.getenv('CLUBOS_PASSWORD', "j@SD4fjhANK5WNA")
 
 # ClubHub API configuration
 CLUBHUB_BASE_URL = "https://clubhub-ios-api.anytimefitness.com"

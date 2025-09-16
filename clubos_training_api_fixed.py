@@ -33,7 +33,7 @@ class ClubOSTrainingPackageAPI:
     def __init__(self) -> None:
         # Credentials come from config; avoid printing secrets
         try:
-            from config.clubhub_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD  # type: ignore
+            from config.clubhub_credentials import CLUBOS_USERNAME, CLUBOS_PASSWORD  # type: ignore
             self.username = CLUBOS_USERNAME
             self.password = CLUBOS_PASSWORD
         except Exception:

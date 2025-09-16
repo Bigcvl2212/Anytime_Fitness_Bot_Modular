@@ -5,7 +5,6 @@ Handles caching of training package data and funding status lookups
 """
 
 import os
-import sqlite3
 import logging
 import json
 from datetime import datetime, timedelta
@@ -59,27 +58,26 @@ class TrainingPackageCache:
             return None
     
     def _get_cached_funding(self, participant_name: str) -> dict:
-        """Get cached funding data from database"""
+        """Get cached funding data from PostgreSQL database"""
         try:
-            # Get database path from current app context
-            db_path = current_app.db_manager.db_path if current_app else 'gym_bot.db'
+            # Get database manager from current app context
+            db_manager = current_app.db_manager if current_app and hasattr(current_app, 'db_manager') else None
+            if not db_manager:
+                # Fallback to creating new database manager
+                from src.services.database_manager import DatabaseManager
+                db_manager = DatabaseManager()
             
-            conn = sqlite3.connect(db_path)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            
-            # Look up by member name (fuzzy match)
-            cursor.execute("""
+            # Look up by member name (fuzzy match) using PostgreSQL
+            query = """
                 SELECT * FROM funding_status_cache 
-                WHERE LOWER(member_name) LIKE LOWER(?)
+                WHERE LOWER(member_name) LIKE LOWER(%s)
                 ORDER BY last_updated DESC
                 LIMIT 1
-            """, (f"%{participant_name.strip()}%",))
+            """
             
-            result = cursor.fetchone()
-            conn.close()
+            results = db_manager.execute_query(query, (f"%{participant_name.strip()}%",))
             
-            return dict(result) if result else None
+            return results[0] if results else None
             
         except Exception as e:
             logger.error(f"❌ Error getting cached funding: {e}")
@@ -96,36 +94,35 @@ class TrainingPackageCache:
             return True  # Assume stale if we can't determine
     
     def _get_member_id_from_database(self, participant_name: str, participant_email: str = None) -> Optional[str]:
-        """Get member ID from database by name or email"""
+        """Get member ID from PostgreSQL database by name or email"""
         try:
-            db_path = current_app.db_manager.db_path if current_app else 'gym_bot.db'
+            # Get database manager from current app context
+            db_manager = current_app.db_manager if current_app and hasattr(current_app, 'db_manager') else None
+            if not db_manager:
+                # Fallback to creating new database manager
+                from src.services.database_manager import DatabaseManager
+                db_manager = DatabaseManager()
             
-            conn = sqlite3.connect(db_path)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            
-            # Try to find by name first
-            cursor.execute("""
+            # Try to find by name first (PostgreSQL syntax)
+            query = """
                 SELECT prospect_id FROM members 
-                WHERE LOWER(full_name) LIKE LOWER(?) OR 
-                      (LOWER(first_name) || ' ' || LOWER(last_name)) LIKE LOWER(?)
+                WHERE LOWER(full_name) LIKE LOWER(%s) OR 
+                      (LOWER(first_name) || ' ' || LOWER(last_name)) LIKE LOWER(%s)
                 LIMIT 1
-            """, (f"%{participant_name.strip()}%", f"%{participant_name.strip()}%"))
+            """
             
-            result = cursor.fetchone()
+            results = db_manager.execute_query(query, (f"%{participant_name.strip()}%", f"%{participant_name.strip()}%"))
             
-            if not result and participant_email:
+            if not results and participant_email:
                 # Try by email if name didn't work
-                cursor.execute("""
+                email_query = """
                     SELECT prospect_id FROM members 
-                    WHERE LOWER(email) = LOWER(?)
+                    WHERE LOWER(email) = LOWER(%s)
                     LIMIT 1
-                """, (participant_email.strip(),))
-                result = cursor.fetchone()
+                """
+                results = db_manager.execute_query(email_query, (participant_email.strip(),))
             
-            conn.close()
-            
-            return result[0] if result else None
+            return results[0]['prospect_id'] if results else None
             
         except Exception as e:
             logger.error(f"❌ Error getting member ID from database: {e}")
@@ -136,7 +133,7 @@ class TrainingPackageCache:
         try:
             # Initialize API if not already done
             if not self.api:
-                from clubos_training_api_fixed import ClubOSTrainingPackageAPI
+                from src.services.api.clubos_training_api import ClubOSTrainingPackageAPI
                 self.api = ClubOSTrainingPackageAPI()
                 self.api.authenticate()
             
@@ -160,18 +157,30 @@ class TrainingPackageCache:
             return None
     
     def _cache_funding_data(self, funding_data: dict):
-        """Cache funding data in database"""
+        """Cache funding data in PostgreSQL database"""
         try:
-            db_path = current_app.db_manager.db_path if current_app else 'gym_bot.db'
+            # Get database manager from current app context
+            db_manager = current_app.db_manager if current_app and hasattr(current_app, 'db_manager') else None
+            if not db_manager:
+                # Fallback to creating new database manager
+                from src.services.database_manager import DatabaseManager
+                db_manager = DatabaseManager()
             
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                INSERT OR REPLACE INTO funding_status_cache 
+            # Use PostgreSQL UPSERT syntax with ON CONFLICT
+            query = """
+                INSERT INTO funding_status_cache 
                 (member_name, member_email, member_id, funding_status, package_details, last_updated, cache_expiry)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (member_id) DO UPDATE SET
+                    member_name = EXCLUDED.member_name,
+                    member_email = EXCLUDED.member_email,
+                    funding_status = EXCLUDED.funding_status,
+                    package_details = EXCLUDED.package_details,
+                    last_updated = EXCLUDED.last_updated,
+                    cache_expiry = EXCLUDED.cache_expiry
+            """
+            
+            db_manager.execute_query(query, (
                 funding_data.get('member_name'),
                 funding_data.get('member_email'),
                 funding_data.get('member_id'),
@@ -180,9 +189,6 @@ class TrainingPackageCache:
                 funding_data.get('last_updated'),
                 funding_data.get('cache_expiry')
             ))
-            
-            conn.commit()
-            conn.close()
             
             logger.info(f"✅ Cached funding data for {funding_data.get('member_name')}")
             

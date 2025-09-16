@@ -1508,7 +1508,7 @@ class ClubOSIntegration:
     """Integration class to connect dashboard with working ClubOS API"""
     
     def __init__(self):
-        from config.clubhub_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD
+        from config.clubhub_credentials import CLUBOS_USERNAME, CLUBOS_PASSWORD
         self.api = ClubOSRealCalendarAPI(CLUBOS_USERNAME, CLUBOS_PASSWORD)
         self.training_api = ClubOSTrainingPackageAPI()  # No parameters needed
         self.event_manager = ClubOSEventDeletion()
@@ -2897,7 +2897,7 @@ def get_past_due_members():
         CLUBHUB_API_BASE = "https://clubhub-ios-api.anytimefitness.com/api/v1.0"
         
         # Use ClubHub credentials from config instead of hardcoded
-        from config.clubhub_credentials_clean import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
         
         USERNAME = CLUBHUB_EMAIL
         PASSWORD = CLUBHUB_PASSWORD
@@ -3192,7 +3192,7 @@ def get_all_prospects():
     """API endpoint to get all prospects from ClubHub API."""
     try:
         # Get fresh prospects from ClubHub API instead of stale database
-        from config.clubhub_credentials_clean import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
         
         CLUBHUB_LOGIN_URL = "https://clubhub-ios-api.anytimefitness.com/api/login"
         USERNAME = CLUBHUB_EMAIL

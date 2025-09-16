@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class ClubOSHARBased:
     def __init__(self):
         try:
-            from config.clubhub_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD
+            from config.clubhub_credentials import CLUBOS_USERNAME, CLUBOS_PASSWORD
             self.username = CLUBOS_USERNAME
             self.password = CLUBOS_PASSWORD
         except Exception:

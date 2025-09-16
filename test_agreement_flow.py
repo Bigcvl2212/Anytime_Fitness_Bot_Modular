@@ -7,7 +7,7 @@ import sys
 import requests
 import json
 import time
-from config.clubhub_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD
+from config.clubhub_credentials import CLUBOS_USERNAME, CLUBOS_PASSWORD
 
 def test_package_agreements_flow():
     """Test the complete ClubOS package agreement API flow"""

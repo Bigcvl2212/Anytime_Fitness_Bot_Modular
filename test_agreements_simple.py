@@ -25,7 +25,7 @@ def test_clubos_agreement_endpoint():
     
     # Login credentials (from config)
     try:
-        from config.clubhub_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD
+        from config.clubhub_credentials import CLUBOS_USERNAME, CLUBOS_PASSWORD
         username = CLUBOS_USERNAME
         password = CLUBOS_PASSWORD
     except ImportError:

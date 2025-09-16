@@ -83,7 +83,7 @@ def fix_dennis_training_data():
         print(f"\n🧪 Testing funding lookup for Dennis...")
         
         try:
-            from clean_dashboard import TrainingPackageCache
+            from src.services.training_package_cache import TrainingPackageCache
             
             # Initialize the training package cache system
             cache = TrainingPackageCache()

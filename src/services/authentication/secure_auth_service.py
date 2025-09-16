@@ -25,6 +25,12 @@ except ImportError:
         sys.path.append(os.path.dirname(__file__))
         from secure_secrets_manager import SecureSecretsManager
 
+# Import unified authentication service
+try:
+    from .unified_auth_service import get_unified_auth_service
+except ImportError:
+    from unified_auth_service import get_unified_auth_service
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -45,9 +51,12 @@ class SecureAuthService:
         self.session_timeout = timedelta(hours=8)  # 8-hour session timeout
         self.clubhub_token = None  # Store ClubHub JWT token
         
+        # Get unified authentication service
+        self.auth_service = get_unified_auth_service()
+        
     def authenticate_clubhub(self, email: str, password: str) -> Optional[str]:
         """
-        Authenticate with ClubHub and get JWT token
+        Authenticate with ClubHub using unified authentication service
         
         Args:
             email: ClubHub email
@@ -57,19 +66,16 @@ class SecureAuthService:
             JWT token if successful, None otherwise
         """
         try:
-            # Import ClubHub client
-            import sys, os
-            sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'api'))
-            from clubhub_api_client import ClubHubAPIClient
+            logger.info("Authenticating with ClubHub via unified service")
             
-            client = ClubHubAPIClient()
+            # Use unified authentication service
+            session = self.auth_service.authenticate_clubhub(email, password)
             
-            # Attempt authentication
-            if client.authenticate(email, password):
-                logger.info("✅ ClubHub authentication successful")
-                return client.auth_token
+            if session and session.authenticated:
+                logger.info("✅ ClubHub authentication successful via unified service")
+                return session.clubhub_bearer_token
             else:
-                logger.warning("❌ ClubHub authentication failed")
+                logger.warning("❌ ClubHub authentication failed via unified service")
                 return None
                 
         except Exception as e:
@@ -266,6 +272,9 @@ class SecureAuthService:
         """
         session_token = secrets.token_urlsafe(32)
         
+        # Clear existing session data first
+        session.clear()
+        
         # Store session data in Flask session
         session['authenticated'] = True
         session['manager_id'] = manager_id
@@ -273,11 +282,18 @@ class SecureAuthService:
         session['login_time'] = datetime.now().isoformat()
         session['last_activity'] = datetime.now().isoformat()
         
-        # Set session to expire
+        # Set session to expire and ensure persistence
         session.permanent = True
-        current_app.permanent_session_lifetime = self.session_timeout
+        if hasattr(current_app, 'permanent_session_lifetime'):
+            current_app.permanent_session_lifetime = self.session_timeout
         
+        # Force session to be saved immediately
+        session.modified = True
+        
+        # Debug session state
         logger.info(f"✅ Created session for manager {manager_id}")
+        logger.info(f"🔍 Session data after creation: {dict(session)}")
+        
         return session_token
     
     def validate_session(self) -> Tuple[bool, str]:
@@ -287,10 +303,17 @@ class SecureAuthService:
         Returns:
             Tuple of (is_valid, manager_id)
         """
+        # Enhanced debugging
+        logger.debug(f"🔍 Session validation - Keys: {list(session.keys()) if session else 'Empty session'}")
+        logger.debug(f"🔍 Session validation - Authenticated: {session.get('authenticated') if session else 'N/A'}")
+        logger.debug(f"🔍 Session validation - Manager ID: {session.get('manager_id') if session else 'N/A'}")
+        
         if 'authenticated' not in session or not session['authenticated']:
+            logger.debug("❌ Session validation failed: not authenticated")
             return False, ""
         
         if 'manager_id' not in session:
+            logger.debug("❌ Session validation failed: no manager_id")
             return False, ""
         
         # Check session timeout

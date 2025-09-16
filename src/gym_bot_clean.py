@@ -12,7 +12,7 @@ This script:
 import json
 import logging
 from datetime import datetime
-from clubos_real_calendar_api import ClubOSRealCalendarAPI
+from src.services.api.clubos_real_calendar_api import ClubOSRealCalendarAPI
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

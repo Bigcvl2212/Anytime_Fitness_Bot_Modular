@@ -43,8 +43,44 @@ def enhanced_startup_sync(app, multi_club_enabled: bool = True) -> Dict[str, Any
             selected_clubs = multi_club_manager.get_selected_clubs()
             
             if not selected_clubs:
-                logger.warning("⚠️ No clubs selected for multi-club sync")
-                return sync_results
+                # Auto-select default club for single-club mode
+                logger.info("🔄 No clubs selected, attempting to auto-select default club...")
+                try:
+                    # Try to get the default club from ClubHub client
+                    if hasattr(app, 'clubhub_client') and app.clubhub_client:
+                        # Get available clubs from ClubHub
+                        available_clubs = app.clubhub_client.get_clubs()
+                        if available_clubs:
+                            # Select the first available club
+                            default_club = available_clubs[0]
+                            club_id = default_club.get('id')
+                            if club_id:
+                                multi_club_manager.set_selected_clubs([club_id])
+                                selected_clubs = multi_club_manager.get_selected_clubs()
+                                logger.info(f"✅ Auto-selected default club: {club_id}")
+                            else:
+                                logger.warning("⚠️ No valid club ID found in available clubs")
+                        else:
+                            logger.warning("⚠️ No clubs available from ClubHub")
+                    else:
+                        logger.warning("⚠️ No ClubHub client available for auto-selection")
+                except Exception as e:
+                    logger.warning(f"⚠️ Auto-selection failed: {e}")
+                
+                if not selected_clubs:
+                    # Fallback: Use default club ID for single-club mode
+                    logger.info("🔄 Using fallback: default club ID for single-club mode")
+                    try:
+                        from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+                        secrets_manager = SecureSecretsManager()
+                        # Try to get club ID from secrets or use a default
+                        default_club_id = secrets_manager.get_secret('default-club-id') or '1'
+                        multi_club_manager.set_selected_clubs([default_club_id])
+                        selected_clubs = multi_club_manager.get_selected_clubs()
+                        logger.info(f"✅ Fallback: Using default club ID: {default_club_id}")
+                    except Exception as fallback_e:
+                        logger.error(f"❌ Fallback auto-selection also failed: {fallback_e}")
+                        return sync_results
             
             logger.info(f"🔄 Starting multi-club startup sync for {len(selected_clubs)} clubs...")
             
@@ -60,7 +96,7 @@ def enhanced_startup_sync(app, multi_club_enabled: bool = True) -> Dict[str, Any
             
             # Perform multi-club sync
             combined_data = multi_club_manager.sync_multi_club_data(
-                clubhub_client, sync_functions
+                clubhub_client, sync_functions, app=app
             )
             
             # Update sync results
@@ -84,9 +120,9 @@ def enhanced_startup_sync(app, multi_club_enabled: bool = True) -> Dict[str, Any
             logger.info("🔄 Starting single-club startup sync...")
             
             # Use existing sync methods
-            members = sync_members_for_club()
-            prospects = sync_prospects_for_club()
-            training_clients = sync_training_clients_for_club()
+            members = sync_members_for_club(app=app)
+            prospects = sync_prospects_for_club(app=app)
+            training_clients = sync_training_clients_for_club(app=app)
             
             sync_results['success'] = True
             sync_results['combined_totals']['members'] = len(members) if members else 0
@@ -109,26 +145,37 @@ def enhanced_startup_sync(app, multi_club_enabled: bool = True) -> Dict[str, Any
     
     return sync_results
 
-def sync_members_for_club(club_id: str = None) -> List[Dict[str, Any]]:
+def sync_members_for_club(club_id: str = None, app=None) -> List[Dict[str, Any]]:
     """
-    Sync members for a specific club
+    Sync members for a specific club with comprehensive agreement processing
     
     Args:
         club_id: Club ID to sync (optional for backward compatibility)
+        app: Flask application instance (for accessing shared db_manager)
         
     Returns:
-        List of member data
+        List of member data with billing information
     """
     try:
         logger.info(f"📊 Syncing members for club {club_id or 'default'}...")
         
         # Import the ClubHub API client
         from src.services.api.clubhub_api_client import ClubHubAPIClient
-        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        
+        # Get credentials from SecureSecretsManager
+        secrets_manager = SecureSecretsManager()
+        clubhub_email = secrets_manager.get_secret('clubhub-email')
+        clubhub_password = secrets_manager.get_secret('clubhub-password')
+        
+        if not clubhub_email or not clubhub_password:
+            logger.error(f"❌ ClubHub credentials not found in SecureSecretsManager for club {club_id}")
+            return []
         
         # Create and authenticate client
         clubhub_client = ClubHubAPIClient()
-        if not clubhub_client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
+        if not clubhub_client.authenticate(clubhub_email, clubhub_password):
             logger.error(f"❌ ClubHub authentication failed for club {club_id}")
             return []
         
@@ -138,24 +185,121 @@ def sync_members_for_club(club_id: str = None) -> List[Dict[str, Any]]:
             logger.warning(f"⚠️ No members found for club {club_id}")
             return []
         
-        # Process members to add full_name and club context
-        for member in members:
-            member['full_name'] = f"{member.get('firstName', '')} {member.get('lastName', '')}".strip()
-            member['source_club_id'] = club_id
+        logger.info(f"📊 Processing {len(members)} members with comprehensive agreement data...")
+        
+        def get_member_agreement_data(member_data):
+            """Get agreement data for a single member (same logic as main startup sync)"""
+            try:
+                member_data['full_name'] = f"{member_data.get('firstName', '')} {member_data.get('lastName', '')}".strip()
+                member_data['source_club_id'] = club_id
+                
+                member_id = member_data.get('id') or member_data.get('prospectId')
+                if member_id:
+                    agreement_data = clubhub_client.get_member_agreement(member_id)
+                    if agreement_data and isinstance(agreement_data, dict):
+                        # Get the TOTAL past due amount from API
+                        total_amount_past_due = float(agreement_data.get('amountPastDue', 0))
+                        
+                        # Initialize billing breakdown
+                        late_fees = 0.0
+                        missed_payments = 0
+                        base_amount = 0.0
+                        recurring_cost = 0.0
+                        
+                        # Extract recurring cost from various possible fields
+                        if 'monthlyDues' in agreement_data and agreement_data['monthlyDues']:
+                            recurring_cost = float(agreement_data['monthlyDues']) or 0.0
+                        elif 'amountOfNextPayment' in agreement_data and agreement_data['amountOfNextPayment']:
+                            recurring_cost = float(agreement_data['amountOfNextPayment']) or 0.0
+                        elif 'recurringCost' in agreement_data and isinstance(agreement_data['recurringCost'], dict):
+                            recurring_cost = float(agreement_data['recurringCost'].get('total', 0)) or 0.0
+                        elif 'agreement' in agreement_data and isinstance(agreement_data['agreement'], dict):
+                            agreement = agreement_data['agreement']
+                            if 'recurringCost' in agreement and isinstance(agreement['recurringCost'], dict):
+                                recurring_cost = float(agreement['recurringCost'].get('total', 0)) or 0.0
+                        
+                        # Check for comp member status
+                        is_comp_member = (
+                            str(agreement_data.get('statusMessage', '')).lower().startswith('comp') or
+                            str(member_data.get('user_type', '')).lower() == 'comp'
+                        )
+                        
+                        if total_amount_past_due > 0 and not is_comp_member:
+                            if recurring_cost == 0:
+                                recurring_cost = 39.50  # Standard AF monthly rate
+                            
+                            # Calculate billing breakdown
+                            base_amount = total_amount_past_due
+                            missed_payments = max(1, int(base_amount / recurring_cost))
+                            late_fees = missed_payments * 19.50
+                            total_with_fees = base_amount + late_fees
+                            
+                            member_data['amount_past_due'] = total_with_fees
+                            member_data['base_amount_past_due'] = base_amount
+                            member_data['late_fees'] = late_fees
+                            member_data['missed_payments'] = missed_payments
+                        else:
+                            member_data['amount_past_due'] = total_amount_past_due
+                            member_data['base_amount_past_due'] = total_amount_past_due
+                            member_data['late_fees'] = 0.0
+                            member_data['missed_payments'] = 0
+                        
+                        # Store additional agreement data
+                        member_data['agreement_recurring_cost'] = recurring_cost
+                        member_data['agreement_status'] = agreement_data.get('status', 'Unknown')
+                        member_data['agreement_type'] = agreement_data.get('type', 'Unknown')
+                        member_data['date_of_next_payment'] = agreement_data.get('dateOfNextPayment')
+                        member_data['status_message'] = agreement_data.get('statusMessage', '')
+                        
+                    else:
+                        # No agreement data
+                        member_data['amount_past_due'] = 0.0
+                        member_data['base_amount_past_due'] = 0.0
+                        member_data['late_fees'] = 0.0
+                        member_data['missed_payments'] = 0
+                        member_data['agreement_recurring_cost'] = 0.0
+                        member_data['agreement_status'] = 'No Agreement'
+                
+                return member_data
+            except Exception as e:
+                logger.warning(f"⚠️ Could not get agreement data for member {member_data.get('firstName', 'Unknown')}: {e}")
+                member_data['amount_past_due'] = 0.0
+                member_data['base_amount_past_due'] = 0.0
+                member_data['late_fees'] = 0.0
+                member_data['missed_payments'] = 0
+                member_data['agreement_recurring_cost'] = 0.0
+                return member_data
+        
+        # Process members with agreement data in parallel
+        with ThreadPoolExecutor(max_workers=15) as executor:
+            future_to_member = {executor.submit(get_member_agreement_data, member): member for member in members}
             
-        logger.info(f"✅ Synced {len(members)} members for club {club_id}")
+            completed_count = 0
+            for future in as_completed(future_to_member):
+                completed_count += 1
+                if completed_count % 100 == 0:
+                    logger.info(f"📊 Members: {completed_count}/{len(members)} processed with agreement data...")
+        
+        # Log billing summary
+        total_past_due = sum(m.get('amount_past_due', 0) for m in members)
+        members_with_past_due = len([m for m in members if m.get('amount_past_due', 0) > 0])
+        
+        logger.info(f"✅ Synced {len(members)} members for club {club_id} with billing data")
+        logger.info(f"💰 Billing Summary: {members_with_past_due} members with past due amounts, total: ${total_past_due:.2f}")
+        
         return members
         
     except Exception as e:
         logger.error(f"❌ Error syncing members for club {club_id}: {e}")
         return []
 
-def sync_prospects_for_club(club_id: str = None) -> List[Dict[str, Any]]:
+def sync_prospects_for_club(club_id: str = None, app=None) -> List[Dict[str, Any]]:
     """
     Sync prospects for a specific club
     
     Args:
         club_id: Club ID to sync (optional for backward compatibility)
+        app: Flask application instance (for accessing shared db_manager)
         
     Returns:
         List of prospect data
@@ -165,11 +309,20 @@ def sync_prospects_for_club(club_id: str = None) -> List[Dict[str, Any]]:
         
         # Import the ClubHub API client
         from src.services.api.clubhub_api_client import ClubHubAPIClient
-        from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
+        from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+        
+        # Get credentials from SecureSecretsManager
+        secrets_manager = SecureSecretsManager()
+        clubhub_email = secrets_manager.get_secret('clubhub-email')
+        clubhub_password = secrets_manager.get_secret('clubhub-password')
+        
+        if not clubhub_email or not clubhub_password:
+            logger.error(f"❌ ClubHub credentials not found in SecureSecretsManager for club {club_id}")
+            return []
         
         # Create and authenticate client
         clubhub_client = ClubHubAPIClient()
-        if not clubhub_client.authenticate(CLUBHUB_EMAIL, CLUBHUB_PASSWORD):
+        if not clubhub_client.authenticate(clubhub_email, clubhub_password):
             logger.error(f"❌ ClubHub authentication failed for club {club_id}")
             return []
         
@@ -191,12 +344,13 @@ def sync_prospects_for_club(club_id: str = None) -> List[Dict[str, Any]]:
         logger.error(f"❌ Error syncing prospects for club {club_id}: {e}")
         return []
 
-def sync_training_clients_for_club(club_id: str = None) -> List[Dict[str, Any]]:
+def sync_training_clients_for_club(club_id: str = None, app=None) -> List[Dict[str, Any]]:
     """
     Sync training clients for a specific club
     
     Args:
         club_id: Club ID to sync (optional for backward compatibility)
+        app: Flask application instance (for accessing shared db_manager)
         
     Returns:
         List of training client data
@@ -222,6 +376,31 @@ def sync_training_clients_for_club(club_id: str = None) -> List[Dict[str, Any]]:
                     if 'source_club_id' not in client:
                         client['source_club_id'] = club_id
                         client['source_club_name'] = f'Club {club_id}'
+                
+                # CRITICAL FIX: Save training clients to database using shared app.db_manager
+                try:
+                    if app and hasattr(app, 'db_manager'):
+                        # Use the shared database manager from the app (configured for PostgreSQL)
+                        success = app.db_manager.save_training_clients_to_db(training_clients)
+                        
+                        if success:
+                            logger.info(f"💾 Successfully saved {len(training_clients)} training clients to PostgreSQL database")
+                        else:
+                            logger.error(f"❌ Failed to save training clients to database")
+                    else:
+                        # Fallback to local database manager if app not provided (backward compatibility)
+                        logger.warning("⚠️ No shared db_manager available, using local DatabaseManager")
+                        from src.services.database_manager import DatabaseManager
+                        db_manager = DatabaseManager()
+                        success = db_manager.save_training_clients_to_db(training_clients)
+                        
+                        if success:
+                            logger.info(f"💾 Successfully saved {len(training_clients)} training clients with local db manager")
+                        else:
+                            logger.error(f"❌ Failed to save training clients to database")
+                        
+                except Exception as db_e:
+                    logger.error(f"❌ Database save error for training clients: {db_e}")
                 
                 logger.info(f"✅ Synced {len(training_clients)} training clients for club {club_id}")
                 return training_clients

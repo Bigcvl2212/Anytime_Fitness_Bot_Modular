@@ -8,14 +8,22 @@ import json
 import time
 from typing import Dict, List, Any, Optional
 from urllib.parse import urlencode
+from src.services.authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
 
 class ClubHubAPIClient:
     """ClubHub API Client with all discovered endpoints"""
     
     def __init__(self):
-        self.base_url = "https://clubhub-ios-api.anytimefitness.com"
-        self.club_id = "1156"
+        import os
+        self.base_url = os.getenv('CLUBHUB_BASE_URL', 'https://clubhub-ios-api.anytimefitness.com')
+        self.club_id = os.getenv('DEFAULT_CLUB_ID', '1156')
         self.api_version = "1"
+        
+        # Get unified authentication service
+        self.auth_service = get_unified_auth_service()
+        self.auth_session: Optional[AuthenticationSession] = None
+        
+        # Legacy attributes for backward compatibility
         self.auth_token = None
         self.headers = {
             "Host": "clubhub-ios-api.anytimefitness.com",
@@ -25,47 +33,28 @@ class ClubHubAPIClient:
             "Accept-Language": "en-US",
             "Accept-Encoding": "br;q=1.0, gzip;q=0.9, deflate;q=0.8",
             "Connection": "keep-alive",
-            "Content-Type": "application/json",
-            # Updated Cookie header from the successful HAR login:
-            "Cookie": "dtCookie=v_4_srv_4_sn_6B9DB1AE4D6E658C76B74A6BCD41DC44_perc_100000_ol_0_mul_1_app-3A4b32026d63ce75ab_0_rcs-3Acss_0; visid_incap_434694=RnkdTm5oTZGIHQp7qeKPZANjSGgAAAAAQUIPAAAAAADfxJ4/rmakILSU3890u2w3; _ga_E3V4XR2W24=GS2.1.s1748029777$o2$g1$t1748029958$j0$l0$h0; rl_anonymous_id=RS_ENC_v3_IjQ4N2UyYTBkLTQ3NjItNDRhYy04ZDVkLTQ5ZWJjM2M1MWMyYSI%3D; rl_page_init_referrer=RS_ENC_v3_Imh0dHBzOi8vcmVzb3VyY2VjZW50ZXIuc2VicmFuZHMuY29tLyI%3D; rl_page_init_referring_domain=RS_ENC_v3_InJlc291cmNlY2VudGVyLnNlYnJhbmRzLmNvbSI%3D; rl_session=RS_ENC_v3_eyJpZCI6MTc0ODAyOTc3ODU1MiwiZXhwaXJlc0F0IjoxNzQ4MDMxNTc4NTYxLCJ0aW1lb3V0IjoxODAwMDAwLCJhdXRvVHJhY2siOnRydWUsInNlc3Npb25TdGFydCI6dHJ1ZX0%3D; _ga=GA1.1.2023145946.1747779026; visid_incap_498134=n71aHYAISneGZ49qOGxwdM39LGgAAAAAQUIPAAAAAABKTx/MOoTZK3A95JgTilNy"
+            "Content-Type": "application/json"
         }
     
-    def authenticate(self, email: str, password: str) -> bool:
-        """Authenticate with ClubHub API using exact format from HAR file"""
-        url = f"{self.base_url}/api/login"
-        
-        # Use the exact payload format from the successful HAR login
-        data = {
-            "username": email,
-            "password": password
-        }
-        
+    def authenticate(self, email: str = None, password: str = None) -> bool:
+        """Authenticate using the unified authentication service"""
         try:
-            print(f"🔐 Attempting ClubHub authentication with {email}...")
-            response = requests.post(url, json=data, headers=self.headers, timeout=30)
+            print("Authenticating ClubHub API Client")
             
-            print(f"📥 Login response status: {response.status_code}")
+            # Use unified authentication service
+            self.auth_session = self.auth_service.authenticate_clubhub(email, password)
             
-            if response.status_code == 200:
-                auth_data = response.json()
-                self.auth_token = auth_data.get('accessToken')  # Use accessToken instead of token
-                if self.auth_token:
-                    self.headers["Authorization"] = f"Bearer {self.auth_token}"
-                    print("✅ ClubHub authentication successful")
-                    print(f"🔑 Bearer token: {self.auth_token[:50]}...")
-                    return True
-                else:
-                    print("❌ No accessToken in response")
-                    print(f"Response data: {auth_data}")
-                    return False
-            else:
-                print(f"❌ Authentication failed: {response.status_code}")
-                try:
-                    error_data = response.json()
-                    print(f"Error details: {error_data}")
-                except:
-                    print(f"Response text: {response.text}")
+            if not self.auth_session or not self.auth_session.authenticated:
+                print("❌ ClubHub authentication failed")
                 return False
+            
+            # Update legacy attributes for backward compatibility
+            self.auth_token = self.auth_session.clubhub_bearer_token
+            self.headers["Authorization"] = f"Bearer {self.auth_token}"
+            
+            print("✅ ClubHub authentication successful")
+            print(f"🔑 Bearer token: {self.auth_token[:50]}...")
+            return True
                 
         except Exception as e:
             print(f"❌ Authentication error: {e}")

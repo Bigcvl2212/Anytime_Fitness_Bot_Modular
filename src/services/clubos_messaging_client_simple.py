@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup
 import urllib3
 import time
 from urllib.parse import quote
+from src.services.authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
 
 # Suppress SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -33,102 +34,41 @@ class ClubOSMessagingClient:
     def __init__(self, username: str = None, password: str = None):
         self.username = username
         self.password = password
-        
-        if not username or not password:
-            try:
-                # Import with proper path handling
-                sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-                
-                from src.services.authentication.secure_secrets_manager import SecureSecretsManager
-                secrets_manager = SecureSecretsManager()
-                
-                clubos_username = secrets_manager.get_secret('clubos-username')
-                clubos_password = secrets_manager.get_secret('clubos-password')
-                
-                if clubos_username and clubos_password:
-                    self.username = self.username or clubos_username
-                    self.password = self.password or clubos_password
-                    logger.info("🔐 ClubOS credentials loaded")
-                else:
-                    raise ValueError("ClubOS credentials not available")
-                    
-            except Exception as e:
-                logger.error(f"❌ Failed to load ClubOS credentials: {e}")
-                raise
-                
-        self.session = requests.Session()
         self.base_url = "https://anytime.club-os.com"
-        self.authenticated = False
         
-        # Core session data
+        # Get unified authentication service
+        self.auth_service = get_unified_auth_service()
+        self.auth_session: Optional[AuthenticationSession] = None
+        
+        # Legacy attributes for backward compatibility
+        self.session = None
+        self.authenticated = False
         self.staff_id = None
         self.logged_in_user_id = None
         self.delegated_user_id = None
         self.delegated_bearer_token = None
         
-        # Set standard headers
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0',
-            'Accept': '*/*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br, zstd'
-        })
-        
     def authenticate(self) -> bool:
-        """Authenticate using ClubOS login"""
+        """Authenticate using the unified authentication service"""
         try:
-            logger.info(f"🔐 Authenticating {self.username}")
+            logger.info("Authenticating ClubOS Messaging Client Simple")
             
-            # Step 1: Get login page
-            login_url = f"{self.base_url}/action/Login/view?__fsk=1221801756"
-            login_response = self.session.get(login_url, verify=False)
-            login_response.raise_for_status()
+            # Use unified authentication service
+            self.auth_session = self.auth_service.authenticate_clubos(self.username, self.password)
             
-            soup = BeautifulSoup(login_response.text, 'html.parser')
-            
-            # Extract required form fields
-            source_page = soup.find('input', {'name': '_sourcePage'})
-            fp_token = soup.find('input', {'name': '__fp'})
-            
-            # Step 2: Submit login form
-            login_data = {
-                'login': 'Submit',
-                'username': self.username,
-                'password': self.password,
-                '_sourcePage': source_page.get('value') if source_page else '',
-                '__fp': fp_token.get('value') if fp_token else ''
-            }
-            
-            login_headers = {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Referer': login_url
-            }
-            
-            auth_response = self.session.post(
-                f"{self.base_url}/action/Login",
-                data=login_data,
-                headers=login_headers,
-                allow_redirects=True,
-                verify=False
-            )
-            
-            # Step 3: Validate authentication
-            session_id = self.session.cookies.get('JSESSIONID')
-            logged_in_user_id = self.session.cookies.get('loggedInUserId')
-            api_v3_token = self.session.cookies.get('apiV3AccessToken')
-            
-            if not session_id or not logged_in_user_id:
-                logger.error("❌ Authentication failed")
+            if not self.auth_session or not self.auth_session.authenticated:
+                logger.error("ClubOS authentication failed")
                 return False
             
-            # Store authentication data
-            self.logged_in_user_id = logged_in_user_id
+            # Update legacy attributes for backward compatibility
+            self.session = self.auth_session.session
             self.authenticated = True
+            self.logged_in_user_id = self.auth_session.logged_in_user_id
+            self.delegated_user_id = self.auth_session.delegated_user_id
+            self.delegated_bearer_token = self.auth_session.bearer_token
             
-            # Set up Bearer token
-            if api_v3_token:
-                self.session.headers["Authorization"] = f"Bearer {api_v3_token}"
-                logger.info("🔑 Initial Bearer token set")
+            # Update username from session for legacy compatibility
+            self.username = self.auth_session.username
             
             logger.info(f"✅ Authentication successful - User ID: {self.logged_in_user_id}")
             return True

@@ -17,8 +17,8 @@ from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
 
 # Import the training package cache (this has the ClubOS integration)
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from clean_dashboard import TrainingPackageCache
-from clubos_training_api import ClubOSTrainingPackageAPI
+from src.services.training_package_cache import TrainingPackageCache
+from src.clubos_training_api import ClubOSTrainingPackageAPI
 
 def test_funding_check():
     print("=== TESTING TRAINING CLIENT DISCOVERY ===")

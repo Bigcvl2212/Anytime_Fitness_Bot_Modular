@@ -12,15 +12,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application
-COPY . /app
+# Copy only production files (exclude dev/test files)
+COPY src/ /app/src/
+COPY templates/ /app/templates/
+COPY static/ /app/static/
+COPY wsgi.py /app/
+COPY run_dashboard.py /app/
+COPY .env.production /app/.env
 
-# Expose port
-EXPOSE 5000
+# Cloud Run uses PORT environment variable
+EXPOSE 8080
 
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_ENV=production
 ENV PYTHONPATH=/app/src
+ENV PORT=8080
 
-# Run with gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "wsgi:app"]
+# Use Cloud Run's PORT environment variable
+CMD exec gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 wsgi:app

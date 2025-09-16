@@ -1,0 +1,823 @@
+{% extends "layout.html" %}
+
+{% block title %}Members - Anytime Fitness Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1 class="h3 mb-0" style="color: var(--af-purple-primary);">
+                    <i class="fas fa-users me-2"></i>Members
+                </h1>
+                <a href="/member/new" class="btn btn-purple">
+                    <i class="fas fa-plus me-2"></i>Add New Member
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filter Row -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <form method="GET" class="row g-3">
+                        <div class="col-md-4">
+                            <label for="search" class="form-label">Search Members</label>
+                            <input type="text" class="form-control" id="search" name="search" 
+                                   value="{{ search }}" placeholder="Name, email, or phone...">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="status" class="form-label">Status</label>
+                            <select class="form-select" id="status" name="status">
+                                <option value="">All Statuses</option>
+                                {% for status in statuses %}
+                                <option value="{{ status }}" {% if status == status_filter %}selected{% endif %}>
+                                    {{ status }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="submit" class="btn btn-purple me-2">
+                                <i class="fas fa-search me-1"></i>Search
+                            </button>
+                            <a href="/members" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-1"></i>Clear
+                            </a>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="button" class="btn btn-outline-purple" onclick="refreshData()">
+                                <i class="fas fa-sync-alt me-1"></i>Refresh Now
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <ul class="nav nav-tabs mb-4" id="memberTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="all-members-tab" data-bs-toggle="tab" data-bs-target="#all-members" type="button">
+                <i class="fas fa-users me-1"></i>All Members ({{ total_members }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="past-due-tab" data-bs-toggle="tab" data-bs-target="#past-due" type="button">
+                <i class="fas fa-exclamation-triangle me-1"></i>Past Due
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="memberTabContent">
+        <!-- All Members Tab -->
+        <div class="tab-pane fade show active" id="all-members" role="tabpanel">
+            {% if members %}
+            <div class="row">
+                {% for member in members %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card member-card h-100" style="cursor: pointer; transition: all 0.2s ease;" 
+                         onclick="openMemberProfile('{{ member.id }}', '{{ member.full_name }}', '{{ member.email }}')">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="outlook-icon-circle me-3" style="background: var(--af-purple-light);">
+                                    <i class="fas fa-user" style="color: var(--af-purple-primary);"></i>
+                                </div>
+                                <div>
+                                    <h5 class="fw-bold mb-1" style="color: var(--af-purple-primary);">{{ member.full_name }}</h5>
+                                    <small class="text-muted">{{ member.email }}</small>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-2">
+                                <small class="text-muted">Status:</small>
+                                <span class="outlook-badge outlook-badge-{{ member.payment_status_class or 'success' }}">
+                                    {{ member.payment_status_text or member.status or 'Active' }}
+                                </span>
+                            </div>
+                            
+                            {% if member.mobile_phone %}
+                            <div class="mb-2">
+                                <small class="text-muted">Phone:</small>
+                                <small class="d-block">{{ member.mobile_phone }}</small>
+                            </div>
+                            {% endif %}
+                            
+                            {% if member.date_of_next_payment %}
+                            <div class="mb-2">
+                                <small class="text-muted">Next Payment:</small>
+                                <small class="d-block">{{ member.date_of_next_payment }}</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <div class="row mt-4">
+                <div class="col-12">
+                    <nav aria-label="Members pagination">
+                        <ul class="pagination justify-content-center">
+                            {% if page > 1 %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page - 1 }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">
+                                    <i class="fas fa-chevron-left"></i>
+                                </a>
+                            </li>
+                            {% endif %}
+                            
+                            {% for p in range(1, total_pages + 1) %}
+                                {% if p == page %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ p }}</span>
+                                </li>
+                                {% elif p <= 5 or p > total_pages - 5 or (p >= page - 2 and p <= page + 2) %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ p }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">{{ p }}</a>
+                                </li>
+                                {% elif p == 6 or p == total_pages - 5 %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">...</span>
+                                </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if page < total_pages %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page + 1 }}{% if search %}&search={{ search }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">
+                                    <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                    
+                    <div class="text-center text-muted">
+                        Showing {{ ((page - 1) * per_page) + 1 }} to {{ (page * per_page if page * per_page < total_members else total_members) }} of {{ total_members }} members
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body text-center py-5">
+                            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No members found</h5>
+                            {% if search %}
+                            <p class="text-muted">Try adjusting your search criteria.</p>
+                            <a href="/members" class="btn btn-purple">Show All Members</a>
+                            {% else %}
+                            <p class="text-muted">Get started by adding your first member.</p>
+                            <a href="/member/new" class="btn btn-purple">Add Member</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Past Due Members Tab -->
+        <div class="tab-pane fade" id="past-due" role="tabpanel">
+            <!-- Loading State -->
+            <div id="past-due-loading" class="text-center py-5">
+                <i class="fas fa-spinner fa-spin fa-3x text-muted mb-3"></i>
+                <p class="text-muted">Loading past due members...</p>
+            </div>
+            
+            <!-- Past Due Content -->
+            <div id="past-due-content" style="display: none;">
+                <div class="row" id="past-due-members-container">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+            
+            <!-- No Past Due Members -->
+            <div id="no-past-due" style="display: none;" class="text-center py-5">
+                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                <h5 class="text-success">All Caught Up!</h5>
+                <p class="text-muted">No past due members at this time.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Member Profile Modal -->
+<div class="modal fade" id="memberProfileModal" tabindex="-1" aria-labelledby="memberProfileModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header" style="background: var(--af-purple-primary); color: white;">
+                <h5 class="modal-title" id="memberProfileModalLabel">
+                    <i class="fas fa-user me-2"></i>
+                    <span id="modal-member-name">Member Profile</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Loading State -->
+                <div id="member-profile-loading" class="text-center py-5">
+                    <i class="fas fa-spinner fa-spin fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">Loading member profile...</p>
+                </div>
+                
+                <!-- Profile Content -->
+                <div id="member-profile-content" style="display: none;">
+                    <!-- Member Navigation Tabs -->
+                    <ul class="nav nav-tabs mb-4" id="memberProfileTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="profile-info-tab" data-bs-toggle="tab" data-bs-target="#profile-info" type="button">
+                                <i class="fas fa-user me-1"></i>Profile
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="agreements-tab" data-bs-toggle="tab" data-bs-target="#agreements" type="button">
+                                <i class="fas fa-file-contract me-1"></i>Agreements
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="payments-tab" data-bs-toggle="tab" data-bs-target="#payments" type="button">
+                                <i class="fas fa-credit-card me-1"></i>Payments
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="conversations-tab" data-bs-toggle="tab" data-bs-target="#conversations" type="button">
+                                <i class="fas fa-comments me-1"></i>Messages
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="invoices-tab" data-bs-toggle="tab" data-bs-target="#invoices" type="button">
+                                <i class="fas fa-receipt me-1"></i>Invoices
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <!-- Tab Content -->
+                    <div class="tab-content" id="memberProfileTabContent">
+                        <!-- Profile Info Tab -->
+                        <div class="tab-pane fade show active" id="profile-info" role="tabpanel">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6 class="fw-bold text-purple mb-3">Personal Information</h6>
+                                    <div id="personal-info-content">
+                                        <!-- Will be populated by JavaScript -->
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="fw-bold text-purple mb-3">Contact Information</h6>
+                                    <div id="contact-info-content">
+                                        <!-- Will be populated by JavaScript -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Agreements Tab -->
+                        <div class="tab-pane fade" id="agreements" role="tabpanel">
+                            <div id="agreements-content">
+                                <!-- Will be populated by JavaScript -->
+                            </div>
+                        </div>
+                        
+                        <!-- Payments Tab -->
+                        <div class="tab-pane fade" id="payments" role="tabpanel">
+                            <div id="payments-content">
+                                <!-- Will be populated by JavaScript -->
+                            </div>
+                        </div>
+                        
+                        <!-- Conversations Tab -->
+                        <div class="tab-pane fade" id="conversations" role="tabpanel">
+                            <div id="conversations-content">
+                                <div class="text-center py-4">
+                                    <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted">Conversation history will be integrated with ClubOS, Twilio, and Gmail</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Invoices Tab -->
+                        <div class="tab-pane fade" id="invoices" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <h6 class="fw-bold mb-0">Square Invoices</h6>
+                                <button class="btn btn-purple btn-sm" onclick="createSquareInvoice()">
+                                    <i class="fas fa-plus me-1"></i>Send Invoice
+                                </button>
+                            </div>
+                            <div id="invoices-content">
+                                <div class="text-center py-4">
+                                    <i class="fas fa-receipt fa-3x text-muted mb-3"></i>
+                                    <p class="text-muted">Square integration will be implemented here</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+<script>
+function refreshData() {
+    // Show loading state
+    const refreshButton = document.querySelector('button[onclick="refreshData()"]');
+    if (refreshButton) {
+        refreshButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Refreshing...';
+        refreshButton.disabled = true;
+    }
+    
+    // Call the refresh API
+    fetch('/api/refresh-data', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Show success message and reload page
+            alert(`Data refreshed successfully!\nMembers: ${data.counts.members}\nProspects: ${data.counts.prospects}`);
+            window.location.reload();
+        } else {
+            alert('Error refreshing data: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error refreshing data. Please try again.');
+    })
+    .finally(() => {
+        // Reset button state
+        if (refreshButton) {
+            refreshButton.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Refresh Now';
+            refreshButton.disabled = false;
+        }
+    });
+}
+
+// Auto-check data status every 5 minutes
+setInterval(function() {
+    fetch('/api/data-status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.needs_refresh) {
+                // Show notification that data is stale
+                console.log('Data is stale, consider refreshing');
+            }
+        })
+        .catch(error => console.error('Error checking data status:', error));
+}, 300000); // 5 minutes
+
+// Member Profile Modal Functions
+function openMemberProfile(memberId, memberName, memberEmail) {
+    console.log(`Opening profile for member: ${memberName} (ID: ${memberId})`);
+    
+    // Set member name in modal
+    document.getElementById('modal-member-name').textContent = memberName;
+    
+    // Show loading state
+    document.getElementById('member-profile-loading').style.display = 'block';
+    document.getElementById('member-profile-content').style.display = 'none';
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('memberProfileModal'));
+    modal.show();
+    
+    // Fetch member details
+    fetchMemberDetails(memberId, memberName, memberEmail);
+}
+
+function fetchMemberDetails(memberId, memberName, memberEmail) {
+    // Make real API call to get member details
+    fetch(`/api/member/${memberId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Hide loading and show content
+                document.getElementById('member-profile-loading').style.display = 'none';
+                document.getElementById('member-profile-content').style.display = 'block';
+                
+                // Populate profile information with real data
+                populatePersonalInfo(data.member, data.payment_status);
+                populateContactInfo(data.member);
+                populateAgreements(data.agreements);
+                populatePayments(data.payments);
+            } else {
+                // Show error
+                document.getElementById('member-profile-loading').innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                        <p class="text-danger">Error loading member profile: ${data.error}</p>
+                        <button class="btn btn-outline-secondary" onclick="fetchMemberDetails(${memberId}, '${memberName}', '${memberEmail}')">
+                            <i class="fas fa-redo me-1"></i>Try Again
+                        </button>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching member details:', error);
+            document.getElementById('member-profile-loading').innerHTML = `
+                <div class="text-center py-5">
+                    <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                    <p class="text-danger">Network error loading member profile</p>
+                    <button class="btn btn-outline-secondary" onclick="fetchMemberDetails(${memberId}, '${memberName}', '${memberEmail}')">
+                        <i class="fas fa-redo me-1"></i>Try Again
+                    </button>
+                </div>
+            `;
+        });
+}
+
+function populatePersonalInfo(member, paymentStatus) {
+    const personalInfoContent = document.getElementById('personal-info-content');
+    
+    // Format member since date
+    let memberSince = 'Unknown';
+    if (member.membership_start) {
+        try {
+            const startDate = new Date(member.membership_start);
+            memberSince = startDate.toLocaleDateString();
+        } catch (e) {
+            memberSince = member.membership_start;
+        }
+    } else if (member.created_at) {
+        try {
+            const createdDate = new Date(member.created_at);
+            memberSince = createdDate.toLocaleDateString();
+        } catch (e) {
+            memberSince = member.created_at;
+        }
+    }
+    
+    // Payment status badge
+    const statusBadge = `<span class="outlook-badge outlook-badge-${paymentStatus.class}">${paymentStatus.text}</span>`;
+    
+    personalInfoContent.innerHTML = `
+        <div class="mb-3">
+            <label class="text-muted small">Full Name</label>
+            <div class="fw-bold">${member.full_name || (member.first_name + ' ' + member.last_name) || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="text-muted small">Email</label>
+            <div class="fw-bold">${member.email || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="text-muted small">Member ID</label>
+            <div class="fw-bold">${member.id}</div>
+        </div>
+        <div class="mb-3">
+            <label class="text-muted small">Member Status</label>
+            <div>${member.status ? '<span class="outlook-badge outlook-badge-info">' + member.status + '</span>' : 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="text-muted small">Payment Status</label>
+            <div>${statusBadge}</div>
+        </div>
+        <div class="mb-3">
+            <label class="text-muted small">Member Since</label>
+            <div class="fw-bold">${memberSince}</div>
+        </div>
+        <div class="mb-3">
+            <label class="text-muted small">User Type</label>
+            <div class="fw-bold">${member.user_type || 'N/A'}</div>
+        </div>
+    `;
+}
+
+function populateContactInfo(member) {
+    const contactInfoContent = document.getElementById('contact-info-content');
+    contactInfoContent.innerHTML = `
+        <div class="mb-3">
+            <label class="text-muted small">Mobile Phone</label>
+            <div class="fw-bold">${member.mobile_phone || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="text-muted small">Home Phone</label>
+            <div class="fw-bold">${member.home_phone || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="text-muted small">Address</label>
+            <div class="fw-bold">${member.address || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="text-muted small">Emergency Contact</label>
+            <div class="fw-bold">${member.emergency_contact || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="text-muted small">Date of Birth</label>
+            <div class="fw-bold">${member.date_of_birth || 'N/A'}</div>
+        </div>
+        <div class="mb-3">
+            <label class="text-muted small">Gender</label>
+            <div class="fw-bold">${member.gender || 'N/A'}</div>
+        </div>
+    `;
+}
+
+function populateAgreements(agreements) {
+    const agreementsContent = document.getElementById('agreements-content');
+    
+    if (!agreements || agreements.length === 0) {
+        agreementsContent.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-file-contract fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No agreements found</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let agreementsHtml = '<div class="row">';
+    agreements.forEach(agreement => {
+        agreementsHtml += `
+            <div class="col-md-6 mb-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="card-title">${agreement.agreement_type || 'Agreement'}</h6>
+                        <p class="card-text">
+                            <small class="text-muted">Start: ${agreement.start_date || 'N/A'}</small><br>
+                            <small class="text-muted">End: ${agreement.end_date || 'N/A'}</small><br>
+                            <small class="text-muted">Rate: $${agreement.rate || '0.00'}</small>
+                        </p>
+                        ${agreement.status ? '<span class="outlook-badge outlook-badge-info">' + agreement.status + '</span>' : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    agreementsHtml += '</div>';
+    
+    agreementsContent.innerHTML = agreementsHtml;
+}
+
+function populatePayments(payments) {
+    const paymentsContent = document.getElementById('payments-content');
+    
+    if (!payments || payments.length === 0) {
+        paymentsContent.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-credit-card fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No payment history found</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let paymentsHtml = `
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Amount</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    payments.forEach(payment => {
+        const paymentDate = payment.payment_date ? new Date(payment.payment_date).toLocaleDateString() : 'N/A';
+        const amount = payment.amount ? `$${parseFloat(payment.amount).toFixed(2)}` : 'N/A';
+        
+        paymentsHtml += `
+            <tr>
+                <td>${paymentDate}</td>
+                <td>${amount}</td>
+                <td>${payment.payment_type || 'N/A'}</td>
+                <td>
+                    ${payment.status ? '<span class="outlook-badge outlook-badge-' + (payment.status === 'completed' ? 'success' : 'warning') + '">' + payment.status + '</span>' : 'N/A'}
+                </td>
+            </tr>
+        `;
+    });
+    
+    paymentsHtml += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    paymentsContent.innerHTML = paymentsHtml;
+}
+
+function createSquareInvoice(memberId, memberName) {
+    if (!memberId) {
+        alert('No member selected for invoice creation.');
+        return;
+    }
+    
+    // Calculate proper invoice amount
+    fetch('/api/calculate-invoice-amount', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            member_id: memberId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const amount = prompt(
+                `Enter invoice amount for ${data.member_name}:\n` +
+                `Suggested: $${data.total_amount.toFixed(2)} ` +
+                `(Past Due: $${data.past_due_amount.toFixed(2)} + Late Fee: $${data.late_fee.toFixed(2)})`,
+                data.total_amount.toFixed(2)
+            );
+            
+            if (!amount || isNaN(amount)) return;
+            
+            const description = prompt('Enter invoice description:', data.description);
+            if (!description) return;
+            
+            // Create the actual Square invoice
+            return fetch('/api/invoices/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    member_id: memberId,
+                    amount: parseFloat(amount),
+                    description: description
+                })
+            });
+        } else {
+            // Fallback to simple invoice creation
+            const amount = prompt(`Enter invoice amount for ${memberName}:`, '50.00');
+            if (!amount || isNaN(amount)) return;
+            
+            const description = prompt('Enter invoice description:', 'Membership Payment');
+            if (!description) return;
+            
+            return fetch('/api/invoices/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    member_id: memberId,
+                    amount: parseFloat(amount),
+                    description: description
+                })
+            });
+        }
+    })
+    .then(response => {
+        if (!response) return; // User cancelled
+        return response.json();
+    })
+    .then(data => {
+        if (!data) return; // User cancelled
+        if (data.success) {
+            alert(`Invoice created successfully for ${memberName}!\nInvoice URL: ${data.invoice_url}`);
+            // Optionally refresh the page or update the member's status
+        } else {
+            alert('Error creating invoice: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error creating Square invoice:', error);
+        alert('Network error: ' + error.message);
+    });
+}
+
+// Past Due Members Loading
+let pastDueMembersLoaded = false;
+
+// Listen for tab changes to load past due members when needed
+document.addEventListener('DOMContentLoaded', function() {
+    const pastDueTab = document.getElementById('past-due-tab');
+    if (pastDueTab) {
+        pastDueTab.addEventListener('shown.bs.tab', function() {
+            if (!pastDueMembersLoaded) {
+                loadPastDueMembers();
+            }
+        });
+    }
+});
+
+function loadPastDueMembers() {
+    if (pastDueMembersLoaded) return;
+    
+    // Show loading state
+    document.getElementById('past-due-loading').style.display = 'block';
+    document.getElementById('past-due-content').style.display = 'none';
+    document.getElementById('no-past-due').style.display = 'none';
+    
+    fetch('/api/members/past-due')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                pastDueMembersLoaded = true;
+                
+                if (data.past_due_members.length === 0) {
+                    // No past due members
+                    document.getElementById('past-due-loading').style.display = 'none';
+                    document.getElementById('no-past-due').style.display = 'block';
+                } else {
+                    // Display past due members
+                    displayPastDueMembers(data.past_due_members);
+                    document.getElementById('past-due-loading').style.display = 'none';
+                    document.getElementById('past-due-content').style.display = 'block';
+                }
+            } else {
+                // Show error
+                document.getElementById('past-due-loading').innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                        <p class="text-danger">Error loading past due members: ${data.error}</p>
+                        <button class="btn btn-outline-secondary" onclick="retryLoadPastDue()">
+                            <i class="fas fa-redo me-1"></i>Try Again
+                        </button>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading past due members:', error);
+            document.getElementById('past-due-loading').innerHTML = `
+                <div class="text-center py-5">
+                    <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                    <p class="text-danger">Network error loading past due members</p>
+                    <button class="btn btn-outline-secondary" onclick="retryLoadPastDue()">
+                        <i class="fas fa-redo me-1"></i>Try Again
+                    </button>
+                </div>
+            `;
+        });
+}
+
+function retryLoadPastDue() {
+    pastDueMembersLoaded = false;
+    loadPastDueMembers();
+}
+
+function displayPastDueMembers(members) {
+    const container = document.getElementById('past-due-members-container');
+    let html = '';
+    
+    members.forEach(member => {
+        const borderColor = member.priority_status === 'red' ? '#dc3545' : '#ffc107';
+        const bgColor = member.priority_status === 'red' ? '#f8d7da' : '#fff3cd';
+        const iconColor = member.priority_status === 'red' ? '#721c24' : '#856404';
+        const badgeClass = member.priority_status === 'red' ? 'outlook-badge-danger' : 'outlook-badge-warning';
+        
+        html += `
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card member-card h-100" style="cursor: pointer; transition: all 0.2s ease; border-left: 5px solid ${borderColor};" 
+                     onclick="openMemberProfile('${member.id}', '${member.full_name}', '${member.email}')">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="outlook-icon-circle me-3" style="background: ${bgColor};">
+                                <i class="fas fa-exclamation-triangle" style="color: ${iconColor};"></i>
+                            </div>
+                            <div>
+                                <h5 class="fw-bold mb-1" style="color: var(--af-purple-primary);">${member.full_name || member.first_name + ' ' + member.last_name}</h5>
+                                <small class="text-muted">${member.email || 'No email'}</small>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-2">
+                            <small class="text-muted">Status:</small>
+                            <span class="outlook-badge ${badgeClass}">${member.status_text}</span>
+                        </div>
+                        
+                        ${member.mobile_phone ? `
+                        <div class="mb-2">
+                            <small class="text-muted">Phone:</small>
+                            <small class="d-block">${member.mobile_phone}</small>
+                        </div>
+                        ` : ''}
+                        
+                        ${member.amount_of_next_payment ? `
+                        <div class="mb-2">
+                            <small class="text-muted">Next Payment:</small>
+                            <small class="d-block">$${parseFloat(member.amount_of_next_payment).toFixed(2)}</small>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+</script>

@@ -23,8 +23,9 @@ class ClubOSAPIAuthentication:
         self.csrf_token = None
         self.access_token = None
         self.is_authenticated = False
+        import os
         self.login_url = CLUBOS_LOGIN_URL
-        self.base_url = "https://anytime.club-os.com"
+        self.base_url = os.getenv('CLUBOS_BASE_URL', 'https://anytime.club-os.com')
         
         # Set default headers to mimic browser
         self.session.headers.update({
@@ -255,10 +256,11 @@ class ClubOSAPIAuthentication:
                 print("      ❌ Still redirected to login - trying alternative authentication")
                 
                 # Try submitting login form again with current session
-                from config.secrets_local import get_secret
+                from ..authentication.secure_secrets_manager import SecureSecretsManager
+                secrets_manager = SecureSecretsManager()
                 login_data = {
-                    "username": get_secret('clubos-username'),
-                    "password": get_secret('clubos-password'),
+                    "username": secrets_manager.get_secret('clubos-username'),
+                    "password": secrets_manager.get_secret('clubos-password'),
                     "submit": "Login"
                 }
                 

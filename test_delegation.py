@@ -6,7 +6,7 @@ Test ClubOS delegation and agreement API access
 import requests
 import json
 import time
-from config.clubhub_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD
+from config.clubhub_credentials import CLUBOS_USERNAME, CLUBOS_PASSWORD
 
 def test_delegation_flow():
     """Test if we need to delegate to a specific user to access agreements"""

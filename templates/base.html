@@ -168,6 +168,22 @@
             border-color: var(--af-black-tertiary);
         }
         
+        .dropdown-user-toggle {
+            cursor: pointer;
+        }
+        
+        .visually-hidden {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+        }
+        
         .outlook-user-avatar {
             width: 28px;
             height: 28px;
@@ -578,13 +594,14 @@
         </div>
         
         <div class="outlook-search">
+            <label for="globalSearch" class="visually-hidden">Global search for members, prospects, and events</label>
             <i class="fas fa-search"></i>
             <input type="text" id="globalSearch" placeholder="Search members, prospects, events..." onkeypress="handleGlobalSearch(event)">
         </div>
         
         <div class="outlook-user">
             <div class="dropdown">
-                <div class="d-flex align-items-center" data-bs-toggle="dropdown" aria-expanded="false" style="cursor: pointer;">
+                <div class="d-flex align-items-center dropdown-user-toggle" data-bs-toggle="dropdown">
                     <span>Jeremy Mayo</span>
                     <div class="outlook-user-avatar">JM</div>
                 </div>
@@ -664,6 +681,28 @@
     <!-- Core JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
+<!-- Global Debug Functions -->
+<script>
+        // Debug logging system - set to false for production
+        const DEBUG_MODE = true;
+        
+        function debugLog(...args) {
+            if (DEBUG_MODE) {
+                console.log(...args);
+            }
+        }
+        
+        function debugError(...args) {
+            console.error(...args); // Always show errors
+        }
+        
+        function debugWarn(...args) {
+            if (DEBUG_MODE) {
+                console.warn(...args);
+            }
+        }
+</script>
+
 <!-- Global Search Functionality -->
 <script>
 function handleGlobalSearch(event) {
@@ -676,7 +715,7 @@ function handleGlobalSearch(event) {
 }
 
 function performGlobalSearch(searchTerm) {
-    console.log(`🔍 Global search for: "${searchTerm}"`);
+    debugLog(`🔍 Global search for: "${searchTerm}"`);
     
     // First try to find in members
     fetch(`/api/members/search?q=${encodeURIComponent(searchTerm)}`)
@@ -686,13 +725,13 @@ function performGlobalSearch(searchTerm) {
                 // Found member, navigate to their profile
                 const member = memberData.members[0];
                 const memberId = member.guid || member.prospect_id || member.id;
-                console.log(`✅ Found member: ${member.full_name} (ID: ${memberId})`);
+                debugLog(`✅ Found member: ${member.full_name} (ID: ${memberId})`);
                 window.location.href = `/member/${memberId}`;
                 return;
             }
             
             // If not found in members, try prospects
-            console.log(`🔍 Not found in members, searching prospects...`);
+            debugLog(`🔍 Not found in members, searching prospects...`);
             return fetch('/api/prospects/all');
         })
         .then(prospectResponse => {
@@ -711,18 +750,18 @@ function performGlobalSearch(searchTerm) {
                 
                 if (prospect) {
                     const prospectId = prospect.prospect_id || prospect.id;
-                    console.log(`✅ Found prospect: ${prospect.firstName} ${prospect.lastName} (ID: ${prospectId})`);
+                    debugLog(`✅ Found prospect: ${prospect.firstName} ${prospect.lastName} (ID: ${prospectId})`);
                     window.location.href = `/prospect/${prospectId}`;
                     return;
                 }
             }
             
             // If not found in either, show search results page or alert
-            console.log(`⚠️ Not found in members or prospects`);
+            debugLog(`⚠️ Not found in members or prospects`);
             alert(`No members or prospects found matching "${searchTerm}"`);
         })
         .catch(error => {
-            console.error('❌ Error in global search:', error);
+            debugError('❌ Error in global search:', error);
             alert('Search error occurred. Please try again.');
         });
 }

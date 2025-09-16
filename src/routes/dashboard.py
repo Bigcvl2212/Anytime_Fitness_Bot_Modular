@@ -22,6 +22,8 @@ from .auth import require_auth
 def dashboard(day_offset=0):
     """Dashboard route with optional day offset for navigation and multi-club support"""
     try:
+        # Debug session state on dashboard access
+        logger.info(f"🔍 Dashboard accessed - Session state: authenticated={session.get('authenticated')}, manager_id={session.get('manager_id')}, selected_clubs={session.get('selected_clubs')}")
         # Check for multi-club context
         from src.services.multi_club_manager import multi_club_manager
         
@@ -103,38 +105,32 @@ def dashboard(day_offset=0):
                     if participant and participant.strip():
                         # Try to find the real name and past due info in training clients database
                         try:
-                            conn = current_app.db_manager.get_connection()
-                            cursor = conn.cursor()
-
                             # Look for training client by various name patterns
                             participant_str = str(participant) if participant is not None else ''
                             search_param1 = f'%{participant_str}%'
                             search_param2 = f'%{participant_str}%'
                             search_param3 = participant_str
                             
-                            cursor.execute("""
+                            training_client = current_app.db_manager.execute_query("""
                                 SELECT member_name, first_name, last_name, member_id
                                 FROM training_clients
-                                WHERE LOWER(member_name) LIKE LOWER(?)
-                                   OR LOWER(first_name || ' ' || last_name) LIKE LOWER(?)
-                                   OR LOWER(?) LIKE LOWER(member_name)
+                                WHERE LOWER(member_name) LIKE LOWER(%s)
+                                   OR LOWER(first_name || ' ' || last_name) LIKE LOWER(%s)
+                                   OR LOWER(%s) LIKE LOWER(member_name)
                                 ORDER BY created_at DESC
                                 LIMIT 1
-                            """, (search_param1, search_param2, search_param3))
-
-                            training_client = cursor.fetchone()
-                            conn.close()
+                            """, (search_param1, search_param2, search_param3), fetch_one=True)
 
                             if training_client:
-                                # Use the real name from training clients database
-                                first_name = str(training_client[1] or '') if training_client[1] is not None else ''
-                                last_name = str(training_client[2] or '') if training_client[2] is not None else ''
-                                if training_client[0]:
-                                    real_name = str(training_client[0])
+                                # Use the real name from training clients database (RealDictRow access)
+                                first_name = str(training_client['first_name'] or '') if training_client['first_name'] is not None else ''
+                                last_name = str(training_client['last_name'] or '') if training_client['last_name'] is not None else ''
+                                if training_client['member_name']:
+                                    real_name = str(training_client['member_name'])
                                 else:
                                     full_name = str(first_name) + " " + str(last_name)
                                     real_name = full_name.strip()
-                                member_id = training_client[3]
+                                member_id = training_client['member_id']
 
                                 # Get past due amount for this training client
                                 past_due_info = None
@@ -399,79 +395,234 @@ def dashboard(day_offset=0):
                 'revenue': 0
             }
         
-        # Get real conversation data from database
+        # Get real conversation data - try ClubOS live first using working messaging approach
         bot_conversations = []
         try:
-            # Check if database manager exists and has the method
-            if hasattr(current_app, 'db_manager') and hasattr(current_app.db_manager, 'get_recent_message_threads'):
-                recent_threads = current_app.db_manager.get_recent_message_threads(limit=10)
-            else:
-                logger.warning("⚠️ Database manager or method not available, using empty conversations")
-                recent_threads = []
-            
-            for thread in recent_threads:
-                latest_msg = thread.get('latest_message', {})
+            # First, try to get live messages using the working ClubOSMessagingClient approach
+            clubos_messages = []
+            try:
+                from src.services.clubos_messaging_client_simple import ClubOSMessagingClient
+                from src.routes.messaging import get_clubos_credentials
                 
-                # Calculate time ago for display
-                if latest_msg.get('created_at'):
-                    try:
-                        msg_time = datetime.fromisoformat(str(latest_msg['created_at']).replace('Z', '+00:00'))
-                        time_diff = dt_module.datetime.now() - msg_time
-                        if time_diff.days > 0:
-                            time_ago = f"{time_diff.days} day{'s' if time_diff.days > 1 else ''} ago"
-                        elif time_diff.seconds > 3600:
-                            hours = time_diff.seconds // 3600
-                            time_ago = f"{hours} hour{'s' if hours > 1 else ''} ago"
-                        elif time_diff.seconds > 60:
-                            minutes = time_diff.seconds // 60
-                            time_ago = f"{minutes} min ago"
+                # Use the same approach as the working messaging page
+                owner_id = '187032782'  # Default owner ID from working messaging
+                credentials = get_clubos_credentials(owner_id)
+                
+                if credentials:
+                    logger.info("🔄 Fetching live ClubOS messages using messaging client...")
+                    messaging_client = ClubOSMessagingClient(
+                        username=credentials['username'],
+                        password=credentials['password']
+                    )
+                    
+                    # Authenticate like the working messaging page does
+                    if messaging_client.authenticate():
+                        logger.info("✅ ClubOS messaging authentication successful")
+                        
+                        # Get messages using the working approach
+                        raw_messages = messaging_client.get_messages(owner_id)
+                        
+                        if raw_messages:
+                            logger.info(f"✅ Retrieved {len(raw_messages)} raw ClubOS messages, filtering for real member messages...")
+                            
+                            # Convert raw messages to dashboard format (similar to messaging inbox route)
+                            from src.routes.messaging import extract_name_from_message_content
+                            
+                            # Group messages by sender like the working messaging route does
+                            # BUT filter out test/placeholder messages and only show real member messages
+                            threads = {}
+                            processed_count = 0
+                            for message in raw_messages[:50]:  # Check more messages to find real ones
+                                # Skip empty or invalid messages
+                                content = message.get('content', '')
+                                if not content or len(content.strip()) < 5:
+                                    continue
+                                    
+                                # Extract name if needed
+                                sender_name = message.get('from_user', message.get('from', 'Unknown'))
+                                if sender_name == 'Unknown' or not sender_name:
+                                    sender_name = extract_name_from_message_content(content)
+                                
+                                # Filter out system messages, test messages, and placeholder content
+                                if (
+                                    not sender_name or 
+                                    sender_name == 'Unknown' or
+                                    sender_name == 'System' or
+                                    sender_name == 'j.mayo' or  # Skip your own messages
+                                    'test' in sender_name.lower() or
+                                    'sample' in content.lower() or
+                                    'training schedule' in content.lower() or  # Skip the placeholder messages you mentioned
+                                    len(sender_name) < 3 or
+                                    len(sender_name) > 50
+                                ):
+                                    continue
+                                
+                                # Only process real member messages
+                                sender_key = sender_name
+                                if sender_key not in threads:
+                                    threads[sender_key] = {
+                                        'id': f"live_thread_{len(threads)}",
+                                        'member_id': message.get('owner_id', owner_id),
+                                        'member_name': sender_name,
+                                        'latest_message': {
+                                            'message_content': content,
+                                            'created_at': message.get('timestamp', message.get('created_at')),
+                                            'sender_type': 'member',  # These are all real member messages
+                                            'status': message.get('status', 'received')
+                                        },
+                                        'thread_type': message.get('channel', 'clubos'),
+                                        'unread_count': 1 if message.get('status') != 'read' else 0
+                                    }
+                                    processed_count += 1
+                                    
+                                    # Stop when we have enough real conversations
+                                    if processed_count >= 10:
+                                        break
+                            
+                            # Convert to dashboard conversation format
+                            for thread_key, thread in list(threads.items())[:10]:  # Limit to 10 conversations
+                                latest_msg = thread.get('latest_message', {})
+                                
+                                # Calculate time ago
+                                time_ago = "Recently"
+                                if latest_msg.get('created_at'):
+                                    try:
+                                        msg_time = datetime.fromisoformat(str(latest_msg['created_at']).replace('Z', '+00:00'))
+                                        time_diff = dt_module.datetime.now() - msg_time
+                                        if time_diff.days > 0:
+                                            time_ago = f"{time_diff.days} day{'s' if time_diff.days > 1 else ''} ago"
+                                        elif time_diff.seconds > 3600:
+                                            hours = time_diff.seconds // 3600
+                                            time_ago = f"{hours} hour{'s' if hours > 1 else ''} ago"
+                                        elif time_diff.seconds > 60:
+                                            minutes = time_diff.seconds // 60
+                                            time_ago = f"{minutes} min ago"
+                                        else:
+                                            time_ago = "Just now"
+                                    except:
+                                        time_ago = "Recently"
+                                
+                                unread_count = thread.get('unread_count', 0)
+                                thread_type = thread.get('thread_type', 'clubos')
+                                
+                                conversation = {
+                                    'id': thread['id'],
+                                    'name': str(thread.get('member_name', 'Unknown Member')),
+                                    'preview': str(latest_msg.get('message_content', 'No messages yet'))[:100],
+                                    'time': time_ago,
+                                    'contact_name': str(thread.get('member_name', 'Unknown Member')),
+                                    'last_message': str(latest_msg.get('message_content', 'No messages yet'))[:100],
+                                    'last_time': time_ago,
+                                    'last_sender': 'user' if latest_msg.get('sender_type') == 'member' else 'staff',
+                                    'unread': unread_count > 0,
+                                    'status': 'ClubOS Live',
+                                    'status_color': 'primary',
+                                    'needs_attention': unread_count > 0 and latest_msg.get('sender_type') == 'member',
+                                    'member_id': thread.get('member_id'),
+                                    'thread_type': thread_type,
+                                    'unread_count': unread_count
+                                }
+                                
+                                clubos_messages.append(conversation)
+                            
+                            if clubos_messages:
+                                bot_conversations = clubos_messages
+                                logger.info(f"✅ Successfully filtered and converted {len(clubos_messages)} real ClubOS member messages")
+                                logger.info(f"👥 Live conversations: {[conv['name'] for conv in clubos_messages]}")
+                                # Mark that we have live data to prevent fallback mixing
+                                live_data_success = True
+                            else:
+                                logger.warning("⚠️ No conversations created from live messages, falling back to database")
+                                live_data_success = False
                         else:
-                            time_ago = "Just now"
-                    except:
-                        time_ago = "Recently"
+                            logger.warning("⚠️ No live messages returned from messaging client, falling back to database")
+                            live_data_success = False
+                    else:
+                        logger.warning("⚠️ ClubOS messaging authentication failed, falling back to database")
+                        live_data_success = False
                 else:
-                    time_ago = "No recent activity"
+                    logger.warning("⚠️ ClubOS credentials not available, using database fallback")
+                    live_data_success = False
+                    
+            except Exception as clubos_error:
+                logger.warning(f"⚠️ ClubOS live messaging failed: {str(clubos_error)}, falling back to database")
+                live_data_success = False
                 
-                # Determine conversation status and priority
-                unread_count = thread.get('unread_count', 0)
-                thread_type = thread.get('thread_type', 'system')
-                
-                # Map thread types to conversation status
-                status_mapping = {
-                    'sms': 'SMS',
-                    'email': 'Email', 
-                    'clubos': 'ClubOS',
-                    'bot': 'Bot Chat',
-                    'system': 'System'
-                }
-                
-                status_color_mapping = {
-                    'sms': 'success',
-                    'email': 'info',
-                    'clubos': 'primary',
-                    'bot': 'warning',
-                    'system': 'secondary'
-                }
-                
-                conversation = {
-                    'id': f"thread_{thread['id']}",
-                    'name': str(thread.get('member_name', 'Unknown Member')),
-                    'preview': str(latest_msg.get('message_content', 'No messages yet'))[:100],
-                    'time': time_ago,
-                    'contact_name': str(thread.get('member_name', 'Unknown Member')),
-                    'last_message': str(latest_msg.get('message_content', 'No messages yet'))[:100],
-                    'last_time': time_ago,
-                    'last_sender': 'user' if latest_msg.get('sender_type') == 'member' else 'staff',
-                    'unread': unread_count > 0,
-                    'status': status_mapping.get(thread_type, 'Message'),
-                    'status_color': status_color_mapping.get(thread_type, 'secondary'),
-                    'needs_attention': unread_count > 0 and latest_msg.get('sender_type') == 'member',
-                    'member_id': thread.get('member_id'),
-                    'thread_type': thread_type,
-                    'unread_count': unread_count
-                }
-                
-                bot_conversations.append(conversation)
+            # If ClubOS live messages failed or returned empty, fall back to database
+            # But ONLY fallback if we didn't get any live data to avoid mixing
+            if not bot_conversations and not locals().get('live_data_success', False):
+                logger.info("🔄 Using database fallback for messages...")
+                # Check if database manager exists and has the method
+                if hasattr(current_app, 'db_manager') and hasattr(current_app.db_manager, 'get_recent_message_threads'):
+                    recent_threads = current_app.db_manager.get_recent_message_threads(limit=10)
+                    
+                    # Process database threads into the format expected by the dashboard
+                    # Apply the same filtering as for live messages to avoid showing test/sample data
+                    for thread in recent_threads:
+                        latest_msg = thread.get('latest_message', {})
+                        member_name = str(thread.get('member_name', 'Unknown Member'))
+                        message_content = str(latest_msg.get('message_content', 'No messages yet'))
+                        
+                        # Apply same filters as live messages to avoid showing sample/test data
+                        if (
+                            not member_name or
+                            member_name == 'Unknown Member' or
+                            member_name == 'System' or
+                            member_name == 'j.mayo' or
+                            'test' in member_name.lower() or
+                            'sample' in message_content.lower() or
+                            'training schedule' in message_content.lower() or
+                            len(member_name) < 3 or
+                            len(member_name) > 50
+                        ):
+                            continue  # Skip this thread
+                        
+                        # Calculate time ago for display
+                        if latest_msg.get('created_at'):
+                            try:
+                                msg_time = datetime.fromisoformat(str(latest_msg['created_at']).replace('Z', '+00:00'))
+                                time_diff = dt_module.datetime.now() - msg_time
+                                if time_diff.days > 0:
+                                    time_ago = f"{time_diff.days} day{'s' if time_diff.days > 1 else ''} ago"
+                                elif time_diff.seconds > 3600:
+                                    hours = time_diff.seconds // 3600
+                                    time_ago = f"{hours} hour{'s' if hours > 1 else ''} ago"
+                                elif time_diff.seconds > 60:
+                                    minutes = time_diff.seconds // 60
+                                    time_ago = f"{minutes} min ago"
+                                else:
+                                    time_ago = "Just now"
+                            except:
+                                time_ago = "Recently"
+                        else:
+                            time_ago = "No recent activity"
+                        
+                        # Only show ClubOS messages in database fallback, not system messages
+                        unread_count = thread.get('unread_count', 0)
+                        thread_type = thread.get('thread_type', 'clubos')  # Default to clubos for real messages
+                        
+                        conversation = {
+                            'id': f"thread_{thread['id']}",
+                            'name': member_name,
+                            'preview': message_content[:100],
+                            'time': time_ago,
+                            'contact_name': member_name,
+                            'last_message': message_content[:100],
+                            'last_time': time_ago,
+                            'last_sender': 'user' if latest_msg.get('sender_type') == 'member' else 'staff',
+                            'unread': unread_count > 0,
+                            'status': 'ClubOS Stored',  # Indicate these are from database
+                            'status_color': 'info',
+                            'needs_attention': unread_count > 0 and latest_msg.get('sender_type') == 'member',
+                            'member_id': thread.get('member_id'),
+                            'thread_type': thread_type,
+                            'unread_count': unread_count
+                        }
+                        
+                        bot_conversations.append(conversation)
+                        
+                else:
+                    logger.warning("⚠️ Database manager or method not available, using empty conversations")
             
             # Sort conversations by priority: unread member messages first, then by recency
             def conversation_sort_key(conv):
@@ -530,41 +681,9 @@ def dashboard(day_offset=0):
                 priority_info = f"unread={conv.get('unread')}, needs_attention={conv.get('needs_attention')}, time={conv.get('time')}"
                 logger.info(f"  {i+1}. {conv.get('name')} - {priority_info}")
             
-            # If no real conversations found, add sample data
+            # Professional handling when no messages are available
             if not bot_conversations:
-                try:
-                    if hasattr(current_app.db_manager, 'add_sample_message_data'):
-                        current_app.db_manager.add_sample_message_data()
-                        recent_threads = current_app.db_manager.get_recent_message_threads(limit=10)
-                    else:
-                        logger.warning("⚠️ Sample message data method not available")
-                        recent_threads = []
-                except Exception as sample_error:
-                    logger.error(f"❌ Error creating sample message data: {str(sample_error)}")
-                    recent_threads = []
-                for thread in recent_threads:
-                    latest_msg = thread.get('latest_message', {})
-                    conversation = {
-                        'id': f"thread_{thread['id']}",
-                        'name': str(thread.get('member_name', 'Unknown Member')),
-                        'preview': str(latest_msg.get('message_content', 'No messages yet'))[:100],
-                        'time': "Recently",
-                        'contact_name': str(thread.get('member_name', 'Unknown Member')),
-                        'last_message': str(latest_msg.get('message_content', 'No messages yet'))[:100],
-                        'last_time': "Recently",
-                        'last_sender': 'user' if latest_msg.get('sender_type') == 'member' else 'staff',
-                        'unread': thread.get('unread_count', 0) > 0,
-                        'status': 'Sample Data',
-                        'status_color': 'info',
-                        'needs_attention': False,
-                        'member_id': thread.get('member_id'),
-                        'thread_type': thread.get('thread_type', 'system'),
-                        'unread_count': thread.get('unread_count', 0)
-                    }
-                    bot_conversations.append(conversation)
-                
-                # Sort sample data as well
-                bot_conversations.sort(key=conversation_sort_key)
+                logger.info("💬 No messages available to display - showing clean empty state")
                     
             logger.info("✅ Created bot_conversations with real data successfully")
         except Exception as conv_error:
