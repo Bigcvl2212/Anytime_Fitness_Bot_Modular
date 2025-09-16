@@ -228,7 +228,7 @@ def training_client_profile(member_id):
             SELECT tc.*, m.first_name, m.last_name, m.full_name, m.email, m.mobile_phone, m.status_message
             FROM training_clients tc
             LEFT JOIN members m ON (tc.member_id = m.guid OR tc.member_id = m.prospect_id)
-            WHERE tc.member_id = ? OR tc.id = ?
+            WHERE tc.member_id = %s OR tc.id = %s
         """, (member_id, member_id))
         
         client_record = cursor.fetchone()
@@ -606,7 +606,7 @@ def get_member_package_agreements(member_id):
         cursor.execute("""
             SELECT package_details, total_past_due, payment_status, sessions_remaining
             FROM training_clients 
-            WHERE member_id = ? OR clubos_member_id = ? OR id = ?
+            WHERE member_id = %s OR clubos_member_id = %s OR id = %s
         """, (member_id, member_id, member_id))
         
         client_record = cursor.fetchone()

@@ -21,14 +21,27 @@ def calendar_page():
 	try:
 		# Get today's events for display
 		try:
-			today_events = current_app.clubos.get_todays_events_lightweight()
-		except Exception:
+			if hasattr(current_app, 'clubos') and current_app.clubos:
+				today_events = current_app.clubos.get_todays_events_lightweight()
+			else:
+				today_events = []
+		except Exception as e:
+			logger.warning(f"⚠️ Could not get today's events: {e}")
 			today_events = []
 		
 		# Get calendar summary
 		try:
-			calendar_summary = current_app.clubos.get_calendar_summary()
-		except Exception:
+			if hasattr(current_app, 'clubos') and current_app.clubos:
+				calendar_summary = current_app.clubos.get_calendar_summary()
+			else:
+				calendar_summary = {
+					'total_events': 0,
+					'training_sessions': 0,
+					'classes': 0,
+					'updated_at': None
+				}
+		except Exception as e:
+			logger.warning(f"⚠️ Could not get calendar summary: {e}")
 			calendar_summary = {
 				'total_events': 0,
 				'training_sessions': 0,
@@ -91,10 +104,10 @@ def get_calendar_events():
 									training_client = current_app.db_manager.execute_query("""
 										SELECT member_name, first_name, last_name, full_name, member_id, prospect_id
 										FROM training_clients
-										WHERE LOWER(member_name) LIKE LOWER(?)
-										   OR LOWER(first_name || ' ' || last_name) LIKE LOWER(?)
-										   OR LOWER(full_name) LIKE LOWER(?)
-										   OR LOWER(?) LIKE LOWER(member_name)
+										WHERE LOWER(member_name) LIKE LOWER(%s)
+										   OR LOWER(CONCAT(first_name, ' ', last_name)) LIKE LOWER(%s)
+										   OR LOWER(full_name) LIKE LOWER(%s)
+										   OR LOWER(%s) LIKE LOWER(member_name)
 										ORDER BY created_at DESC
 										LIMIT 1
 									""", (f'%{original_name}%', f'%{original_name}%', f'%{original_name}%', original_name), fetch_one=True)
@@ -146,7 +159,7 @@ def get_calendar_events():
 						try:
 							funding_query = """
 								SELECT funding_status FROM funding_status_cache 
-								WHERE LOWER(member_email) = LOWER(?)
+								WHERE LOWER(member_email) = LOWER(%s)
 								LIMIT 1
 							"""
 							funding_results = current_app.db_manager.execute_query(funding_query, (attendee['email'],))

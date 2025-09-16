@@ -975,7 +975,7 @@ def api_batch_invoices():
         db_manager = DatabaseManager()
         
         # Get member information for selected IDs
-        placeholders = ','.join(['?' for _ in selected_clients])
+        placeholders = ','.join(['%s' for _ in selected_clients])
         query = f"""
             SELECT prospect_id, id, guid, first_name, last_name, full_name, email, 
                    mobile_phone, amount_past_due, base_amount_past_due, missed_payments,
@@ -1160,7 +1160,7 @@ def api_calculate_invoice_amount():
                    amount_past_due, amount_of_next_payment, payment_amount, 
                    agreement_rate, status_message
             FROM members 
-            WHERE prospect_id = ? OR id = ?
+            WHERE prospect_id = %s OR id = %s
         """, (member_id, member_id))
         
         member = cursor.fetchone()
@@ -1494,7 +1494,7 @@ def refresh_training_clients():
                     INSERT INTO training_clients (
                         member_id, first_name, last_name, full_name, email, phone,
                         status, training_package, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                 """, (
                     client_data['member_id'],
                     client_data['first_name'],
@@ -1541,7 +1541,7 @@ def debug_members():
         
         # Add search filter
         if search:
-            query += " WHERE (first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)"
+            query += " WHERE (first_name LIKE %s OR last_name LIKE %s OR email LIKE %s)"
             search_param = f"%{search}%"
             params.extend([search_param, search_param, search_param])
         
@@ -1551,7 +1551,7 @@ def debug_members():
                 query += " AND"
             else:
                 query += " WHERE"
-            query += " status_message LIKE ?"
+            query += " status_message LIKE %s"
             params.append(f"%{category}%")
         
         query += f" ORDER BY created_at DESC LIMIT {limit}"

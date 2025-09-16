@@ -18,7 +18,6 @@ COPY templates/ /app/templates/
 COPY static/ /app/static/
 COPY wsgi.py /app/
 COPY run_dashboard.py /app/
-COPY .env.production /app/.env
 
 # Cloud Run uses PORT environment variable
 EXPOSE 8080

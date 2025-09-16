@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger(__name__)
 
-def enhanced_startup_sync(app, multi_club_enabled: bool = True) -> Dict[str, Any]:
+def enhanced_startup_sync(app, selected_clubs_override: List[str] = None, multi_club_enabled: bool = True) -> Dict[str, Any]:
     """
     Enhanced startup sync with multi-club support
     
@@ -40,7 +40,15 @@ def enhanced_startup_sync(app, multi_club_enabled: bool = True) -> Dict[str, Any
             # Multi-club sync
             from src.services.multi_club_manager import multi_club_manager
             
-            selected_clubs = multi_club_manager.get_selected_clubs()
+            # Use override clubs if provided, otherwise get from manager
+            if selected_clubs_override:
+                logger.info(f"🎯 Using clubs from override: {selected_clubs_override}")
+                multi_club_manager.set_selected_clubs(selected_clubs_override)
+                selected_clubs = selected_clubs_override
+            else:
+                selected_clubs = multi_club_manager.get_selected_clubs()
+            
+            logger.info(f"🎯 Selected clubs for sync: {selected_clubs}")
             
             if not selected_clubs:
                 # Auto-select default club for single-club mode

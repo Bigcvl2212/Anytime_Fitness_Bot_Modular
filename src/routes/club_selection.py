@@ -84,10 +84,23 @@ def select_clubs():
         if not is_valid:
             return jsonify({'error': 'Not logged in'}), 401
         
+        # Handle both JSON and form data
+        selected_club_ids = []
+        
+        # Try to get JSON data first
         data = request.get_json()
-        selected_club_ids = data.get('club_ids', [])
+        if data:
+            selected_club_ids = data.get('club_ids', [])
+            logger.info(f"📥 Received JSON data: {data}")
+        else:
+            # Fallback to form data
+            selected_club_ids = request.form.getlist('clubs')
+            logger.info(f"📥 Received form data: clubs={selected_club_ids}")
+        
+        logger.info(f"🔍 Selected clubs for sync: {selected_club_ids}")
         
         if not selected_club_ids:
+            logger.warning(f"❌ No clubs selected. Request data: JSON={request.get_json()}, Form={dict(request.form)}, Args={dict(request.args)}")
             return jsonify({'error': 'Please select at least one club'}), 400
         
         # Validate and set selected clubs
@@ -125,10 +138,10 @@ def select_clubs():
             
             logger.info(f"🔄 Attempting to start data sync for clubs: {club_names}")
             
-            # Create and start sync thread
+            # Create and start sync thread with selected clubs
             sync_thread = threading.Thread(
                 target=enhanced_startup_sync, 
-                args=(current_app._get_current_object(),), 
+                args=(current_app._get_current_object(), valid_clubs), 
                 daemon=True,
                 name=f"DataSync-{'-'.join(map(str, valid_clubs))}"
             )

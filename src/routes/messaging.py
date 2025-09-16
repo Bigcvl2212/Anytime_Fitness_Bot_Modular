@@ -110,12 +110,19 @@ def store_messages_in_database(messages: List[Dict], owner_id: str) -> int:
                 conversation_id = generate_conversation_id(member_id, owner_id)
                 
                 cursor.execute('''
-                    INSERT OR REPLACE INTO messages 
+                    INSERT INTO messages 
                     (id, message_type, content, timestamp, from_user, to_user, status, owner_id,
                      delivery_status, campaign_id, channel, member_id, message_actions, 
                      is_confirmation, is_opt_in, is_opt_out, has_emoji, emoji_reactions,
                      conversation_id, thread_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (id) DO UPDATE SET
+                    message_type = EXCLUDED.message_type,
+                    content = EXCLUDED.content,
+                    timestamp = EXCLUDED.timestamp,
+                    from_user = EXCLUDED.from_user,
+                    to_user = EXCLUDED.to_user,
+                    status = EXCLUDED.status
                 ''', (
                     message.get('id'),
                     message.get('message_type', message.get('type')),
@@ -418,6 +425,12 @@ def get_messages():
         
         messages = [dict(row) for row in cursor.fetchall()]
         conn.close()
+        
+        # Convert datetime objects to strings for template compatibility
+        for message in messages:
+            for key, value in message.items():
+                if isinstance(value, (dt.datetime, dt.date)):
+                    message[key] = value.isoformat()
         
         # Enhance messages with extracted names
         for message in messages:
@@ -863,6 +876,12 @@ def get_member_messages(member_name):
         
         messages = [dict(row) for row in cursor.fetchall()]
         conn.close()
+        
+        # Convert datetime objects to strings for template compatibility
+        for message in messages:
+            for key, value in message.items():
+                if isinstance(value, (dt.datetime, dt.date)):
+                    message[key] = value.isoformat()
         
         logger.info(f"✅ Retrieved {len(messages)} messages for member: {member_name}")
         return jsonify({'success': True, 'messages': messages, 'member_name': member_name})
