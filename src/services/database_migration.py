@@ -88,6 +88,9 @@ class PostgreSQLMigrator:
                     missed_payments INTEGER DEFAULT 0,
                     agreement_recurring_cost DECIMAL(10,2) DEFAULT 0.0,
                     date_of_next_payment TEXT,
+                    agreement_id TEXT,
+                    agreement_guid TEXT,
+                    agreement_type TEXT DEFAULT 'Membership',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )

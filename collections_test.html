@@ -215,16 +215,35 @@
             sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Sending...';
             sendBtn.disabled = true;
             
-            // Generate email content
-            const emailContent = generateCollectionsEmail(selectedAccounts);
-            
-            // For now, just show the email content
-            alert('Email content generated! Check console for details.');
-            console.log('Collections Email Content:', emailContent);
-            
-            // Reset button
-            sendBtn.innerHTML = originalText;
-            sendBtn.disabled = false;
+            // Send email via API
+            fetch('/api/collections/send-email', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    selected_accounts: selectedAccounts
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`✅ ${data.message}`);
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('collectionsModal'));
+                    modal.hide();
+                } else {
+                    alert(`❌ Error: ${data.error}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error sending collections email:', error);
+                alert('❌ Network error sending email');
+            })
+            .finally(() => {
+                sendBtn.innerHTML = originalText;
+                sendBtn.disabled = false;
+            });
         }
 
         function generateCollectionsEmail(selectedAccounts) {

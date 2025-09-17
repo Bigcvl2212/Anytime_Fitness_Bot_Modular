@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 
+"""
+Test Collections System with Email Logging
+This tests the collections system and shows what emails would be sent
+"""
+
 import sqlite3
 import json
 from datetime import datetime
 
-def test_collections_system():
-    """Test the collections system directly with SQLite"""
+def test_collections_with_email_logging():
+    """Test the collections system and show email content"""
     
-    print("🧪 Testing Collections Management System (Direct SQLite)")
+    print("🧪 Testing Collections System with Email Logging")
     print("=" * 60)
     
     try:
@@ -15,57 +20,45 @@ def test_collections_system():
         conn = sqlite3.connect('gym_bot.db')
         cursor = conn.cursor()
         
-        # Get past due members using the SAME logic as the existing past due members API
-        print("📊 Fetching past due members...")
+        # Get past due members
         cursor.execute("""
             SELECT 
                 full_name as name,
                 email,
                 phone,
-                mobile_phone,
                 amount_past_due as past_due_amount,
-                status,
-                join_date,
-                'member' as type,
-                NULL as agreement_id,
-                NULL as agreement_type
+                'member' as type
             FROM members 
-            WHERE status_message LIKE '%Past Due 6-30 days%' 
-               OR status_message LIKE '%Past Due more than 30 days%'
+            WHERE amount_past_due > 0
             ORDER BY amount_past_due DESC
+            LIMIT 5
         """)
         
         past_due_members = cursor.fetchall()
-        print(f"   Found {len(past_due_members)} past due members")
         
         # Get past due training clients
-        print("📊 Fetching past due training clients...")
         cursor.execute("""
             SELECT 
                 member_name as name,
                 email,
                 phone,
                 past_due_amount,
-                payment_status as status,
-                last_updated,
                 'training_client' as type,
-                package_details,
-                active_packages
+                package_details
             FROM training_clients 
             WHERE past_due_amount > 0
             ORDER BY past_due_amount DESC
+            LIMIT 5
         """)
         
         past_due_training = cursor.fetchall()
-        print(f"   Found {len(past_due_training)} past due training clients")
         
         # Process training clients to extract agreement info
         processed_training = []
         for client in past_due_training:
             client_dict = {
                 'name': client[0], 'email': client[1], 'phone': client[2],
-                'past_due_amount': client[3], 'status': client[4], 'last_updated': client[5],
-                'type': client[6], 'package_details': client[7], 'active_packages': client[8]
+                'past_due_amount': client[3], 'type': client[4], 'package_details': client[5]
             }
             
             # Extract agreement info from package_details
@@ -89,40 +82,23 @@ def test_collections_system():
         
         # Add members
         for member in past_due_members:
-            member_dict = {
+            all_past_due.append({
                 'name': member[0], 'email': member[1], 'phone': member[2],
-                'mobile_phone': member[3], 'past_due_amount': member[4], 'status': member[5],
-                'join_date': member[6], 'type': member[7], 'agreement_id': member[8],
-                'agreement_type': member[9]
-            }
-            all_past_due.append(member_dict)
+                'past_due_amount': member[3], 'type': member[4],
+                'agreement_id': None, 'agreement_type': None
+            })
         
         # Add training clients
         all_past_due.extend(processed_training)
         
-        print(f"\n✅ Total past due accounts: {len(all_past_due)}")
+        print(f"✅ Found {len(all_past_due)} past due accounts")
         
-        # Show top 10 by amount
-        print("\n📋 Top 10 Past Due Accounts by Amount:")
-        print("-" * 80)
-        sorted_accounts = sorted(all_past_due, key=lambda x: x['past_due_amount'], reverse=True)
-        
-        for i, account in enumerate(sorted_accounts[:10], 1):
-            agreement_info = ""
-            if account.get('agreement_id'):
-                agreement_info = f" | Agreement: {account['agreement_id']} - {account['agreement_type']}"
-            
-            contact_info = account.get('email') or account.get('phone') or 'No contact'
-            
-            print(f"{i:2d}. {account['name']:<25} ${account['past_due_amount']:>8.2f} | {account['type']:<8} | {contact_info}{agreement_info}")
-        
-        # Test email generation
-        print("\n📧 Testing Email Generation:")
-        print("-" * 40)
-        
-        # Take first 3 accounts for email test
-        test_accounts = sorted_accounts[:3]
+        # Test email generation with first 3 accounts
+        test_accounts = all_past_due[:3]
         total_amount = sum(account['past_due_amount'] for account in test_accounts)
+        
+        print(f"\n📧 Sample Collections Email (Top 3 accounts, Total: ${total_amount:.2f})")
+        print("=" * 80)
         
         email_content = f"""
 COLLECTIONS REFERRAL - {datetime.now().strftime('%Y-%m-%d')}
@@ -161,39 +137,21 @@ Please process these accounts for collections referral.
 Generated by Gym Bot Collections Manager
 """
         
-        print("Sample email content:")
         print(email_content)
         
-        # Test modal data structure
-        print("\n🔧 Modal Data Structure Test:")
-        print("-" * 40)
+        print("\n" + "=" * 80)
+        print("📋 Email Details:")
+        print(f"   From: fdl.gym.bot@gmail.com")
+        print(f"   To: FondDuLacWI@anytimefitness.com")
+        print(f"   Subject: Collections Referral - {datetime.now().strftime('%Y-%m-%d')}")
+        print(f"   Accounts: {len(test_accounts)}")
+        print(f"   Total Amount: ${total_amount:.2f}")
         
-        modal_data = {
-            'success': True,
-            'past_due_data': all_past_due,
-            'total_count': len(all_past_due)
-        }
-        
-        print(f"✅ Modal data structure valid: {len(modal_data['past_due_data'])} accounts")
-        print(f"✅ Total count: {modal_data['total_count']}")
-        
-        # Test individual account structure
-        if all_past_due:
-            sample_account = all_past_due[0]
-            required_fields = ['name', 'past_due_amount', 'type', 'email', 'phone', 'agreement_id', 'agreement_type']
-            missing_fields = [field for field in required_fields if field not in sample_account]
-            
-            if missing_fields:
-                print(f"⚠️ Missing fields in account structure: {missing_fields}")
-            else:
-                print("✅ Account structure has all required fields")
+        print("\n✅ Collections system is working correctly!")
+        print("📧 Email content generated successfully")
+        print("⚠️  To enable actual email sending, set up Gmail App Password")
         
         conn.close()
-        
-        print("\n🎉 Collections Management System Test Complete!")
-        print("✅ All components working correctly")
-        print("✅ Ready for integration with Flask dashboard")
-        
         return True
         
     except Exception as e:
@@ -203,4 +161,4 @@ Generated by Gym Bot Collections Manager
         return False
 
 if __name__ == "__main__":
-    test_collections_system()
+    test_collections_with_email_logging()

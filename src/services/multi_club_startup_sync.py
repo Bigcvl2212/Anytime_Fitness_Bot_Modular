@@ -255,7 +255,9 @@ def sync_members_for_club(club_id: str = None, app=None) -> List[Dict[str, Any]]
                         # Store additional agreement data
                         member_data['agreement_recurring_cost'] = recurring_cost
                         member_data['agreement_status'] = agreement_data.get('status', 'Unknown')
-                        member_data['agreement_type'] = agreement_data.get('type', 'Unknown')
+                        member_data['agreement_type'] = agreement_data.get('agreementType', 'Unknown')
+                        member_data['agreement_id'] = agreement_data.get('agreementID')  # This is the key field!
+                        member_data['agreement_guid'] = agreement_data.get('agreementGuid')
                         member_data['date_of_next_payment'] = agreement_data.get('dateOfNextPayment')
                         member_data['status_message'] = agreement_data.get('statusMessage', '')
                         

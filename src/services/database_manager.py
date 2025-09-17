@@ -282,8 +282,9 @@ class DatabaseManager:
                             INSERT INTO members (
                                 prospect_id, first_name, last_name, full_name, email, phone, mobile_phone,
                                 status, status_message, member_type, join_date, amount_past_due,
-                                date_of_next_payment, created_at, updated_at
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                date_of_next_payment, agreement_id, agreement_guid, agreement_type,
+                                created_at, updated_at
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                             ON CONFLICT (prospect_id) DO UPDATE SET
                                 first_name = EXCLUDED.first_name,
                                 last_name = EXCLUDED.last_name,
@@ -297,6 +298,9 @@ class DatabaseManager:
                                 join_date = EXCLUDED.join_date,
                                 amount_past_due = EXCLUDED.amount_past_due,
                                 date_of_next_payment = EXCLUDED.date_of_next_payment,
+                                agreement_id = EXCLUDED.agreement_id,
+                                agreement_guid = EXCLUDED.agreement_guid,
+                                agreement_type = EXCLUDED.agreement_type,
                                 updated_at = EXCLUDED.updated_at
                         """, (
                             member.get('ProspectID'),
@@ -312,6 +316,9 @@ class DatabaseManager:
                             member.get('MemberSince'),
                             float(member.get('AmountPastDue', 0) or 0),
                             member.get('NextPaymentDate'),
+                            member.get('agreement_id'),
+                            member.get('agreement_guid'),
+                            member.get('agreement_type'),
                             datetime.now(),
                             datetime.now()
                         ))
@@ -507,6 +514,11 @@ class DatabaseManager:
                 cursor.execute("SELECT id FROM members WHERE prospect_id = %s", (str(prospect_id),))
                 existing_member = cursor.fetchone()
                 
+                # Extract agreement fields
+                agreement_id = m.get('agreement_id')
+                agreement_guid = m.get('agreement_guid')  
+                agreement_type = m.get('agreement_type', 'Membership')
+
                 if existing_member:
                     # Update existing member (PostgreSQL)
                     cursor.execute(
@@ -515,7 +527,8 @@ class DatabaseManager:
                             guid = %s, first_name = %s, last_name = %s, full_name = %s, email = %s, 
                             mobile_phone = %s, status = %s, status_message = %s, user_type = %s, 
                             amount_past_due = %s, base_amount_past_due = %s, missed_payments = %s, 
-                            late_fees = %s, agreement_recurring_cost = %s, date_of_next_payment = %s, 
+                            late_fees = %s, agreement_recurring_cost = %s, date_of_next_payment = %s,
+                            agreement_id = %s, agreement_guid = %s, agreement_type = %s,
                             updated_at = CURRENT_TIMESTAMP
                         WHERE prospect_id = %s
                         """,
@@ -535,6 +548,9 @@ class DatabaseManager:
                             float(m.get('late_fees', 0)),
                             float(m.get('agreement_recurring_cost', 0)),
                             date_of_next_payment,
+                            agreement_id,
+                            agreement_guid,
+                            agreement_type,
                             str(prospect_id)  # WHERE condition
                         ),
                     )
@@ -546,9 +562,10 @@ class DatabaseManager:
                         INSERT INTO members (
                             prospect_id, guid, first_name, last_name, full_name, email, mobile_phone,
                             status, status_message, user_type, amount_past_due, base_amount_past_due, 
-                            missed_payments, late_fees, agreement_recurring_cost, date_of_next_payment, 
+                            missed_payments, late_fees, agreement_recurring_cost, date_of_next_payment,
+                            agreement_id, agreement_guid, agreement_type, 
                             created_at, updated_at
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """,
                         (
                             str(prospect_id),  # prospect_id column
@@ -567,6 +584,9 @@ class DatabaseManager:
                             float(m.get('late_fees', 0)),
                             float(m.get('agreement_recurring_cost', 0)),
                             date_of_next_payment,
+                            agreement_id,
+                            agreement_guid,
+                            agreement_type,
                         ),
                     )
                     inserted_count += 1
