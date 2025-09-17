@@ -504,22 +504,22 @@
         
         function debugLog(...args) {
             if (DEBUG_MODE) {
-                debugLog(...args);
+                console.log(...args);
             }
         }
         
         function debugError(...args) {
-            debugError(...args); // Always show errors
+            console.error(...args); // Always show errors
         }
         
         function debugWarn(...args) {
             if (DEBUG_MODE) {
-                debugWarn(...args);
+                console.warn(...args);
             }
         }
 
-// Event details popup functions
-function openEventDetails(element) {
+        // Event details popup functions - made globally available for inline handlers
+        window.openEventDetails = function(element) {
     debugLog('🚀 openEventDetails called');
     debugLog('Element:', element);
     
@@ -762,7 +762,7 @@ function refreshFundingCache() {
     });
 }
 
-function performBulkCheckin() {
+        window.performBulkCheckin = function() {
     debugLog('🏋️ Starting bulk member check-in...');
     
     const bulkBtn = document.getElementById('bulk-checkin-btn');
@@ -1187,5 +1187,18 @@ document.addEventListener('DOMContentLoaded', function() {
     
     debugLog('✅ Dashboard initialization complete');
 });
+
+// Add missing functions for onclick handlers
+window.refreshInbox = function() {
+    debugLog('📬 Refreshing inbox...');
+    // Add inbox refresh logic here
+    alert('Inbox refresh functionality not implemented yet');
+};
+
+window.viewConversation = function(conversationId) {
+    debugLog('💬 Viewing conversation:', conversationId);
+    // Add conversation view logic here  
+    alert('Conversation view functionality not implemented yet');
+};
 </script>
 {% endblock %}
