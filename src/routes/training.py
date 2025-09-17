@@ -6,6 +6,7 @@ Training client management, package details, and related functionality
 
 from flask import Blueprint, render_template, jsonify, current_app
 import logging
+import datetime as dt
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +168,11 @@ def training_clients_page():
 def training_client_profile(member_id):
     """Training client profile page."""
     try:
+        # Validate member_id parameter - reject null/empty values
+        if not member_id or member_id in ['null', 'undefined', '', 'None']:
+            logger.error(f"❌ Invalid member_id provided: {member_id}")
+            return render_template('error.html', error='Invalid member ID provided')
+        
         # First try to get training client from cached data
         if hasattr(current_app, 'data_cache') and current_app.data_cache.get('training_clients'):
             cached_clients = current_app.data_cache['training_clients']
@@ -205,6 +211,11 @@ def training_client_profile(member_id):
                 if not client_data.get('member_name'):
                     client_data['member_name'] = client_data.get('name') or 'Unknown Client'
                 
+                # Convert datetime objects to strings for template compatibility
+                for key, value in client_data.items():
+                    if isinstance(value, (dt.datetime, dt.date)):
+                        client_data[key] = value.isoformat()
+                
                 # Use cached financial data instead of making fresh API calls
                 financial_summary = {
                     'total_past_due': client_data.get('total_past_due', 0.0),
@@ -238,6 +249,11 @@ def training_client_profile(member_id):
                                         f"{client_data.get('first_name', '')} {client_data.get('last_name', '')}".strip() or 
                                         'Unknown Client')
             conn.close()
+            
+            # Convert datetime objects to strings for template compatibility
+            for key, value in client_data.items():
+                if isinstance(value, (dt.datetime, dt.date)):
+                    client_data[key] = value.isoformat()
             
             # Use database financial data instead of making fresh API calls
             financial_summary = {
@@ -556,6 +572,11 @@ def get_all_training_clients():
 def get_member_package_agreements(member_id):
     """Get training package agreements for a specific member from cached data."""
     try:
+        # Validate member_id parameter - reject null/empty values
+        if not member_id or member_id in ['null', 'undefined', '', 'None']:
+            logger.error(f"❌ Invalid member_id provided for agreements: {member_id}")
+            return jsonify({'success': False, 'error': 'Invalid member ID provided'}), 400
+        
         # First try to get from cached data (which has our improved calculations)
         if hasattr(current_app, 'data_cache') and current_app.data_cache.get('training_clients'):
             cached_clients = current_app.data_cache['training_clients']

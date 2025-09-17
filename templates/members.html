@@ -40,6 +40,10 @@
                         <i class="fas fa-unlock me-1"></i>
                         Auto-Unlock Check
                     </button>
+                    <button class="btn btn-danger" onclick="openCollectionsModal()" title="Manage collections referrals">
+                        <i class="fas fa-gavel me-1"></i>
+                        Collections
+                    </button>
                 </div>
             </div>
         </div>
@@ -3386,5 +3390,235 @@ async function runAutomatedUnlockCheck() {
         unlockBtn.disabled = false;
     }
 }
+
+// Collections Management Functions
+function openCollectionsModal() {
+    // Show loading state
+    const modal = document.getElementById('collectionsModal');
+    const modalBody = document.getElementById('collectionsModalBody');
+    modalBody.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading past due accounts...</div>';
+    
+    // Show modal
+    const bootstrapModal = new bootstrap.Modal(modal);
+    bootstrapModal.show();
+    
+    // Load past due data
+    loadPastDueCollectionsData();
+}
+
+function loadPastDueCollectionsData() {
+    fetch('/api/collections/past-due')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayCollectionsData(data.past_due_data);
+            } else {
+                document.getElementById('collectionsModalBody').innerHTML = 
+                    `<div class="alert alert-danger">Error loading data: ${data.error}</div>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading collections data:', error);
+            document.getElementById('collectionsModalBody').innerHTML = 
+                `<div class="alert alert-danger">Network error loading data</div>`;
+        });
+}
+
+function displayCollectionsData(pastDueData) {
+    const modalBody = document.getElementById('collectionsModalBody');
+    
+    if (pastDueData.length === 0) {
+        modalBody.innerHTML = '<div class="alert alert-info">No past due accounts found.</div>';
+        return;
+    }
+    
+    let html = `
+        <div class="row mb-3">
+            <div class="col-6">
+                <h5>Past Due Accounts (${pastDueData.length})</h5>
+            </div>
+            <div class="col-6 text-end">
+                <button class="btn btn-sm btn-outline-primary" onclick="selectAllAccounts()">Select All</button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="deselectAllAccounts()">Deselect All</button>
+            </div>
+        </div>
+        
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-sm table-hover">
+                <thead class="table-dark sticky-top">
+                    <tr>
+                        <th width="50">Select</th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Amount</th>
+                        <th>Agreement ID</th>
+                        <th>Contact</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    pastDueData.forEach((account, index) => {
+        const isSelected = false;
+        const contact = account.email || account.phone || 'No contact';
+        const agreementId = account.agreement_id || 'N/A';
+        const agreementType = account.agreement_type || 'N/A';
+        
+        html += `
+            <tr>
+                <td>
+                    <input type="checkbox" class="form-check-input account-checkbox" 
+                           value="${index}" data-account='${JSON.stringify(account)}'>
+                </td>
+                <td><strong>${account.name}</strong></td>
+                <td>
+                    <span class="badge ${account.type === 'member' ? 'bg-primary' : 'bg-success'}">
+                        ${account.type === 'member' ? 'Member' : 'Training'}
+                    </span>
+                </td>
+                <td><strong>$${parseFloat(account.past_due_amount).toFixed(2)}</strong></td>
+                <td>
+                    <small>
+                        ${agreementId}<br>
+                        <span class="text-muted">${agreementType}</span>
+                    </small>
+                </td>
+                <td>
+                    <small>
+                        ${account.email || 'No email'}<br>
+                        ${account.phone || 'No phone'}
+                    </small>
+                </td>
+                <td>
+                    <span class="badge bg-warning">${account.status}</span>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="row mt-3">
+            <div class="col-6">
+                <div class="alert alert-info">
+                    <strong>Selected:</strong> <span id="selectedCount">0</span> accounts
+                    <br>
+                    <strong>Total Amount:</strong> $<span id="selectedAmount">0.00</span>
+                </div>
+            </div>
+            <div class="col-6 text-end">
+                <button class="btn btn-success" onclick="sendCollectionsEmail()" id="sendEmailBtn">
+                    <i class="fas fa-envelope me-1"></i>
+                    Send to Collections
+                </button>
+            </div>
+        </div>
+    `;
+    
+    modalBody.innerHTML = html;
+    
+    // Add event listeners for checkboxes
+    document.querySelectorAll('.account-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelectedSummary);
+    });
+}
+
+function selectAllAccounts() {
+    document.querySelectorAll('.account-checkbox').forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    updateSelectedSummary();
+}
+
+function deselectAllAccounts() {
+    document.querySelectorAll('.account-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateSelectedSummary();
+}
+
+function updateSelectedSummary() {
+    const checkboxes = document.querySelectorAll('.account-checkbox:checked');
+    const selectedCount = checkboxes.length;
+    
+    let totalAmount = 0;
+    checkboxes.forEach(checkbox => {
+        const account = JSON.parse(checkbox.dataset.account);
+        totalAmount += parseFloat(account.past_due_amount);
+    });
+    
+    document.getElementById('selectedCount').textContent = selectedCount;
+    document.getElementById('selectedAmount').textContent = totalAmount.toFixed(2);
+}
+
+function sendCollectionsEmail() {
+    const checkboxes = document.querySelectorAll('.account-checkbox:checked');
+    
+    if (checkboxes.length === 0) {
+        alert('Please select at least one account to send to collections.');
+        return;
+    }
+    
+    const selectedAccounts = Array.from(checkboxes).map(checkbox => 
+        JSON.parse(checkbox.dataset.account)
+    );
+    
+    const sendBtn = document.getElementById('sendEmailBtn');
+    const originalText = sendBtn.innerHTML;
+    sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Sending...';
+    sendBtn.disabled = true;
+    
+    fetch('/api/collections/send-email', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            selected_accounts: selectedAccounts
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`✅ ${data.message}`);
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('collectionsModal'));
+            modal.hide();
+        } else {
+            alert(`❌ Error: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        console.error('Error sending collections email:', error);
+        alert('❌ Network error sending email');
+    })
+    .finally(() => {
+        sendBtn.innerHTML = originalText;
+        sendBtn.disabled = false;
+    });
+}
 </script>
+
+<!-- Collections Modal -->
+<div class="modal fade" id="collectionsModal" tabindex="-1" aria-labelledby="collectionsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="collectionsModalLabel">
+                    <i class="fas fa-gavel me-2"></i>
+                    Collections Management
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="collectionsModalBody">
+                <!-- Content will be loaded dynamically -->
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

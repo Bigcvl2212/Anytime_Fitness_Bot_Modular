@@ -15,3 +15,5 @@ conn.commit()
 print(f'Reset {affected} training clients from Past Due back to Current')
 
 conn.close()
+
+

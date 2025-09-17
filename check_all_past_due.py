@@ -15,3 +15,5 @@ for row in results:
     print(f'  {row[0]}: ${row[1]} past due, status={row[2]}, summary={row[3]}, details={row[4][:50]}...')
 
 conn.close()
+
+

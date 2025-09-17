@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block title %}ClubOS Messaging Center - Anytime Fitness Dashboard{% endblock %}
 
@@ -583,519 +583,382 @@
         }
 
         function loadStatusCampaigns() {
-            debugLog('Loading status campaigns...');
+            debugLog('🔄 Loading status campaigns...');
             
             // Load data for all status categories including training clients using correct endpoints
             Promise.all([
-                fetch('/api/prospects/all').then(r => r.json()).catch(e => ({ success: false, error: e.message })),
-                fetch('/api/members/all').then(r => r.json()).catch(e => ({ success: false, error: e.message })),
-                fetch('/api/training/clients').then(r => r.json()).catch(e => ({ success: false, error: e.message }))
+                fetch('/api/prospects/all')
+                    .then(r => {
+                        debugLog('📞 Prospects API response status:', r.status);
+                        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                        return r.json();
+                    })
+                    .catch(e => {
+                        debugError('❌ Prospects API error:', e.message);
+                        return { success: false, error: e.message, source: 'prospects' };
+                    }),
+                fetch('/api/members/all')
+                    .then(r => {
+                        debugLog('📞 Members API response status:', r.status);
+                        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                        return r.json();
+                    })
+                    .catch(e => {
+                        debugError('❌ Members API error:', e.message);
+                        return { success: false, error: e.message, source: 'members' };
+                    }),
+                fetch('/api/training/clients')
+                    .then(r => {
+                        debugLog('📞 Training API response status:', r.status);
+                        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                        return r.json();
+                    })
+                    .catch(e => {
+                        debugError('❌ Training API error:', e.message);
+                        return { success: false, error: e.message, source: 'training' };
+                    })
             ])
             .then(([prospectsData, membersData, trainingData]) => {
-                debugLog('API Responses:', { prospectsData, membersData, trainingData });
+                debugLog('📊 API Responses received:', { 
+                    prospects: prospectsData.success ? 'SUCCESS' : `FAILED: ${prospectsData.error}`,
+                    members: membersData.success ? 'SUCCESS' : `FAILED: ${membersData.error}`,
+                    training: trainingData.success ? 'SUCCESS' : `FAILED: ${trainingData.error}`
+                });
                 
+                // Extract data with better error handling
                 const prospects = prospectsData.success ? (prospectsData.prospects || prospectsData.data || []) : [];
                 const allMembers = membersData.success ? (membersData.members || membersData.data || []) : [];
                 const trainingClients = trainingData.success ? (trainingData.training_clients || trainingData.clients || trainingData.data || []) : [];
                 
-                debugLog('Processed data:', { prospects: prospects.length, members: allMembers.length, trainingClients: trainingClients.length });
+                debugLog('📈 Processed data counts:', { 
+                    prospects: prospects.length, 
+                    members: allMembers.length, 
+                    trainingClients: trainingClients.length 
+                });
                 
-                // No need for separate categories API - we'll categorize from member data directly
-                populateStatusTabs([], prospects, allMembers, trainingClients);
+                // Log sample data for debugging
+                if (allMembers.length > 0) {
+                    debugLog('👤 Sample member data:', {
+                        first: allMembers[0],
+                        status_messages: allMembers.slice(0, 5).map(m => m.status_message).filter(Boolean)
+                    });
+                }
+                
+                // Categorize members by status_message patterns
+                categorizeSpecificMembers(allMembers, trainingClients);
+                
+                debugLog('✅ Status campaigns loaded and categorized successfully');
             })
             .catch(error => {
-                debugError('Error loading status categories:', error);
-                // Show error in UI
-                showErrorMessage('Failed to load campaign data. Please refresh the page.');
-                populateStatusTabs([], [], [], []);
+                debugError('❌ Critical error in loadStatusCampaigns:', error);
+                showStatusError('Failed to load campaign data. Please try refreshing the page.');
             });
         }
-        
-        function showErrorMessage(message) {
-            // Show error in first tab
-            const goodStandingContent = document.getElementById('good-standing-content');
-            if (goodStandingContent) {
-                goodStandingContent.innerHTML = `
-                    <div class="alert alert-danger">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        ${message}
-                    </div>
-                `;
+
+        function categorizeSpecificMembers(allMembers, trainingClients) {
+            debugLog('🏷️ Starting member categorization...');
+            
+            // Initialize all categories
+            const categories = {
+                'good-standing': [],
+                'pay-per-visit': [],
+                'past-due-6-30': [],
+                'past-due-30': [],
+                'past-due-training': [],
+                'expiring-soon': [],
+                'other-statuses': []
+            };
+            
+            // Process regular members by status_message
+            allMembers.forEach(member => {
+                const statusMsg = (member.status_message || '').toLowerCase();
+                
+                if (statusMsg.includes('good standing') || statusMsg.includes('active')) {
+                    categories['good-standing'].push(member);
+                } else if (statusMsg.includes('pay per visit')) {
+                    categories['pay-per-visit'].push(member);
+                } else if (statusMsg.includes('past due 6-30') || statusMsg.includes('past due 6 to 30')) {
+                    categories['past-due-6-30'].push(member);
+                } else if (statusMsg.includes('past due more than 30') || statusMsg.includes('past due 30+')) {
+                    categories['past-due-30'].push(member);
+                } else if (statusMsg.includes('expiring') || statusMsg.includes('expires')) {
+                    categories['expiring-soon'].push(member);
+                } else if (statusMsg && statusMsg !== 'null' && statusMsg !== '') {
+                    categories['other-statuses'].push(member);
+                }
+            });
+            
+            // Add past due training clients to their special category
+            if (trainingClients && trainingClients.length > 0) {
+                const pastDueTrainingClients = trainingClients.filter(client => {
+                    const amountPastDue = parseFloat(client.amount_past_due || 0);
+                    const statusMsg = (client.status_message || '').toLowerCase();
+                    return amountPastDue > 0 || statusMsg.includes('past due');
+                });
+                categories['past-due-training'] = pastDueTrainingClients;
+            }
+            
+            debugLog('📋 Categorization results:', {
+                'good-standing': categories['good-standing'].length,
+                'pay-per-visit': categories['pay-per-visit'].length,
+                'past-due-6-30': categories['past-due-6-30'].length,
+                'past-due-30': categories['past-due-30'].length,
+                'past-due-training': categories['past-due-training'].length,
+                'expiring-soon': categories['expiring-soon'].length,
+                'other-statuses': categories['other-statuses'].length
+            });
+            
+            // Update tab badges with counts
+            Object.keys(categories).forEach(categoryKey => {
+                const count = categories[categoryKey].length;
+                const badge = document.getElementById(`${categoryKey}-count`);
+                if (badge) {
+                    badge.textContent = count;
+                    badge.className = `badge rounded-pill mt-1 ${getBadgeClass(categoryKey, count)}`;
+                }
+            });
+            
+            // Generate content for each category
+            Object.keys(categories).forEach(categoryKey => {
+                generateCategoryContent(categoryKey, categories[categoryKey]);
+            });
+        }
+
+        function getBadgeClass(category, count) {
+            if (count === 0) return 'bg-secondary';
+            
+            switch(category) {
+                case 'good-standing': return 'bg-success';
+                case 'pay-per-visit': return 'bg-info';
+                case 'past-due-6-30': return 'bg-warning text-dark';
+                case 'past-due-30': case 'past-due-training': return 'bg-danger';
+                case 'expiring-soon': return 'bg-warning text-dark';
+                default: return 'bg-secondary';
             }
         }
 
-        function populateStatusTabs(categories, prospects, allMembers, trainingClients) {
-            debugLog('Populating status tabs with:', { prospects: prospects.length, allMembers: allMembers.length, trainingClients: trainingClients.length });
+        function generateCategoryContent(categoryKey, members) {
+            const contentDiv = document.getElementById(`${categoryKey}-content`);
+            if (!contentDiv) return;
             
-            // Categorize members by specific status messages (using exact ClubHub status messages)
-            const membersByStatus = categorizeSpecificMembers(allMembers, trainingClients);
-            
-            // Update badge counts (with null checks)
-            const updateBadgeCount = (id, count) => {
-                const element = document.getElementById(id);
-                if (element) {
-                    element.textContent = count || 0;
-                    debugLog(`Updated ${id} count to ${count}`);
-                }
-            };
-            
-            updateBadgeCount('good-standing-count', membersByStatus.goodStanding.length);
-            updateBadgeCount('pay-per-visit-count', membersByStatus.payPerVisit.length);
-            updateBadgeCount('past-due-6-30-count', membersByStatus.pastDue6To30.length);
-            updateBadgeCount('past-due-30-count', membersByStatus.pastDue30Plus.length);
-            updateBadgeCount('past-due-training-count', membersByStatus.pastDueTraining.length);
-            updateBadgeCount('expiring-soon-count', membersByStatus.expiringSoon.length);
-            updateBadgeCount('other-statuses-count', membersByStatus.other.length);
-            
-            // Populate tab content for each specific status category with actual status messages as category values
-            populateTabContent('good-standing', membersByStatus.goodStanding, 'Members in Good Standing', 'Members with current payments and good standing', 'Member is in good standing');
-            populateTabContent('pay-per-visit', membersByStatus.payPerVisit, 'Pay Per Visit Members', 'Members using pay-per-visit membership', 'Pay Per Visit Member');
-            populateTabContent('past-due-6-30', membersByStatus.pastDue6To30, 'Past Due 6-30 Days', 'Members with payments overdue 6-30 days', 'Past Due 6-30 days');
-            populateTabContent('past-due-30', membersByStatus.pastDue30Plus, 'Past Due 30+ Days', 'Members with payments overdue more than 30 days', 'Past Due more than 30 days.');
-            populateTabContent('past-due-training', membersByStatus.pastDueTraining, 'Past Due Training Clients', 'Training clients with outstanding payments', 'past_due_training_clients');
-            populateTabContent('expiring-soon', membersByStatus.expiringSoon, 'Expiring Soon', 'Members whose memberships expire within 30 days', 'Member will expire within 30 days.');
-            populateTabContent('other-statuses', membersByStatus.other, 'Other Statuses', 'Members with comp, staff, cancelled, or other special statuses', 'other_statuses');
-            
-            debugLog('✅ Status tabs populated successfully');
-        }
-        
-        function categorizeSpecificMembers(members, trainingClients) {
-            const categories = {
-                goodStanding: [],
-                payPerVisit: [],
-                pastDue6To30: [],
-                pastDue30Plus: [],
-                pastDueTraining: [],
-                expiringSoon: [],
-                other: []
-            };
-            
-            // Categorize regular members by exact status message
-            members.forEach(member => {
-                const statusMsg = (member.status_message || '').trim();
-                
-                // Match exact ClubHub status messages
-                if (statusMsg === 'Member is in good standing') {
-                    categories.goodStanding.push(member);
-                } else if (statusMsg === 'Pay Per Visit Member') {
-                    categories.payPerVisit.push(member);
-                } else if (statusMsg === 'Past Due 6-30 days') {
-                    categories.pastDue6To30.push(member);
-                } else if (statusMsg === 'Past Due more than 30 days.') {
-                    categories.pastDue30Plus.push(member);
-                } else if (statusMsg === 'Member will expire within 30 days.') {
-                    categories.expiringSoon.push(member);
-                } else if (statusMsg === 'Comp Member' || statusMsg === 'Staff Member' || 
-                         statusMsg === 'Member is pending cancel' || statusMsg === 'Account has been cancelled.' ||
-                         statusMsg === 'Invalid Billing Information.' || statusMsg === 'Invalid/Bad Address information.' ||
-                         statusMsg === '' || !statusMsg) {
-                    categories.other.push(member);
-                } else {
-                    // Any other status messages go to other
-                    categories.other.push(member);
-                }
-            });
-            
-            // Categorize training clients - filter for past due ones
-            if (trainingClients && trainingClients.length > 0) {
-                trainingClients.forEach(client => {
-                    const paymentStatus = (client.payment_status || '').trim();
-                    if (paymentStatus === 'Past Due' || (client.total_past_due && client.total_past_due > 0)) {
-                        categories.pastDueTraining.push(client);
-                    }
-                });
+            if (members.length === 0) {
+                contentDiv.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-users fa-2x text-muted mb-3"></i>
+                        <h6 class="text-muted">No members in this category</h6>
+                        <p class="text-muted small">This category will populate when members match the criteria.</p>
+                    </div>
+                `;
+                return;
             }
             
-            return categories;
-        }
-        
-        function populateTabContent(tabId, members, title, description, categoryValue) {
-            const contentElement = document.getElementById(`${tabId}-content`);
-            if (!contentElement) return;
-            
-            const memberCount = members.length || 0;
-            
-            contentElement.innerHTML = `
-                <div class="campaign-action-panel">
-                    <div class="row g-4">
-                        <!-- Campaign Setup Panel -->
-                        <div class="col-lg-6">
-                            <div class="campaign-controls">
-                                <h6 class="fw-bold mb-3">
-                                    <i class="fas fa-bullhorn text-primary me-2"></i>
-                                    ${title} Campaign
-                                </h6>
-                                <p class="text-muted small mb-3">${description}</p>
-                                
-                                <div class="mb-3">
-                                    <button class="btn btn-fluent-primary btn-sm w-100" 
-                                            onclick="openStatusCampaign('${categoryValue}', '${title}', '${description}')">
-                                        <i class="fas fa-paper-plane me-2"></i>
-                                        Create Campaign (${memberCount} members)
-                                    </button>
-                                </div>
-                                
-                                <div class="mb-2">
-                                    <small class="text-muted">
-                                        <i class="fas fa-info-circle me-1"></i>
-                                        Click to create a targeted campaign for this group
-                                    </small>
-                                </div>
-                            </div>
+            // Generate campaign interface for this category
+            const categoryTitle = getCategoryTitle(categoryKey);
+            const memberPreview = members.slice(0, 10).map(member => `
+                <div class="member-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${member.full_name || `${member.firstName || ''} ${member.lastName || ''}`.trim()}</strong>
+                            <div class="small text-muted">${member.email || member.mobile_phone || 'No contact info'}</div>
+                            ${member.status_message ? `<div class="small text-info">${member.status_message}</div>` : ''}
+                            ${member.amount_past_due && parseFloat(member.amount_past_due) > 0 ? 
+                                `<div class="small text-danger">Past Due: $${parseFloat(member.amount_past_due).toFixed(2)}</div>` : ''}
                         </div>
-                        
-                        <!-- Members Preview Panel -->
-                        <div class="col-lg-6">
-                            <h6 class="fw-bold mb-3">
-                                <i class="fas fa-users text-success me-2"></i>
-                                Member Preview (${memberCount})
-                            </h6>
-                            <div class="member-preview">
-                                ${renderMemberPreview(members)}
+                    </div>
+                </div>
+            `).join('');
+            
+            contentDiv.innerHTML = `
+                <div class="campaign-action-panel">
+                    <div class="campaign-controls">
+                        <div class="row g-4">
+                            <div class="col-md-7">
+                                <h6 class="fw-bold mb-3">
+                                    <i class="fas fa-bullhorn me-2 text-primary"></i>
+                                    ${categoryTitle} Campaign
+                                </h6>
+                                <p class="text-muted mb-3">
+                                    Create a targeted campaign for ${members.length} member${members.length !== 1 ? 's' : ''} in this category.
+                                </p>
+                                <button class="btn btn-fluent-primary" onclick="openStatusCampaignModal('${categoryKey}', '${categoryTitle}', ${members.length})">
+                                    <i class="fas fa-paper-plane me-2"></i>
+                                    Create Campaign (${members.length} recipients)
+                                </button>
+                            </div>
+                            <div class="col-md-5">
+                                <h6 class="fw-bold mb-3">Member Preview</h6>
+                                <div class="member-preview">
+                                    ${memberPreview}
+                                    ${members.length > 10 ? `
+                                        <div class="text-center py-2 border-top">
+                                            <small class="text-muted">... and ${members.length - 10} more members</small>
+                                        </div>
+                                    ` : ''}
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             `;
         }
-        
-        function renderMemberPreview(members) {
-            if (!members || members.length === 0) {
-                return `
-                    <div class="text-center py-4">
-                        <i class="fas fa-users text-muted"></i>
-                        <p class="text-muted mb-0">No members in this category</p>
-                    </div>
-                `;
+
+        function getCategoryTitle(categoryKey) {
+            const titles = {
+                'good-standing': 'Good Standing Members',
+                'pay-per-visit': 'Pay Per Visit Members',
+                'past-due-6-30': 'Past Due 6-30 Days',
+                'past-due-30': 'Past Due 30+ Days',
+                'past-due-training': 'Past Due Training Clients',
+                'expiring-soon': 'Expiring Soon',
+                'other-statuses': 'Other Status Members'
+            };
+            return titles[categoryKey] || categoryKey;
+        }
+
+        function openStatusCampaignModal(categoryKey, categoryTitle, memberCount) {
+            debugLog('📝 Opening campaign modal for:', categoryKey, memberCount, 'members');
+            
+            // Set modal data
+            document.getElementById('modalCategoryValue').value = categoryKey;
+            document.getElementById('modalCategoryTitle').textContent = categoryTitle + ' Campaign';
+            document.getElementById('modalCategoryInfo').textContent = `${memberCount} member${memberCount !== 1 ? 's' : ''} in ${categoryTitle.toLowerCase()}`;
+            
+            // Reset form
+            document.getElementById('statusCampaignForm').reset();
+            document.getElementById('statusRecipientLimit').value = Math.min(memberCount, 100);
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('statusCampaignModal'));
+            modal.show();
+        }
+
+        function saveStatusCampaign() {
+            const form = document.getElementById('statusCampaignForm');
+            const submitBtn = event.target;
+            const originalText = submitBtn.innerHTML;
+            
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
             }
             
-            return members.slice(0, 10).map(member => {
-                // Handle different data structures (regular members vs training clients)
-                let name, contact, status, memberType;
-                
-                if (member.payment_status !== undefined) {
-                    // This is a training client
-                    name = member.full_name || member.member_name || 
-                           ((member.first_name || '') + ' ' + (member.last_name || '')).trim() || 
-                           'Unknown Training Client';
-                    contact = member.email || member.phone || 'No contact info';
-                    status = member.payment_status || 'Unknown';
-                    memberType = 'Training Client';
-                } else {
-                    // This is a regular member
-                    name = member.name || member.full_name || 
-                           ((member.first_name || '') + ' ' + (member.last_name || '')).trim() || 
-                           'Unknown Member';
-                    contact = member.email || member.phone || 'No contact info';
-                    status = member.status_message || member.status_class || member.status || 'Unknown';
-                    memberType = 'Member';
-                }
-                
-                return `
-                    <div class="member-item">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong>${escapeHtml(name)}</strong>
-                                <br>
-                                <small class="text-muted">${escapeHtml(contact)}</small>
-                                ${memberType === 'Training Client' ? '<br><small class="text-info"><i class="fas fa-dumbbell me-1"></i>Training Client</small>' : ''}
-                            </div>
-                            <span class="badge ${getStatusBadgeClass(status)}" title="${status}">${status.length > 15 ? status.substring(0, 15) + '...' : status}</span>
-                        </div>
-                    </div>
-                `;
-            }).join('') + (members.length > 10 ? `
-                <div class="text-center py-2 border-top">
-                    <small class="text-muted">... and ${members.length - 10} more members</small>
-                </div>
-            ` : '');
-        }
-        
-        // Data refresh functions
-        function refreshData() {
-            loadStatusCampaigns();
-        }
-        
-        function showCampaignHistory() {
-            alert('Campaign history feature coming soon!');
-        }
-        
-        function syncMessages() {
-            alert('Message sync feature coming soon!');
-        }
-        
-        function loadMessagesInbox() {
-            // Load recent messages for the inbox
-            const messagesContainer = document.getElementById('messagesContainer');
-            if (messagesContainer) {
-                // Try alternative endpoint or provide placeholder
-                fetch('/api/messages')  // Changed from /api/messaging/messages
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}`);
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.success && data.messages && data.messages.length > 0) {
-                            displayMessages(data.messages);
-                        } else {
-                            messagesContainer.innerHTML = `
-                                <div class="text-center py-4">
-                                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                                    <h6 class="text-muted">No recent messages</h6>
-                                    <p class="text-muted small">Messages from your campaigns will appear here</p>
-                                </div>
-                            `;
-                        }
-                    })
-                    .catch(error => {
-                        debugLog('Messages API not available, showing placeholder:', error.message);
-                        messagesContainer.innerHTML = `
-                            <div class="text-center py-4">
-                                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                                <h6 class="text-muted">Messages Inbox</h6>
-                                <p class="text-muted small">Message history will appear here after sending campaigns</p>
-                                <small class="text-muted">API endpoint not yet implemented</small>
-                            </div>
-                        `;
-                    });
-            }
-        } // End of loadMessagesInbox function
-        
-        // Load inbox with recent threads
-        async function loadInbox() {
-            try {
-                const response = await fetch('/api/messaging/inbox/recent');
-                const data = await response.json();
-                
+            // Get form data
+            const formData = {
+                category: document.getElementById('modalCategoryValue').value,
+                name: document.getElementById('statusCampaignName').value,
+                message: document.getElementById('statusCampaignMessage').value,
+                type: document.getElementById('statusMessageType').value,
+                subject: document.getElementById('statusEmailSubject').value || '',
+                recipientLimit: parseInt(document.getElementById('statusRecipientLimit').value),
+                notes: document.getElementById('statusCampaignNotes').value || ''
+            };
+            
+            debugLog('💾 Saving status campaign:', formData);
+            
+            // Update button state
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Sending...';
+            submitBtn.disabled = true;
+            
+            // Send campaign (placeholder - implement actual sending logic)
+            fetch('/api/campaigns/send', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
                 if (data.success) {
-                    messageThreads = data.threads || [];
-                    renderThreads();
-                    updateUnreadCount();
+                    showAlert('success', `Campaign "${formData.name}" sent successfully to ${data.sent_count || 'selected'} recipients!`);
+                    
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('statusCampaignModal'));
+                    modal.hide();
+                    
+                    // Refresh progress
+                    loadCampaignProgress();
                 } else {
-                    debugError('Failed to load inbox:', data.error);
-                    showInboxError('Error loading inbox: ' + data.error);
+                    showAlert('danger', `Failed to send campaign: ${data.error || 'Unknown error'}`);
                 }
-            } catch (error) {
-                debugError('Network error loading inbox:', error);
-                showInboxError('Network error loading inbox');
-            }
+            })
+            .catch(error => {
+                debugError('❌ Campaign send error:', error);
+                showAlert('danger', 'Failed to send campaign. Please try again.');
+            })
+            .finally(() => {
+                // Restore button state
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            });
         }
-        
-        // Render message threads
-        function renderThreads() {
-            const container = document.getElementById('threadsContainer');
+
+        function showStatusError(message) {
+            debugError('🚨 Status error:', message);
             
-            if (!messageThreads || messageThreads.length === 0) {
-                container.innerHTML = `
-                    <div class="text-center py-5">
-                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                        <h6 class="text-muted">No conversations yet</h6>
-                        <p class="text-muted small">Start a new conversation to get started</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            const threadsHtml = messageThreads.map(thread => {
-                const latestMessage = thread.latest_message;
-                const isUnread = thread.status === 'unread' || (latestMessage && latestMessage.status === 'sent');
-                
-                return `
-                    <div class="thread-item ${isUnread ? 'unread' : ''}" onclick="selectThread(${thread.id}, ${thread.member_id})">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1">${escapeHtml(thread.member_full_name || thread.member_name || 'Unknown Member')}</h6>
-                                <p class="mb-1 text-muted small">
-                                    ${escapeHtml(thread.thread_subject || getThreadTypeLabel(thread.thread_type))}
-                                </p>
-                                ${latestMessage ? `
-                                    <p class="mb-0 text-muted small">
-                                        ${escapeHtml((latestMessage.message_content || '').substring(0, 60))}${latestMessage.message_content && latestMessage.message_content.length > 60 ? '...' : ''}
-                                    </p>
-                                ` : ''}
-                            </div>
-                            <div class="text-end">
-                                <small class="text-muted">${formatTimeAgo(thread.last_message_at)}</small>
-                                <div class="mt-1">
-                                    <span class="badge ${getThreadTypeBadge(thread.thread_type)}">${getThreadTypeLabel(thread.thread_type)}</span>
-                                    ${isUnread ? '<span class="badge bg-primary">New</span>' : ''}
-                                </div>
-                            </div>
+            // Show error in all tab contents
+            ['good-standing', 'pay-per-visit', 'past-due-6-30', 'past-due-30', 'past-due-training', 'expiring-soon', 'other-statuses'].forEach(categoryKey => {
+                const contentDiv = document.getElementById(`${categoryKey}-content`);
+                if (contentDiv) {
+                    contentDiv.innerHTML = `
+                        <div class="text-center py-4">
+                            <i class="fas fa-exclamation-triangle fa-2x text-warning mb-3"></i>
+                            <h6 class="text-warning">Unable to Load Campaign Data</h6>
+                            <p class="text-muted small">${message}</p>
+                            <button class="btn btn-outline-primary btn-sm mt-2" onclick="loadStatusCampaigns()">
+                                <i class="fas fa-retry me-1"></i> Try Again
+                            </button>
                         </div>
-                    </div>
-                `;
-            }).join('');
-            
-            container.innerHTML = threadsHtml;
+                    `;
+                }
+            });
         }
-        
-        // Utility functions
-        function updateUnreadCount() {
-            const unreadCount = messageThreads.filter(thread => 
-                thread.status === 'unread' || (thread.latest_message && thread.latest_message.status === 'sent')
-            ).length;
-            
-            const unreadCountElement = document.getElementById('unreadCount');
-            if (unreadCountElement) {
-                unreadCountElement.textContent = unreadCount;
+
+        // Message Type Handler
+        document.addEventListener('change', function(event) {
+            if (event.target && event.target.id === 'statusMessageType') {
+                const emailSubjectDiv = document.getElementById('statusEmailSubjectDiv');
+                if (event.target.value === 'email') {
+                    emailSubjectDiv.style.display = 'block';
+                    document.getElementById('statusEmailSubject').required = true;
+                } else {
+                    emailSubjectDiv.style.display = 'none';
+                    document.getElementById('statusEmailSubject').required = false;
+                }
             }
-        }
-        
-        function getThreadTypeLabel(type) {
-            const labels = {
-                'clubos': 'ClubOS',
-                'sms': 'SMS',
-                'email': 'Email',
-                'bot': 'Bot',
-                'system': 'System'
-            };
-            return labels[type] || 'Message';
-        }
-        
-        function getThreadTypeBadge(type) {
-            const badges = {
-                'clubos': 'bg-primary',
-                'sms': 'bg-success',
-                'email': 'bg-info',
-                'bot': 'bg-warning',
-                'system': 'bg-secondary'
-            };
-            return badges[type] || 'bg-secondary';
-        }
-        
-        function formatTimeAgo(dateString) {
-            if (!dateString) return '';
-            try {
-                const date = new Date(dateString);
-                const now = new Date();
-                const diffMinutes = Math.floor((now - date) / (1000 * 60));
-                
-                if (diffMinutes < 1) return 'Just now';
-                if (diffMinutes < 60) return `${diffMinutes}m ago`;
-                if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
-                return `${Math.floor(diffMinutes / 1440)}d ago`;
-            } catch {
-                return 'Unknown';
-            }
-        }
-        
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
-        function showInboxError(message) {
-            const threadsContainer = document.getElementById('threadsContainer');
-            if (threadsContainer) {
-                threadsContainer.innerHTML = `
-                    <div class="alert alert-danger m-3">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        ${escapeHtml(message)}
-                    </div>
-                `;
-            }
-        }
-        
-        // Select and load thread conversation
-        async function selectThread(threadId, memberId) {
-            // This would load the conversation for the selected thread
-            debugLog('Selected thread:', threadId, 'Member:', memberId);
-            // Implementation would go here to show conversation panel
-        }
-        
-        function loadCampaignHistory() {
-            // Load campaign history data
-            const historyContainer = document.getElementById('campaignsHistoryContainer');
-            if (historyContainer) {
-                fetch('/api/campaigns/history')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success && data.campaigns && data.campaigns.length > 0) {
-                            displayCampaignHistory(data.campaigns);
-                        } else {
-                            historyContainer.innerHTML = `
-                                <div class="text-center py-4">
-                                    <i class="fas fa-history fa-2x text-muted mb-3"></i>
-                                    <h6 class="text-muted">No campaigns sent yet</h6>
-                                    <p class="text-muted small">Campaign history will appear here after sending.</p>
-                                </div>
-                            `;
-                        }
-                    })
-                    .catch(error => {
-                        debugLog('Campaign history API not available, showing placeholder:', error.message);
-                        historyContainer.innerHTML = `
-                            <div class="text-center py-4">
-                                <i class="fas fa-history fa-2x text-muted mb-3"></i>
-                                <h6 class="text-muted">Campaign History</h6>
-                                <p class="text-muted small">Sent campaign history will appear here</p>
-                                <small class="text-muted">API endpoint not yet implemented</small>
-                            </div>
-                        `;
-                    });
-            }
-        }
-        
-        function displayCampaignHistory(campaigns) {
-            const container = document.getElementById('campaignsHistoryContainer');
-            
-            if (campaigns.length === 0) {
+        });
+
+        // Placeholder functions for message inbox and campaign progress
+        function loadInbox() {
+            debugLog('📨 Loading message inbox...');
+            // Placeholder implementation
+            const container = document.getElementById('messagesContainer');
+            if (container) {
                 container.innerHTML = `
                     <div class="text-center py-4">
-                        <i class="fas fa-history fa-2x text-muted mb-3"></i>
-                        <h6 class="text-muted">No campaigns sent yet</h6>
-                        <p class="text-muted small">Campaign history will appear here after sending.</p>
+                        <i class="fas fa-inbox fa-2x text-muted mb-3"></i>
+                        <h6 class="text-muted">Message Inbox</h6>
+                        <p class="text-muted small">Inbox functionality will be implemented soon.</p>
                     </div>
                 `;
-                return;
             }
-
-            const campaignsHtml = campaigns.slice(0, 5).map(campaign => `
-                <div class="campaign-history-item p-2 mb-2" style="background: #f8f9fa; border-radius: var(--border-radius-medium); border-left: 4px solid var(--af-purple-primary);">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div class="flex-grow-1">
-                            <h6 class="mb-1 fw-semibold small">${campaign.name || 'Untitled Campaign'}</h6>
-                            <p class="text-muted small mb-1">${(campaign.message_text || '').substring(0, 80)}${(campaign.message_text || '').length > 80 ? '...' : ''}</p>
-                            <div class="d-flex gap-1 flex-wrap">
-                                <span class="badge bg-primary small">${campaign.categories}</span>
-                                <span class="badge bg-success small">${campaign.successful_sends || 0} sent</span>
-                                ${campaign.failed_sends > 0 ? `<span class="badge bg-warning small">${campaign.failed_sends} failed</span>` : ''}
-                            </div>
-                        </div>
-                        <div class="text-end">
-                            <small class="text-muted">${new Date(campaign.created_at).toLocaleDateString()}</small>
-                        </div>
-                    </div>
-                </div>
-            `).join('');
-
-            container.innerHTML = campaignsHtml;
         }
-        
+
         function loadCampaignProgress() {
-            // Load campaign progress data
+            debugLog('📊 Loading campaign progress...');
             const progressContainer = document.getElementById('progressContainer');
             if (progressContainer) {
-                fetch('/api/campaigns/progress')  // Try alternative endpoint
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}`);
-                        }
-                        return response.json();
-                    })
+                fetch('/api/campaigns/progress')
+                    .then(response => response.json())
                     .then(data => {
                         if (data.success && data.campaigns && data.campaigns.length > 0) {
                             displayCampaignProgress(data.campaigns);
                         } else {
                             progressContainer.innerHTML = `
                                 <div class="text-center py-4">
-                                    <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                                    <i class="fas fa-chart-line fa-2x text-muted mb-3"></i>
                                     <h6 class="text-muted">No active campaigns</h6>
-                                    <p class="text-muted small">Start a campaign to track progress here</p>
+                                    <p class="text-muted small">Campaign progress will appear here after sending.</p>
                                 </div>
                             `;
                         }
@@ -1104,398 +967,50 @@
                         debugLog('Campaign progress API not available, showing placeholder:', error.message);
                         progressContainer.innerHTML = `
                             <div class="text-center py-4">
-                                <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                                <i class="fas fa-chart-line fa-2x text-muted mb-3"></i>
                                 <h6 class="text-muted">Campaign Progress</h6>
-                                <p class="text-muted small">Active campaign progress will be tracked here</p>
-                                <small class="text-muted">API endpoint not yet implemented</small>
+                                <p class="text-muted small">Progress tracking will be available after implementing campaign API.</p>
                             </div>
                         `;
                     });
             }
         }
-        
-        function displayMessages(messages) {
-            const messagesContainer = document.getElementById('messagesContainer');
-            const messagesList = messages.slice(0, 5).map(message => `
-                <div class="message-item p-3 border-bottom">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <strong class="text-primary">${message.recipient_name || 'Unknown'}</strong>
-                        <small class="text-muted">${formatDate(message.created_at || message.timestamp)}</small>
-                    </div>
-                    <p class="mb-1 small text-muted">${message.message_content || message.content || 'No content'}</p>
-                    <span class="badge ${getStatusBadgeClass(message.status)}">${message.status || 'Sent'}</span>
-                </div>
-            `).join('');
-            
-            messagesContainer.innerHTML = messagesList || `
-                <div class="text-center py-4">
-                    <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
-                    <p class="text-muted">No messages to display</p>
-                </div>
-            `;
-        }
-        
+
         function displayCampaignProgress(campaigns) {
             const progressContainer = document.getElementById('progressContainer');
-            const campaignsList = campaigns.slice(0, 3).map(campaign => `
-                <div class="border-bottom pb-2 mb-2">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <strong class="small">${campaign.name || campaign.status_type || 'Unknown Campaign'}</strong>
-                        <small class="text-muted">${campaign.progress || 0}%</small>
+            const progressHtml = campaigns.map(campaign => `
+                <div class="border rounded p-3 mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="mb-0">${campaign.name}</h6>
+                        <span class="badge ${campaign.status === 'completed' ? 'bg-success' : 'bg-primary'}">${campaign.status}</span>
                     </div>
-                    <div class="progress mb-1" style="height: 6px;">
-                        <div class="progress-bar ${getProgressBarClass(campaign.status)}" 
-                             style="width: ${campaign.progress || 0}%"></div>
+                    <div class="progress mb-2" style="height: 8px;">
+                        <div class="progress-bar" style="width: ${campaign.progress || 0}%"></div>
                     </div>
-                    <small class="text-muted">${campaign.sent_count || 0}/${campaign.total_count || 0} sent</small>
+                    <small class="text-muted">${campaign.sent_count || 0} sent • ${campaign.delivered_count || 0} delivered</small>
                 </div>
             `).join('');
             
-            progressContainer.innerHTML = campaignsList || `
-                <div class="text-center py-4">
-                    <i class="fas fa-chart-line fa-2x text-muted mb-2"></i>
-                    <p class="text-muted">No campaigns in progress</p>
-                </div>
-            `;
+            progressContainer.innerHTML = progressHtml;
         }
-        
-        function formatDate(dateString) {
-            if (!dateString) return 'Unknown';
-            const date = new Date(dateString);
-            return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+        function syncMessages() {
+            debugLog('🔄 Syncing messages...');
+            showAlert('info', 'Message sync functionality will be implemented soon.');
         }
-        
-        function getStatusBadgeClass(status) {
-            switch(status?.toLowerCase()) {
-                case 'sent': return 'bg-success';
-                case 'delivered': return 'bg-primary';
-                case 'failed': return 'bg-danger';
-                case 'pending': return 'bg-warning';
-                default: return 'bg-secondary';
-            }
-        }
-        
-        function getProgressBarClass(status) {
-            switch(status?.toLowerCase()) {
-                case 'completed': return 'bg-success';
-                case 'running': return 'bg-primary';
-                case 'failed': return 'bg-danger';
-                case 'paused': return 'bg-warning';
-                default: return 'bg-info';
-            }
-        }
-        
+
         function searchMessages() {
-            alert('Message search feature coming soon!');
+            const query = document.getElementById('messageSearch').value;
+            debugLog('🔍 Searching messages for:', query);
+            showAlert('info', 'Message search functionality will be implemented soon.');
         }
-        
+
         function resetAllProgress() {
-            if (confirm('Are you sure you want to reset all campaign progress? This cannot be undone.')) {
-                fetch('/api/messaging/campaign/reset', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'}
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert('Campaign progress reset successfully!');
-                        loadCampaignProgress();
-                    } else {
-                        alert('Failed to reset progress: ' + (data.message || 'Unknown error'));
-                    }
-                })
-                .catch(error => {
-                    debugError('Error resetting progress:', error);
-                    alert('Failed to reset progress due to network error.');
-                });
+            if (confirm('Are you sure you want to reset all campaign progress? This action cannot be undone.')) {
+                debugLog('🔄 Resetting all campaign progress...');
+                showAlert('info', 'Progress reset functionality will be implemented soon.');
             }
         }
-        
-        // Campaign management functions
-        function startCampaign(statusType) {
-            const messageElement = document.getElementById(`${statusType}-message`);
-            const statusElement = document.getElementById(`${statusType}-status`);
-            const statusTextElement = document.getElementById(`${statusType}-status-text`);
-            
-            if (!messageElement.value.trim()) {
-                alert('Please enter a campaign message before starting.');
-                messageElement.focus();
-                return;
-            }
-            
-            // Show campaign status
-            statusElement.style.display = 'block';
-            statusElement.className = 'alert alert-warning';
-            statusTextElement.textContent = 'Starting campaign...';
-            
-            // Send campaign request
-            fetch('/api/messaging/campaign/start', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    status_type: statusType,
-                    message: messageElement.value,
-                    timestamp: new Date().toISOString()
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    statusElement.className = 'alert alert-success';
-                    statusTextElement.textContent = `Campaign started! Sent to ${data.recipient_count} recipients.`;
-                } else {
-                    statusElement.className = 'alert alert-danger';
-                    statusTextElement.textContent = `Campaign failed: ${data.message}`;
-                }
-            })
-            .catch(error => {
-                debugError('Error starting campaign:', error);
-                statusElement.className = 'alert alert-danger';
-                statusTextElement.textContent = 'Campaign failed due to network error.';
-            });
-        }
-        
-        function previewMessage(statusType) {
-            const messageElement = document.getElementById(`${statusType}-message`);
-            if (!messageElement.value.trim()) {
-                alert('Please enter a message to preview.');
-                return;
-            }
-            
-            // Show preview modal or alert
-            alert(`Message Preview:\n\n${messageElement.value}`);
-        }
-
-        function getStatusCardColor(statusName) {
-            const status = statusName.toLowerCase();
-            
-            if (status.includes('past due') || status.includes('overdue') || status.includes('red')) {
-                return {
-                    border: '#dc3545',
-                    gradient: 'linear-gradient(135deg, #dc3545, #b02a37)'
-                };
-            } else if (status.includes('active') || status.includes('green') || status.includes('current')) {
-                return {
-                    border: '#28a745',
-                    gradient: 'linear-gradient(135deg, #28a745, #1e7e34)'
-                };
-            } else if (status.includes('warning') || status.includes('yellow') || status.includes('expiring')) {
-                return {
-                    border: '#ffc107',
-                    gradient: 'linear-gradient(135deg, #ffc107, #d39e00)'
-                };
-            } else if (status.includes('inactive') || status.includes('paused')) {
-                return {
-                    border: '#6c757d',
-                    gradient: 'linear-gradient(135deg, #6c757d, #545b62)'
-                };
-            } else {
-                return {
-                    border: '#6f42c1',
-                    gradient: 'linear-gradient(135deg, #6f42c1, #59359a)'
-                };
-            }
-        }
-
-        function getStatusIcon(statusName) {
-            const status = statusName.toLowerCase();
-            
-            if (status.includes('past due') || status.includes('overdue')) {
-                return 'fas fa-exclamation-triangle';
-            } else if (status.includes('active') || status.includes('current')) {
-                return 'fas fa-check-circle';
-            } else if (status.includes('warning') || status.includes('expiring')) {
-                return 'fas fa-clock';
-            } else if (status.includes('inactive') || status.includes('paused')) {
-                return 'fas fa-pause-circle';
-            } else {
-                return 'fas fa-users';
-            }
-        }
-
-        function getStatusBadge(statusName) {
-            const status = statusName.toLowerCase();
-            
-            if (status.includes('past due') || status.includes('overdue')) {
-                return { class: 'bg-danger', text: 'Urgent' };
-            } else if (status.includes('active') || status.includes('current')) {
-                return { class: 'bg-success', text: 'Active' };
-            } else if (status.includes('warning') || status.includes('expiring')) {
-                return { class: 'bg-warning', text: 'Review' };
-            } else {
-                return { class: 'bg-secondary', text: 'Status' };
-            }
-        }
-
-        function openStatusCampaign(categoryValue, categoryTitle, categoryInfo) {
-            try {
-                // Clear any existing modal state
-                const modalElement = document.getElementById('statusCampaignModal');
-                if (!modalElement) {
-                    console.error('Modal element not found!');
-                    return;
-                }
-                
-                // Reset form completely
-                const form = document.getElementById('statusCampaignForm');
-                if (form) {
-                    form.reset();
-                }
-                
-                // Set modal content safely
-                const modalTitle = document.getElementById('modalCategoryTitle');
-                const modalValue = document.getElementById('modalCategoryValue');
-                const modalInfo = document.getElementById('modalCategoryInfo');
-                const campaignName = document.getElementById('statusCampaignName');
-                
-                if (modalTitle) modalTitle.textContent = `${categoryTitle} Campaign`;
-                if (modalValue) modalValue.value = categoryValue;
-                if (modalInfo) modalInfo.textContent = categoryInfo;
-                if (campaignName) campaignName.value = `${categoryTitle} Campaign - ${new Date().toLocaleDateString()}`;
-                
-                // Simple message type handler (no cloning)
-                const messageTypeSelect = document.getElementById('statusMessageType');
-                if (messageTypeSelect) {
-                    // Remove existing listeners
-                    messageTypeSelect.onchange = null;
-                    messageTypeSelect.onchange = function() {
-                        const emailSubjectDiv = document.getElementById('statusEmailSubjectDiv');
-                        const emailSubject = document.getElementById('statusEmailSubject');
-                        if (this.value === 'email') {
-                            if (emailSubjectDiv) emailSubjectDiv.style.display = 'block';
-                            if (emailSubject) emailSubject.required = true;
-                        } else {
-                            if (emailSubjectDiv) emailSubjectDiv.style.display = 'none';
-                            if (emailSubject) emailSubject.required = false;
-                        }
-                    };
-                }
-                
-                // Show modal using Bootstrap Modal properly
-                const modal = new bootstrap.Modal(modalElement, {
-                    backdrop: true,
-                    keyboard: true,
-                    focus: true
-                });
-                modal.show();
-                
-                // Add close button handlers
-                const closeButtons = modalElement.querySelectorAll('[data-bs-dismiss="modal"], .btn-close');
-                closeButtons.forEach(button => {
-                    button.onclick = function() {
-                        modal.hide();
-                    };
-                });
-                
-                // Add cancel button handler
-                const cancelButton = modalElement.querySelector('.btn-secondary');
-                if (cancelButton) {
-                    cancelButton.onclick = function() {
-                        modal.hide();
-                    };
-                }
-                
-                // Simple focus after delay
-                setTimeout(() => {
-                    const messageTextarea = document.getElementById('statusCampaignMessage');
-                    if (messageTextarea) {
-                        messageTextarea.focus();
-                    }
-                }, 300);
-                
-            } catch (error) {
-                console.error('Error opening modal:', error);
-                alert('Error opening campaign modal. Please refresh the page.');
-            }
-        }
-
-        function saveStatusCampaign() {
-            const form = document.getElementById('statusCampaignForm');
-            
-            // Validate form
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
-            
-            const messageType = document.getElementById('statusMessageType').value;
-            const targetCategory = document.getElementById('modalCategoryValue').value;
-            
-            const campaignData = {
-                name: document.getElementById('statusCampaignName').value,
-                message: document.getElementById('statusCampaignMessage').value,
-                type: messageType,
-                categories: [targetCategory],
-                max_recipients: parseInt(document.getElementById('statusRecipientLimit').value) || 100,
-                notes: document.getElementById('statusCampaignNotes').value
-            };
-            
-            // Add email subject if it's an email campaign
-            if (messageType === 'email') {
-                campaignData.subject = document.getElementById('statusEmailSubject').value;
-            }
-
-            debugLog('📤 Sending status campaign with ClubHub status message:', campaignData);
-
-            // Show loading state
-            const submitBtn = document.querySelector('#statusCampaignModal .btn-fluent-primary');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Sending...';
-            submitBtn.disabled = true;
-
-            fetch('/api/campaigns/send', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(campaignData)
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Close modal properly
-                    const modalElement = document.getElementById('statusCampaignModal');
-                    const modalInstance = bootstrap.Modal.getInstance(modalElement);
-                    if (modalInstance) {
-                        modalInstance.hide();
-                    } else {
-                        // Fallback modal close
-                        modalElement.style.display = 'none';
-                        modalElement.classList.remove('show');
-                        document.body.classList.remove('modal-open');
-                        const backdrop = document.querySelector('.modal-backdrop');
-                        if (backdrop) backdrop.remove();
-                    }
-                    
-                    loadCampaignHistory();
-                    loadCampaignProgress();
-                    
-                    const results = data.campaign_results;
-                    showAlert('success', 
-                        `${targetCategory} campaign sent successfully! ` + 
-                        `${results.successful}/${results.total} messages sent. ` +
-                        (results.failed > 0 ? `${results.failed} failed.` : '')
-                    );
-                    
-                    // Clear form
-                    form.reset();
-                } else {
-                    debugError('Campaign error response:', data);
-                    showAlert('danger', `Campaign failed: ${data.error || 'Unknown error'}`);
-                }
-            })
-            .catch(error => {
-                debugError('Error sending campaign:', error);
-                showAlert('danger', `Error sending campaign: ${error.message || 'Network error'}`);
-            })
-            .finally(() => {
-                // Restore button state
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
-            });
-        } // End of saveStatusCampaign function
 
         // Helper function to show alerts
         function showAlert(type, message) {
