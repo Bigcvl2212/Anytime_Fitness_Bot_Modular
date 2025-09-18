@@ -91,6 +91,12 @@
                     </button>
                 </li>
                 <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="prospects-tab" data-bs-toggle="tab" data-bs-target="#prospects" type="button" role="tab" aria-controls="prospects" aria-selected="false" onclick="loadMembersByCategory('prospects')">
+                        💰 Prospects
+                        <span id="prospects-count-badge" class="badge bg-primary ms-2">-</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
                     <button class="nav-link" id="comp-members-tab" data-bs-toggle="tab" data-bs-target="#comp-members" type="button" role="tab" aria-controls="comp-members" aria-selected="false" onclick="loadMembersByCategory('comp')">
                         Comp Members
                         <span id="comp-count-badge" class="badge bg-info ms-2">-</span>
@@ -152,6 +158,40 @@
                     <p class="text-muted mt-3">Loading green members...</p>
                     </div>
                 </div>
+        </div>
+
+        <!-- Prospects Tab -->
+        <div class="tab-pane fade" id="prospects" role="tabpanel" aria-labelledby="prospects-tab">
+            <div class="search-section">
+                <div class="input-group mb-3">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control search-input" placeholder="Search prospects..." id="prospectsMemberSearch">
+                </div>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="campaign-actions">
+                        <button class="btn btn-success btn-sm" onclick="createProspectCampaign()">
+                            <i class="fas fa-bullhorn me-1"></i>Create Campaign
+                        </button>
+                        <button class="btn btn-primary btn-sm" onclick="bulkMessageProspects()">
+                            <i class="fas fa-envelope me-1"></i>Bulk Message
+                        </button>
+                        <button class="btn btn-info btn-sm" onclick="exportProspects()">
+                            <i class="fas fa-download me-1"></i>Export List
+                        </button>
+                    </div>
+                    <div class="prospect-stats">
+                        <small class="text-muted">
+                            <i class="fas fa-users me-1"></i>Total Prospects: <span id="total-prospects-count">-</span>
+                        </small>
+                    </div>
+                </div>
+            </div>
+            <div class="row" id="prospects-container">
+                <div class="col-12 text-center py-5">
+                    <div class="loading-spinner"></div>
+                    <p class="text-muted mt-3">Loading prospects...</p>
+                </div>
+            </div>
         </div>
 
         <!-- Past Due Tab -->
@@ -1682,6 +1722,7 @@ async function loadMembersByCategory(category) {
     
     const containerMap = {
         'green': 'green-members-container',
+        'prospects': 'prospects-container',
         'comp': 'comp-members-container',
         'ppv': 'ppv-members-container', 
         'staff': 'staff-members-container',
@@ -1721,7 +1762,10 @@ async function loadMembersByCategory(category) {
     `;
     
     try {
-        let endpoint = `/api/members/by-category/${category}`;
+        // Use different endpoint for prospects vs members
+        let endpoint = category === 'prospects' 
+            ? `/api/prospects/all` 
+            : `/api/members/by-category/${category}`;
         debugLog(`📡 Fetching from: ${endpoint}`);
         
         // Force fresh data by adding timestamp to prevent caching
@@ -1824,7 +1868,8 @@ document.addEventListener('DOMContentLoaded', function() {
         'ppvMemberSearch',
         'staffMemberSearch',
         'collectionsMemberSearch',
-        'inactiveMemberSearch'
+        'inactiveMemberSearch',
+        'prospectSearch'
     ];
     
     function setupCategorySearch(categoryId) {
@@ -2724,6 +2769,118 @@ async function runAutomatedUnlockCheck() {
         unlockBtn.innerHTML = originalText;
         unlockBtn.disabled = false;
     }
+}
+
+// Prospect Campaign Management Functions
+function createProspectCampaign() {
+    debugLog('🎯 Creating new prospect campaign...');
+    
+    const selectedProspects = getSelectedProspects();
+    if (selectedProspects.length === 0) {
+        alert('Please select at least one prospect to create a campaign.');
+        return;
+    }
+    
+    // For now, redirect to messaging page with prospects selected
+    const prospectIds = selectedProspects.map(p => p.prospect_id).join(',');
+    window.location.href = `/messaging?type=campaign&targets=prospects&ids=${prospectIds}`;
+}
+
+function bulkMessageProspects() {
+    debugLog('💬 Starting bulk message to prospects...');
+    
+    const selectedProspects = getSelectedProspects();
+    if (selectedProspects.length === 0) {
+        alert('Please select at least one prospect to send messages.');
+        return;
+    }
+    
+    const message = prompt(`Send message to ${selectedProspects.length} prospects:`);
+    if (!message || message.trim() === '') {
+        return;
+    }
+    
+    // Send bulk message
+    fetch('/api/send-bulk-message', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            targets: selectedProspects.map(p => ({
+                id: p.prospect_id,
+                name: p.full_name || p.first_name + ' ' + p.last_name,
+                phone: p.phone || p.mobile_phone,
+                email: p.email
+            })),
+            message: message,
+            campaign_type: 'prospect_outreach'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`✅ Message sent successfully to ${selectedProspects.length} prospects!`);
+        } else {
+            alert(`❌ Error sending messages: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        debugError('Error sending bulk message:', error);
+        alert(`❌ Error sending messages: ${error.message}`);
+    });
+}
+
+function exportProspects() {
+    debugLog('📋 Exporting prospects list...');
+    
+    const selectedProspects = getSelectedProspects();
+    const prospects = selectedProspects.length > 0 ? selectedProspects : getAllLoadedProspects();
+    
+    if (prospects.length === 0) {
+        alert('No prospects to export. Please load prospects first.');
+        return;
+    }
+    
+    // Create CSV content
+    const csvHeaders = ['Name', 'Email', 'Phone', 'Status', 'Source', 'Created Date'];
+    const csvRows = prospects.map(p => [
+        (p.full_name || `${p.first_name || ''} ${p.last_name || ''}`).trim(),
+        p.email || '',
+        p.phone || p.mobile_phone || '',
+        p.status || '',
+        p.source || '',
+        p.created_at || ''
+    ]);
+    
+    const csvContent = [csvHeaders, ...csvRows]
+        .map(row => row.map(field => `"${(field || '').toString().replace(/"/g, '""')}"`).join(','))
+        .join('\\n');
+    
+    // Download CSV
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `prospects_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    debugLog(`✅ Exported ${prospects.length} prospects to CSV`);
+}
+
+function getSelectedProspects() {
+    // Get prospects with checked checkboxes (if we add selection UI)
+    const checkboxes = document.querySelectorAll('#prospects-container .prospect-checkbox:checked');
+    return Array.from(checkboxes).map(cb => JSON.parse(cb.dataset.prospect));
+}
+
+function getAllLoadedProspects() {
+    // Get all currently loaded prospects from cache or DOM
+    const cachedData = memberCache.get('prospects');
+    return cachedData?.members || [];
 }
 
 // Collections Management Functions

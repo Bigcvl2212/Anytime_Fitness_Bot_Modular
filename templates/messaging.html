@@ -339,6 +339,17 @@
                     </li>
                     <li class="nav-item" role="presentation">
                         <button class="nav-link position-relative text-center fw-bold border-0" 
+                                id="prospects-tab" data-bs-toggle="tab" data-bs-target="#prospects-panel" 
+                                type="button" role="tab" style="padding: 15px 10px; background: transparent;">
+                            <div class="d-flex flex-column align-items-center">
+                                <i class="fas fa-users text-primary mb-1" style="font-size: 1.5rem;"></i>
+                                <span class="fw-bold text-dark small">Prospects</span>
+                                <span class="badge bg-primary rounded-pill mt-1" id="prospects-count">0</span>
+                            </div>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link position-relative text-center fw-bold border-0" 
                                 id="other-statuses-tab" data-bs-toggle="tab" data-bs-target="#other-statuses-panel" 
                                 type="button" role="tab" style="padding: 15px 10px; background: transparent;">
                             <div class="d-flex flex-column align-items-center">
@@ -390,6 +401,13 @@
                     <!-- Expiring Soon Panel -->
                     <div class="tab-pane fade" id="expiring-soon-panel" role="tabpanel">
                         <div class="p-4" id="expiring-soon-content">
+                            <!-- Content will be loaded dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Prospects Panel -->
+                    <div class="tab-pane fade" id="prospects-panel" role="tabpanel">
+                        <div class="p-4" id="prospects-content">
                             <!-- Content will be loaded dynamically -->
                         </div>
                     </div>
@@ -626,7 +644,7 @@
                 }
                 
                 // Categorize members by status_message patterns
-                categorizeSpecificMembers(allMembers, trainingClients);
+                categorizeSpecificMembers(allMembers, trainingClients, prospects);
                 
                 debugLog('✅ Status campaigns loaded and categorized successfully');
             })
@@ -636,7 +654,7 @@
             });
         }
 
-        function categorizeSpecificMembers(allMembers, trainingClients) {
+        function categorizeSpecificMembers(allMembers, trainingClients, prospects) {
             debugLog('🏷️ Starting member categorization...');
             
             // Initialize all categories
@@ -647,6 +665,7 @@
                 'past-due-30': [],
                 'past-due-training': [],
                 'expiring-soon': [],
+                'prospects': [],
                 'other-statuses': []
             };
             
@@ -680,6 +699,12 @@
                 categories['past-due-training'] = pastDueTrainingClients;
             }
             
+            // Add prospects to their category
+            if (prospects && prospects.length > 0) {
+                categories['prospects'] = prospects;
+                debugLog('💰 Added prospects to categories:', prospects.length);
+            }
+            
             debugLog('📋 Categorization results:', {
                 'good-standing': categories['good-standing'].length,
                 'pay-per-visit': categories['pay-per-visit'].length,
@@ -687,6 +712,7 @@
                 'past-due-30': categories['past-due-30'].length,
                 'past-due-training': categories['past-due-training'].length,
                 'expiring-soon': categories['expiring-soon'].length,
+                'prospects': categories['prospects'].length,
                 'other-statuses': categories['other-statuses'].length
             });
             
@@ -715,6 +741,7 @@
                 case 'past-due-6-30': return 'bg-warning text-dark';
                 case 'past-due-30': case 'past-due-training': return 'bg-danger';
                 case 'expiring-soon': return 'bg-warning text-dark';
+                case 'prospects': return 'bg-primary';
                 default: return 'bg-secondary';
             }
         }
@@ -792,6 +819,7 @@
                 'past-due-30': 'Past Due 30+ Days',
                 'past-due-training': 'Past Due Training Clients',
                 'expiring-soon': 'Expiring Soon',
+                'prospects': 'Prospects',
                 'other-statuses': 'Other Status Members'
             };
             return titles[categoryKey] || categoryKey;
