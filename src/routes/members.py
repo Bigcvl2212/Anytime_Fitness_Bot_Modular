@@ -59,7 +59,7 @@ def test_collections_page():
     """
 
 @members_bp.route('/members')
-# @require_auth  # Temporarily disabled for testing
+@require_auth
 def members_page():
     """Members page with categorized member lists."""
     try:
@@ -123,31 +123,26 @@ def get_all_members():
 def get_member_profile(member_id):
     """Get comprehensive member profile data."""
     try:
-        conn = current_app.db_manager.get_connection()
-        cursor = current_app.db_manager.get_cursor(conn)
+        # Get basic member info using database manager's cross-database compatible method
+        member = current_app.db_manager.execute_query("""
+            SELECT * FROM members WHERE prospect_id = ?
+        """, (member_id,), fetch_one=True)
         
-        # Get basic member info
-        cursor.execute("""
-            SELECT * FROM members WHERE prospect_id = %s
-        """, (member_id,))
-        
-        member = cursor.fetchone()
         if not member:
             return jsonify({'success': False, 'error': 'Member not found'}), 404
         
         member_data = dict(member)
         
-        # Get category info
-        cursor.execute("""
-            SELECT category FROM member_categories WHERE member_id = %s
-        """, (member_id,))
+        # Get category info using database manager's cross-database compatible method
+        category_result = current_app.db_manager.execute_query("""
+            SELECT category FROM member_categories WHERE member_id = ?
+        """, (member_id,), fetch_one=True)
         
-        category_result = cursor.fetchone()
-        member_data['category'] = category_result[0] if category_result else 'Unknown'
+        member_data['category'] = category_result['category'] if category_result else 'Unknown'
         
         # Get training package info if available
         try:
-            training_packages = current_app.clubos.get_member_agreements(member_id)
+            training_packages = current_app.clubhub.get_member_agreements(member_id)
             member_data['training_packages'] = training_packages
         except Exception as e:
             logger.warning(f"⚠️ Could not get training packages for member {member_id}: {e}")
@@ -260,11 +255,8 @@ def search_members():
         if not query:
             return jsonify({'success': False, 'error': 'Search query required'}), 400
         
-        conn = current_app.db_manager.get_connection()
-        cursor = current_app.db_manager.get_cursor(conn)
-        
-        # Search by first name, last name, or full name
-        cursor.execute("""
+        # Search by first name, last name, or full name using database manager
+        members = current_app.db_manager.execute_query("""
             SELECT 
                 prospect_id,
                 id,
@@ -279,13 +271,13 @@ def search_members():
                 amount_past_due,
                 date_of_next_payment
             FROM members 
-            WHERE first_name LIKE %s OR last_name LIKE %s OR full_name LIKE %s
+            WHERE first_name LIKE ? OR last_name LIKE ? OR full_name LIKE ?
             ORDER BY full_name
             LIMIT 10
-        """, (f'%{query}%', f'%{query}%', f'%{query}%'))
+        """, (f'%{query}%', f'%{query}%', f'%{query}%'), fetch_all=True)
         
-        members = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        # Convert to list of dicts if not already
+        members = [dict(row) for row in members] if members else []
         
         logger.info(f"✅ Search for '{query}' returned {len(members)} members")
         return jsonify({'success': True, 'members': members, 'query': query})
@@ -396,6 +388,10 @@ def api_refresh_data():
                         member_data['date_of_next_payment'] = agreement_data.get('dateOfNextPayment')
                         member_data['status_message'] = agreement_data.get('statusMessage', '')
                         
+                        # Extract agreement ID and GUID for collections tracking
+                        member_data['agreement_id'] = agreement_data.get('agreementID')
+                        member_data['agreement_guid'] = agreement_data.get('agreementGuid')
+                        
                     else:
                         # No agreement data
                         member_data['amount_past_due'] = 0.0
@@ -404,6 +400,8 @@ def api_refresh_data():
                         member_data['missed_payments'] = 0
                         member_data['agreement_recurring_cost'] = 0.0
                         member_data['agreement_status'] = 'No Agreement'
+                        member_data['agreement_id'] = None
+                        member_data['agreement_guid'] = None
                 
                 return member_data
             except Exception as e:
@@ -413,6 +411,8 @@ def api_refresh_data():
                 member_data['late_fees'] = 0.0
                 member_data['missed_payments'] = 0
                 member_data['agreement_recurring_cost'] = 0.0
+                member_data['agreement_id'] = None
+                member_data['agreement_guid'] = None
                 return member_data
         
         # Process members with agreement data in parallel
@@ -624,15 +624,11 @@ def get_monthly_revenue():
 def member_profile(member_id):
     """Member profile page."""
     try:
-        # Get member data
-        conn = current_app.db_manager.get_connection()
-        cursor = current_app.db_manager.get_cursor(conn)
+        # Get member data using database manager's cross-database compatible method
+        member = current_app.db_manager.execute_query("""
+            SELECT * FROM members WHERE guid = ? OR prospect_id = ?
+        """, (member_id, member_id), fetch_one=True)
         
-        cursor.execute("""
-            SELECT * FROM members WHERE guid = %s OR prospect_id = %s
-        """, (member_id, member_id))
-        
-        member = cursor.fetchone()
         if not member:
             return render_template('error.html', error='Member not found')
         
@@ -644,28 +640,18 @@ def member_profile(member_id):
                 member_data[key] = value.isoformat()
         
         # Get category - use the actual guid from the member record
-        # Handle both dict and tuple access for cursor results
-        if hasattr(member, 'keys'):
-            member_guid = member.get('guid') or member.get('prospect_id') or member_id
-        else:
-            # If it's a tuple/list result, we need to access by index
-            # This is a fallback in case RealDictCursor is not working
-            member_guid = member[2] if len(member) > 2 else member_id  # Assuming guid is 3rd column
+        # Database Row objects support dictionary-style access with [key]
+        member_guid = member['guid'] or member['prospect_id'] or member_id
         
-        cursor.execute("""
-            SELECT category FROM member_categories WHERE member_id = %s
-        """, (str(member_guid),))
+        # Use database manager's cross-database compatible method
+        category_result = current_app.db_manager.execute_query("""
+            SELECT category FROM member_categories WHERE member_id = ?
+        """, (str(member_guid),), fetch_one=True)
         
-        category_result = cursor.fetchone()
         if category_result:
-            if hasattr(category_result, 'keys'):
-                member_data['category'] = category_result.get('category', 'Unknown')
-            else:
-                member_data['category'] = category_result[0] if len(category_result) > 0 else 'Unknown'
+            member_data['category'] = category_result['category'] if category_result['category'] else 'Unknown'
         else:
             member_data['category'] = 'Unknown'
-        
-        conn.close()
         
         return render_template('member_profile.html', member=member_data)
         
@@ -680,23 +666,10 @@ def member_profile(member_id):
 @members_bp.route('/api/collections/past-due')
 # @require_auth  # Temporarily disabled for testing
 def get_past_due_collections():
-    """Get all past due members and training clients for collections management using same logic as existing past due pages"""
+    """Get all past due members and training clients for collections management using database manager"""
     try:
-        # Use SQLite for local development, PostgreSQL for production
-        import os
-        if os.path.exists('gym_bot.db'):
-            # Local development with SQLite
-            import sqlite3
-            conn = sqlite3.connect('gym_bot.db')
-            cursor = conn.cursor()
-        else:
-            # Production with PostgreSQL
-            conn = current_app.db_manager.get_connection()
-            cursor = current_app.db_manager.get_cursor(conn)
-        
-        # Get past due members using the SAME logic as the existing past due members API
-        # Now includes agreement_id, agreement_guid, and agreement_type columns
-        cursor.execute("""
+        # Get past due members using database manager for cross-platform compatibility
+        past_due_members = current_app.db_manager.execute_query("""
             SELECT 
                 full_name as name,
                 email,
@@ -716,10 +689,11 @@ def get_past_due_collections():
             ORDER BY amount_past_due DESC
         """)
         
-        past_due_members = cursor.fetchall()
+        if not past_due_members:
+            past_due_members = []
         
-        # Get past due training clients using the SAME logic as existing training clients
-        cursor.execute("""
+        # Get past due training clients using database manager
+        past_due_training = current_app.db_manager.execute_query("""
             SELECT 
                 member_name as name,
                 email,
@@ -735,20 +709,17 @@ def get_past_due_collections():
             ORDER BY total_past_due DESC
         """)
         
-        past_due_training = cursor.fetchall()
+        if not past_due_training:
+            past_due_training = []
         
         # Process training clients to extract agreement info
         processed_training = []
         for client in past_due_training:
-            # Handle both SQLite tuple results and PostgreSQL dict results
-            if hasattr(client, 'keys'):
+            # Convert to dict if not already
+            if not isinstance(client, dict):
                 client_dict = dict(client)
             else:
-                client_dict = {
-                    'name': client[0], 'email': client[1], 'phone': client[2],
-                    'past_due_amount': client[3], 'status': client[4], 'last_updated': client[5],
-                    'type': client[6], 'package_details': client[7], 'active_packages': client[8]
-                }
+                client_dict = client
             
             # Extract agreement info from package_details
             agreement_id = None
@@ -770,44 +741,55 @@ def get_past_due_collections():
         # Combine all past due data
         all_past_due = []
         
-        # Add members
+        # Add members - convert to dict if needed
         for member in past_due_members:
-            # Handle both SQLite tuple results and PostgreSQL dict results
-            if hasattr(member, 'keys'):
+            if not isinstance(member, dict):
                 member_dict = dict(member)
             else:
-                # Handle different column counts (SQLite vs PostgreSQL)
-                if len(member) >= 13:  # PostgreSQL with agreement columns
-                    member_dict = {
-                        'name': member[0], 'email': member[1], 'phone': member[2],
-                        'past_due_amount': member[3], 'status': member[4], 'join_date': member[5],
-                        'type': member[6], 'status_message': member[7], 'agreement_recurring_cost': member[8],
-                        'agreement_id': member[9], 'agreement_guid': member[10], 'agreement_type': member[11]
-                    }
-                else:  # SQLite without agreement columns
-                    member_dict = {
-                        'name': member[0], 'email': member[1], 'phone': member[2],
-                        'past_due_amount': member[3], 'status': member[4], 'join_date': member[5],
-                        'type': member[6], 'status_message': member[7], 'agreement_recurring_cost': member[8],
-                        'agreement_id': None, 'agreement_guid': None, 'agreement_type': 'Membership'
-                    }
+                member_dict = member
+            
+            # Ensure agreement_type has a default value
+            if not member_dict.get('agreement_type'):
+                member_dict['agreement_type'] = 'Membership'
+            
             all_past_due.append(member_dict)
         
         # Add training clients
         all_past_due.extend(processed_training)
         
-        conn.close()
+        # Get count of members already sent to collections using database manager
+        collections_sent_data = current_app.db_manager.execute_query("""
+            SELECT COUNT(*) as count, COALESCE(SUM(amount_past_due), 0) as total_amount
+            FROM members 
+            WHERE status_message = 'Sent to Collections'
+        """)
         
-        logger.info(f"✅ Collections data: {len(past_due_members)} members, {len(processed_training)} training clients")
+        if collections_sent_data and len(collections_sent_data) > 0:
+            sent_row = collections_sent_data[0]
+            if isinstance(sent_row, dict):
+                sent_count = sent_row['count']
+                sent_amount = sent_row['total_amount']
+            else:
+                sent_count = sent_row[0] if sent_row else 0
+                sent_amount = sent_row[1] if sent_row and len(sent_row) > 1 else 0
+        else:
+            sent_count = 0
+            sent_amount = 0
+        
+        logger.info(f"✅ Collections data: {len(past_due_members)} active members, {len(processed_training)} training clients, {sent_count} already sent")
         
         return jsonify({
             'success': True,
             'past_due_data': all_past_due,
-            'total_count': len(all_past_due)
+            'total_count': len(all_past_due),
+            'already_sent_count': sent_count,
+            'already_sent_amount': sent_amount
         })
         
     except Exception as e:
         logger.error(f"❌ Error getting past due collections data: {e}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'success': False, 'error': str(e)})
 
 @members_bp.route('/api/collections/send-email', methods=['POST'])

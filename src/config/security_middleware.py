@@ -211,11 +211,11 @@ def configure_rate_limiting(app: Flask) -> None:
         from flask_limiter import Limiter
         from flask_limiter.util import get_remote_address
         
-        # Initialize Flask-Limiter with correct syntax for newer versions
+        # Initialize Flask-Limiter with higher limits for automation
         limiter = Limiter(
             get_remote_address,  # key_func as first positional argument
             app=app,
-            default_limits=["500 per day", "100 per hour"],  # Increased limits for automation
+            default_limits=["1000 per day", "500 per hour"],  # Higher limits for automation systems
             storage_uri="memory://",  # Use memory storage for simplicity
             strategy="fixed-window"
         )
@@ -223,14 +223,24 @@ def configure_rate_limiting(app: Flask) -> None:
         # Store limiter in app for access in routes
         app.limiter = limiter
         
-        # Configure per-endpoint limits for automation
-        app.automation_endpoints = {
-            '/api/bulk-checkin-status': '1000 per hour',
-            '/api/funding-cache-status': '1000 per hour', 
-            '/api/check-funding': '500 per hour',
-            '/api/members/all': '200 per hour',
-            '/api/prospects/all': '200 per hour'
-        }
+        # Define automation endpoints that need even higher limits
+        automation_endpoints = [
+            '/api/bulk-checkin-status',
+            '/api/funding-cache-status', 
+            '/api/bulk-checkin-processed-members'
+        ]
+        
+        # Override rate limiting for automation endpoints
+        @limiter.request_filter
+        def exempt_automation_endpoints():
+            """Exempt automation endpoints from rate limiting"""
+            from flask import request
+            try:
+                endpoint_path = request.path
+                # Check if this is an automation endpoint that should be exempt
+                return any(endpoint_path.endswith(auto_endpoint) for auto_endpoint in automation_endpoints)
+            except:
+                return False
         
         logger.info("✅ Rate limiting configured with Flask-Limiter and higher automation limits")
         

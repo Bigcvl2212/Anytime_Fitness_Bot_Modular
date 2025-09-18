@@ -29,12 +29,7 @@ def register_blueprints(app):
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(messaging_bp)
     
-    # Add root route that requires authentication
-    @app.route('/')
-    @require_auth
-    def root():
-        """Root route - redirects authenticated users to dashboard"""
-        return redirect(url_for('dashboard.dashboard'))
+    # Root route is handled directly by dashboard blueprint - no redirect needed
     
     # Add a simple health check route
     @app.route('/health')

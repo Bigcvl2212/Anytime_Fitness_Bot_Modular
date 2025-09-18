@@ -347,25 +347,6 @@
 
 {% block extra_js %}
 <script>
-        // Debug logging system - set to false for production
-        const DEBUG_MODE = false;
-        
-        function debugLog(...args) {
-            if (DEBUG_MODE) {
-                console.log(...args);
-            }
-        }
-        
-        function debugError(...args) {
-            console.error(...args); // Always show errors
-        }
-        
-        function debugWarn(...args) {
-            if (DEBUG_MODE) {
-                console.warn(...args);
-            }
-        }
-
 let currentDate = new Date();
 let events = [];
 let selectedEventId = null;

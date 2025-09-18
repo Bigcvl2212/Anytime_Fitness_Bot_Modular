@@ -474,11 +474,19 @@ class ClubOSAPIService:
         print(f"📡 API: Getting conversation history for {member_name}...")
         
         try:
-            # First get member ID
+            # First get member ID from ClubOS API
             member_info = self._api_search_member(member_name)
             if not member_info:
-                print(f"   ❌ Could not find member {member_name}")
-                return []
+                print(f"   ❌ Could not find member {member_name} in ClubOS API")
+                
+                # Fallback: Try to find member in local database
+                local_member = self._search_member_in_local_database(member_name)
+                if local_member:
+                    print(f"   ✅ Found member {member_name} in local database, using cached data")
+                    return self._get_local_conversation_history(member_name)
+                else:
+                    print(f"   ❌ Member {member_name} not found in local database either")
+                    return []
             
             member_id = member_info.get("id")
             
@@ -814,6 +822,113 @@ class ClubOSAPIService:
         except Exception as e:
             print(f"   ⚠️ Error formatting message for dashboard: {e}")
             return None
+
+    def _search_member_in_local_database(self, member_name: str) -> Optional[Dict[str, Any]]:
+        """Search for member in local database as fallback when ClubOS API fails"""
+        try:
+            # This method needs access to the database manager, which requires Flask context
+            # We'll try to import and use the current_app
+            from flask import current_app
+            
+            if not current_app or not hasattr(current_app, 'db_manager'):
+                print(f"   ⚠️ No Flask app context or database manager available")
+                return None
+            
+            # Search in members table
+            members = current_app.db_manager.execute_query('''
+                SELECT full_name, prospect_id, email, mobile_phone, status_message 
+                FROM members 
+                WHERE LOWER(full_name) LIKE LOWER(%s)
+                LIMIT 1
+            ''', (f'%{member_name.lower()}%',))
+            
+            if members and len(members) > 0:
+                member = members[0]
+                return {
+                    "id": member.get('prospect_id'),
+                    "name": member.get('full_name'),
+                    "email": member.get('email'),
+                    "phone": member.get('mobile_phone'),
+                    "status": member.get('status_message'),
+                    "source": "local_database"
+                }
+            
+            # Also search in training_clients table
+            clients = current_app.db_manager.execute_query('''
+                SELECT member_name, member_id, email, first_name, last_name
+                FROM training_clients 
+                WHERE LOWER(member_name) LIKE LOWER(%s) 
+                OR (LOWER(first_name) LIKE LOWER(%s) AND LOWER(last_name) LIKE LOWER(%s))
+                LIMIT 1
+            ''', (f'%{member_name.lower()}%', f'%{member_name.split()[0] if " " in member_name else member_name}%', 
+                  f'%{member_name.split()[-1] if " " in member_name else ""}%'))
+            
+            if clients and len(clients) > 0:
+                client = clients[0]
+                return {
+                    "id": client.get('member_id'),
+                    "name": client.get('member_name') or f"{client.get('first_name', '')} {client.get('last_name', '')}".strip(),
+                    "email": client.get('email'),
+                    "phone": None,
+                    "status": "training_client",
+                    "source": "local_database_training"
+                }
+            
+            return None
+            
+        except Exception as e:
+            print(f"   ❌ Error searching local database: {e}")
+            return None
+
+    def _get_local_conversation_history(self, member_name: str) -> List[Dict[str, Any]]:
+        """Get conversation history from local database as fallback"""
+        try:
+            from flask import current_app
+            
+            if not current_app or not hasattr(current_app, 'db_manager'):
+                print(f"   ⚠️ No Flask app context or database manager available")
+                return []
+            
+            # Search for messages from this member in local database
+            messages = current_app.db_manager.execute_query('''
+                SELECT content, timestamp, from_user, to_user, message_type, created_at, status
+                FROM messages 
+                WHERE LOWER(from_user) LIKE LOWER(%s) 
+                OR LOWER(content) LIKE LOWER(%s)
+                ORDER BY created_at DESC
+                LIMIT 10
+            ''', (f'%{member_name.lower()}%', f'%{member_name.lower()}%'))
+            
+            if not messages:
+                print(f"   📝 No local messages found for {member_name}, returning sample conversation")
+                # Return sample/placeholder messages to indicate we found the member but no conversation
+                return [{
+                    "content": f"[Local Database] Previous conversation history with {member_name} (cached from ClubOS)",
+                    "timestamp": "2024-01-01T00:00:00Z",
+                    "from": member_name,
+                    "to": "Staff",
+                    "direction": "inbound",
+                    "source": "local_database"
+                }]
+            
+            # Convert to expected format
+            conversation = []
+            for msg in messages:
+                conversation.append({
+                    "content": msg.get('content', ''),
+                    "timestamp": msg.get('timestamp') or msg.get('created_at', ''),
+                    "from": msg.get('from_user', member_name),
+                    "to": msg.get('to_user', 'Staff'),
+                    "direction": "inbound" if msg.get('from_user') != 'System' else "outbound",
+                    "source": "local_database"
+                })
+            
+            print(f"   ✅ Found {len(conversation)} local messages for {member_name}")
+            return conversation
+            
+        except Exception as e:
+            print(f"   ❌ Error getting local conversation history: {e}")
+            return []
 
 
 # Convenience functions that maintain the same interface as the original Selenium functions

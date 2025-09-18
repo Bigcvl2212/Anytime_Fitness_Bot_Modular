@@ -499,24 +499,6 @@
 
 {% block extra_js %}
 <script>
-        // Debug logging system - set to false for production
-        const DEBUG_MODE = false;
-        
-        function debugLog(...args) {
-            if (DEBUG_MODE) {
-                console.log(...args);
-            }
-        }
-        
-        function debugError(...args) {
-            console.error(...args); // Always show errors
-        }
-        
-        function debugWarn(...args) {
-            if (DEBUG_MODE) {
-                console.warn(...args);
-            }
-        }
 
         // Event details popup functions - made globally available for inline handlers
         window.openEventDetails = function(element) {
@@ -762,7 +744,170 @@ function refreshFundingCache() {
     });
 }
 
-        window.performBulkCheckin = function() {
+function bulkCheckin() {
+    debugLog('🚀 Starting bulk check-in...');
+    
+    const bulkBtn = document.getElementById('bulk-checkin-btn');
+    const originalText = bulkBtn.innerHTML;
+    
+    bulkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
+    bulkBtn.disabled = true;
+    
+    fetch('/api/bulk-checkin', { method: 'POST' })
+    .then(response => response.json())
+    .then(data => {
+        debugLog('📡 Bulk check-in response:', data);
+        if (data.success) {
+            // Create progress container
+            let progressContainer = document.getElementById('bulk-checkin-progress');
+            if (!progressContainer) {
+                progressContainer = document.createElement('div');
+                progressContainer.id = 'bulk-checkin-progress';
+                progressContainer.className = 'outlook-card mt-3';
+                progressContainer.innerHTML = `
+                    <h5><i class="fas fa-users"></i> Bulk Check-in Progress</h5>
+                    <div class="progress mb-2">
+                        <div class="progress-bar bg-info" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <div id="bulk-status-text">Initializing...</div>
+                `;
+                bulkBtn.parentElement.appendChild(progressContainer);
+            }
+            progressContainer.style.display = 'block';
+            
+            bulkBtn.innerHTML = '<i class="fas fa-clock"></i> In Progress...';
+            bulkBtn.className = 'outlook-btn outlook-btn-info';
+            
+            // Start status polling
+            startStatusPolling(bulkBtn, originalText, progressContainer);
+        } else {
+            debugError('❌ Bulk check-in error:', data.error);
+            
+            bulkBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Failed to Start';
+            bulkBtn.className = 'outlook-btn outlook-btn-danger';
+            
+            document.getElementById('bulk-status-text').textContent = `Error: ${data.error}`;
+            
+            setTimeout(() => {
+                bulkBtn.innerHTML = originalText;
+                bulkBtn.className = 'outlook-btn outlook-btn-success';
+                bulkBtn.disabled = false;
+                progressContainer.style.display = 'none';
+            }, 5000);
+        }
+    })
+    .catch(error => {
+        debugError('❌ Network error:', error);
+        bulkBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Network Error';
+        bulkBtn.className = 'outlook-btn outlook-btn-danger';
+        
+        setTimeout(() => {
+            bulkBtn.innerHTML = originalText;
+            bulkBtn.className = 'outlook-btn outlook-btn-success';
+            bulkBtn.disabled = false;
+        }, 5000);
+    });
+}
+
+function checkAndRestoreBulkCheckinUI() {
+    debugLog('🔍 Checking for active or recent bulk check-in on page load...');
+    
+    // Check bulk check-in status immediately on page load
+    fetch('/api/bulk-checkin-status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.status) {
+                const status = data.status;
+                debugLog('📊 Page load status check:', status);
+                
+                // If there's an active bulk check-in or recently completed one with data
+                if (status.is_running || (status.total_members > 0 && status.processed_members > 0)) {
+                    debugLog('🔄 Found active/recent bulk check-in - restoring UI...');
+                    
+                    // Create progress container if it doesn't exist
+                    let progressContainer = document.getElementById('bulk-checkin-progress');
+                    if (!progressContainer) {
+                        // Create the same progress container as in performBulkCheckin()
+                        progressContainer = document.createElement('div');
+                        progressContainer.id = 'bulk-checkin-progress';
+                        progressContainer.innerHTML = `
+                            <div class="card mt-3 bulk-progress-card">
+                                <div class="card-body">
+                                    <h6 class="card-title mb-3">
+                                        <i class="fas fa-users text-primary"></i> Bulk Check-in Progress
+                                    </h6>
+                                    <div class="progress mb-2 bulk-progress-bar-container">
+                                        <div id="bulk-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bulk-progress-bar-initial" 
+                                             role="progressbar">
+                                            0%
+                                        </div>
+                                    </div>
+                                    <div id="bulk-status-text" class="text-muted small">Initializing...</div>
+                                    <div id="bulk-stats" class="row mt-2">
+                                        <div class="col-sm-3">
+                                            <small class="text-muted">Members:</small>
+                                            <div id="members-count" class="fw-bold">0</div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <small class="text-muted">Processed:</small>
+                                            <div id="processed-count" class="fw-bold text-success">0</div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <small class="text-muted">Check-ins:</small>
+                                            <div id="checkins-count" class="fw-bold text-primary">0</div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <small class="text-muted">PPV Excluded:</small>
+                                            <div id="ppv-count" class="fw-bold text-warning">0</div>
+                                        </div>
+                                    </div>
+                                    <div id="current-member" class="mt-2 small text-info"></div>
+                                    <div id="bulk-errors" class="mt-2 bulk-errors-container">
+                                        <div class="alert alert-warning mb-0">
+                                            <small id="error-list">No errors</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Insert after the bulk check-in button
+                        const bulkBtn = document.getElementById('bulk-checkin-btn');
+                        if (bulkBtn && bulkBtn.parentNode) {
+                            bulkBtn.parentNode.appendChild(progressContainer);
+                        }
+                    }
+                    
+                    // Show the progress container
+                    progressContainer.style.display = 'block';
+                    
+                    // Update UI with current status
+                    updateBulkCheckinProgress(status);
+                    
+                    // Start polling if still running
+                    if (status.is_running) {
+                        debugLog('▶️  Bulk check-in is still running - starting status polling');
+                        startStatusPolling();
+                    } else if (status.status === 'completed') {
+                        debugLog('✅ Showing completed bulk check-in results');
+                        // Update button to show it's completed
+                        const bulkBtn = document.getElementById('bulk-checkin-btn');
+                        if (bulkBtn) {
+                            bulkBtn.innerHTML = '<i class="fas fa-check-circle"></i> Check-in Complete';
+                            bulkBtn.className = 'outlook-btn outlook-btn-success';
+                        }
+                    }
+                } else {
+                    debugLog('ℹ️  No active bulk check-in found on page load');
+                }
+            }
+        })
+        .catch(error => {
+            debugLog('⚠️  Error checking bulk check-in status on page load:', error);
+        });
+}
+
+function performBulkCheckin() {
     debugLog('🏋️ Starting bulk member check-in...');
     
     const bulkBtn = document.getElementById('bulk-checkin-btn');
@@ -864,21 +1009,66 @@ function refreshFundingCache() {
     });
 }
 
-function pollBulkCheckinStatus(bulkBtn, originalText, progressContainer) {
-    const statusInterval = setInterval(() => {
-        fetch('/api/bulk-checkin-status')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.status) {
-                const status = data.status;
-                
-                // Update progress bar with smooth animations
-                const progressBar = document.getElementById('bulk-progress-bar');
-                const statusText = document.getElementById('bulk-status-text');
-                const membersCount = document.getElementById('members-count');
-                const processedCount = document.getElementById('processed-count');
-                const checkinsCount = document.getElementById('checkins-count');
-                const ppvCount = document.getElementById('ppv-count');
+// Global variable to track the polling interval
+let bulkCheckinStatusInterval = null;
+
+function startStatusPolling(bulkBtn = null, originalText = null, progressContainer = null) {
+    // Clear any existing interval
+    if (bulkCheckinStatusInterval) {
+        clearInterval(bulkCheckinStatusInterval);
+    }
+    
+    debugLog('▶️  Starting bulk check-in status polling...');
+    
+    // Get default references if not provided
+    if (!bulkBtn) bulkBtn = document.getElementById('bulk-checkin-btn');
+    if (!originalText && bulkBtn) originalText = bulkBtn.innerHTML;
+    if (!progressContainer) progressContainer = document.getElementById('bulk-checkin-progress');
+    
+    bulkCheckinStatusInterval = setInterval(() => {
+        pollBulkCheckinStatusOnce(bulkBtn, originalText, progressContainer);
+    }, 1000);
+    
+    // Also poll immediately
+    pollBulkCheckinStatusOnce(bulkBtn, originalText, progressContainer);
+}
+
+function pollBulkCheckinStatusOnce(bulkBtn, originalText, progressContainer) {
+    fetch('/api/bulk-checkin-status')
+    .then(response => response.json())
+    .then(data => {
+        // Debug log received status data
+        console.log('📊 Bulk check-in status received:', data);
+        
+        if (data.success && data.status) {
+            const status = data.status;
+            console.log('✅ Status data valid - updating UI with:', {
+                total_members: status.total_members,
+                processed_members: status.processed_members,
+                total_checkins: status.total_checkins,
+                ppv_excluded: status.ppv_excluded
+            });
+            
+            updateBulkCheckinProgress(status, bulkBtn, originalText, progressContainer);
+        }
+    })
+    .catch(error => {
+        debugError('❌ Error polling status:', error);
+    });
+}
+
+function updateBulkCheckinProgress(status, bulkBtn = null, originalText = null, progressContainer = null) {
+    // Get references if not provided
+    if (!bulkBtn) bulkBtn = document.getElementById('bulk-checkin-btn');
+    if (!progressContainer) progressContainer = document.getElementById('bulk-checkin-progress');
+    
+    // Update progress bar with smooth animations
+    const progressBar = document.getElementById('bulk-progress-bar');
+    const statusText = document.getElementById('bulk-status-text');
+    const membersCount = document.getElementById('members-count');
+    const processedCount = document.getElementById('processed-count');
+    const checkinsCount = document.getElementById('checkins-count');
+    const ppvCount = document.getElementById('ppv-count');
                 const currentMember = document.getElementById('current-member');
                 const bulkErrors = document.getElementById('bulk-errors');
                 const errorList = document.getElementById('error-list');
@@ -906,10 +1096,22 @@ function pollBulkCheckinStatus(bulkBtn, originalText, progressContainer) {
                 }
                 
                 if (statusText) statusText.textContent = displayMessage;
-                if (membersCount) membersCount.textContent = status.total_members.toLocaleString();
-                if (processedCount) processedCount.textContent = status.processed_members.toLocaleString();
-                if (checkinsCount) checkinsCount.textContent = status.total_checkins.toLocaleString();
-                if (ppvCount) ppvCount.textContent = status.ppv_excluded.toLocaleString();
+                if (membersCount) {
+                    membersCount.textContent = (status.total_members || 0).toLocaleString();
+                    console.log(`💡 Updated members count: ${membersCount.textContent}`);
+                }
+                if (processedCount) {
+                    processedCount.textContent = (status.processed_members || 0).toLocaleString();
+                    console.log(`💡 Updated processed count: ${processedCount.textContent}`);
+                }
+                if (checkinsCount) {
+                    checkinsCount.textContent = (status.total_checkins || 0).toLocaleString();
+                    console.log(`💡 Updated checkins count: ${checkinsCount.textContent}`);
+                }
+                if (ppvCount) {
+                    ppvCount.textContent = (status.ppv_excluded || 0).toLocaleString();
+                    console.log(`💡 Updated ppv count: ${ppvCount.textContent}`);
+                }
                 
                 // Show current member with processing speed
                 if (currentMember && status.current_member) {
@@ -927,55 +1129,6 @@ function pollBulkCheckinStatus(bulkBtn, originalText, progressContainer) {
                 } else {
                     bulkErrors.style.display = 'none';
                 }
-                
-                // Update button based on status with enhanced messaging
-                if (status.status === 'completed') {
-                    clearInterval(statusInterval);
-                    const totalTime = status.completed_at && status.started_at ? 
-                        Math.round((new Date(status.completed_at) - new Date(status.started_at)) / 1000) : 0;
-                    const avgSpeed = totalTime > 0 ? Math.round(status.total_checkins / totalTime) : 0;
-                    
-                    bulkBtn.innerHTML = `<i class="fas fa-check"></i> ULTRA-FAST Complete! ${status.total_checkins} check-ins in ${totalTime}s (${avgSpeed}/s avg) - ${status.processed_members} members, ${status.ppv_excluded} PPV excluded`;
-                    bulkBtn.className = 'outlook-btn outlook-btn-success';
-                    
-                    setTimeout(() => {
-                        bulkBtn.innerHTML = originalText;
-                        bulkBtn.disabled = false;
-                        progressContainer.style.display = 'none';
-                    }, 15000); // Show success for 15 seconds
-                    
-                } else if (status.status === 'error') {
-                    clearInterval(statusInterval);
-                    bulkBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error in Ultra-Fast Processing';
-                    bulkBtn.className = 'outlook-btn outlook-btn-danger';
-                    
-                    setTimeout(() => {
-                        bulkBtn.innerHTML = originalText;
-                        bulkBtn.className = 'outlook-btn outlook-btn-success';
-                        bulkBtn.disabled = false;
-                        progressContainer.style.display = 'none';
-                    }, 5000);
-                    
-                } else {
-                    // Still running - update status with speed indicators
-                    const statusMessages = {
-                        'starting': '🚀 Initializing Ultra-Fast Engine...',
-                        'authenticating': '🔐 High-Speed Authentication...',
-                        'fetching': '⚡ High-Speed Member Fetch...',
-                        'filtering': '⚡ Vectorized PPV Filtering...',
-                        'ready_processing': '🚀 Ready for Ultra-Fast Processing...',
-                        'ultra_processing': '⚡ ULTRA-FAST Processing Mode...'
-                    };
-                    
-                    const displayMessage = statusMessages[status.status] || status.message;
-                    bulkBtn.innerHTML = `<i class="fas fa-bolt fa-spin"></i> ${displayMessage}`;
-                }
-            }
-        })
-        .catch(error => {
-            debugError('❌ Error polling status:', error);
-        });
-    }, 1000); // Poll every 1 second for faster updates
 }
 
 function checkAllFundingStatusesAsync() {
@@ -1114,6 +1267,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Add test button for debugging
     debugLog('🧪 To test event card functionality, run: testEventCardClick()');
+    
+    // Check for active or recently completed bulk check-in on page load
+    checkAndRestoreBulkCheckinUI();
     
     checkAllFundingStatusesAsync();
     

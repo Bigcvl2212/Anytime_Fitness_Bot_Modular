@@ -42,7 +42,7 @@
                 </li>
                 
                 <li class="client assignee">
-                    <img src="https://s3.amazonaws.com/technique-webcontent/images/profile/50_img_profile_male.gif" />
+                    <img src="https://s3.amazonaws.com/technique-usercontent/photos/162720032/profile/50.jpg?h=4a814891633b4b5796748352551c62d6" />
         
                     <h4 class="name-email"><a  href="#" onclick="delegate(162720032,'/action/Assignees'); return false;">Baraa Manasrah</a></h4>
         
@@ -174,7 +174,7 @@
                 </li>
                 
                 <li class="client assignee">
-                    <img src="https://s3.amazonaws.com/technique-webcontent/images/profile/50_img_profile_male.gif" />
+                    <img src="https://s3.amazonaws.com/technique-usercontent/photos/185347037/profile/50.jpg?h=dc1da7af83c34801afe86745b6aa3261" />
         
                     <h4 class="name-email"><a  href="#" onclick="delegate(185347037,'/action/Assignees'); return false;">Diego Pastran</a></h4>
         
@@ -427,7 +427,7 @@
                 </li>
                 
                 <li class="client assignee">
-                    <img src="https://s3.amazonaws.com/technique-webcontent/images/profile/50_img_profile_male.gif" />
+                    <img src="https://s3.amazonaws.com/technique-usercontent/photos/189444753/profile/50.jpg?h=756bde1bd2904cd2acf886183a35586c" />
         
                     <h4 class="name-email"><a  href="#" onclick="delegate(189444753,'/action/Assignees'); return false;">Owen Krubl</a></h4>
         

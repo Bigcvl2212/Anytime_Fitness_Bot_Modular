@@ -262,7 +262,7 @@ class SecureAuthService:
     
     def create_session(self, manager_id: str) -> str:
         """
-        Create a secure session for authenticated manager
+        Create a secure session for authenticated manager with comprehensive debugging
         
         Args:
             manager_id: Manager ID
@@ -270,71 +270,201 @@ class SecureAuthService:
         Returns:
             Session token
         """
+        logger.info(f"🔍 ====== SESSION CREATION DEBUG START ======")
+        logger.info(f"🔍 Creating session for manager: {manager_id}")
+        
         session_token = secrets.token_urlsafe(32)
+        logger.info(f"🔍 Generated session token: {session_token[:10]}...")
+        
+        # Check session state before clearing
+        logger.info(f"🔍 Session before clear: {dict(session) if session else 'No session'}")
         
         # Clear existing session data first
         session.clear()
+        logger.info(f"🔍 Session after clear: {dict(session) if session else 'No session'}")
         
         # Store session data in Flask session
-        session['authenticated'] = True
-        session['manager_id'] = manager_id
-        session['session_token'] = session_token
-        session['login_time'] = datetime.now().isoformat()
-        session['last_activity'] = datetime.now().isoformat()
+        try:
+            session['authenticated'] = True
+            logger.info(f"✅ Set authenticated = True")
+            
+            session['manager_id'] = manager_id
+            logger.info(f"✅ Set manager_id = {manager_id}")
+            
+            session['session_token'] = session_token
+            logger.info(f"✅ Set session_token = {session_token[:10]}...")
+            
+            current_time = datetime.now().isoformat()
+            session['login_time'] = current_time
+            logger.info(f"✅ Set login_time = {current_time}")
+            
+            session['last_activity'] = current_time
+            logger.info(f"✅ Set last_activity = {current_time}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error setting session data: {e}")
+            import traceback
+            logger.error(f"❌ Session creation traceback: {traceback.format_exc()}")
         
         # Set session to expire and ensure persistence
-        session.permanent = True
-        if hasattr(current_app, 'permanent_session_lifetime'):
-            current_app.permanent_session_lifetime = self.session_timeout
+        try:
+            session.permanent = True
+            logger.info(f"✅ Set session.permanent = True")
+            
+            if hasattr(current_app, 'permanent_session_lifetime'):
+                current_app.permanent_session_lifetime = self.session_timeout
+                logger.info(f"✅ Set permanent_session_lifetime = {self.session_timeout}")
+            else:
+                logger.warning(f"⚠️ current_app has no permanent_session_lifetime attribute")
+            
+        except Exception as e:
+            logger.error(f"❌ Error setting session persistence: {e}")
         
         # Force session to be saved immediately
-        session.modified = True
+        try:
+            session.modified = True
+            logger.info(f"✅ Set session.modified = True")
+        except Exception as e:
+            logger.error(f"❌ Error setting session.modified: {e}")
         
-        # Debug session state
+        # Debug final session state
+        try:
+            final_session_data = dict(session)
+            logger.info(f"✅ Final session data: {final_session_data}")
+            logger.info(f"✅ Session keys: {list(session.keys())}")
+            logger.info(f"✅ Session permanent: {session.permanent}")
+            logger.info(f"✅ Session modified: {session.modified}")
+        except Exception as e:
+            logger.error(f"❌ Error getting final session state: {e}")
+        
         logger.info(f"✅ Created session for manager {manager_id}")
-        logger.info(f"🔍 Session data after creation: {dict(session)}")
+        logger.info(f"🔍 ====== SESSION CREATION DEBUG END ======")
         
         return session_token
     
     def validate_session(self) -> Tuple[bool, str]:
         """
-        Validate the current session
+        Validate the current session with comprehensive debugging
         
         Returns:
             Tuple of (is_valid, manager_id)
         """
-        # Enhanced debugging
-        logger.debug(f"🔍 Session validation - Keys: {list(session.keys()) if session else 'Empty session'}")
-        logger.debug(f"🔍 Session validation - Authenticated: {session.get('authenticated') if session else 'N/A'}")
-        logger.debug(f"🔍 Session validation - Manager ID: {session.get('manager_id') if session else 'N/A'}")
-        
-        if 'authenticated' not in session or not session['authenticated']:
-            logger.debug("❌ Session validation failed: not authenticated")
-            return False, ""
-        
-        if 'manager_id' not in session:
-            logger.debug("❌ Session validation failed: no manager_id")
-            return False, ""
-        
-        # Check session timeout
-        if 'login_time' in session:
+        try:
+            # COMPREHENSIVE SESSION DEBUGGING
+            logger.info(f"🔍 ====== SESSION VALIDATION DEBUG START ======")
+            logger.info(f"🔍 Request URL: {request.url if request else 'No request'}")
+            logger.info(f"🔍 Request method: {request.method if request else 'No request'}")
+            logger.info(f"🔍 Request headers cookies: {request.headers.get('Cookie', 'No cookies') if request else 'No request'}")
+            
+            # Check Flask session object existence
+            logger.info(f"🔍 Flask session object exists: {session is not None}")
+            logger.info(f"🔍 Flask session type: {type(session)}")
+            
+            # Try to access session in different ways
             try:
-                login_time = datetime.fromisoformat(session['login_time'])
-                if datetime.now() - login_time > self.session_timeout:
-                    logger.warning(f"⚠️ Session expired for manager {session.get('manager_id', 'unknown')}")
-                    self.logout()
-                    return False, ""
-            except (ValueError, TypeError):
-                logger.error("❌ Invalid session login_time format")
-                self.logout()
+                session_length = len(session) if session is not None else 0
+                logger.info(f"🔍 Session length: {session_length}")
+            except Exception as e:
+                logger.error(f"❌ Error getting session length: {e}")
+            
+            try:
+                session_keys = list(session.keys()) if session is not None else []
+                logger.info(f"🔍 Session keys: {session_keys}")
+            except Exception as e:
+                logger.error(f"❌ Error getting session keys: {e}")
+                session_keys = []
+            
+            # Check each session attribute individually
+            try:
+                authenticated = session.get('authenticated') if session else None
+                logger.info(f"🔍 Session authenticated value: {authenticated} (type: {type(authenticated)})")
+            except Exception as e:
+                logger.error(f"❌ Error getting authenticated: {e}")
+                authenticated = None
+            
+            try:
+                manager_id = session.get('manager_id') if session else None
+                logger.info(f"🔍 Session manager_id value: {manager_id} (type: {type(manager_id)})")
+            except Exception as e:
+                logger.error(f"❌ Error getting manager_id: {e}")
+                manager_id = None
+            
+            try:
+                session_token = session.get('session_token') if session else None
+                logger.info(f"🔍 Session token exists: {session_token is not None}")
+            except Exception as e:
+                logger.error(f"❌ Error getting session_token: {e}")
+            
+            try:
+                login_time = session.get('login_time') if session else None
+                logger.info(f"🔍 Session login_time: {login_time}")
+            except Exception as e:
+                logger.error(f"❌ Error getting login_time: {e}")
+            
+            try:
+                is_permanent = session.permanent if session else None
+                logger.info(f"🔍 Session permanent: {is_permanent}")
+            except Exception as e:
+                logger.error(f"❌ Error getting session.permanent: {e}")
+            
+            # More robust session existence check
+            if session is None or len(session_keys) == 0:
+                logger.warning("❌ Session validation failed: session is None or has no keys")
+                logger.warning(f"❌ Session object: {session}")
+                logger.warning(f"❌ Session keys: {session_keys}")
                 return False, ""
-        
-        # Update last activity
-        session['last_activity'] = datetime.now().isoformat()
-        
-        manager_id = session['manager_id']
-        logger.debug(f"✅ Session validated for manager {manager_id}")
-        return True, manager_id
+                
+            # Check if session has basic required fields with more lenient handling
+            if authenticated is None or authenticated is False:
+                logger.warning(f"❌ Session validation failed: authenticated={authenticated}")
+                logger.warning(f"❌ All session data: {dict(session) if session else 'No session'}")
+                return False, ""
+            
+            if not manager_id:
+                logger.warning("❌ Session validation failed: manager_id is missing or empty")
+                logger.warning(f"❌ All session data: {dict(session) if session else 'No session'}")
+                return False, ""
+            
+            # Check session timeout
+            if 'login_time' in session:
+                try:
+                    login_time = datetime.fromisoformat(session['login_time'])
+                    session_age = datetime.now() - login_time
+                    
+                    logger.info(f"🔍 Session age: {session_age}, timeout: {self.session_timeout}")
+                    
+                    if session_age > self.session_timeout:
+                        logger.warning(f"⚠️ Session expired for manager {manager_id}: age={session_age}")
+                        self.logout()
+                        return False, ""
+                except (ValueError, TypeError) as e:
+                    logger.error(f"❌ Invalid session login_time format: {e}")
+                    # Don't logout on time format error - just continue
+                    pass
+            else:
+                logger.warning("⚠️ No login_time in session - old session format?")
+                # Add login_time for future validation
+                session['login_time'] = datetime.now().isoformat()
+                session.modified = True
+            
+            # Update last activity and ensure session persistence
+            try:
+                session['last_activity'] = datetime.now().isoformat()
+                session.modified = True  # Ensure changes are saved
+                logger.info(f"✅ Updated last_activity and marked session as modified")
+            except Exception as e:
+                logger.error(f"❌ Error updating last_activity: {e}")
+            
+            logger.info(f"✅ Session validated successfully for manager {manager_id}")
+            logger.info(f"🔍 ====== SESSION VALIDATION DEBUG END (SUCCESS) ======")
+            return True, manager_id
+            
+        except Exception as e:
+            logger.error(f"❌ Session validation exception: {e}")
+            import traceback
+            logger.error(f"❌ Validation traceback: {traceback.format_exc()}")
+            logger.info(f"🔍 ====== SESSION VALIDATION DEBUG END (ERROR) ======")
+            return False, ""
     
     def logout(self) -> None:
         """

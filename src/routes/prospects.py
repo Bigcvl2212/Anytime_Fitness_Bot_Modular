@@ -45,36 +45,33 @@ def prospect_profile(prospect_id):
 		db_manager = DatabaseManager()
 		
 		conn = db_manager.get_connection()
-		cursor = db_manager.get_cursor(conn)
+		cursor = conn.cursor()
 		
-		try:
-			cursor.execute("""
-				SELECT prospect_id, first_name, last_name, full_name, email, phone, 
-					   status, prospect_type, created_at, updated_at
-				FROM prospects 
-				WHERE prospect_id = %s
-			""", (prospect_id,))
-			
-			prospect_data = cursor.fetchone()
-		finally:
-			cursor.close()
-			db_manager.close_connection(conn)
+		cursor.execute("""
+			SELECT prospect_id, first_name, last_name, full_name, email, phone, 
+				   status, prospect_type, created_at, updated_at
+			FROM prospects 
+			WHERE prospect_id = ?
+		""", (prospect_id,))
+		
+		prospect_data = cursor.fetchone()
+		conn.close()
 		
 		if not prospect_data:
 			return render_template('404.html', message=f"Prospect {prospect_id} not found"), 404
 		
 		prospect = {
-			'id': prospect_data['prospect_id'],
-			'prospect_id': prospect_data['prospect_id'],
-			'first_name': prospect_data['first_name'],
-			'last_name': prospect_data['last_name'],
-			'full_name': prospect_data['full_name'],
-			'email': prospect_data['email'],
-			'phone': prospect_data['phone'],
-			'status': prospect_data['status'],
-			'prospect_type': prospect_data['prospect_type'],
-			'created_at': prospect_data['created_at'],
-			'updated_at': prospect_data['updated_at']
+			'id': prospect_data[0],
+			'prospect_id': prospect_data[0],
+			'first_name': prospect_data[1],
+			'last_name': prospect_data[2],
+			'full_name': prospect_data[3],
+			'email': prospect_data[4],
+			'phone': prospect_data[5],
+			'status': prospect_data[6],
+			'prospect_type': prospect_data[7],
+			'created_at': prospect_data[8],
+			'updated_at': prospect_data[9]
 		}
 		
 		return render_template('prospect_profile.html', prospect=prospect)
@@ -94,36 +91,33 @@ def get_all_prospects():
         
         # Query all prospects from database
         conn = db_manager.get_connection()
-        cursor = db_manager.get_cursor(conn)
+        cursor = conn.cursor()
         
-        try:
-            cursor.execute("""
-                SELECT prospect_id, first_name, last_name, full_name, email, phone, 
-                       status, prospect_type, created_at, updated_at
-                FROM prospects 
-                ORDER BY created_at DESC
-            """)
-            
-            prospects_data = cursor.fetchall()
-        finally:
-            cursor.close()
-            db_manager.close_connection(conn)
+        cursor.execute("""
+            SELECT prospect_id, first_name, last_name, full_name, email, phone, 
+                   status, prospect_type, created_at, updated_at
+            FROM prospects 
+            ORDER BY created_at DESC
+        """)
+        
+        prospects_data = cursor.fetchall()
+        conn.close()
         
         # Convert to list of dicts
         prospects = []
         for row in prospects_data:
             prospect = {
-                'id': row['prospect_id'],
-                'prospect_id': row['prospect_id'],
-                'firstName': row['first_name'],  # Match expected frontend format
-                'lastName': row['last_name'],
-                'full_name': row['full_name'],
-                'email': row['email'],
-                'phone': row['phone'],
-                'status': row['status'],
-                'prospect_type': row['prospect_type'],
-                'created_at': row['created_at'],
-                'updated_at': row['updated_at']
+                'id': row[0],  # prospect_id
+                'prospect_id': row[0],
+                'firstName': row[1],  # Match expected frontend format
+                'lastName': row[2],
+                'full_name': row[3],
+                'email': row[4],
+                'phone': row[5],
+                'status': row[6],
+                'prospect_type': row[7],
+                'created_at': row[8],
+                'updated_at': row[9]
             }
             prospects.append(prospect)
         
@@ -161,65 +155,57 @@ def get_prospects_paginated():
         db_manager = DatabaseManager()
         
         conn = db_manager.get_connection()
-        cursor = db_manager.get_cursor(conn)
+        cursor = conn.cursor()
         
-        try:
-            # Build query with search and status filters
-            where_conditions = []
-            params = []
-            
-            if search:
-                where_conditions.append("(first_name LIKE %s OR last_name LIKE %s OR email LIKE %s OR phone LIKE %s)")
-                search_term = f"%{search}%"
-                params.extend([search_term, search_term, search_term, search_term])
-            
-            if status_filter:
-                where_conditions.append("status = %s")
-                params.append(status_filter)
-            
-            where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-            
-            # Get total count
-            count_query = f"SELECT COUNT(*) as count FROM prospects {where_clause}"
-            cursor.execute(count_query, params)
-            result = cursor.fetchone()
-            if hasattr(result, 'keys') and 'count' in result:
-                total_count = result['count']
-            else:
-                # Fallback for regular cursor
-                total_count = result[0] if result else 0
-            
-            # Get paginated results
-            query = f"""
-                SELECT prospect_id, first_name, last_name, full_name, email, phone, 
-                       status, prospect_type, created_at, updated_at
-                FROM prospects 
-                {where_clause}
-                ORDER BY created_at DESC
-                LIMIT %s OFFSET %s
-            """
-            cursor.execute(query, params + [per_page, offset])
-            
-            prospects_data = cursor.fetchall()
-        finally:
-            cursor.close()
-            db_manager.close_connection(conn)
+        # Build query with search and status filters
+        where_conditions = []
+        params = []
+        
+        if search:
+            where_conditions.append("(first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR phone LIKE ?)")
+            search_term = f"%{search}%"
+            params.extend([search_term, search_term, search_term, search_term])
+        
+        if status_filter:
+            where_conditions.append("status = ?")
+            params.append(status_filter)
+        
+        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+        
+        # Get total count
+        count_query = f"SELECT COUNT(*) FROM prospects {where_clause}"
+        cursor.execute(count_query, params)
+        total_count = cursor.fetchone()[0]
+        
+        # Get paginated results
+        query = f"""
+            SELECT prospect_id, first_name, last_name, full_name, email, phone, 
+                   status, prospect_type, created_at, updated_at
+            FROM prospects 
+            {where_clause}
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
+        """
+        cursor.execute(query, params + [per_page, offset])
+        
+        prospects_data = cursor.fetchall()
+        conn.close()
         
         # Convert to list of dicts
         prospects = []
         for row in prospects_data:
             prospect = {
-                'id': row['prospect_id'],
-                'prospect_id': row['prospect_id'],
-                'firstName': row['first_name'],  # Match expected frontend format
-                'lastName': row['last_name'],
-                'full_name': row['full_name'],
-                'email': row['email'],
-                'phone': row['phone'],
-                'status': row['status'],
-                'prospect_type': row['prospect_type'],
-                'created_at': row['created_at'],
-                'updated_at': row['updated_at']
+                'id': row[0],  # prospect_id
+                'prospect_id': row[0],
+                'firstName': row[1],  # Match expected frontend format
+                'lastName': row[2],
+                'full_name': row[3],
+                'email': row[4],
+                'phone': row[5],
+                'status': row[6],
+                'prospect_type': row[7],
+                'created_at': row[8],
+                'updated_at': row[9]
             }
             prospects.append(prospect)
         
@@ -250,14 +236,11 @@ def get_prospect_statuses():
         db_manager = DatabaseManager()
         
         conn = db_manager.get_connection()
-        cursor = db_manager.get_cursor(conn)
+        cursor = conn.cursor()
         
-        try:
-            cursor.execute("SELECT DISTINCT status FROM prospects WHERE status IS NOT NULL ORDER BY status")
-            statuses = [row[0] for row in cursor.fetchall()]
-        finally:
-            cursor.close()
-            db_manager.close_connection(conn)
+        cursor.execute("SELECT DISTINCT status FROM prospects WHERE status IS NOT NULL ORDER BY status")
+        statuses = [row[0] for row in cursor.fetchall()]
+        conn.close()
         
         return jsonify({
             'success': True,

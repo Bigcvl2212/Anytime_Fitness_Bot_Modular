@@ -21,23 +21,50 @@ def require_auth(f):
             from src.services.authentication.secure_auth_service import SecureAuthService
             auth_service = SecureAuthService()
             
-            # Debug session state before validation
-            logger.info(f"🔍 Auth check for {request.endpoint} - Session keys: {list(session.keys()) if session else 'No session'}")
-            logger.info(f"🔍 Auth check - Session authenticated: {session.get('authenticated') if session else 'N/A'}")
+            # Enhanced debugging for production troubleshooting
+            route_name = request.endpoint or "unknown_route"
+            user_agent = request.headers.get('User-Agent', 'Unknown')
+            ip_address = request.remote_addr
+            request_url = request.url
+            
+            logger.info(f"🔍 ====== REQUIRE_AUTH DECORATOR START ======")
+            logger.info(f"🔍 Auth check for {route_name} from {ip_address}")
+            logger.info(f"🔍 Full request URL: {request_url}")
+            logger.info(f"🔍 Session keys: {list(session.keys()) if session else 'No session'}")
+            logger.info(f"🔍 Session authenticated: {session.get('authenticated') if session else 'N/A'}")
+            logger.info(f"🔍 Session manager_id: {session.get('manager_id') if session else 'N/A'}")
+            logger.info(f"🔍 Session permanent: {session.permanent if session else 'N/A'}")
+            logger.info(f"🔍 Session modified: {session.modified if session else 'N/A'}")
+            logger.info(f"🔍 Request cookies: {request.headers.get('Cookie', 'No cookies')[:200]}...")
+            
+            # Ensure session persistence before validation
+            if session:
+                session.permanent = True
+                session.modified = True
             
             # Check if session is valid
             is_valid, manager_id = auth_service.validate_session()
             
             if not is_valid:
-                logger.warning(f"❌ Unauthenticated access attempt to {request.endpoint}")
-                logger.warning(f"❌ Session state at auth failure: {dict(session) if session else 'No session data'}")
+                logger.warning(f"❌ AUTHENTICATION FAILED for {route_name}")
+                logger.warning(f"❌ IP: {ip_address}, User-Agent: {user_agent}")
+                logger.warning(f"❌ Full request URL: {request_url}")
+                logger.warning(f"❌ Full session data: {dict(session) if session else 'No session data'}")
+                logger.warning(f"❌ Session cookie header: {request.headers.get('Cookie', 'No cookies')}")
+                logger.warning(f"❌ Redirecting to login...")
+                logger.info(f"🔍 ====== REQUIRE_AUTH DECORATOR END (FAILED) ======")
                 return redirect(url_for('auth.login'))
             
             # Session is valid, proceed with the request
+            logger.info(f"✅ Authentication successful for {route_name} - Manager: {manager_id}")
+            logger.info(f"🔍 ====== REQUIRE_AUTH DECORATOR END (SUCCESS) ======")
             return f(*args, **kwargs)
             
         except Exception as e:
-            logger.error(f"❌ Authentication error: {e}")
+            logger.error(f"❌ Authentication exception for {route_name}: {e}")
+            logger.error(f"❌ Exception details: {str(e)}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return redirect(url_for('auth.login'))
     
     return decorated_function

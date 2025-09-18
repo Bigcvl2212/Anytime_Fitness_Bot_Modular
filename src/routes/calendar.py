@@ -102,12 +102,12 @@ def get_calendar_events():
                                 try:
                                     # Look for training client by various name patterns
                                     training_client = current_app.db_manager.execute_query("""
-                                        SELECT member_name, first_name, last_name, full_name, member_id, prospect_id
+                                        SELECT member_name, first_name, last_name, full_name, member_id, clubos_member_id
                                         FROM training_clients
-                                        WHERE LOWER(member_name) LIKE LOWER(%s)
-                                           OR LOWER(CONCAT(first_name, ' ', last_name)) LIKE LOWER(%s)
-                                           OR LOWER(full_name) LIKE LOWER(%s)
-                                           OR LOWER(%s) LIKE LOWER(member_name)
+                                        WHERE LOWER(member_name) LIKE LOWER(?)
+                                           OR LOWER(first_name || ' ' || last_name) LIKE LOWER(?)
+                                           OR LOWER(full_name) LIKE LOWER(?)
+                                           OR LOWER(?) LIKE LOWER(member_name)
                                         ORDER BY created_at DESC
                                         LIMIT 1
                                     """, (f'%{original_name}%', f'%{original_name}%', f'%{original_name}%', original_name), fetch_one=True)

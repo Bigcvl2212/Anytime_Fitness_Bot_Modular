@@ -214,6 +214,18 @@ class MemberAccessControl:
             if not member_id:
                 return {'success': False, 'error': 'No member ID found'}
             
+            # Check if this is a staff member - skip banning staff
+            status_message = member.get('status_message', '')
+            if status_message and 'Staff' in status_message:
+                logger.info(f"⚠️ Skipping staff member {member.get('display_name', 'Unknown')} (ID: {member_id}) - Staff cannot be banned")
+                return {
+                    'success': True,
+                    'was_already_locked': False,
+                    'member_id': member_id,
+                    'action': 'skipped_staff',
+                    'message': 'Staff member - access control not applicable'
+                }
+            
             logger.info(f"🔒 Banning member {member.get('display_name', 'Unknown')} (ID: {member_id})")
             
             # Get authenticated ClubHub client
@@ -275,6 +287,18 @@ class MemberAccessControl:
             member_id = member.get('prospect_id') or member.get('guid')
             if not member_id:
                 return {'success': False, 'error': 'No member ID found'}
+            
+            # Check if this is a staff member - skip unbanning staff  
+            status_message = member.get('status_message', '')
+            if status_message and 'Staff' in status_message:
+                logger.info(f"⚠️ Skipping staff member {member.get('display_name', 'Unknown')} (ID: {member_id}) - Staff access not managed by ban system")
+                return {
+                    'success': True,
+                    'was_already_unlocked': False,
+                    'member_id': member_id,
+                    'action': 'skipped_staff',
+                    'message': 'Staff member - access control not applicable'
+                }
             
             logger.info(f"🔓 Unbanning member {member.get('display_name', 'Unknown')} (ID: {member_id})")
             

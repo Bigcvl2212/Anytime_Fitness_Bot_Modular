@@ -22,6 +22,10 @@ from .auth import require_auth
 def dashboard(day_offset=0):
     """Dashboard route with optional day offset for navigation and multi-club support"""
     try:
+        # Ensure session persistence before proceeding
+        session.permanent = True
+        session.modified = True
+        
         # Debug session state on dashboard access
         logger.info(f"🔍 Dashboard accessed - Session state: authenticated={session.get('authenticated')}, manager_id={session.get('manager_id')}, selected_clubs={session.get('selected_clubs')}")
         # Check for multi-club context
@@ -29,9 +33,10 @@ def dashboard(day_offset=0):
         
         # If no clubs selected but user has club access, redirect to selection
         selected_clubs = session.get('selected_clubs', [])
-        if not selected_clubs and 'available_clubs' in session and session['available_clubs']:
-            flash('Please select your clubs first.', 'info')
-            return redirect(url_for('club_selection.club_selection'))
+        # Temporarily disabled for testing - preventing redirect loop
+        # if not selected_clubs and 'available_clubs' in session and session['available_clubs']:
+        #     flash('Please select your clubs first.', 'info')
+        #     return redirect(url_for('club_selection.club_selection'))
         
         # Get multi-club summary for dashboard header
         club_summary = {
@@ -226,39 +231,32 @@ def dashboard(day_offset=0):
                     active_members = len(green_members) if green_members else 0
                     logger.info(f"📈 Found {active_members} green (active) members")
                 else:
-                    # Fallback: query database directly for green members
-                    conn = current_app.db_manager.get_connection()
-                    cursor = conn.cursor()
-                    
+                    # Fallback: query database directly for green members using database manager
                     # Try member_categories table first
-                    cursor.execute("""
+                    result = current_app.db_manager.execute_query("""
                         SELECT COUNT(DISTINCT member_id) as green_count
                         FROM member_categories 
                         WHERE LOWER(category) = 'green'
-                    """)
+                    """, fetch_one=True)
                     
-                    result = cursor.fetchone()
-                    if result and result[0] and result[0] > 0:
-                        active_members = result[0]
+                    if result and result.get('green_count', 0) > 0:
+                        active_members = result['green_count']
                         logger.info(f"📈 Found {active_members} green members from member_categories")
                     else:
-                        # Fallback to members table with status/category heuristics
-                        cursor.execute("""
+                        # Fallback to members table with status/category heuristics using database manager
+                        result = current_app.db_manager.execute_query("""
                             SELECT COUNT(*) as green_count
                             FROM members 
                             WHERE (
-                                LOWER(membership_status) LIKE '%green%' OR
-                                LOWER(membership_type) LIKE '%green%' OR
-                                LOWER(status) LIKE '%active%' OR
-                                LOWER(status) LIKE '%current%'
+                                LOWER(membership_status) LIKE ? OR
+                                LOWER(membership_type) LIKE ? OR
+                                LOWER(status) LIKE ? OR
+                                LOWER(status) LIKE ?
                             )
-                        """)
+                        """, ('%green%', '%green%', '%active%', '%current%'), fetch_one=True)
                         
-                        result = cursor.fetchone()
-                        active_members = result[0] if result and result[0] else 0
+                        active_members = result.get('green_count', 0) if result else 0
                         logger.info(f"📈 Found {active_members} active members using status heuristics")
-                    
-                    conn.close()
                     
             except Exception as green_error:
                 logger.warning(f"⚠️ Error calculating green members, using 0: {str(green_error)}")

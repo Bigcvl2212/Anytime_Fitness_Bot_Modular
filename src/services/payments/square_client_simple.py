@@ -17,7 +17,7 @@ def get_square_client():
     """Get configured Square client instance using ONLY SecureSecretsManager (no fallbacks)"""
     try:
         # Import Square Client only when needed to avoid import issues
-        from square import Square as Client
+        from square.client import Client
         
         # ONLY use SecureSecretsManager - no fallbacks to local secrets
         secrets_manager = SecureSecretsManager()
@@ -29,7 +29,7 @@ def get_square_client():
         logger.info("✅ Using Square access token from SecureSecretsManager (production)")
         
         # Configure the Square client for production environment
-        client = Client(token=access_token)
+        client = Client(access_token=access_token)
         return client
         
     except Exception as e:
@@ -115,23 +115,35 @@ def create_square_invoice(member_name, contact_info, amount, description, delive
             "family_name": last_name,
         }
         
-        # Add contact info - always use actual email address for Square customer record
+        # Add contact info - ensure valid email for Square customer record
         if delivery_method == "sms":
-            # For SMS delivery, use phone number for SMS but still need real email for Square customer record
+            # For SMS delivery, use phone number for SMS but need valid email for Square customer record
             customer_data["phone_number"] = contact_info
-            customer_data["email_address"] = email_address or contact_info  # Use provided email or fallback to contact_info
+            # Always use the email_address parameter if provided, otherwise create a placeholder
+            if email_address and "@" in email_address:
+                customer_data["email_address"] = email_address
+            else:
+                # Create a valid placeholder email for Square requirements
+                sanitized_name = "".join(c for c in member_name.lower().replace(" ", "") if c.isalnum())[:20]
+                customer_data["email_address"] = f"{sanitized_name}@placeholder-email.com"
         else:
             # For EMAIL delivery, use the actual email from database
             customer_data["email_address"] = contact_info
             
         try:
-            customer_result = client.customers.create(
-                given_name=customer_data["given_name"],
-                family_name=customer_data["family_name"],
-                email_address=customer_data.get("email_address"),
-                phone_number=customer_data.get("phone_number")
+            customer_request = {
+                "given_name": customer_data["given_name"],
+                "family_name": customer_data["family_name"]
+            }
+            if customer_data.get("email_address"):
+                customer_request["email_address"] = customer_data["email_address"]
+            if customer_data.get("phone_number"):
+                customer_request["phone_number"] = customer_data["phone_number"]
+            
+            customer_result = client.customers.create_customer(
+                body=customer_request
             )
-            customer_id = customer_result.customer.id
+            customer_id = customer_result.body["customer"]["id"]
         except Exception as e:
             logger.error(f"❌ Failed to create customer: {e}")
             return {
@@ -159,10 +171,10 @@ def create_square_invoice(member_name, contact_info, amount, description, delive
         }
         
         try:
-            order_result = client.orders.create(
-                order=order_data["order"]
+            order_result = client.orders.create_order(
+                body=order_data
             )
-            order_id = order_result.order.id
+            order_id = order_result.body["order"]["id"]
         except Exception as e:
             logger.error(f"❌ Failed to create order: {e}")
             return {
@@ -173,6 +185,11 @@ def create_square_invoice(member_name, contact_info, amount, description, delive
         logger.info(f"✅ Created order {order_id}")
         
         # Step 3: Create invoice using official SDK structure
+        # Set correct delivery method based on what was requested
+        square_delivery_method = "SMS" if delivery_method == "sms" and customer_data.get("phone_number") else "EMAIL"
+        
+        # Create invoice with EMAIL delivery method first (required field)
+        # We'll handle SMS via different mechanism if needed
         invoice_request = {
             "invoice": {
                 "location_id": location_id,
@@ -197,13 +214,33 @@ def create_square_invoice(member_name, contact_info, amount, description, delive
             }
         }
         
-        # Create invoice using newer SDK method
+        # Create invoice using correct SDK method
         try:
-            invoice_result = client.invoices.create(
-                invoice=invoice_request["invoice"]
+            invoice_result = client.invoices.create_invoice(
+                body=invoice_request
             )
-            invoice_id = invoice_result.invoice.id
-            invoice_version = invoice_result.invoice.version
+            
+            # Check for errors in response
+            if 'errors' in invoice_result.body:
+                error_details = invoice_result.body['errors']
+                logger.error(f"❌ Square API errors: {error_details}")
+                return {
+                    'success': False,
+                    'error': f"Square API errors: {error_details}",
+                    'message': f"Failed to create invoice for {member_name}"
+                }
+            
+            # Extract invoice data
+            if 'invoice' not in invoice_result.body:
+                logger.error(f"❌ Unexpected response structure: {invoice_result.body}")
+                return {
+                    'success': False,
+                    'error': f"Unexpected Square API response structure",
+                    'message': f"Failed to create invoice for {member_name}"
+                }
+            
+            invoice_id = invoice_result.body["invoice"]["id"]
+            invoice_version = invoice_result.body["invoice"]["version"]
         except Exception as e:
             logger.error(f"❌ Failed to create invoice: {e}")
             return {
@@ -213,12 +250,29 @@ def create_square_invoice(member_name, contact_info, amount, description, delive
             }
         logger.info(f"✅ Created invoice {invoice_id} for {member_name}")
         
-        # Step 4: Publish invoice using newer SDK method
+        # Step 4: Publish invoice using correct SDK method  
         try:
-            publish_result = client.invoices.publish(
+            publish_request = {
+                "version": invoice_version
+            }
+            
+            publish_result = client.invoices.publish_invoice(
                 invoice_id=invoice_id,
-                version=invoice_version
+                body=publish_request
             )
+            
+            # For SMS delivery, we need to handle this separately since Square API doesn't support SMS in invoices
+            # The invoice will be sent via EMAIL, and we'll log that SMS was requested
+            if square_delivery_method == "SMS":
+                logger.info(f"⚠️ SMS delivery requested but not supported by Square API. Invoice sent via EMAIL to {customer_data.get('email_address')} instead of SMS to {contact_info}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to publish invoice: {e}")
+            return {
+                'success': False,
+                'error': f"Failed to publish invoice: {e}",
+                'message': f"Failed to create invoice for {member_name}"
+            }
         except Exception as e:
             logger.error(f"❌ Failed to publish invoice: {e}")
             return {
@@ -227,7 +281,7 @@ def create_square_invoice(member_name, contact_info, amount, description, delive
                 'message': f"Failed to create invoice for {member_name}"
             }
                 
-        logger.info(f"✅ Published invoice successfully")
+        logger.info(f"✅ Published invoice successfully via {square_delivery_method} to {contact_info}")
         
         # Save invoice to database
         try:

@@ -407,18 +407,23 @@
                     // Multiple redirect methods for reliability
                     console.log('Executing redirect to:', result.redirect_url);
                     
-                    // Method 1: Direct redirect
-                    setTimeout(() => {
-                        window.location.href = result.redirect_url;
-                    }, 100);
+                    // Method 1: Direct redirect with explicit logging
+                    console.log('Redirect URL from server:', result.redirect_url);
+                    console.log('About to redirect to:', result.redirect_url);
                     
-                    // Method 2: Fallback redirect to root
+                    // Wait a bit longer for session to be saved on server
+                    setTimeout(() => {
+                        console.log('Executing redirect now to:', result.redirect_url);
+                        window.location.href = result.redirect_url;
+                    }, 1000);
+                    
+                    // Method 2: Fallback redirect to root (only if still on club-selection)
                     setTimeout(() => {
                         if (window.location.pathname === '/club-selection') {
                             console.log('Fallback redirect to dashboard');
                             window.location.href = '/';
                         }
-                    }, 1500);
+                    }, 2000);
                     
                     // Method 3: Force reload if still on club selection page
                     setTimeout(() => {

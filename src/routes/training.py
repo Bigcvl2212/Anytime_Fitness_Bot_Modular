@@ -232,17 +232,14 @@ def training_client_profile(member_id):
                                      financial_summary=financial_summary)
         
         # Fallback: try database
-        conn = current_app.db_manager.get_connection()
-        cursor = current_app.db_manager.get_cursor(conn)
-        
-        cursor.execute("""
+        # Use database manager's cross-database compatible method
+        client_record = current_app.db_manager.execute_query("""
             SELECT tc.*, m.first_name, m.last_name, m.full_name, m.email, m.mobile_phone, m.status_message
             FROM training_clients tc
             LEFT JOIN members m ON (tc.member_id = m.guid OR tc.member_id = m.prospect_id)
-            WHERE tc.member_id = %s OR tc.id = %s
-        """, (member_id, member_id))
+            WHERE tc.member_id = ? OR tc.id = ?
+        """, (member_id, member_id), fetch_one=True)
         
-        client_record = cursor.fetchone()
         if client_record:
             client_data = dict(client_record)
             client_data['member_name'] = (client_data.get('full_name') or 
@@ -622,17 +619,15 @@ def get_member_package_agreements(member_id):
         
         # Fallback to database
         conn = current_app.db_manager.get_connection()
-        cursor = current_app.db_manager.get_cursor(conn)
-        
-        cursor.execute("""
+        # Use database manager's cross-database compatible method
+        client_record = current_app.db_manager.execute_query("""
             SELECT package_details, total_past_due, payment_status, sessions_remaining
             FROM training_clients 
-            WHERE member_id = %s OR clubos_member_id = %s OR id = %s
-        """, (member_id, member_id, member_id))
+            WHERE member_id = ? OR clubos_member_id = ? OR id = ?
+        """, (member_id, member_id, member_id), fetch_one=True)
         
-        client_record = cursor.fetchone()
         if client_record:
-            package_details = client_record[0]  # package_details column
+            package_details = client_record['package_details']  # Use dictionary access
             total_past_due = client_record[1]  # total_past_due column
             payment_status = client_record[2]  # payment_status column
             sessions_remaining = client_record[3]  # sessions_remaining column

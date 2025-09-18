@@ -111,16 +111,13 @@ def select_clubs():
         
         # Store in session and force persistence
         session['selected_clubs'] = valid_clubs
+        session.permanent = True
         session.modified = True  # Force Flask to save session
         
-        # Ensure the session is committed immediately
-        try:
-            # Just mark session as modified - Flask will handle the saving
-            session.permanent = True
-            session.modified = True
-            logger.info(f"🔍 Session marked for save with selected_clubs: {session.get('selected_clubs')}")
-        except Exception as save_error:
-            logger.warning(f"⚠️ Could not mark session for save: {save_error}")
+        # Debug: Verify session data is set correctly
+        logger.info(f"🔍 Session after setting selected_clubs: {dict(session)}")
+        logger.info(f"🔍 Session selected_clubs specifically: {session.get('selected_clubs')}")
+        logger.info(f"🔍 Session permanent: {session.permanent}, modified: {session.modified}")
         
         # Get club names for display
         club_names = [multi_club_manager.get_club_name(club_id) for club_id in valid_clubs]
@@ -163,12 +160,24 @@ def select_clubs():
         import time
         time.sleep(0.5)  # Give session time to save
         
-        # Debug the generated redirect URL
-        redirect_url = url_for('dashboard.dashboard')
-        logger.info(f"🔍 Generated redirect URL: {redirect_url}")
+        # Debug the generated redirect URL - use explicit root path
+        redirect_url = '/'  # Direct to root which should now properly map to dashboard
+        logger.info(f"🔍 Generated redirect URL: {redirect_url} (explicit root path)")
         
-        # Verify session was saved correctly
+        # Comprehensive session verification before response
+        logger.info(f"🔍 ====== CLUB SELECTION SESSION DEBUG ======")
         logger.info(f"🔍 Final session state: authenticated={session.get('authenticated')}, selected_clubs={session.get('selected_clubs')}")
+        logger.info(f"🔍 Session manager_id: {session.get('manager_id')}")
+        logger.info(f"🔍 Session permanent: {session.permanent}")
+        logger.info(f"🔍 Session modified: {session.modified}")
+        logger.info(f"🔍 All session keys: {list(session.keys())}")
+        logger.info(f"🔍 Full session data: {dict(session)}")
+        
+        # Test session validation again before response
+        from src.services.authentication.secure_auth_service import SecureAuthService
+        auth_service = SecureAuthService()
+        is_still_valid, still_manager_id = auth_service.validate_session()
+        logger.info(f"🔍 Session validation before response: valid={is_still_valid}, manager_id={still_manager_id}")
         
         response_data = {
             'success': True,
@@ -179,6 +188,7 @@ def select_clubs():
         }
         
         logger.info(f"🚀 Sending response: {response_data}")
+        logger.info(f"🔍 ====== CLUB SELECTION RESPONSE SENT ======")
         return jsonify(response_data)
         
     except Exception as e:

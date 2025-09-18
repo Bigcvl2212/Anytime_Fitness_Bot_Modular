@@ -26,29 +26,29 @@ logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     """Enhanced Database Manager to handle comprehensive gym data with auto-refresh
-    Uses PostgreSQL exclusively for all database operations
+    Supports both SQLite (local development) and PostgreSQL (production)
     """
     
     def __init__(self, db_path=None):
         self.last_refresh = None
         self.refresh_interval = 3600  # 1 hour in seconds
         
-        # ALWAYS USE POSTGRESQL - NO MORE SQLITE!
-        self.db_type = 'postgresql'
-        
-        if not POSTGRES_AVAILABLE:
-            logger.error("❌ PostgreSQL required but psycopg2 not installed")
-            raise ImportError("psycopg2-binary required for PostgreSQL support")
-        
-        # Parse DATABASE_URL or use individual environment variables
+        # Determine database type based on environment
         database_url = os.getenv('DATABASE_URL')
+        local_dev = os.getenv('LOCAL_DEVELOPMENT', 'false').lower() == 'true'
+        db_type = os.getenv('DB_TYPE', 'sqlite' if local_dev else 'postgresql')
         
-        if database_url:
-            # Parse Cloud SQL connection string
+        if database_url and 'postgresql' in database_url and POSTGRES_AVAILABLE:
+            # Production: PostgreSQL via DATABASE_URL
+            self.db_type = 'postgresql'
             logger.info(f"🔗 Parsing DATABASE_URL: {database_url[:50]}...")
             self.postgres_config = self._parse_database_url(database_url)
-        else:
-            # Fallback to individual environment variables
+            self.db_host = self.postgres_config['host']
+            self.db_name = self.postgres_config['dbname']
+            logger.info(f"� Using PostgreSQL database: {self.postgres_config['host']}:{self.postgres_config['port']}/{self.postgres_config['dbname']}")
+        elif db_type == 'postgresql' and POSTGRES_AVAILABLE:
+            # PostgreSQL via environment variables
+            self.db_type = 'postgresql'
             logger.info("📝 Using individual database environment variables")
             self.postgres_config = {
                 'host': os.getenv('DB_HOST', os.getenv('POSTGRES_HOST', 'localhost')),
@@ -57,10 +57,17 @@ class DatabaseManager:
                 'user': os.getenv('DB_USER', os.getenv('POSTGRES_USER', 'postgres')),
                 'password': os.getenv('DB_PASSWORD', os.getenv('POSTGRES_PASSWORD', ''))
             }
-        # Add convenience properties for health checks
-        self.db_host = self.postgres_config['host']
-        self.db_name = self.postgres_config['dbname']
-        logger.info(f"🐘 Using PostgreSQL database: {self.postgres_config['host']}:{self.postgres_config['port']}/{self.postgres_config['dbname']}")
+            self.db_host = self.postgres_config['host']
+            self.db_name = self.postgres_config['dbname']
+            logger.info(f"🐘 Using PostgreSQL database: {self.postgres_config['host']}:{self.postgres_config['port']}/{self.postgres_config['dbname']}")
+        else:
+            # Local development: SQLite
+            import sqlite3
+            self.db_type = 'sqlite'
+            self.db_path = db_path or os.getenv('SQLITE_DB_PATH', 'gym_bot.db')
+            logger.info(f"💾 Using SQLite database: {self.db_path}")
+            self.db_host = 'localhost'
+            self.db_name = self.db_path
             
         self.init_database()
     
@@ -111,15 +118,24 @@ class DatabaseManager:
             }
     
     def get_connection(self):
-        """Get PostgreSQL database connection"""
-        return psycopg2.connect(**self.postgres_config)
+        """Get database connection (SQLite or PostgreSQL)"""
+        if self.db_type == 'postgresql':
+            return psycopg2.connect(**self.postgres_config)
+        else:
+            import sqlite3
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row  # Enable column access by name
+            return conn
     
     def get_cursor(self, conn):
-        """Get PostgreSQL cursor with RealDictCursor for row dictionary access"""
-        try:
-            return conn.cursor(cursor_factory=RealDictCursor)
-        except TypeError:
-            # Fallback for older psycopg2 versions
+        """Get database cursor with appropriate settings"""
+        if self.db_type == 'postgresql':
+            try:
+                return conn.cursor(cursor_factory=RealDictCursor)
+            except TypeError:
+                # Fallback for older psycopg2 versions
+                return conn.cursor()
+        else:
             return conn.cursor()
     
     def close_connection(self, conn):
@@ -130,31 +146,85 @@ class DatabaseManager:
         except Exception as e:
             logger.warning(f"⚠️ Warning closing database connection: {e}")
     
+    def _row_to_dict(self, row):
+        """Convert sqlite3.Row object to dictionary"""
+        if row is None:
+            return None
+        if hasattr(row, 'keys'):
+            # It's a Row object, convert to dict
+            return dict(row)
+        # It's already a dict or other object
+        return row
+    
+    def _rows_to_dicts(self, rows):
+        """Convert list of sqlite3.Row objects to list of dictionaries"""
+        if rows is None:
+            return []
+        if isinstance(rows, list):
+            return [self._row_to_dict(row) for row in rows]
+        return self._row_to_dict(rows)
+    
     def execute_query(self, query: str, params: tuple = None, fetch_one: bool = False, fetch_all: bool = False):
-        """Execute PostgreSQL query with proper parameter formatting"""
-        # Convert SQLite ? placeholders to PostgreSQL %s placeholders, but preserve LIKE patterns
-        if '?' in query:
-            import re
-            # First, temporarily replace LIKE patterns with placeholders
-            like_patterns = []
-            def preserve_like(match):
-                pattern = match.group(0)
-                like_patterns.append(pattern)
-                return f"__LIKE_PATTERN_{len(like_patterns) - 1}__"
-            
-            # Preserve LIKE patterns with % wildcards
-            query = re.sub(r"LIKE\s+'[^']*%[^']*'", preserve_like, query, flags=re.IGNORECASE)
-            
-            # Now replace ? with %s safely
-            query = query.replace('?', '%s')
-            
-            # Restore LIKE patterns
-            for i, pattern in enumerate(like_patterns):
-                query = query.replace(f"__LIKE_PATTERN_{i}__", pattern)
+        """Execute database query with appropriate parameter formatting"""
         
-        # Debug logging for PostgreSQL
-        logger.info(f"🐘 PostgreSQL Query: {query}")
-        logger.info(f"🐘 Parameters: {params}")
+        if self.db_type == 'postgresql':
+            # Convert SQLite syntax to PostgreSQL syntax
+            import re
+            
+            # Convert SQLite string concatenation || to PostgreSQL CONCAT()
+            query = re.sub(r'(\w+)\s*\|\|\s*\'([^\']*)\'\s*\|\|\s*(\w+)', r"CONCAT(\1, '\2', \3)", query)
+            
+            # Convert ? placeholders to %s placeholders, but preserve LIKE patterns
+            if '?' in query:
+                # First, temporarily replace LIKE patterns with placeholders
+                like_patterns = []
+                def preserve_like(match):
+                    pattern = match.group(0)
+                    like_patterns.append(pattern)
+                    return f"__LIKE_PATTERN_{len(like_patterns) - 1}__"
+                
+                # Preserve LIKE patterns with % wildcards
+                query = re.sub(r"LIKE\s+'[^']*%[^']*'", preserve_like, query, flags=re.IGNORECASE)
+                
+                # Now replace ? with %s safely
+                query = query.replace('?', '%s')
+                
+                # Restore LIKE patterns
+                for i, pattern in enumerate(like_patterns):
+                    query = query.replace(f"__LIKE_PATTERN_{i}__", pattern)
+            
+            # Debug logging for PostgreSQL
+            logger.info(f"🐘 PostgreSQL Query: {query}")
+            logger.info(f"🐘 Parameters: {params}")
+        else:
+            # SQLite - convert PostgreSQL syntax to SQLite syntax
+            import re
+            
+            # Convert PostgreSQL CONCAT() to SQLite ||
+            query = re.sub(r"CONCAT\(([^,]+),\s*'([^']*)',\s*([^)]+)\)", r"\1 || '\2' || \3", query)
+            
+            # Convert %s placeholders to ? placeholders, but preserve LIKE patterns  
+            if '%s' in query:
+                # First, temporarily replace LIKE patterns with placeholders
+                like_patterns = []
+                def preserve_like(match):
+                    pattern = match.group(0)
+                    like_patterns.append(pattern)
+                    return f"__LIKE_PATTERN_{len(like_patterns) - 1}__"
+                
+                # Preserve LIKE patterns with % wildcards
+                query = re.sub(r"LIKE\s+[^']*'[^']*%[^']*'", preserve_like, query, flags=re.IGNORECASE)
+                
+                # Now replace %s with ? safely
+                query = query.replace('%s', '?')
+                
+                # Restore LIKE patterns
+                for i, pattern in enumerate(like_patterns):
+                    query = query.replace(f"__LIKE_PATTERN_{i}__", pattern)
+            
+            # Debug logging for SQLite
+            logger.info(f"💾 SQLite Query: {query}")
+            logger.info(f"💾 Parameters: {params}")
         
         conn = self.get_connection()
         cursor = self.get_cursor(conn)
@@ -171,16 +241,21 @@ class DatabaseManager:
             if query_type.startswith('SELECT'):
                 if fetch_one:
                     result = cursor.fetchone()
+                    result = self._row_to_dict(result)
                 else:
                     # Default to fetch_all for SELECT queries
                     result = cursor.fetchall()
                     # Return empty list instead of None for consistency
                     if result is None:
                         result = []
+                    else:
+                        result = self._rows_to_dicts(result)
             elif fetch_one:
                 result = cursor.fetchone()
+                result = self._row_to_dict(result)
             elif fetch_all:
                 result = cursor.fetchall()
+                result = self._rows_to_dicts(result)
             
             conn.commit()
             return result
@@ -429,51 +504,166 @@ class DatabaseManager:
             conn.close()
     
     def init_database(self):
-        """Initialize PostgreSQL database with all necessary tables"""
-        logger.info("🐘 Initializing PostgreSQL schema...")
-        try:
-            # First check if schema already exists (quick check)
-            conn = self.get_connection()
-            cursor = self.get_cursor(conn)
-            
-            # Quick test to see if members table exists (most critical table)
-            cursor.execute("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_name = 'members'
-                );
-            """)
-            result = cursor.fetchone()
-            # Handle both RealDictCursor and regular cursor results
-            if hasattr(result, 'values'):
-                # RealDictCursor returns dict-like object
-                table_exists = list(result.values())[0]
-            else:
-                # Regular cursor returns tuple
-                table_exists = result[0]
-            conn.close()
-            
-            if table_exists:
-                logger.info("✅ PostgreSQL schema already exists, skipping creation")
-                return
-            
-            # If tables don't exist, try to create them with timeout
-            logger.info("🏗️ Creating PostgreSQL schema (this may take a moment)...")
-            from .database_migration import PostgreSQLMigrator
-            migrator = PostgreSQLMigrator('', self.postgres_config)
-            migrator.create_postgres_schema()
-            logger.info("✅ PostgreSQL schema initialized successfully")
-            
-        except Exception as e:
-            logger.warning(f"⚠️ PostgreSQL schema initialization failed: {e}")
-            logger.info("🔄 Continuing with existing schema (assuming tables exist)")
-            # Don't raise - allow Flask to continue if schema exists
+        """Initialize database with all necessary tables (database-agnostic)"""
+        if self.db_type == 'postgresql':
+            logger.info("🐘 Initializing PostgreSQL schema...")
+            try:
+                # First check if schema already exists (quick check)
+                conn = self.get_connection()
+                cursor = self.get_cursor(conn)
+                
+                # Quick test to see if members table exists (most critical table)
+                cursor.execute("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_name = 'members'
+                    );
+                """)
+                result = cursor.fetchone()
+                # Handle both RealDictCursor and regular cursor results
+                if hasattr(result, 'values'):
+                    # RealDictCursor returns dict-like object
+                    table_exists = list(result.values())[0]
+                else:
+                    # Regular cursor returns tuple
+                    table_exists = result[0]
+                conn.close()
+                
+                if table_exists:
+                    logger.info("✅ PostgreSQL schema already exists, skipping creation")
+                    return
+                
+                # If tables don't exist, try to create them with timeout
+                logger.info("🏗️ Creating PostgreSQL schema (this may take a moment)...")
+                from .database_migration import PostgreSQLMigrator
+                migrator = PostgreSQLMigrator('', self.postgres_config)
+                migrator.create_postgres_schema()
+                logger.info("✅ PostgreSQL schema initialized successfully")
+                
+            except Exception as e:
+                logger.warning(f"⚠️ PostgreSQL schema initialization failed: {e}")
+                logger.info("🔄 Continuing with existing schema (assuming tables exist)")
+                # Don't raise - allow Flask to continue if schema exists
+        else:
+            # SQLite initialization
+            logger.info("💾 Initializing SQLite schema...")
+            try:
+                # Check if members table exists in SQLite
+                table_exists = self.execute_query(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='members'",
+                    fetch_one=True
+                )
+                
+                if table_exists:
+                    logger.info("✅ SQLite schema already exists, skipping creation")
+                    return
+                
+                # Create SQLite schema
+                logger.info("🏗️ Creating SQLite schema...")
+                self._create_sqlite_schema()
+                logger.info("✅ SQLite schema initialized successfully")
+                
+            except Exception as e:
+                logger.warning(f"⚠️ SQLite schema initialization failed: {e}")
+                logger.info("🔄 Continuing with existing schema (assuming tables exist)")
+    
+    def _create_sqlite_schema(self):
+        """Create SQLite database schema"""
+        # Create all necessary tables for SQLite
+        tables = {
+            'members': '''
+                CREATE TABLE members (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    prospect_id TEXT,
+                    guid TEXT,
+                    first_name TEXT,
+                    last_name TEXT,
+                    full_name TEXT,
+                    email TEXT,
+                    mobile_phone TEXT,
+                    status TEXT,
+                    status_message TEXT,
+                    user_type TEXT,
+                    amount_past_due REAL DEFAULT 0.0,
+                    base_amount_past_due REAL DEFAULT 0.0,
+                    missed_payments INTEGER DEFAULT 0,
+                    late_fees REAL DEFAULT 0.0,
+                    agreement_recurring_cost REAL DEFAULT 0.0,
+                    date_of_next_payment TEXT,
+                    agreement_id TEXT,
+                    agreement_guid TEXT,
+                    agreement_type TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''',
+            'prospects': '''
+                CREATE TABLE prospects (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    prospect_id TEXT UNIQUE,
+                    first_name TEXT,
+                    last_name TEXT,
+                    email TEXT,
+                    mobile_phone TEXT,
+                    status TEXT,
+                    source TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''',
+            'training_clients': '''
+                CREATE TABLE training_clients (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    member_id TEXT,
+                    clubos_member_id TEXT,
+                    first_name TEXT,
+                    last_name TEXT,
+                    member_name TEXT,
+                    email TEXT,
+                    phone TEXT,
+                    trainer_name TEXT DEFAULT 'Jeremy Mayo',
+                    membership_type TEXT DEFAULT 'Personal Training',
+                    source TEXT,
+                    active_packages TEXT,
+                    package_summary TEXT,
+                    package_details TEXT,
+                    past_due_amount REAL DEFAULT 0.0,
+                    total_past_due REAL DEFAULT 0.0,
+                    payment_status TEXT DEFAULT 'Current',
+                    sessions_remaining INTEGER DEFAULT 0,
+                    last_session TEXT DEFAULT 'See ClubOS',
+                    financial_summary TEXT DEFAULT 'Current',
+                    last_updated TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''',
+            'funding_status_cache': '''
+                CREATE TABLE funding_status_cache (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    member_id TEXT,
+                    funding_status TEXT,
+                    cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            '''
+        }
+        
+        for table_name, create_sql in tables.items():
+            try:
+                self.execute_query(create_sql)
+                logger.info(f"✅ Created SQLite table: {table_name}")
+            except Exception as e:
+                if "already exists" in str(e):
+                    logger.info(f"📋 SQLite table '{table_name}' already exists")
+                else:
+                    logger.error(f"❌ Failed to create SQLite table '{table_name}': {e}")
 
     def save_members_to_db(self, members: List[Dict[str, Any]]) -> bool:
         """Upsert members into the database with minimal required fields.
         Expects list of dicts that may come from ClubHub API; we map keys safely.
         Prevents duplicates by checking prospect_id first.
         """
+        from datetime import datetime
+        
         if not members:
             return False
         
@@ -510,9 +700,12 @@ class DatabaseManager:
                 amount_past_due = m.get('amount_past_due') or m.get('pastDueAmount') or 0
                 date_of_next_payment = m.get('date_of_next_payment') or m.get('nextPaymentDate')
 
-                # Check if member already exists by prospect_id (PostgreSQL)
-                cursor.execute("SELECT id FROM members WHERE prospect_id = %s", (str(prospect_id),))
-                existing_member = cursor.fetchone()
+                # Check if member already exists by prospect_id (cross-database compatible)
+                existing_member = self.execute_query(
+                    "SELECT id FROM members WHERE prospect_id = ?", 
+                    (str(prospect_id),),
+                    fetch_one=True
+                )
                 
                 # Extract agreement fields
                 agreement_id = m.get('agreement_id')
@@ -520,75 +713,73 @@ class DatabaseManager:
                 agreement_type = m.get('agreement_type', 'Membership')
 
                 if existing_member:
-                    # Update existing member (PostgreSQL)
-                    cursor.execute(
-                        """
+                    # Update existing member (cross-database compatible)
+                    current_time = datetime.now().isoformat()
+                    self.execute_query("""
                         UPDATE members SET 
-                            guid = %s, first_name = %s, last_name = %s, full_name = %s, email = %s, 
-                            mobile_phone = %s, status = %s, status_message = %s, user_type = %s, 
-                            amount_past_due = %s, base_amount_past_due = %s, missed_payments = %s, 
-                            late_fees = %s, agreement_recurring_cost = %s, date_of_next_payment = %s,
-                            agreement_id = %s, agreement_guid = %s, agreement_type = %s,
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE prospect_id = %s
-                        """,
-                        (
-                            str(prospect_id),  # guid column (use same value as prospect_id)
-                            first_name,
-                            last_name,
-                            full_name,
-                            email,
-                            mobile_phone,
-                            status,
-                            status_message,
-                            member_type,  # Maps to user_type column
-                            float(amount_past_due) if amount_past_due not in (None, '') else 0,
-                            float(m.get('base_amount_past_due', 0)),
-                            int(m.get('missed_payments', 0)),
-                            float(m.get('late_fees', 0)),
-                            float(m.get('agreement_recurring_cost', 0)),
-                            date_of_next_payment,
-                            agreement_id,
-                            agreement_guid,
-                            agreement_type,
-                            str(prospect_id)  # WHERE condition
-                        ),
-                    )
+                            guid = ?, first_name = ?, last_name = ?, full_name = ?, email = ?, 
+                            mobile_phone = ?, status = ?, status_message = ?, user_type = ?, 
+                            amount_past_due = ?, base_amount_past_due = ?, missed_payments = ?, 
+                            late_fees = ?, agreement_recurring_cost = ?, date_of_next_payment = ?,
+                            agreement_id = ?, agreement_guid = ?, agreement_type = ?, updated_at = ?
+                        WHERE prospect_id = ?
+                    """, (
+                        str(prospect_id),  # guid column (use same value as prospect_id)
+                        first_name,
+                        last_name,
+                        full_name,
+                        email,
+                        mobile_phone,
+                        status,
+                        status_message,
+                        member_type,  # Maps to user_type column
+                        float(amount_past_due) if amount_past_due not in (None, '') else 0,
+                        float(m.get('base_amount_past_due', 0)),
+                        int(m.get('missed_payments', 0)),
+                        float(m.get('late_fees', 0)),
+                        float(m.get('agreement_recurring_cost', 0)),
+                        date_of_next_payment,
+                        agreement_id,
+                        agreement_guid,
+                        agreement_type,
+                        current_time,
+                        str(prospect_id)  # WHERE condition
+                    ))
                     updated_count += 1
                 else:
-                    # Insert new member (PostgreSQL)
-                    cursor.execute(
-                        """
+                    # Insert new member (cross-database compatible)
+                    current_time = datetime.now().isoformat()
+                    self.execute_query("""
                         INSERT INTO members (
                             prospect_id, guid, first_name, last_name, full_name, email, mobile_phone,
                             status, status_message, user_type, amount_past_due, base_amount_past_due, 
                             missed_payments, late_fees, agreement_recurring_cost, date_of_next_payment,
                             agreement_id, agreement_guid, agreement_type, 
                             created_at, updated_at
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        """,
-                        (
-                            str(prospect_id),  # prospect_id column
-                            str(prospect_id),  # guid column (use same value)
-                            first_name,
-                            last_name,
-                            full_name,
-                            email,
-                            mobile_phone,
-                            status,
-                            status_message,
-                            member_type,  # Maps to user_type column
-                            float(amount_past_due) if amount_past_due not in (None, '') else 0,
-                            float(m.get('base_amount_past_due', 0)),
-                            int(m.get('missed_payments', 0)),
-                            float(m.get('late_fees', 0)),
-                            float(m.get('agreement_recurring_cost', 0)),
-                            date_of_next_payment,
-                            agreement_id,
-                            agreement_guid,
-                            agreement_type,
-                        ),
-                    )
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        str(prospect_id),  # prospect_id column
+                        str(prospect_id),  # guid column (use same value)
+                        first_name,
+                        last_name,
+                        full_name,
+                        email,
+                        mobile_phone,
+                        status,
+                        status_message,
+                        member_type,  # Maps to user_type column
+                        float(amount_past_due) if amount_past_due not in (None, '') else 0,
+                        float(m.get('base_amount_past_due', 0)),
+                        int(m.get('missed_payments', 0)),
+                        float(m.get('late_fees', 0)),
+                        float(m.get('agreement_recurring_cost', 0)),
+                        date_of_next_payment,
+                        agreement_id,
+                        agreement_guid,
+                        agreement_type,
+                        current_time,  # created_at
+                        current_time   # updated_at
+                    ))
                     inserted_count += 1
                 
                 # Also update the category classification based on amount_past_due
@@ -631,15 +822,28 @@ class DatabaseManager:
                     elif ('good standing' in status_message_lower or 'active' in status_lower or status_lower == 'active'):
                         category = 'green'
                     
-                    # Insert/update member category (PostgreSQL UPSERT)
-                    cursor.execute("""
-                        INSERT INTO member_categories (member_id, category, status_message, full_name, classified_at)
-                        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
-                        ON CONFLICT (member_id) DO UPDATE SET
-                            category = EXCLUDED.category,
-                            status_message = EXCLUDED.status_message,
-                            classified_at = EXCLUDED.classified_at
-                    """, (str(prospect_id), category, updated_status_message, full_name))
+                    # Insert/update member category (cross-database compatible upsert)
+                    existing_category = self.execute_query(
+                        "SELECT id FROM member_categories WHERE member_id = ?",
+                        (str(prospect_id),),
+                        fetch_one=True
+                    )
+                    
+                    current_time = datetime.now().isoformat()
+                    
+                    if existing_category:
+                        # Update existing category
+                        self.execute_query("""
+                            UPDATE member_categories SET 
+                                category = ?, status_message = ?, full_name = ?, classified_at = ?
+                            WHERE member_id = ?
+                        """, (category, updated_status_message, full_name, current_time, str(prospect_id)))
+                    else:
+                        # Insert new category
+                        self.execute_query("""
+                            INSERT INTO member_categories (member_id, category, status_message, full_name, classified_at)
+                            VALUES (?, ?, ?, ?, ?)
+                        """, (str(prospect_id), category, updated_status_message, full_name, current_time))
             
             conn.commit()
             logger.info(f"✅ Successfully processed {len(members)} members to database ({inserted_count} inserted, {updated_count} updated)")
@@ -713,6 +917,8 @@ class DatabaseManager:
         Expects list of dicts that may come from ClubHub API; we map keys safely.
         Prevents duplicates by checking prospect_id first.
         """
+        from datetime import datetime
+        
         if not prospects:
             return False
         conn = self.get_connection()
@@ -742,51 +948,53 @@ class DatabaseManager:
                 status = p.get('status')
                 prospect_type = p.get('prospect_type') or p.get('prospectType') or p.get('type')
 
-                # Check if prospect already exists by prospect_id - use correct placeholders
-                cursor.execute("SELECT id FROM prospects WHERE prospect_id = %s", (str(prospect_id),))
-                existing_prospect = cursor.fetchone()
+                # Check if prospect already exists by prospect_id (cross-database compatible)
+                existing_prospect = self.execute_query(
+                    "SELECT id FROM prospects WHERE prospect_id = ?", 
+                    (str(prospect_id),),
+                    fetch_one=True
+                )
                 
                 if existing_prospect:
-                    # Update existing prospect
-                    cursor.execute(
-                        """
+                    # Update existing prospect (cross-database compatible)
+                    current_time = datetime.now().isoformat()
+                    self.execute_query("""
                         UPDATE prospects SET 
-                            first_name = %s, last_name = %s, full_name = %s, email = %s, 
-                            phone = %s, status = %s, prospect_type = %s, updated_at = CURRENT_TIMESTAMP
-                        WHERE prospect_id = %s
-                        """,
-                        (
-                            first_name,
-                            last_name,
-                            full_name,
-                            email,
-                            phone,
-                            status,
-                            prospect_type,
-                            str(prospect_id)  # WHERE condition
-                        ),
-                    )
+                            first_name = ?, last_name = ?, full_name = ?, email = ?, 
+                            phone = ?, status = ?, prospect_type = ?, updated_at = ?
+                        WHERE prospect_id = ?
+                    """, (
+                        first_name,
+                        last_name,
+                        full_name,
+                        email,
+                        phone,
+                        status,
+                        prospect_type,
+                        current_time,
+                        str(prospect_id)  # WHERE condition
+                    ))
                     updated_count += 1
                 else:
-                    # Insert new prospect
-                    cursor.execute(
-                        """
+                    # Insert new prospect (cross-database compatible)
+                    current_time = datetime.now().isoformat()
+                    self.execute_query("""
                         INSERT INTO prospects (
                             prospect_id, first_name, last_name, full_name, email, phone,
                             status, prospect_type, created_at, updated_at
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        """,
-                        (
-                            str(prospect_id),  # prospect_id column
-                            first_name,
-                            last_name,
-                            full_name,
-                            email,
-                            phone,
-                            status,
-                            prospect_type,
-                        ),
-                    )
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        str(prospect_id),  # prospect_id column
+                        first_name,
+                        last_name,
+                        full_name,
+                        email,
+                        phone,
+                        status,
+                        prospect_type,
+                        current_time,  # created_at
+                        current_time   # updated_at
+                    ))
                     inserted_count += 1
             
             conn.commit()
@@ -902,32 +1110,31 @@ class DatabaseManager:
             logger.info(f"No members in member_categories for '{category}', applying enhanced DB heuristics")
             
             if category == 'green':
-                # Green members: "Member is in good standing" only
+                # Green members: Only verified "good standing" status
                 query = """
                     SELECT * FROM members
-                    WHERE status_message = 'Member is in good standing'
+                    WHERE status_message IN ('Member is in good standing', 'In good standing')
                     ORDER BY created_at DESC
                 """
             elif category == 'past_due':
-                # Yellow/Past Due: Multiple status messages (ClubHub lumps these together)
+                # Past Due: Only members who actually owe money
                 query = """
                     SELECT * FROM members
                     WHERE status_message IN (
                         'Past Due 6-30 days',
+                        'Past Due more than 30 days.'
+                    )
+                    ORDER BY created_at DESC
+                """
+            elif category == 'yellow':
+                # Yellow/Warning: Account issues that need attention (not cancelled)
+                query = """
+                    SELECT * FROM members
+                    WHERE status_message IN (
                         'Invalid Billing Information.',
                         'Invalid/Bad Address information.',
                         'Member is pending cancel',
                         'Member will expire within 30 days.'
-                    )
-                    ORDER BY created_at DESC
-                """
-            elif category == 'red':
-                # Red members: Past due more than 30 days, cancelled accounts
-                query = """
-                    SELECT * FROM members
-                    WHERE status_message IN (
-                        'Past Due more than 30 days.',
-                        'Account has been cancelled.'
                     )
                     ORDER BY created_at DESC
                 """
@@ -946,10 +1153,10 @@ class DatabaseManager:
                     ORDER BY created_at DESC
                 """
             elif category == 'staff':
-                # Staff members: Both variations
+                # Staff members: Only the 5 specific staff accounts by their exact prospect IDs
                 query = """
                     SELECT * FROM members
-                    WHERE status_message IN ('Staff Member', 'Staff member')
+                    WHERE prospect_id IN ('191003722', '189425730', '191210406', '191015549', '191201279')
                     ORDER BY created_at DESC
                 """
             elif category == 'frozen':
@@ -962,10 +1169,18 @@ class DatabaseManager:
             elif category == 'inactive':
                 query = """
                     SELECT * FROM members
-                    WHERE status IN ('Inactive','inactive','Suspended','suspended','Cancelled','cancelled')
-                    OR status_message LIKE '%cancelled%'
-                    OR status_message LIKE '%expire%'
-                    OR status_message LIKE '%suspended%'
+                    WHERE (
+                        status IN ('Inactive','inactive','Suspended','suspended','Cancelled','cancelled')
+                        OR status_message IN ('Expired', 'Account has been cancelled.')
+                        OR status_message LIKE '%suspend%'
+                        OR status_message IS NULL
+                        OR (
+                            status_message IN ('Staff Member', 'Staff member', '') 
+                            AND prospect_id NOT IN ('191003722', '189425730', '191210406', '191015549', '191201279')
+                        )
+                    )
+                    AND agreement_id IS NOT NULL  -- Exclude collections members (NULL agreement_id)
+                    AND status_message != 'Sent to Collections'  -- Explicitly exclude sent to collections
                     ORDER BY created_at DESC
                 """
             # NEW: Additional revenue-generating categories
@@ -994,6 +1209,14 @@ class DatabaseManager:
                     WHERE (status_message LIKE '%address%' OR status_message LIKE '%contact%')
                     AND status_message NOT LIKE '%Past Due%'
                     AND (status NOT IN ('Inactive','inactive','Suspended','suspended','Cancelled','cancelled') OR status IS NULL)
+                    ORDER BY created_at DESC
+                """
+            elif category == 'collections':
+                # Members for collections: NULL agreement_id but not in good standing
+                query = """
+                    SELECT * FROM members
+                    WHERE agreement_id IS NULL
+                    AND status_message NOT IN ('Member is in good standing', 'In good standing')
                     ORDER BY created_at DESC
                 """
             else:
@@ -1079,26 +1302,32 @@ class DatabaseManager:
             # Count members by their exact status messages from ClubHub
             counts: Dict[str, int] = {}
 
-            # GREEN MEMBERS: "Member is in good standing" (308 expected)
+            # GREEN MEMBERS: Only verified "good standing" status
             result = self.execute_query(
                 """
                 SELECT COUNT(*) as count FROM members
-                WHERE status_message = 'Member is in good standing'
+                WHERE status_message IN ('Member is in good standing', 'In good standing')
                 """
             )
             counts['green'] = result[0]['count'] if result else 0
 
-            # YELLOW/PAST DUE MEMBERS: Multiple status messages (22 expected)
-            # - Past Due 6-30 days: 8 
-            # - Invalid billing: 2
-            # - Invalid address: 3
-            # - Member pending cancel: 4
-            # - Member will expire in 30 days: 5
+            # PAST DUE MEMBERS: Only members who actually owe money
             result = self.execute_query(
                 """
                 SELECT COUNT(*) as count FROM members
                 WHERE status_message IN (
                     'Past Due 6-30 days',
+                    'Past Due more than 30 days.'
+                )
+                """
+            )
+            counts['past_due'] = result[0]['count'] if result else 0
+
+            # YELLOW/WARNING MEMBERS: Account issues that need attention (not cancelled)
+            result = self.execute_query(
+                """
+                SELECT COUNT(*) as count FROM members
+                WHERE status_message IN (
                     'Invalid Billing Information.',
                     'Invalid/Bad Address information.',
                     'Member is pending cancel',
@@ -1106,21 +1335,7 @@ class DatabaseManager:
                 )
                 """
             )
-            counts['past_due'] = result[0]['count'] if result else 0
-
-            # RED MEMBERS: Multiple status messages (17 expected)  
-            # - Past Due more than 30 days: 16
-            # - Account has been cancelled: 1
-            result = self.execute_query(
-                """
-                SELECT COUNT(*) as count FROM members
-                WHERE status_message IN (
-                    'Past Due more than 30 days.',
-                    'Account has been cancelled.'
-                )
-                """
-            )
-            counts['red'] = result[0]['count'] if result else 0
+            counts['yellow'] = result[0]['count'] if result else 0
 
             # FROZEN MEMBERS (3 expected) - Need to check if we have any
             result = self.execute_query(
@@ -1150,20 +1365,38 @@ class DatabaseManager:
             counts['ppv'] = result[0]['count'] if result else 0
 
             # STAFF MEMBERS: Only the 5 specific staff accounts by their exact prospect IDs
-            # Jeremy Mayo: 64309309, Natoya Thomas: 55867562, Mike Beal: 50909888, Staff Two: 62716557, Joseph Jones: 52750389
             result = self.execute_query(
                 """
                 SELECT COUNT(*) as count FROM members
-                WHERE prospect_id IN ('64309309', '55867562', '50909888', '62716557', '52750389')
+                WHERE prospect_id IN ('191003722', '189425730', '191210406', '191015549', '191201279')
                 """
             )
             counts['staff'] = result[0]['count'] if result else 0
 
-            # INACTIVE MEMBERS: Expired, NULL status, etc.
+            # COLLECTIONS MEMBERS: NULL agreement_id but not in good standing
             result = self.execute_query(
                 """
                 SELECT COUNT(*) as count FROM members
-                WHERE status_message IN ('Expired') OR status_message IS NULL
+                WHERE agreement_id IS NULL
+                AND status_message NOT IN ('Member is in good standing', 'In good standing')
+                """
+            )
+            counts['collections'] = result[0]['count'] if result else 0
+
+            # INACTIVE MEMBERS: Expired, cancelled, NULL status, fake staff members (excluding collections)
+            result = self.execute_query(
+                """
+                SELECT COUNT(*) as count FROM members
+                WHERE (
+                    status_message IN ('Expired', 'Account has been cancelled.') 
+                    OR status_message IS NULL
+                    OR (
+                        status_message IN ('Staff Member', 'Staff member', '') 
+                        AND prospect_id NOT IN ('191003722', '189425730', '191210406', '191015549', '191201279')
+                    )
+                )
+                AND agreement_id IS NOT NULL  -- Exclude collections members (NULL agreement_id)
+                AND status_message != 'Sent to Collections'  -- Explicitly exclude sent to collections
                 """
             )
             counts['inactive'] = result[0]['count'] if result else 0
@@ -1441,10 +1674,6 @@ class DatabaseManager:
         if not training_clients:
             return False
             
-        # Use PostgreSQL connection
-        conn = self.get_connection()
-        cursor = self.get_cursor(conn)
-        
         try:
             inserted_count = 0
             updated_count = 0
@@ -1492,66 +1721,71 @@ class DatabaseManager:
                 active_packages_json = json.dumps(active_packages) if active_packages else '[]'
                 package_details_json = json.dumps(package_details) if package_details else '[]'
                 
+                # Database-agnostic timestamp function
+                timestamp_func = "datetime('now')" if self.db_type == 'sqlite' else "NOW()"
+                
                 # Check if training client already exists by member_id
-                cursor.execute("SELECT id FROM training_clients WHERE member_id = %s OR clubos_member_id = %s", 
-                             (str(member_id), str(clubos_member_id)))
-                existing_client = cursor.fetchone()
+                existing_client = self.execute_query(
+                    "SELECT id FROM training_clients WHERE member_id = ? OR clubos_member_id = ?", 
+                    (str(member_id), str(clubos_member_id)),
+                    fetch_one=True
+                )
                 
                 if existing_client:
                     # Update existing training client with all enhanced data
-                    cursor.execute("""
+                    self.execute_query("""
                         UPDATE training_clients SET 
-                            member_id = %s, clubos_member_id = %s, first_name = %s, last_name = %s, 
-                            member_name = %s, email = %s, phone = %s,
-                            trainer_name = %s, membership_type = %s, source = %s,
-                            active_packages = %s, package_summary = %s, package_details = %s,
-                            past_due_amount = %s, total_past_due = %s, payment_status = %s,
-                            sessions_remaining = %s, last_session = %s, financial_summary = %s,
-                            last_updated = %s
-                        WHERE id = %s
+                            member_id = ?, clubos_member_id = ?, first_name = ?, last_name = ?, full_name = ?, 
+                            member_name = ?, email = ?, phone = ?, status = ?,
+                            trainer_name = ?, membership_type = ?, source = ?,
+                            active_packages = ?, package_summary = ?, package_details = ?,
+                            past_due_amount = ?, total_past_due = ?, payment_status = ?,
+                            sessions_remaining = ?, last_session = ?, financial_summary = ?,
+                            last_updated = ?
+                        WHERE id = ?
                     """, (
-                        str(member_id), str(clubos_member_id), first_name, last_name,
-                        member_name, email, phone,
+                        str(member_id), str(clubos_member_id), first_name, last_name, full_name,
+                        member_name, email, phone, status,
                         trainer_name, membership_type, source,
                         active_packages_json, package_summary, package_details_json,
                         past_due_amount, total_past_due, payment_status,
                         sessions_remaining, last_session, financial_summary,
-                        last_updated, existing_client[0]
+                        last_updated, existing_client['id']
                     ))
                     updated_count += 1
                 else:
                     # Insert new training client with all enhanced data
-                    cursor.execute("""
+                    # Use current timestamp for created_at
+                    from datetime import datetime
+                    current_time = datetime.now()
+                    
+                    insert_query = """
                         INSERT INTO training_clients (
-                            member_id, clubos_member_id, first_name, last_name, member_name,
-                            email, phone, trainer_name, membership_type, source,
+                            member_id, clubos_member_id, first_name, last_name, full_name, member_name,
+                            email, phone, status, trainer_name, membership_type, source,
                             active_packages, package_summary, package_details,
                             past_due_amount, total_past_due, payment_status,
                             sessions_remaining, last_session, financial_summary,
                             last_updated, created_at
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
-                                NOW())
-                    """, (
-                        str(member_id), str(clubos_member_id), first_name, last_name, member_name,
-                        email, phone, trainer_name, membership_type, source,
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """
+                    
+                    self.execute_query(insert_query, (
+                        str(member_id), str(clubos_member_id), first_name, last_name, full_name, member_name,
+                        email, phone, status, trainer_name, membership_type, source,
                         active_packages_json, package_summary, package_details_json,
                         past_due_amount, total_past_due, payment_status,
                         sessions_remaining, last_session, financial_summary,
-                        last_updated
+                        last_updated, current_time
                     ))
                     inserted_count += 1
             
-            conn.commit()
             logger.info(f"✅ Training clients database: {inserted_count} inserted, {updated_count} updated")
             return True
             
         except Exception as e:
             logger.error(f"❌ Failed to save training clients: {e}")
-            conn.rollback()
             return False
-        finally:
-            cursor.close()
-            self.close_connection(conn)
 
     def log_data_refresh(self, table_name: str, record_count: int, category_breakdown: Dict = None):
         """Log data refresh operation"""
@@ -1729,12 +1963,9 @@ class DatabaseManager:
     
     def _store_messages_in_database(self, messages):
         """Store messages in the database"""
-        conn = self.get_connection()
-        cursor = self.get_cursor(conn)
-        
         try:
-            # Ensure messages table exists
-            cursor.execute("""
+            # Ensure messages table exists using execute_query for cross-database compatibility
+            self.execute_query("""
                 CREATE TABLE IF NOT EXISTS messages (
                     id TEXT PRIMARY KEY,
                     message_type TEXT,
@@ -1760,11 +1991,12 @@ class DatabaseManager:
                 )
             """)
             
-            # Clear existing sample messages
-            cursor.execute("DELETE FROM messages WHERE id LIKE 'sample_%%' OR id LIKE 'clubos_%%'")
-            # Insert new messages
+            # Clear existing sample messages using execute_query for automatic parameter conversion
+            self.execute_query("DELETE FROM messages WHERE id LIKE %s OR id LIKE %s", ('sample_%', 'clubos_%'))
+            
+            # Insert new messages using execute_query for automatic parameter conversion
             for msg in messages:
-                cursor.execute("""
+                self.execute_query("""
                     INSERT INTO messages (
                         id, content, timestamp, from_user, status, delivery_status,
                         channel, member_id, conversation_id
@@ -1785,13 +2017,8 @@ class DatabaseManager:
                     f"conv_{msg['member_name'].replace(' ', '_')}"
                 ))
             
-            conn.commit()
-            
         except Exception as e:
             logger.error(f"❌ Error storing messages: {e}")
-            conn.rollback()
-        finally:
-            conn.close()
     
     def _ensure_messages_table_exists(self, cursor):
         """Helper method to ensure messages table exists"""
@@ -1864,24 +2091,13 @@ class DatabaseManager:
         except Exception as e:
             logger.warning(f"⚠️ Could not fetch real ClubOS messages: {e}")
         
-        conn = self.get_connection()
-        cursor = self.get_cursor(conn)
-        
         try:
-            # Ensure messages table exists
-            self._ensure_messages_table_exists(cursor)
-            
-            # Check if we have any messages at all
-            cursor.execute("SELECT COUNT(*) as count FROM messages")
-            
-            count_result = cursor.fetchone()
+            # Check if we have any messages at all using execute_query for proper Row-to-dict conversion
+            count_results = self.execute_query("SELECT COUNT(*) as count FROM messages")
             message_count = 0
             
-            if count_result:
-                if hasattr(count_result, 'keys'):
-                    message_count = count_result.get('count', 0) or count_result.get('COUNT(*)', 0)
-                else:
-                    message_count = count_result[0] if len(count_result) > 0 else 0
+            if count_results:
+                message_count = count_results[0].get('count', 0)
             
             logger.info(f"📊 Found {message_count} total messages in database")
             
@@ -1889,17 +2105,17 @@ class DatabaseManager:
                 logger.info("ℹ️ No messages in database, returning empty threads")
                 return []
             
-            # Simple query to get all messages, then group them in Python (more reliable)
-            cursor.execute("""
+            # Simple query to get all messages, then group them in Python using execute_query for automatic Row-to-dict conversion
+            all_messages = self.execute_query("""
                 SELECT id, content, timestamp, from_user, status, delivery_status,
                        channel, member_id, conversation_id
                 FROM messages
                 ORDER BY timestamp DESC
                 LIMIT %s
             """, (limit * 5,))  # Get more messages to have variety
+            if not all_messages:
+                all_messages = []
             
-            # Fetch all recent messages
-            all_messages = cursor.fetchall()
             logger.info(f"📬 Retrieved {len(all_messages)} messages from database")
             
             # Group messages by member/conversation in Python (more reliable than complex SQL)
@@ -1907,23 +2123,14 @@ class DatabaseManager:
             
             for msg in all_messages:
                 try:
-                    # Handle RealDictRow vs tuple access
-                    if hasattr(msg, 'keys'):
-                        member_name = msg.get('from_user') or msg.get('member_id') or 'Unknown'
-                        content = msg.get('content', 'No content')
-                        timestamp = msg.get('timestamp')
-                        status = msg.get('status', 'sent')
-                        delivery_status = msg.get('delivery_status', 'read')
-                        channel = msg.get('channel', 'ClubOS')
-                        conversation_id = msg.get('conversation_id', f"conv_{member_name.replace(' ', '_')}")
-                    else:
-                        member_name = msg[3] if len(msg) > 3 else 'Unknown'  # from_user
-                        content = msg[1] if len(msg) > 1 else 'No content'   # content
-                        timestamp = msg[2] if len(msg) > 2 else datetime.now().isoformat()  # timestamp
-                        status = msg[4] if len(msg) > 4 else 'sent'  # status
-                        delivery_status = msg[5] if len(msg) > 5 else 'read'  # delivery_status
-                        channel = msg[6] if len(msg) > 6 else 'ClubOS'  # channel
-                        conversation_id = msg[8] if len(msg) > 8 else f"conv_{member_name.replace(' ', '_')}"  # conversation_id
+                    # execute_query returns dictionaries, so we can use .get() directly
+                    member_name = msg.get('from_user') or msg.get('member_id') or 'Unknown'
+                    content = msg.get('content', 'No content')
+                    timestamp = msg.get('timestamp')
+                    status = msg.get('status', 'sent')
+                    delivery_status = msg.get('delivery_status', 'read')
+                    channel = msg.get('channel', 'ClubOS')
+                    conversation_id = msg.get('conversation_id', f"conv_{member_name.replace(' ', '_')}")
                     
                     # Skip empty member names
                     if not member_name or member_name.strip() == '':
@@ -2026,8 +2233,6 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ Error getting recent message threads: {e}")
             return []
-        finally:
-            conn.close()
     
     def get_thread_messages(self, member_id, limit=50):
         """Get all messages for a specific member across all their threads"""

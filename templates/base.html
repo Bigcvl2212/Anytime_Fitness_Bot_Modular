@@ -63,6 +63,7 @@
             background: var(--af-gray-50);
             color: var(--af-black-primary);
             overflow-x: hidden;
+            min-height: 100vh;
         }
         
         /* Outlook-style Top Bar */
@@ -201,8 +202,9 @@
         /* Outlook-style Layout */
         .outlook-container {
             display: flex;
-            height: 100vh;
+            min-height: calc(100vh - 48px);
             padding-top: 48px;
+            position: relative;
         }
         
         /* Outlook-style Sidebar */
@@ -213,6 +215,9 @@
             display: flex;
             flex-direction: column;
             overflow-y: auto;
+            position: relative;
+            min-height: calc(100vh - 48px);
+            flex-shrink: 0;
         }
         
         .outlook-nav {
@@ -268,7 +273,7 @@
             display: flex;
             flex-direction: column;
             background: var(--af-gray-50);
-            overflow: hidden;
+            min-height: calc(100vh - 48px);
         }
         
         .outlook-header {
@@ -299,6 +304,7 @@
             flex: 1;
             padding: 24px;
             overflow-y: auto;
+            width: 100%;
         }
         
         /* Outlook-style Cards */

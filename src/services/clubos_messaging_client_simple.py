@@ -587,3 +587,112 @@ class ClubOSMessagingClient:
         
         logger.info(f"📊 Campaign completed: {results['successful']}/{results['total']} successful")
         return results
+    
+    def get_messages(self, owner_id: str = None) -> List[Dict[str, Any]]:
+        """Get messages from ClubOS for specific owner - ClubOS returns all messages in one response"""
+        try:
+            if not self.authenticated:
+                if not self.authenticate():
+                    logger.error("❌ Authentication failed before getting messages")
+                    return []
+            
+            logger.info(f"📨 Fetching ALL messages for owner {owner_id}...")
+            
+            # First get the dashboard view to ensure proper session state
+            dashboard_url = f"{self.base_url}/action/Dashboard/view"
+            try:
+                dashboard_response = self.session.get(dashboard_url, timeout=10, verify=False)
+                logger.info(f"📋 Dashboard view status: {dashboard_response.status_code}")
+            except Exception as e:
+                logger.warning(f"⚠️ Dashboard view failed: {e}")
+            
+            # Now post to the messages endpoint
+            messages_url = f"{self.base_url}/action/Dashboard/messages"
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "Accept": "text/html, */*; q=0.01",
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": f"{self.base_url}/action/Dashboard/view",
+                "Origin": self.base_url,
+                "User-Agent": self.session.headers.get('User-Agent', 'Mozilla/5.0')
+            }
+            
+            # ClubOS doesn't seem to support pagination, so just get all messages
+            post_data = {
+                "userId": owner_id
+            }
+            
+            logger.info(f"🔄 POST to {messages_url} with userId: {owner_id}")
+            
+            # Add timeout to prevent hanging
+            response = self.session.post(
+                messages_url, 
+                data=post_data, 
+                headers=headers, 
+                timeout=30,  # Increased timeout for large response
+                allow_redirects=False,
+                verify=False
+            )
+            
+            logger.info(f"📡 Response status: {response.status_code}")
+            logger.info(f"📏 Response length: {len(response.text) if response.text else 0}")
+            
+            if response.status_code == 200:
+                messages = self._parse_messages_from_html(response.text, owner_id)
+                logger.info(f"✅ Successfully parsed {len(messages)} messages from ClubOS")
+                return messages
+            else:
+                logger.error(f"❌ Failed to fetch messages: {response.status_code}")
+                logger.error(f"Response headers: {dict(response.headers)}")
+                if response.text:
+                    logger.error(f"Response preview: {response.text[:500]}...")
+                return []
+                
+        except Exception as e:
+            logger.error(f"❌ Error getting messages: {e}")
+            return []
+    
+    def _parse_messages_from_html(self, html_content: str, owner_id: str) -> List[Dict[str, Any]]:
+        """Parse messages from ClubOS HTML response"""
+        try:
+            from bs4 import BeautifulSoup
+            import re
+            
+            logger.info(f"🔍 Parsing HTML content for messages (length: {len(html_content)})")
+            
+            soup = BeautifulSoup(html_content, 'html.parser')
+            messages = []
+            
+            # Look for message elements in the HTML
+            # This is a basic parser - might need adjustment based on actual ClubOS response format
+            message_elements = soup.find_all(['div', 'tr', 'li'], class_=re.compile(r'message|msg|conversation'))
+            
+            for element in message_elements:
+                try:
+                    # Extract message data from HTML element
+                    message_data = {
+                        'id': element.get('id', f'msg_{len(messages)}'),
+                        'owner_id': owner_id,
+                        'content': element.get_text(strip=True),
+                        'timestamp': datetime.now().isoformat(),
+                        'from_user': 'Unknown',
+                        'status': 'received',
+                        'channel': 'clubos'
+                    }
+                    
+                    # Skip empty messages
+                    if message_data['content'] and len(message_data['content']) > 3:
+                        messages.append(message_data)
+                        
+                except Exception as parse_error:
+                    logger.warning(f"⚠️ Error parsing message element: {parse_error}")
+                    continue
+            
+            logger.info(f"✅ Parsed {len(messages)} messages from HTML")
+            return messages
+            
+        except Exception as e:
+            logger.error(f"❌ Error parsing messages from HTML: {e}")
+            return []
+    
+

@@ -551,25 +551,6 @@
 
 {% block extra_js %}
 <script>
-        // Debug logging system - set to false for production
-        const DEBUG_MODE = true;
-        
-        function debugLog(...args) {
-            if (DEBUG_MODE) {
-                console.log(...args);
-            }
-        }
-        
-        function debugError(...args) {
-            console.error(...args); // Always show errors
-        }
-        
-        function debugWarn(...args) {
-            if (DEBUG_MODE) {
-                console.warn(...args);
-            }
-        }
-
         // Bootstrap tabs initialization (moved to main DOMContentLoaded)
         function initializeBootstrapTabs() {
             var triggerTabList = [].slice.call(document.querySelectorAll('#statusTabs button'));
@@ -681,7 +662,7 @@
                     categories['past-due-6-30'].push(member);
                 } else if (statusMsg.includes('past due more than 30') || statusMsg.includes('past due 30+')) {
                     categories['past-due-30'].push(member);
-                } else if (statusMsg.includes('expiring') || statusMsg.includes('expires')) {
+                } else if (statusMsg.includes('expire') || statusMsg.includes('expiring') || statusMsg.includes('expires')) {
                     categories['expiring-soon'].push(member);
                 } else if (statusMsg && statusMsg !== 'null' && statusMsg !== '') {
                     categories['other-statuses'].push(member);
@@ -691,9 +672,10 @@
             // Add past due training clients to their special category
             if (trainingClients && trainingClients.length > 0) {
                 const pastDueTrainingClients = trainingClients.filter(client => {
-                    const amountPastDue = parseFloat(client.amount_past_due || 0);
+                    const amountPastDue = parseFloat(client.past_due_amount || 0);
+                    const paymentStatus = (client.payment_status || '').toLowerCase();
                     const statusMsg = (client.status_message || '').toLowerCase();
-                    return amountPastDue > 0 || statusMsg.includes('past due');
+                    return amountPastDue > 0 || paymentStatus.includes('past due') || statusMsg.includes('past due');
                 });
                 categories['past-due-training'] = pastDueTrainingClients;
             }
@@ -761,8 +743,8 @@
                             <strong>${member.full_name || `${member.firstName || ''} ${member.lastName || ''}`.trim()}</strong>
                             <div class="small text-muted">${member.email || member.mobile_phone || 'No contact info'}</div>
                             ${member.status_message ? `<div class="small text-info">${member.status_message}</div>` : ''}
-                            ${member.amount_past_due && parseFloat(member.amount_past_due) > 0 ? 
-                                `<div class="small text-danger">Past Due: $${parseFloat(member.amount_past_due).toFixed(2)}</div>` : ''}
+                            ${member.past_due_amount && parseFloat(member.past_due_amount) > 0 ? 
+                                `<div class="small text-danger">Past Due: $${parseFloat(member.past_due_amount).toFixed(2)}</div>` : ''}
                         </div>
                     </div>
                 </div>

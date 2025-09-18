@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Button Test</title>
+</head>
+<body>
+    <button id="bulk-checkin-btn" class="outlook-btn outlook-btn-success">
+        <i class="fas fa-bolt"></i>
+        ULTRA-FAST Bulk Check-in ALL Members (Excludes PPV)
+    </button>
+
+    <script>
+        function debugLog(...args) {
+            console.log(...args);
+        }
+
+        function debugError(...args) {
+            console.error(...args);
+        }
+
+        function performBulkCheckin() {
+            debugLog('🏋️ Starting bulk member check-in...');
+            
+            const bulkBtn = document.getElementById('bulk-checkin-btn');
+            const originalText = bulkBtn.innerHTML;
+            
+            bulkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting Bulk Check-in...';
+            bulkBtn.disabled = true;
+            
+            // Test fetch call
+            fetch('/api/bulk-checkin', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({})
+            })
+            .then(response => response.json())
+            .then(data => {
+                debugLog('✅ Bulk check-in response:', data);
+            })
+            .catch(error => {
+                debugError('❌ Network error:', error);
+            });
+        }
+
+        // Attach event listener
+        document.addEventListener('DOMContentLoaded', function() {
+            const bulkCheckinBtn = document.getElementById('bulk-checkin-btn');
+            if (bulkCheckinBtn) {
+                bulkCheckinBtn.addEventListener('click', function(event) {
+                    console.log('Button clicked!');
+                    performBulkCheckin();
+                });
+                console.log('✅ Event listener attached to bulk checkin button');
+            } else {
+                console.error('❌ Bulk checkin button not found!');
+            }
+        });
+    </script>
+</body>
+</html>

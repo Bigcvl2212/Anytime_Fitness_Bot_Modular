@@ -180,6 +180,15 @@ def import_fresh_clubhub_data():
             logger.info(f"✅ Fresh data imported: {member_count} members")
             logger.info(f"📊 Category breakdown: {category_counts}")
             
+            # Apply staff designations after import to preserve staff status
+            try:
+                from src.utils.staff_designations import apply_staff_designations
+                staff_success, staff_count, staff_message = apply_staff_designations(db_path)
+                logger.info(f"🔄 Staff designation restoration: {staff_message}")
+                category_counts['staff'] = staff_count  # Update staff count after restoration
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to restore staff designations: {e}")
+            
             return True
             
         except Exception as e:
