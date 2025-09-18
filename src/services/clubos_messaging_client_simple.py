@@ -163,10 +163,8 @@ class ClubOSMessagingClient:
                 logger.error(f"❌ Failed to get messaging popup: {popup_response.status_code}")
                 return {}
             
-            # Save popup for debugging
-            with open(f"member_popup_{self.delegated_user_id}.html", "w", encoding="utf-8") as f:
-                f.write(popup_response.text)
-            logger.info(f"💾 Saved member popup data")
+            # Debug logging without saving files
+            logger.info(f"💾 Retrieved member popup data ({len(popup_response.text)} chars)")
             
             # Step 2: Extract ALL form data from the popup
             soup = BeautifulSoup(popup_response.text, 'html.parser')
@@ -466,11 +464,8 @@ class ClubOSMessagingClient:
             
             logger.info(f"📋 Response status: {response.status_code}")
             
-            # Save response for debugging
-            response_filename = f"safe_response_{clubos_member_id}.html"
-            with open(response_filename, "w", encoding="utf-8") as f:
-                f.write(response.text)
-            logger.info(f"💾 Saved response to {response_filename}")
+            # Log response without saving files
+            logger.info(f"💾 Response received ({len(response.text)} chars)")
             
             # Check for success
             if 200 <= response.status_code < 400:
@@ -533,12 +528,18 @@ class ClubOSMessagingClient:
                     results['errors'].append(f"No member ID found for {member_name}")
                     continue
                 
-                logger.info(f"📨 Sending message {i+1}/{total_count} to {member_name} (ID: {member_id})")
+                # Determine actual channel to use (SMS with email fallback)
+                actual_channel = message_type
+                if message_type == 'sms' and member_data.get('fallback_to_email'):
+                    actual_channel = 'email'
+                    logger.info(f"� Using email fallback for {member_name} (no phone number)")
+                
+                logger.info(f"�📨 Sending {actual_channel} message {i+1}/{total_count} to {member_name} (ID: {member_id})")
                 
                 success = self.send_message(
                     member_id=member_id,
                     message_text=message,
-                    channel=message_type,
+                    channel=actual_channel,
                     member_data=member_data
                 )
                 

@@ -2681,3 +2681,220 @@ def send_bulk_messages():
         logger.error(f"❌ Error in send_bulk_messages API: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+# Campaign Management API Endpoints
+
+@api_bp.route('/campaigns/status/<category>', methods=['GET'])
+def get_campaign_status(category):
+    """Get campaign status for a specific category"""
+    try:
+        if not hasattr(current_app, 'campaign_service'):
+            return jsonify({'success': False, 'message': 'Campaign service not initialized'}), 500
+        
+        status = current_app.campaign_service.get_campaign_status(category)
+        
+        # Format response to match frontend expectations
+        if status.get('status') == 'none':
+            return jsonify({
+                'success': True,
+                'campaign': None,
+                'status': status
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'campaign': status,
+                'status': status
+            })
+        
+    except Exception as e:
+        logger.error(f"Error getting campaign status for {category}: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@api_bp.route('/campaigns/create', methods=['POST'])
+def create_campaign():
+    """Create a new campaign"""
+    try:
+        if not hasattr(current_app, 'campaign_service'):
+            return jsonify({'status': 'error', 'message': 'Campaign service not initialized'}), 500
+        
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'status': 'error', 'message': 'No data provided'}), 400
+        
+        # Validate required fields
+        required_fields = ['category', 'name', 'message']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'status': 'error', 'message': f'Missing required field: {field}'}), 400
+        
+        # Get recipients based on category
+        category = data['category']
+        recipients = []
+        
+        # Map category to member data
+        if category in ['good_standing', 'past_due_6_30', 'past_due_30_plus', 'expiring_soon', 'pt_past_due']:
+            # Get members for this category
+            members = current_app.db_manager.get_members_by_category(category)
+            recipients = [
+                {
+                    'member_id': str(member['member_id']),
+                    'full_name': member.get('full_name') or f"{member.get('first_name', '')} {member.get('last_name', '')}".strip(),
+                    'email': member.get('email'),
+                    'phone': member.get('mobile_phone') or member.get('phone')
+                }
+                for member in members
+                if member.get('email') or member.get('mobile_phone') or member.get('phone')
+            ]
+        elif category == 'prospects':
+            # Get prospects
+            prospects = current_app.db_manager.get_prospects()
+            recipients = [
+                {
+                    'member_id': str(prospect['prospect_id']),
+                    'full_name': prospect.get('full_name') or f"{prospect.get('first_name', '')} {prospect.get('last_name', '')}".strip(),
+                    'email': prospect.get('email'),
+                    'phone': prospect.get('mobile_phone') or prospect.get('phone')
+                }
+                for prospect in prospects[:data.get('max_recipients', 100)]
+                if prospect.get('email') or prospect.get('mobile_phone') or prospect.get('phone')
+            ]
+        elif category == 'pay_per_visit' or category == 'ppv':
+            # Get pay per visit members
+            members = current_app.db_manager.get_members_by_category('ppv')
+            recipients = [
+                {
+                    'member_id': str(member['member_id']),
+                    'full_name': member.get('full_name') or f"{member.get('first_name', '')} {member.get('last_name', '')}".strip(),
+                    'email': member.get('email'),
+                    'phone': member.get('mobile_phone') or member.get('phone')
+                }
+                for member in members[:data.get('max_recipients', 100)]
+                if member.get('email') or member.get('mobile_phone') or member.get('phone')
+            ]
+        elif category == 'training_clients':
+            # Get training clients
+            clients = current_app.db_manager.get_training_clients()
+            recipients = [
+                {
+                    'member_id': str(client['member_id']),
+                    'full_name': client.get('full_name') or client.get('member_name') or f"{client.get('first_name', '')} {client.get('last_name', '')}".strip(),
+                    'email': client.get('email'),
+                    'phone': client.get('mobile_phone') or client.get('phone')
+                }
+                for client in clients[:data.get('max_recipients', 100)]
+                if client.get('email') or client.get('mobile_phone') or client.get('phone')
+            ]
+        
+        # Apply recipient limit
+        max_recipients = data.get('max_recipients', 100)
+        if len(recipients) > max_recipients:
+            recipients = recipients[:max_recipients]
+        
+        # Create the campaign
+        result = current_app.campaign_service.create_campaign(data, recipients)
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error creating campaign: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@api_bp.route('/campaigns/<int:campaign_id>/start', methods=['POST'])
+def start_campaign(campaign_id):
+    """Start or resume a campaign"""
+    try:
+        if not hasattr(current_app, 'campaign_service'):
+            return jsonify({'status': 'error', 'message': 'Campaign service not initialized'}), 500
+        
+        data = request.get_json() or {}
+        continue_from_position = data.get('continue_from_position', False)
+        
+        result = current_app.campaign_service.start_campaign(campaign_id, continue_from_position)
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error starting campaign {campaign_id}: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@api_bp.route('/campaigns/<int:campaign_id>/pause', methods=['POST'])
+def pause_campaign(campaign_id):
+    """Pause a running campaign"""
+    try:
+        if not hasattr(current_app, 'campaign_service'):
+            return jsonify({'status': 'error', 'message': 'Campaign service not initialized'}), 500
+        
+        result = current_app.campaign_service.pause_campaign(campaign_id)
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error pausing campaign {campaign_id}: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@api_bp.route('/campaigns/<int:campaign_id>/resume', methods=['POST'])
+def resume_campaign(campaign_id):
+    """Resume a paused campaign"""
+    try:
+        if not hasattr(current_app, 'campaign_service'):
+            return jsonify({'status': 'error', 'message': 'Campaign service not initialized'}), 500
+        
+        result = current_app.campaign_service.resume_campaign(campaign_id)
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error resuming campaign {campaign_id}: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@api_bp.route('/campaigns/<int:campaign_id>/progress', methods=['GET'])
+def get_campaign_progress(campaign_id):
+    """Get real-time campaign progress"""
+    try:
+        if not hasattr(current_app, 'campaign_service'):
+            return jsonify({'status': 'error', 'message': 'Campaign service not initialized'}), 500
+        
+        progress = current_app.campaign_service.get_campaign_progress(campaign_id)
+        return jsonify(progress)
+        
+    except Exception as e:
+        logger.error(f"Error getting campaign progress for {campaign_id}: {e}")
+        return jsonify({'percentage': 0, 'total': 0, 'sent': 0, 'delivered': 0, 'failed': 0}), 500
+
+@api_bp.route('/campaigns/templates', methods=['GET'])
+def get_campaign_templates():
+    """Get all campaign templates"""
+    try:
+        if not hasattr(current_app, 'campaign_service'):
+            return jsonify({'status': 'error', 'message': 'Campaign service not initialized'}), 500
+        
+        templates = current_app.campaign_service.get_templates()
+        return jsonify({'status': 'success', 'templates': templates})
+        
+    except Exception as e:
+        logger.error(f"Error getting campaign templates: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@api_bp.route('/campaigns/templates', methods=['POST'])
+def save_campaign_template():
+    """Save a new campaign template"""
+    try:
+        if not hasattr(current_app, 'campaign_service'):
+            return jsonify({'status': 'error', 'message': 'Campaign service not initialized'}), 500
+        
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'status': 'error', 'message': 'No data provided'}), 400
+        
+        # Validate required fields
+        required_fields = ['name', 'message']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'status': 'error', 'message': f'Missing required field: {field}'}), 400
+        
+        result = current_app.campaign_service.save_template(data)
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error saving campaign template: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+

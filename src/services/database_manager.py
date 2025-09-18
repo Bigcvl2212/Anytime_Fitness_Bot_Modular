@@ -269,6 +269,269 @@ class DatabaseManager:
         finally:
             cursor.close()
             conn.close()
+    
+    # Campaign Management Methods
+    def create_campaign(self, campaign_data: Dict[str, Any]) -> Optional[int]:
+        """Create a new campaign"""
+        try:
+            query = """
+                INSERT INTO campaigns (
+                    category, name, message, message_type, email_subject, 
+                    max_recipients, notes, status, total_recipients
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+            """ if self.db_type == 'postgresql' else """
+                INSERT INTO campaigns (
+                    category, name, message, message_type, email_subject, 
+                    max_recipients, notes, status, total_recipients
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            
+            params = (
+                campaign_data['category'],
+                campaign_data['name'],
+                campaign_data['message'],
+                campaign_data.get('message_type', 'sms'),
+                campaign_data.get('email_subject', ''),
+                campaign_data.get('max_recipients', 100),
+                campaign_data.get('notes', ''),
+                'draft',
+                campaign_data.get('total_recipients', 0)
+            )
+            
+            if self.db_type == 'postgresql':
+                result = self.execute_query(query, params, fetch_one=True)
+                return result['id'] if result else None
+            else:
+                self.execute_query(query, params)
+                return self.execute_query("SELECT last_insert_rowid()", fetch_one=True)['last_insert_rowid()']
+                
+        except Exception as e:
+            logger.error(f"Error creating campaign: {e}")
+            return None
+
+    def get_campaign_by_id(self, campaign_id: int) -> Optional[Dict[str, Any]]:
+        """Get campaign by ID"""
+        try:
+            query = "SELECT * FROM campaigns WHERE id = %s" if self.db_type == 'postgresql' else "SELECT * FROM campaigns WHERE id = ?"
+            return self.execute_query(query, (campaign_id,), fetch_one=True)
+        except Exception as e:
+            logger.error(f"Error getting campaign {campaign_id}: {e}")
+            return None
+
+    def get_campaign_by_category(self, category: str) -> Optional[Dict[str, Any]]:
+        """Get active campaign for a category"""
+        try:
+            query = """
+                SELECT * FROM campaigns 
+                WHERE category = %s AND status IN ('running', 'paused') 
+                ORDER BY created_at DESC LIMIT 1
+            """ if self.db_type == 'postgresql' else """
+                SELECT * FROM campaigns 
+                WHERE category = ? AND status IN ('running', 'paused') 
+                ORDER BY created_at DESC LIMIT 1
+            """
+            return self.execute_query(query, (category,), fetch_one=True)
+        except Exception as e:
+            logger.error(f"Error getting campaign for category {category}: {e}")
+            return None
+
+    def update_campaign_status(self, campaign_id: int, status: str, **kwargs) -> bool:
+        """Update campaign status and optional fields"""
+        try:
+            update_fields = ['status = %s' if self.db_type == 'postgresql' else 'status = ?']
+            params = [status]
+            
+            # Add optional timestamp fields
+            if status == 'running' and 'started_at' not in kwargs:
+                kwargs['started_at'] = datetime.now()
+            elif status == 'completed' and 'completed_at' not in kwargs:
+                kwargs['completed_at'] = datetime.now()
+            elif status == 'paused' and 'paused_at' not in kwargs:
+                kwargs['paused_at'] = datetime.now()
+            
+            for key, value in kwargs.items():
+                if key in ['sent_count', 'delivered_count', 'failed_count', 'current_position']:
+                    update_fields.append(f'{key} = %s' if self.db_type == 'postgresql' else f'{key} = ?')
+                    params.append(value)
+                elif key in ['started_at', 'completed_at', 'paused_at']:
+                    update_fields.append(f'{key} = %s' if self.db_type == 'postgresql' else f'{key} = ?')
+                    params.append(value.isoformat() if isinstance(value, datetime) else value)
+            
+            update_fields.append('updated_at = %s' if self.db_type == 'postgresql' else 'updated_at = ?')
+            params.append(datetime.now().isoformat())
+            params.append(campaign_id)
+            
+            query = f"UPDATE campaigns SET {', '.join(update_fields)} WHERE id = %s" if self.db_type == 'postgresql' else f"UPDATE campaigns SET {', '.join(update_fields)} WHERE id = ?"
+            
+            self.execute_query(query, params)
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating campaign {campaign_id}: {e}")
+            return False
+
+    def add_campaign_recipients(self, campaign_id: int, recipients: List[Dict[str, Any]]) -> bool:
+        """Add recipients to a campaign"""
+        try:
+            query = """
+                INSERT INTO campaign_recipients (
+                    campaign_id, member_id, member_name, member_email, member_phone
+                ) VALUES (%s, %s, %s, %s, %s)
+            """ if self.db_type == 'postgresql' else """
+                INSERT INTO campaign_recipients (
+                    campaign_id, member_id, member_name, member_email, member_phone
+                ) VALUES (?, ?, ?, ?, ?)
+            """
+            
+            for recipient in recipients:
+                params = (
+                    campaign_id,
+                    recipient.get('member_id') or recipient.get('prospect_id'),
+                    recipient.get('full_name') or f"{recipient.get('first_name', '')} {recipient.get('last_name', '')}".strip(),
+                    recipient.get('email'),
+                    recipient.get('mobile_phone') or recipient.get('phone')
+                )
+                self.execute_query(query, params)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding recipients to campaign {campaign_id}: {e}")
+            return False
+
+    def get_campaign_progress(self, campaign_id: int) -> Dict[str, Any]:
+        """Get campaign progress statistics"""
+        try:
+            query = """
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent,
+                    SUM(CASE WHEN status = 'delivered' THEN 1 ELSE 0 END) as delivered,
+                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
+                FROM campaign_recipients 
+                WHERE campaign_id = %s
+            """ if self.db_type == 'postgresql' else """
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent,
+                    SUM(CASE WHEN status = 'delivered' THEN 1 ELSE 0 END) as delivered,
+                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
+                FROM campaign_recipients 
+                WHERE campaign_id = ?
+            """
+            
+            result = self.execute_query(query, (campaign_id,), fetch_one=True)
+            if result and result['total'] > 0:
+                percentage = (result['sent'] / result['total']) * 100
+                return {
+                    'percentage': round(percentage, 1),
+                    'total': result['total'],
+                    'sent': result['sent'],
+                    'delivered': result['delivered'],
+                    'failed': result['failed']
+                }
+            
+            return {'percentage': 0, 'total': 0, 'sent': 0, 'delivered': 0, 'failed': 0}
+            
+        except Exception as e:
+            logger.error(f"Error getting campaign progress for {campaign_id}: {e}")
+            return {'percentage': 0, 'total': 0, 'sent': 0, 'delivered': 0, 'failed': 0}
+
+    def update_recipient_status(self, campaign_id: int, member_id: str, status: str, error_message: str = None) -> bool:
+        """Update recipient status in campaign"""
+        try:
+            timestamp_field = 'sent_at' if status == 'sent' else 'delivered_at' if status == 'delivered' else None
+            
+            if timestamp_field:
+                query = f"""
+                    UPDATE campaign_recipients 
+                    SET status = %s, {timestamp_field} = %s, error_message = %s
+                    WHERE campaign_id = %s AND member_id = %s
+                """ if self.db_type == 'postgresql' else f"""
+                    UPDATE campaign_recipients 
+                    SET status = ?, {timestamp_field} = ?, error_message = ?
+                    WHERE campaign_id = ? AND member_id = ?
+                """
+                params = (status, datetime.now().isoformat(), error_message, campaign_id, member_id)
+            else:
+                query = """
+                    UPDATE campaign_recipients 
+                    SET status = %s, error_message = %s
+                    WHERE campaign_id = %s AND member_id = %s
+                """ if self.db_type == 'postgresql' else """
+                    UPDATE campaign_recipients 
+                    SET status = ?, error_message = ?
+                    WHERE campaign_id = ? AND member_id = ?
+                """
+                params = (status, error_message, campaign_id, member_id)
+            
+            self.execute_query(query, params)
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating recipient status: {e}")
+            return False
+
+    def save_campaign_template(self, template_data: Dict[str, Any]) -> Optional[int]:
+        """Save a campaign template"""
+        try:
+            query = """
+                INSERT INTO campaign_templates (
+                    name, category, message, target_group, max_recipients
+                ) VALUES (%s, %s, %s, %s, %s) RETURNING id
+            """ if self.db_type == 'postgresql' else """
+                INSERT INTO campaign_templates (
+                    name, category, message, target_group, max_recipients
+                ) VALUES (?, ?, ?, ?, ?)
+            """
+            
+            params = (
+                template_data['name'],
+                template_data.get('category'),
+                template_data['message'],
+                template_data.get('target_group'),
+                template_data.get('max_recipients', 100)
+            )
+            
+            if self.db_type == 'postgresql':
+                result = self.execute_query(query, params, fetch_one=True)
+                return result['id'] if result else None
+            else:
+                self.execute_query(query, params)
+                return self.execute_query("SELECT last_insert_rowid()", fetch_one=True)['last_insert_rowid()']
+                
+        except Exception as e:
+            logger.error(f"Error saving campaign template: {e}")
+            return None
+
+    def get_campaign_templates(self) -> List[Dict[str, Any]]:
+        """Get all campaign templates"""
+        try:
+            query = "SELECT * FROM campaign_templates ORDER BY created_at DESC"
+            return self.execute_query(query) or []
+        except Exception as e:
+            logger.error(f"Error getting campaign templates: {e}")
+            return []
+
+    def increment_template_usage(self, template_id: int) -> bool:
+        """Increment template usage count"""
+        try:
+            query = """
+                UPDATE campaign_templates 
+                SET usage_count = usage_count + 1, last_used = %s 
+                WHERE id = %s
+            """ if self.db_type == 'postgresql' else """
+                UPDATE campaign_templates 
+                SET usage_count = usage_count + 1, last_used = ? 
+                WHERE id = ?
+            """
+            
+            self.execute_query(query, (datetime.now().isoformat(), template_id))
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error incrementing template usage: {e}")
+            return False
         
     def needs_refresh(self):
         """Check if database needs refreshing based on time interval"""
@@ -643,6 +906,60 @@ class DatabaseManager:
                     member_id TEXT,
                     funding_status TEXT,
                     cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''',
+            'campaigns': '''
+                CREATE TABLE campaigns (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    message_type TEXT DEFAULT 'sms',
+                    email_subject TEXT,
+                    max_recipients INTEGER DEFAULT 100,
+                    notes TEXT,
+                    status TEXT DEFAULT 'draft',
+                    total_recipients INTEGER DEFAULT 0,
+                    sent_count INTEGER DEFAULT 0,
+                    delivered_count INTEGER DEFAULT 0,
+                    failed_count INTEGER DEFAULT 0,
+                    current_position INTEGER DEFAULT 0,
+                    progress_data TEXT,
+                    started_at TIMESTAMP,
+                    completed_at TIMESTAMP,
+                    paused_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''',
+            'campaign_templates': '''
+                CREATE TABLE campaign_templates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    category TEXT,
+                    message TEXT NOT NULL,
+                    target_group TEXT,
+                    max_recipients INTEGER DEFAULT 100,
+                    usage_count INTEGER DEFAULT 0,
+                    last_used TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''',
+            'campaign_recipients': '''
+                CREATE TABLE campaign_recipients (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    campaign_id INTEGER NOT NULL,
+                    member_id TEXT NOT NULL,
+                    member_name TEXT,
+                    member_email TEXT,
+                    member_phone TEXT,
+                    status TEXT DEFAULT 'pending',
+                    sent_at TIMESTAMP,
+                    delivered_at TIMESTAMP,
+                    error_message TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (campaign_id) REFERENCES campaigns (id)
                 )
             '''
         }
@@ -1296,6 +1613,21 @@ class DatabaseManager:
             logger.error(f"Error getting members by category '{category}': {e}")
             return []
     
+    def get_all_members(self) -> List[Dict]:
+        """Get all members from the database for member lookup"""
+        try:
+            query = """
+                SELECT guid, prospect_id, first_name, last_name, full_name, email, mobile_phone
+                FROM members
+                ORDER BY created_at DESC
+            """
+            results = self.execute_query(query)
+            logger.info(f"✅ Retrieved {len(results) if results else 0} members for lookup")
+            return results or []
+        except Exception as e:
+            logger.error(f"❌ Error getting all members: {e}")
+            return []
+    
     def get_category_counts(self) -> Dict[str, int]:
         """Get counts of members by exact status messages to match ClubHub categorization"""
         try:
@@ -1618,6 +1950,75 @@ class DatabaseManager:
             
         except Exception as e:
             logger.error(f"❌ Error getting training clients with agreements: {e}")
+            return []
+
+    def get_prospects(self) -> List[Dict]:
+        """Get all prospects from the database for campaign targeting"""
+        try:
+            query = """
+                SELECT 
+                    prospect_id,
+                    first_name,
+                    last_name,
+                    COALESCE(first_name || ' ' || last_name, first_name, last_name) as full_name,
+                    email,
+                    mobile_phone,
+                    phone,
+                    status,
+                    source,
+                    created_at,
+                    updated_at
+                FROM prospects
+                WHERE email IS NOT NULL AND email != ''
+                ORDER BY created_at DESC
+            """
+            prospects = self.execute_query(query)
+            
+            if prospects is None:
+                logger.info("ℹ️ No prospects found in database")
+                return []
+                
+            logger.info(f"✅ Found {len(prospects)} prospects for campaigns")
+            return prospects
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting prospects: {e}")
+            return []
+    
+    def get_training_clients(self) -> List[Dict]:
+        """Get all training clients from the database for campaign targeting"""
+        try:
+            query = """
+                SELECT 
+                    tc.member_id,
+                    tc.clubos_member_id,
+                    tc.first_name,
+                    tc.last_name,
+                    tc.member_name as full_name,
+                    m.email,
+                    m.mobile_phone,
+                    m.phone,
+                    tc.packages_purchased,
+                    tc.package_details,
+                    tc.created_at,
+                    tc.updated_at
+                FROM training_clients tc
+                LEFT JOIN members m ON tc.member_id = m.guid
+                WHERE (m.email IS NOT NULL AND m.email != '') 
+                   OR (m.mobile_phone IS NOT NULL AND m.mobile_phone != '')
+                ORDER BY tc.first_name, tc.last_name
+            """
+            clients = self.execute_query(query)
+            
+            if clients is None:
+                logger.info("ℹ️ No training clients found in database")
+                return []
+                
+            logger.info(f"✅ Found {len(clients)} training clients for campaigns")
+            return clients
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting training clients: {e}")
             return []
     
     def classify_member_status_enhanced(self, member_data: Dict[str, Any]) -> str:

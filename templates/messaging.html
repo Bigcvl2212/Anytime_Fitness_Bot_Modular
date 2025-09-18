@@ -103,6 +103,25 @@
         box-shadow: var(--shadow-4);
     }
     
+    .campaign-template-card .campaign-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        cursor: pointer;
+    }
+    
+    .campaign-template-card .campaign-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    
+    .border-dashed {
+        border: 2px dashed #dee2e6 !important;
+        border-style: dashed !important;
+    }
+    
+    .border-dashed:hover {
+        border-color: var(--af-purple-primary) !important;
+    }
+    
     /* Status Tabs Styling */
     .nav-tabs .nav-link {
         border: none !important;
@@ -359,63 +378,490 @@
                             </div>
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link position-relative text-center fw-bold border-0" 
+                                id="campaign-templates-tab" data-bs-toggle="tab" data-bs-target="#campaign-templates-panel" 
+                                type="button" role="tab" style="padding: 15px 10px; background: transparent;">
+                            <div class="d-flex flex-column align-items-center">
+                                <i class="fas fa-rocket text-purple mb-1" style="font-size: 1.5rem; color: var(--af-purple-primary);"></i>
+                                <span class="fw-bold text-dark small">Templates</span>
+                                <span class="badge rounded-pill mt-1" style="background: var(--af-purple-primary); color: white;" id="templates-count">6</span>
+                            </div>
+                        </button>
+                    </li>
                 </ul>
 
                 <!-- Tab Content Panels -->
                 <div class="tab-content border-0" id="statusTabContent" style="min-height: 500px;">
                     <!-- Good Standing Panel -->
                     <div class="tab-pane fade show active" id="good-standing-panel" role="tabpanel">
-                        <div class="p-4" id="good-standing-content">
-                            <!-- Content will be loaded dynamically -->
+                        <div class="p-4">
+                            <div class="campaign-category-card" data-category="good_standing">
+                                <div class="card campaign-card h-100">
+                                    <div class="card-header bg-success text-white text-center">
+                                        <i class="fas fa-check-circle mb-2 d-block" style="font-size: 2.5rem;"></i>
+                                        <h5 class="mb-0">Good Standing Campaign</h5>
+                                        <small class="opacity-75">Members with active, current memberships</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="campaign-status mb-3" id="good-standing-status">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <span class="fw-medium">Campaign Progress:</span>
+                                                <span class="badge bg-secondary" id="good-standing-progress-badge">Not Started</span>
+                                            </div>
+                                            <div class="progress mb-2" style="height: 8px;">
+                                                <div class="progress-bar bg-success" id="good-standing-progress-bar" style="width: 0%"></div>
+                                            </div>
+                                            <small class="text-muted" id="good-standing-progress-text">Ready to start campaign</small>
+                                        </div>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-success" onclick="openCampaignModal('good_standing')">
+                                                <i class="fas fa-rocket me-2"></i>Manage Campaign
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Pay Per Visit Panel -->
                     <div class="tab-pane fade" id="pay-per-visit-panel" role="tabpanel">
-                        <div class="p-4" id="pay-per-visit-content">
-                            <!-- Content will be loaded dynamically -->
+                        <div class="p-4">
+                            <div class="campaign-category-card" data-category="pay_per_visit">
+                                <div class="card campaign-card h-100">
+                                    <div class="card-header bg-info text-white text-center">
+                                        <i class="fas fa-credit-card mb-2 d-block" style="font-size: 2.5rem;"></i>
+                                        <h5 class="mb-0">Pay Per Visit Campaign</h5>
+                                        <small class="opacity-75">Members on pay-per-visit plans</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="campaign-status mb-3" id="pay-per-visit-status">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <span class="fw-medium">Campaign Progress:</span>
+                                                <span class="badge bg-secondary" id="pay-per-visit-progress-badge">Not Started</span>
+                                            </div>
+                                            <div class="progress mb-2" style="height: 8px;">
+                                                <div class="progress-bar bg-info" id="pay-per-visit-progress-bar" style="width: 0%"></div>
+                                            </div>
+                                            <small class="text-muted" id="pay-per-visit-progress-text">Ready to start campaign</small>
+                                        </div>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-info" onclick="openCampaignModal('pay_per_visit')">
+                                                <i class="fas fa-rocket me-2"></i>Manage Campaign
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Past Due 6-30 Days Panel -->
                     <div class="tab-pane fade" id="past-due-6-30-panel" role="tabpanel">
-                        <div class="p-4" id="past-due-6-30-content">
-                            <!-- Content will be loaded dynamically -->
+                        <div class="p-4">
+                            <div class="campaign-category-card" data-category="past_due_6_30">
+                                <div class="card campaign-card h-100">
+                                    <div class="card-header bg-warning text-dark text-center">
+                                        <i class="fas fa-exclamation-triangle mb-2 d-block" style="font-size: 2.5rem;"></i>
+                                        <h5 class="mb-0">Past Due 6-30 Days Campaign</h5>
+                                        <small class="opacity-75">Members with payments 6-30 days overdue</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="campaign-status mb-3" id="past-due-6-30-status">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <span class="fw-medium">Campaign Progress:</span>
+                                                <span class="badge bg-secondary" id="past-due-6-30-progress-badge">Not Started</span>
+                                            </div>
+                                            <div class="progress mb-2" style="height: 8px;">
+                                                <div class="progress-bar bg-warning" id="past-due-6-30-progress-bar" style="width: 0%"></div>
+                                            </div>
+                                            <small class="text-muted" id="past-due-6-30-progress-text">Ready to start campaign</small>
+                                        </div>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-warning text-dark" onclick="openCampaignModal('past_due_6_30')">
+                                                <i class="fas fa-rocket me-2"></i>Manage Campaign
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Past Due 30+ Days Panel -->
                     <div class="tab-pane fade" id="past-due-30-panel" role="tabpanel">
-                        <div class="p-4" id="past-due-30-content">
-                            <!-- Content will be loaded dynamically -->
+                        <div class="p-4">
+                            <div class="campaign-category-card" data-category="past_due_30_plus">
+                                <div class="card campaign-card h-100">
+                                    <div class="card-header bg-danger text-white text-center">
+                                        <i class="fas fa-times-circle mb-2 d-block" style="font-size: 2.5rem;"></i>
+                                        <h5 class="mb-0">Past Due 30+ Days Campaign</h5>
+                                        <small class="opacity-75">Members with payments over 30 days overdue</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="campaign-status mb-3" id="past-due-30-plus-status">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <span class="fw-medium">Campaign Progress:</span>
+                                                <span class="badge bg-secondary" id="past-due-30-plus-progress-badge">Not Started</span>
+                                            </div>
+                                            <div class="progress mb-2" style="height: 8px;">
+                                                <div class="progress-bar bg-danger" id="past-due-30-plus-progress-bar" style="width: 0%"></div>
+                                            </div>
+                                            <small class="text-muted" id="past-due-30-plus-progress-text">Ready to start campaign</small>
+                                        </div>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-danger" onclick="openCampaignModal('past_due_30_plus')">
+                                                <i class="fas fa-rocket me-2"></i>Manage Campaign
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Past Due Training Clients Panel -->
                     <div class="tab-pane fade" id="past-due-training-panel" role="tabpanel">
-                        <div class="p-4" id="past-due-training-content">
-                            <!-- Content will be loaded dynamically -->
+                        <div class="p-4">
+                            <div class="campaign-category-card" data-category="past_due_training">
+                                <div class="card campaign-card h-100">
+                                    <div class="card-header bg-danger text-white text-center">
+                                        <i class="fas fa-dumbbell mb-2 d-block" style="font-size: 2.5rem;"></i>
+                                        <h5 class="mb-0">PT Past Due Campaign</h5>
+                                        <small class="opacity-75">Personal training accounts past due</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="campaign-status mb-3" id="past-due-training-status">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <span class="fw-medium">Campaign Progress:</span>
+                                                <span class="badge bg-secondary" id="past-due-training-progress-badge">Not Started</span>
+                                            </div>
+                                            <div class="progress mb-2" style="height: 8px;">
+                                                <div class="progress-bar bg-danger" id="past-due-training-progress-bar" style="width: 0%"></div>
+                                            </div>
+                                            <small class="text-muted" id="past-due-training-progress-text">Ready to start campaign</small>
+                                        </div>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-danger" onclick="openCampaignModal('past_due_training')">
+                                                <i class="fas fa-rocket me-2"></i>Manage Campaign
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Expiring Soon Panel -->
                     <div class="tab-pane fade" id="expiring-soon-panel" role="tabpanel">
-                        <div class="p-4" id="expiring-soon-content">
-                            <!-- Content will be loaded dynamically -->
+                        <div class="p-4">
+                            <div class="campaign-category-card" data-category="expiring_soon">
+                                <div class="card campaign-card h-100">
+                                    <div class="card-header bg-warning text-dark text-center">
+                                        <i class="fas fa-clock mb-2 d-block" style="font-size: 2.5rem;"></i>
+                                        <h5 class="mb-0">Expiring Soon Campaign</h5>
+                                        <small class="opacity-75">Memberships expiring within 30 days</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="campaign-status mb-3" id="expiring-soon-status">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <span class="fw-medium">Campaign Progress:</span>
+                                                <span class="badge bg-secondary" id="expiring-soon-progress-badge">Not Started</span>
+                                            </div>
+                                            <div class="progress mb-2" style="height: 8px;">
+                                                <div class="progress-bar bg-warning" id="expiring-soon-progress-bar" style="width: 0%"></div>
+                                            </div>
+                                            <small class="text-muted" id="expiring-soon-progress-text">Ready to start campaign</small>
+                                        </div>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-warning text-dark" onclick="openCampaignModal('expiring_soon')">
+                                                <i class="fas fa-rocket me-2"></i>Manage Campaign
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Prospects Panel -->
                     <div class="tab-pane fade" id="prospects-panel" role="tabpanel">
-                        <div class="p-4" id="prospects-content">
-                            <!-- Content will be loaded dynamically -->
+                        <div class="p-4">
+                            <div class="campaign-category-card" data-category="prospects">
+                                <div class="card campaign-card h-100">
+                                    <div class="card-header bg-primary text-white text-center">
+                                        <i class="fas fa-users mb-2 d-block" style="font-size: 2.5rem;"></i>
+                                        <h5 class="mb-0">Prospects Campaign</h5>
+                                        <small class="opacity-75">Potential new members and leads</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="campaign-status mb-3" id="prospects-status">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <span class="fw-medium">Campaign Progress:</span>
+                                                <span class="badge bg-secondary" id="prospects-progress-badge">Not Started</span>
+                                            </div>
+                                            <div class="progress mb-2" style="height: 8px;">
+                                                <div class="progress-bar bg-primary" id="prospects-progress-bar" style="width: 0%"></div>
+                                            </div>
+                                            <small class="text-muted" id="prospects-progress-text">Ready to start campaign</small>
+                                        </div>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-primary" onclick="openCampaignModal('prospects')">
+                                                <i class="fas fa-rocket me-2"></i>Manage Campaign
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Other Statuses Panel -->
                     <div class="tab-pane fade" id="other-statuses-panel" role="tabpanel">
-                        <div class="p-4" id="other-statuses-content">
-                            <!-- Content will be loaded dynamically -->
+                        <div class="p-4">
+                            <div class="campaign-category-card" data-category="other_statuses">
+                                <div class="card campaign-card h-100">
+                                    <div class="card-header bg-secondary text-white text-center">
+                                        <i class="fas fa-ellipsis-h mb-2 d-block" style="font-size: 2.5rem;"></i>
+                                        <h5 class="mb-0">Other Status Campaign</h5>
+                                        <small class="opacity-75">Members with other status types</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="campaign-status mb-3" id="other-statuses-status">
+                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                <span class="fw-medium">Campaign Progress:</span>
+                                                <span class="badge bg-secondary" id="other-statuses-progress-badge">Not Started</span>
+                                            </div>
+                                            <div class="progress mb-2" style="height: 8px;">
+                                                <div class="progress-bar bg-secondary" id="other-statuses-progress-bar" style="width: 0%"></div>
+                                            </div>
+                                            <small class="text-muted" id="other-statuses-progress-text">Ready to start campaign</small>
+                                        </div>
+                                        <div class="d-grid gap-2">
+                                            <button class="btn btn-secondary" onclick="openCampaignModal('other_statuses')">
+                                                <i class="fas fa-rocket me-2"></i>Manage Campaign
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Campaign Templates Panel -->
+                    <div class="tab-pane fade" id="campaign-templates-panel" role="tabpanel">
+                        <div class="p-4">
+                            <div class="row">
+                                <!-- Campaign Templates -->
+                                <div class="col-lg-8 col-md-12">
+                                    <div class="d-flex justify-content-between align-items-center mb-4">
+                                        <div>
+                                            <h6 class="fw-bold mb-1">
+                                                <i class="fas fa-rocket me-2" style="color: var(--af-purple-primary);"></i>
+                                                Reusable Campaign Templates
+                                            </h6>
+                                            <p class="text-muted small mb-0">Pre-built campaign templates for common messaging needs</p>
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-primary" onclick="loadSavedCampaigns()">
+                                            <i class="fas fa-sync-alt"></i> Refresh
+                                        </button>
+                                    </div>
+                                    <div class="row g-3" id="campaignTemplatesContainer">
+                                        <!-- Welcome Campaign Card -->
+                                        <div class="col-lg-4 col-md-6">
+                                            <div class="campaign-template-card" data-category="welcome">
+                                                <div class="card border-0 shadow-sm h-100 campaign-card">
+                                                    <div class="card-header bg-primary text-white text-center">
+                                                        <i class="fas fa-handshake mb-2 d-block" style="font-size: 2rem;"></i>
+                                                        <h6 class="mb-0">Welcome New Members</h6>
+                                                    </div>
+                                                    <div class="card-body p-3">
+                                                        <p class="card-text small text-muted mb-3">Send personalized welcome messages to new members</p>
+                                                        <div class="d-flex gap-2">
+                                                            <button class="btn btn-sm btn-primary flex-fill" onclick="useCampaignTemplate('welcome')">
+                                                                <i class="fas fa-play me-1"></i>Use
+                                                            </button>
+                                                            <button class="btn btn-sm btn-outline-secondary" onclick="editCampaignTemplate('welcome')">
+                                                                <i class="fas fa-edit"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Check-in Reminder Card -->
+                                        <div class="col-lg-4 col-md-6">
+                                            <div class="campaign-template-card" data-category="check_in">
+                                                <div class="card border-0 shadow-sm h-100 campaign-card">
+                                                    <div class="card-header bg-info text-white text-center">
+                                                        <i class="fas fa-dumbbell mb-2 d-block" style="font-size: 2rem;"></i>
+                                                        <h6 class="mb-0">Check-in Reminder</h6>
+                                                    </div>
+                                                    <div class="card-body p-3">
+                                                        <p class="card-text small text-muted mb-3">Motivate inactive members to return to the gym</p>
+                                                        <div class="d-flex gap-2">
+                                                            <button class="btn btn-sm btn-info flex-fill" onclick="useCampaignTemplate('check_in')">
+                                                                <i class="fas fa-play me-1"></i>Use
+                                                            </button>
+                                                            <button class="btn btn-sm btn-outline-secondary" onclick="editCampaignTemplate('check_in')">
+                                                                <i class="fas fa-edit"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Payment Reminder Card -->
+                                        <div class="col-lg-4 col-md-6">
+                                            <div class="campaign-template-card" data-category="payment_due">
+                                                <div class="card border-0 shadow-sm h-100 campaign-card">
+                                                    <div class="card-header bg-warning text-dark text-center">
+                                                        <i class="fas fa-credit-card mb-2 d-block" style="font-size: 2rem;"></i>
+                                                        <h6 class="mb-0">Payment Reminder</h6>
+                                                    </div>
+                                                    <div class="card-body p-3">
+                                                        <p class="card-text small text-muted mb-3">Gentle reminders for overdue payments</p>
+                                                        <div class="d-flex gap-2">
+                                                            <button class="btn btn-sm btn-warning flex-fill" onclick="useCampaignTemplate('payment_due')">
+                                                                <i class="fas fa-play me-1"></i>Use
+                                                            </button>
+                                                            <button class="btn btn-sm btn-outline-secondary" onclick="editCampaignTemplate('payment_due')">
+                                                                <i class="fas fa-edit"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Promotion Card -->
+                                        <div class="col-lg-4 col-md-6">
+                                            <div class="campaign-template-card" data-category="promotion">
+                                                <div class="card border-0 shadow-sm h-100 campaign-card">
+                                                    <div class="card-header bg-success text-white text-center">
+                                                        <i class="fas fa-percentage mb-2 d-block" style="font-size: 2rem;"></i>
+                                                        <h6 class="mb-0">Special Promotion</h6>
+                                                    </div>
+                                                    <div class="card-body p-3">
+                                                        <p class="card-text small text-muted mb-3">Share special offers and promotions</p>
+                                                        <div class="d-flex gap-2">
+                                                            <button class="btn btn-sm btn-success flex-fill" onclick="useCampaignTemplate('promotion')">
+                                                                <i class="fas fa-play me-1"></i>Use
+                                                            </button>
+                                                            <button class="btn btn-sm btn-outline-secondary" onclick="editCampaignTemplate('promotion')">
+                                                                <i class="fas fa-edit"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Follow-up Card -->
+                                        <div class="col-lg-4 col-md-6">
+                                            <div class="campaign-template-card" data-category="followup">
+                                                <div class="card border-0 shadow-sm h-100 campaign-card">
+                                                    <div class="card-header bg-secondary text-white text-center">
+                                                        <i class="fas fa-phone mb-2 d-block" style="font-size: 2rem;"></i>
+                                                        <h6 class="mb-0">Member Follow-up</h6>
+                                                    </div>
+                                                    <div class="card-body p-3">
+                                                        <p class="card-text small text-muted mb-3">Check-in with members about their experience</p>
+                                                        <div class="d-flex gap-2">
+                                                            <button class="btn btn-sm btn-secondary flex-fill" onclick="useCampaignTemplate('followup')">
+                                                                <i class="fas fa-play me-1"></i>Use
+                                                            </button>
+                                                            <button class="btn btn-sm btn-outline-secondary" onclick="editCampaignTemplate('followup')">
+                                                                <i class="fas fa-edit"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Custom Campaign Card -->
+                                        <div class="col-lg-4 col-md-6">
+                                            <div class="campaign-template-card" data-category="custom">
+                                                <div class="card border-0 shadow-sm h-100 campaign-card border-dashed">
+                                                    <div class="card-header bg-light text-dark text-center">
+                                                        <i class="fas fa-plus mb-2 d-block" style="font-size: 2rem;"></i>
+                                                        <h6 class="mb-0">Create Custom</h6>
+                                                    </div>
+                                                    <div class="card-body p-3">
+                                                        <p class="card-text small text-muted mb-3">Build a new campaign from scratch</p>
+                                                        <div class="d-flex gap-2">
+                                                            <button class="btn btn-sm btn-outline-primary flex-fill" onclick="createCustomCampaign()">
+                                                                <i class="fas fa-plus me-1"></i>Create
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Campaign Editor -->
+                                <div class="col-lg-4 col-md-12">
+                                    <div class="card h-100">
+                                        <div class="card-header bg-light">
+                                            <h6 class="mb-0 fw-semibold">
+                                                <i class="fas fa-cogs me-2"></i>
+                                                Campaign Editor
+                                            </h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <form id="templateCampaignForm">
+                                                <div class="row g-3">
+                                                    <div class="col-12">
+                                                        <label for="templateCampaignName" class="form-label fw-medium">Campaign Name</label>
+                                                        <input type="text" class="form-control" id="templateCampaignName" placeholder="Enter campaign name">
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <label for="templateCampaignMessage" class="form-label fw-medium">Message Template</label>
+                                                        <textarea class="form-control" id="templateCampaignMessage" rows="4" placeholder="Enter your message..."></textarea>
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <label for="templateTargetGroup" class="form-label fw-medium">Target Group</label>
+                                                        <select class="form-select" id="templateTargetGroup">
+                                                            <option value="all">All Members</option>
+                                                            <option value="new">New Members (< 30 days)</option>
+                                                            <option value="inactive">Inactive Members (no recent check-ins)</option>
+                                                            <option value="past_due">Past Due Members</option>
+                                                            <option value="good_standing">Members in Good Standing</option>
+                                                            <option value="expiring_soon">Memberships Expiring Soon</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <label for="templateMaxRecipients" class="form-label fw-medium">Max Recipients</label>
+                                                        <input type="number" class="form-control" id="templateMaxRecipients" value="100" min="1" max="500">
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" id="saveAsNewTemplate">
+                                                            <label class="form-check-label" for="saveAsNewTemplate">
+                                                                Save as new template
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <button type="button" class="btn btn-primary w-100 mb-2" onclick="launchTemplateCampaign()" style="background: var(--af-purple-primary); border: none;">
+                                                            <i class="fas fa-paper-plane me-2"></i>Launch Campaign
+                                                        </button>
+                                                        <button type="button" class="btn btn-outline-secondary w-100" onclick="previewTemplateCampaign()">
+                                                            <i class="fas fa-eye me-2"></i>Preview Message
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -429,11 +875,14 @@
     <!-- Message Inbox -->
     <div class="col-md-6">
         <div class="fluent-card">
-            <div class="fluent-header">
+            <div class="fluent-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 fw-semibold">
                     <i class="fas fa-inbox me-2"></i>
-                    Message Inbox
+                    ClubOS Messages
                 </h5>
+                <button class="btn btn-sm btn-fluent-outline" onclick="syncMessages()">
+                    <i class="fas fa-sync-alt"></i> Sync
+                </button>
             </div>
             <div class="card-body p-3">
                 <div class="mb-3">
@@ -448,44 +897,39 @@
                 <div id="messagesContainer">
                     <div class="text-center py-4">
                         <div class="loading-spinner"></div>
-                        <p class="text-muted mt-2">Loading messages...</p>
-                    </div>
-                </div>
-                <!-- Threading Container for Message Threads -->
-                <div id="threadsContainer" class="mt-3">
-                    <div class="text-center py-4">
-                        <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
-                        <p class="text-muted">Loading message threads...</p>
+                        <p class="text-muted mt-2">Loading ClubOS messages...</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
         
-    <!-- Campaign Progress Tracking -->
+    <!-- Campaign History & Reuse -->
     <div class="col-md-6">
         <div class="fluent-card">
-            <div class="fluent-header">
+            <div class="fluent-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0 fw-semibold">
-                    <i class="fas fa-chart-line me-2"></i>
-                    Campaign Progress
+                    <i class="fas fa-history me-2"></i>
+                    Campaign History
                 </h5>
-                <button class="btn btn-sm btn-fluent-outline" onclick="loadCampaignProgress()">
+                <button class="btn btn-sm btn-fluent-outline" onclick="loadCampaignHistory()">
                     <i class="fas fa-sync-alt"></i> Refresh
                 </button>
             </div>
             <div class="card-body p-3">
-                <div id="progressContainer">
+                <div id="campaignHistoryContainer">
                     <div class="text-center py-4">
                         <div class="loading-spinner"></div>
-                        <p class="text-muted mt-2">Loading progress...</p>
+                        <p class="text-muted mt-2">Loading campaign history...</p>
                     </div>
                 </div>
-                <div class="mt-3">
+                <div class="mt-3 d-flex gap-2">
                     <button class="btn btn-sm btn-outline-warning" onclick="resetAllProgress()">
-                        <i class="fas fa-redo"></i> Reset All Progress
+                        <i class="fas fa-redo"></i> Reset Progress
                     </button>
-                    <small class="text-muted ms-2">Use to restart campaigns from beginning</small>
+                    <button class="btn btn-sm btn-outline-info" onclick="viewCampaignStats()">
+                        <i class="fas fa-chart-bar"></i> View Stats
+                    </button>
                 </div>
             </div>
         </div>
@@ -494,71 +938,194 @@
 
 
 
-<!-- Status Category Campaign Modal -->
-<div class="modal fade" id="statusCampaignModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<!-- Enhanced Category Campaign Modal -->
+<div class="modal fade" id="categoryCampaignModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content" style="border-radius: var(--border-radius-large);">
             <div class="modal-header" style="background: var(--af-purple-primary); color: white; border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;">
                 <h5 class="modal-title">
                     <i class="fas fa-bullhorn me-2"></i>
-                    <span id="modalCategoryTitle">Campaign Setup</span>
+                    <span id="modalCategoryTitle">Campaign Manager</span>
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close Modal"></button>
             </div>
             <div class="modal-body">
-                <form id="statusCampaignForm">
-                    <input type="hidden" id="modalCategoryValue" value="">
-                    
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle me-2"></i>
-                        <strong>Target Group:</strong> <span id="modalCategoryInfo"></span>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="statusCampaignName" class="form-label fw-semibold">Campaign Name</label>
-                        <input type="text" class="form-control" id="statusCampaignName" required style="border-radius: var(--border-radius-medium);" placeholder="Enter campaign name">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="statusCampaignMessage" class="form-label fw-semibold">Message Content</label>
-                        <textarea class="form-control" id="statusCampaignMessage" rows="4" required style="border-radius: var(--border-radius-medium);" placeholder="Enter your message here..."></textarea>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="statusMessageType" class="form-label fw-semibold">Message Type</label>
-                        <select class="form-select" id="statusMessageType" required style="border-radius: var(--border-radius-medium);">
-                            <option value="sms">SMS Text Message</option>
-                            <option value="email">Email Message</option>
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3" id="statusEmailSubjectDiv" style="display: none;">
-                        <label for="statusEmailSubject" class="form-label fw-semibold">Email Subject</label>
-                        <input type="text" class="form-control" id="statusEmailSubject" style="border-radius: var(--border-radius-medium);">
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="statusRecipientLimit" class="form-label fw-semibold">Max Recipients</label>
-                        <input type="number" class="form-control" id="statusRecipientLimit" value="100" min="1" max="1000" required style="border-radius: var(--border-radius-medium);">
-                        <div class="form-text">
-                            <small class="text-muted">Maximum number of people to send this campaign to (1-1000)</small>
+                <div class="row g-4">
+                    <!-- Campaign Controls -->
+                    <div class="col-lg-8">
+                        <!-- Campaign Status Section -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0 fw-semibold">
+                                    <i class="fas fa-chart-line me-2"></i>
+                                    Current Campaign Status
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="campaignStatusSection">
+                                    <!-- Dynamic status will be loaded here -->
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        <strong>Ready to start:</strong> No active campaign for this category
+                                    </div>
+                                </div>
+                                
+                                <!-- Progress Tracking -->
+                                <div id="campaignProgressSection" style="display: none;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="fw-medium">Sending Progress:</span>
+                                        <span class="badge bg-primary" id="campaignProgressBadge">In Progress</span>
+                                    </div>
+                                    <div class="progress mb-2" style="height: 12px;">
+                                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                             id="campaignProgressBar" style="width: 0%"></div>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <small class="text-muted" id="campaignProgressText">Starting campaign...</small>
+                                        <small class="text-muted" id="campaignProgressCount">0 / 0 sent</small>
+                                    </div>
+                                    <div class="d-flex gap-2 mt-3">
+                                        <button class="btn btn-sm btn-warning" id="pauseCampaignBtn" onclick="pauseCampaign()">
+                                            <i class="fas fa-pause"></i> Pause
+                                        </button>
+                                        <button class="btn btn-sm btn-success" id="resumeCampaignBtn" onclick="resumeCampaign()" style="display: none;">
+                                            <i class="fas fa-play"></i> Resume
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" onclick="stopCampaign()">
+                                            <i class="fas fa-stop"></i> Stop
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Campaign Options -->
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0 fw-semibold">
+                                    <i class="fas fa-cogs me-2"></i>
+                                    Campaign Options
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-grid gap-2 d-md-block mb-3" id="campaignActionButtons">
+                                    <button class="btn btn-success me-2" id="continueCampaignBtn" onclick="continueCampaign()" style="display: none;">
+                                        <i class="fas fa-play me-2"></i>Continue from Where Left Off
+                                    </button>
+                                    <button class="btn btn-primary me-2" onclick="showCampaignEditor('template')">
+                                        <i class="fas fa-edit me-2"></i>Edit with Template
+                                    </button>
+                                    <button class="btn btn-outline-primary" onclick="showCampaignEditor('fresh')">
+                                        <i class="fas fa-plus me-2"></i>Create Fresh Campaign
+                                    </button>
+                                </div>
+                                
+                                <!-- Campaign Editor (Hidden by default) -->
+                                <div id="campaignEditor" style="display: none;">
+                                    <hr class="mb-3">
+                                    <form id="categoryCampaignForm">
+                                        <input type="hidden" id="modalCategoryValue" value="">
+                                        <input type="hidden" id="editorMode" value="">
+                                        
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <label for="campaignName" class="form-label fw-medium">Campaign Name</label>
+                                                <input type="text" class="form-control" id="campaignName" required placeholder="Enter campaign name">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label for="campaignTemplate" class="form-label fw-medium">Use Template</label>
+                                                <select class="form-select" id="campaignTemplate" onchange="loadCampaignTemplate()">
+                                                    <option value="">Select a template...</option>
+                                                    <option value="welcome">Welcome New Members</option>
+                                                    <option value="payment_reminder">Payment Reminder</option>
+                                                    <option value="check_in">Check-in Reminder</option>
+                                                    <option value="promotion">Special Promotion</option>
+                                                    <option value="followup">Member Follow-up</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-12">
+                                                <label for="campaignMessage" class="form-label fw-medium">Message Content</label>
+                                                <textarea class="form-control" id="campaignMessage" rows="4" required placeholder="Enter your message here..."></textarea>
+                                                <div class="form-text">
+                                                    <small class="text-muted">You can use variables: {name}, {first_name}, {email}, {phone}</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label for="messageType" class="form-label fw-medium">Message Type</label>
+                                                <select class="form-select" id="messageType" required>
+                                                    <option value="sms">SMS Text Message</option>
+                                                    <option value="email">Email Message</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label for="maxRecipients" class="form-label fw-medium">Max Recipients</label>
+                                                <input type="number" class="form-control" id="maxRecipients" value="100" min="1" max="1000" required>
+                                            </div>
+                                            <div class="col-12" id="emailSubjectDiv" style="display: none;">
+                                                <label for="emailSubject" class="form-label fw-medium">Email Subject</label>
+                                                <input type="text" class="form-control" id="emailSubject">
+                                            </div>
+                                            <div class="col-12">
+                                                <label for="campaignNotes" class="form-label fw-medium">Campaign Notes (Optional)</label>
+                                                <textarea class="form-control" id="campaignNotes" rows="2" placeholder="Add notes about this campaign..."></textarea>
+                                            </div>
+                                            <div class="col-12">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="saveAsTemplate">
+                                                    <label class="form-check-label" for="saveAsTemplate">
+                                                        Save as reusable template
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="mb-3">
-                        <label for="statusCampaignNotes" class="form-label fw-semibold">Campaign Notes</label>
-                        <textarea class="form-control" id="statusCampaignNotes" rows="3" placeholder="Add notes about this campaign (internal use only)" style="border-radius: var(--border-radius-medium);"></textarea>
-                        <div class="form-text">
-                            <small class="text-muted">These notes are for your reference and won't be sent to recipients</small>
+                    <!-- Member Preview & Stats -->
+                    <div class="col-lg-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0 fw-semibold">
+                                    <i class="fas fa-users me-2"></i>
+                                    Target Members
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-info mb-3" id="memberCountAlert">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-medium">Total Members:</span>
+                                        <span class="badge bg-primary" id="totalMemberCount">0</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-2">
+                                        <span>Remaining to Contact:</span>
+                                        <span class="badge bg-warning" id="remainingMemberCount">0</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="member-preview" style="max-height: 400px; overflow-y: auto;">
+                                    <div id="memberPreviewList">
+                                        <!-- Member list will be loaded here -->
+                                        <div class="text-center py-4">
+                                            <div class="loading-spinner"></div>
+                                            <p class="text-muted mt-2">Loading members...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </form>
+                </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-fluent-primary" onclick="saveStatusCampaign()">
-                    <i class="fas fa-paper-plane me-1"></i>
-                    Send Campaign
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-outline-info me-2" onclick="previewCampaign()">
+                    <i class="fas fa-eye me-1"></i>Preview
+                </button>
+                <button type="button" class="btn btn-success" id="launchCampaignBtn" onclick="launchCampaign()">
+                    <i class="fas fa-rocket me-1"></i>Launch Campaign
                 </button>
             </div>
         </div>
@@ -825,28 +1392,395 @@
             return titles[categoryKey] || categoryKey;
         }
 
-        function openStatusCampaignModal(categoryKey, categoryTitle, memberCount) {
-            debugLog('📝 Opening campaign modal for:', categoryKey, memberCount, 'members');
+        // Global variables for campaign management
+        let currentCampaignData = null;
+        let campaignProgressInterval = null;
+        let currentCategory = null;
+
+        function openCampaignModal(categoryKey) {
+            debugLog('📝 Opening enhanced campaign modal for:', categoryKey);
+            currentCategory = categoryKey;
             
-            // Set modal data
+            // Set modal title
+            const categoryTitles = {
+                'good_standing': 'Good Standing Members',
+                'pay_per_visit': 'Pay Per Visit Members', 
+                'past_due_6_30': 'Past Due 6-30 Days',
+                'past_due_30_plus': 'Past Due 30+ Days',
+                'past_due_training': 'PT Past Due Members',
+                'expiring_soon': 'Expiring Soon Members',
+                'prospects': 'Prospects',
+                'other_statuses': 'Other Status Members'
+            };
+            
+            const categoryTitle = categoryTitles[categoryKey] || categoryKey;
+            document.getElementById('modalCategoryTitle').textContent = `${categoryTitle} Campaign Manager`;
             document.getElementById('modalCategoryValue').value = categoryKey;
-            document.getElementById('modalCategoryTitle').textContent = categoryTitle + ' Campaign';
-            document.getElementById('modalCategoryInfo').textContent = `${memberCount} member${memberCount !== 1 ? 's' : ''} in ${categoryTitle.toLowerCase()}`;
             
-            // Reset form
-            document.getElementById('statusCampaignForm').reset();
-            document.getElementById('statusRecipientLimit').value = Math.min(memberCount, 100);
+            // Load campaign status and member data
+            loadCampaignStatus(categoryKey);
+            loadCategoryMembers(categoryKey);
             
             // Show modal
-            const modal = new bootstrap.Modal(document.getElementById('statusCampaignModal'));
+            const modal = new bootstrap.Modal(document.getElementById('categoryCampaignModal'));
             modal.show();
         }
 
-        function saveStatusCampaign() {
-            const form = document.getElementById('statusCampaignForm');
-            const submitBtn = event.target;
-            const originalText = submitBtn.innerHTML;
+        function loadCampaignStatus(categoryKey) {
+            debugLog('📊 Loading campaign status for:', categoryKey);
             
+            // Check if there's an existing campaign for this category
+            fetch(`/api/campaigns/status/${categoryKey}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.campaign) {
+                        currentCampaignData = data.campaign;
+                        displayCampaignStatus(data.campaign);
+                        
+                        // Start progress tracking if campaign is active
+                        if (data.campaign.status === 'running') {
+                            startProgressTracking();
+                        }
+                    } else {
+                        // No existing campaign
+                        displayNoCampaignStatus();
+                    }
+                })
+                .catch(error => {
+                    debugLog('Campaign status API not available:', error.message);
+                    displayNoCampaignStatus();
+                });
+        }
+
+        function displayCampaignStatus(campaign) {
+            const statusSection = document.getElementById('campaignStatusSection');
+            const progressSection = document.getElementById('campaignProgressSection');
+            const continueBtn = document.getElementById('continueCampaignBtn');
+            
+            if (campaign.status === 'running') {
+                // Show active campaign
+                statusSection.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="fas fa-play me-2"></i>
+                        <strong>Campaign Active:</strong> "${campaign.name}" is currently running
+                        <div class="mt-2">
+                            <small class="text-muted">Started: ${formatDateTime(campaign.started_at)}</small>
+                        </div>
+                    </div>
+                `;
+                
+                // Show progress section
+                progressSection.style.display = 'block';
+                updateProgressDisplay(campaign.progress);
+                
+            } else if (campaign.status === 'paused') {
+                // Show paused campaign
+                statusSection.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="fas fa-pause me-2"></i>
+                        <strong>Campaign Paused:</strong> "${campaign.name}" 
+                        <div class="mt-2">
+                            <small class="text-muted">Progress: ${campaign.sent_count}/${campaign.total_count} sent</small>
+                        </div>
+                    </div>
+                `;
+                
+                continueBtn.style.display = 'inline-block';
+                progressSection.style.display = 'block';
+                updateProgressDisplay(campaign.progress);
+                
+            } else if (campaign.status === 'completed') {
+                // Show completed campaign
+                statusSection.innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>Campaign Completed:</strong> "${campaign.name}"
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                Completed: ${formatDateTime(campaign.completed_at)} • 
+                                ${campaign.sent_count} messages sent • 
+                                ${campaign.delivered_count} delivered
+                            </small>
+                        </div>
+                    </div>
+                `;
+                
+                progressSection.style.display = 'none';
+            }
+        }
+
+        function displayNoCampaignStatus() {
+            const statusSection = document.getElementById('campaignStatusSection');
+            const progressSection = document.getElementById('campaignProgressSection');
+            const continueBtn = document.getElementById('continueCampaignBtn');
+            
+            statusSection.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Ready to start:</strong> No active campaign for this category
+                </div>
+            `;
+            
+            progressSection.style.display = 'none';
+            continueBtn.style.display = 'none';
+        }
+
+        function loadCategoryMembers(categoryKey) {
+            debugLog('👥 Loading members for category:', categoryKey);
+            
+            const memberPreview = document.getElementById('memberPreviewList');
+            const totalCountBadge = document.getElementById('totalMemberCount');
+            const remainingCountBadge = document.getElementById('remainingMemberCount');
+            
+            // Show loading
+            memberPreview.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="loading-spinner"></div>
+                    <p class="text-muted mt-2">Loading members...</p>
+                </div>
+            `;
+            
+            // Get members for this category
+            const endpoint = categoryKey === 'prospects' ? '/api/prospects/all' : '/api/members/all';
+            
+            fetch(endpoint)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const allMembers = data.members || data.prospects || data.data || [];
+                        const categoryMembers = filterMembersByCategory(allMembers, categoryKey);
+                        
+                        displayMemberPreview(categoryMembers);
+                        updateMemberCounts(categoryMembers.length, categoryMembers.length);
+                    } else {
+                        memberPreview.innerHTML = `
+                            <div class="text-center py-4 text-danger">
+                                <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                                <p>Error loading members</p>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    debugError('Error loading category members:', error);
+                    memberPreview.innerHTML = `
+                        <div class="text-center py-4 text-danger">
+                            <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+                            <p>Network error loading members</p>
+                        </div>
+                    `;
+                });
+        }
+
+        function filterMembersByCategory(members, categoryKey) {
+            return members.filter(member => {
+                const statusMsg = (member.status_message || '').toLowerCase();
+                
+                switch(categoryKey) {
+                    case 'good_standing':
+                        return statusMsg.includes('good standing') || statusMsg.includes('active');
+                    case 'pay_per_visit':
+                        return statusMsg.includes('pay per visit');
+                    case 'past_due_6_30':
+                        return statusMsg.includes('past due 6-30') || statusMsg.includes('past due 6 to 30');
+                    case 'past_due_30_plus':
+                        return statusMsg.includes('past due more than 30') || statusMsg.includes('past due 30+');
+                    case 'past_due_training':
+                        return parseFloat(member.past_due_amount || 0) > 0 && member.member_type === 'training';
+                    case 'expiring_soon':
+                        return statusMsg.includes('expire') || statusMsg.includes('expiring');
+                    case 'prospects':
+                        return true; // All prospects
+                    case 'other_statuses':
+                        return statusMsg && !statusMsg.includes('good standing') && !statusMsg.includes('pay per visit') && !statusMsg.includes('past due');
+                    default:
+                        return false;
+                }
+            });
+        }
+
+        function displayMemberPreview(members) {
+            const memberPreview = document.getElementById('memberPreviewList');
+            
+            if (members.length === 0) {
+                memberPreview.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-users fa-2x text-muted mb-2"></i>
+                        <p class="text-muted">No members in this category</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const membersHtml = members.slice(0, 20).map(member => `
+                <div class="member-item border-bottom pb-2 mb-2">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <div class="fw-medium">${member.full_name || `${member.firstName || ''} ${member.lastName || ''}`.trim()}</div>
+                            <div class="small text-muted">${member.email || member.mobile_phone || 'No contact'}</div>
+                            ${member.status_message ? `<div class="small text-info">${member.status_message}</div>` : ''}
+                            ${member.past_due_amount && parseFloat(member.past_due_amount) > 0 ? 
+                                `<div class="small text-danger">Past Due: $${parseFloat(member.past_due_amount).toFixed(2)}</div>` : ''}
+                        </div>
+                        <div class="ms-2">
+                            <span class="badge bg-light text-dark">Ready</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            memberPreview.innerHTML = membersHtml + 
+                (members.length > 20 ? `
+                    <div class="text-center py-2 border-top">
+                        <small class="text-muted">... and ${members.length - 20} more members</small>
+                    </div>
+                ` : '');
+        }
+
+        function updateMemberCounts(total, remaining) {
+            document.getElementById('totalMemberCount').textContent = total;
+            document.getElementById('remainingMemberCount').textContent = remaining;
+        }
+
+        // Campaign Control Functions
+        function showCampaignEditor(mode) {
+            debugLog('📝 Showing campaign editor in mode:', mode);
+            
+            const editor = document.getElementById('campaignEditor');
+            const modeInput = document.getElementById('editorMode');
+            
+            editor.style.display = 'block';
+            modeInput.value = mode;
+            
+            if (mode === 'template') {
+                // Pre-fill with category-appropriate template
+                loadCategoryTemplate(currentCategory);
+                document.getElementById('campaignTemplate').focus();
+            } else if (mode === 'fresh') {
+                // Clear form for fresh start
+                document.getElementById('categoryCampaignForm').reset();
+                document.getElementById('maxRecipients').value = 100;
+                document.getElementById('campaignName').focus();
+            }
+        }
+
+        function loadCategoryTemplate(categoryKey) {
+            const templates = {
+                'good_standing': {
+                    name: 'Good Standing Check-in',
+                    message: 'Hi {first_name}! We hope you\'re enjoying your membership at Anytime Fitness. Is there anything we can do to help you reach your fitness goals?'
+                },
+                'pay_per_visit': {
+                    name: 'Pay Per Visit Promotion',
+                    message: 'Hi {first_name}! Ready to take your fitness to the next level? Ask us about our membership options to save on your visits!'
+                },
+                'past_due_6_30': {
+                    name: 'Payment Reminder - Gentle',
+                    message: 'Hi {first_name}, this is a friendly reminder that your membership payment is past due. Please update your payment method at your convenience.'
+                },
+                'past_due_30_plus': {
+                    name: 'Payment Reminder - Urgent',
+                    message: 'Hi {first_name}, your membership payment is significantly overdue. Please contact us immediately to resolve this and avoid service interruption.'
+                },
+                'past_due_training': {
+                    name: 'PT Payment Reminder',
+                    message: 'Hi {first_name}, your personal training account has an outstanding balance. Please contact us to discuss payment options.'
+                },
+                'expiring_soon': {
+                    name: 'Membership Renewal',
+                    message: 'Hi {first_name}, your membership expires soon. Contact us to renew and keep working toward your fitness goals!'
+                },
+                'prospects': {
+                    name: 'Prospect Follow-up',
+                    message: 'Hi {first_name}! Ready to start your fitness journey with Anytime Fitness? We\'d love to help you get started with a great membership deal!'
+                }
+            };
+            
+            const template = templates[categoryKey];
+            if (template) {
+                document.getElementById('campaignName').value = template.name;
+                document.getElementById('campaignMessage').value = template.message;
+            }
+        }
+
+        function loadCampaignTemplate() {
+            const templateSelect = document.getElementById('campaignTemplate');
+            const selected = templateSelect.value;
+            
+            if (!selected) return;
+            
+            const templates = {
+                'welcome': {
+                    message: 'Welcome to Anytime Fitness, {first_name}! We\'re excited to have you as part of our fitness family. If you need help getting started, our team is here for you!'
+                },
+                'payment_reminder': {
+                    message: 'Hi {first_name}, this is a friendly reminder that your membership payment is due. Please update your payment method or contact us for assistance.'
+                },
+                'check_in': {
+                    message: 'Hey {first_name}! We noticed you haven\'t been in lately. Your fitness goals are waiting - come back and let\'s crush them together!'
+                },
+                'promotion': {
+                    message: 'Exciting news, {first_name}! We have a special promotion just for our valued members. Limited time offer - contact us for details!'
+                },
+                'followup': {
+                    message: 'Hi {first_name}, how has your fitness journey been going? We\'d love to hear about your progress and see how we can help you reach your goals!'
+                }
+            };
+            
+            const template = templates[selected];
+            if (template) {
+                document.getElementById('campaignMessage').value = template.message;
+            }
+        }
+
+        function continueCampaign() {
+            debugLog('▶️ Continuing existing campaign for:', currentCategory);
+            
+            if (!currentCampaignData) {
+                showAlert('error', 'No campaign data available to continue');
+                return;
+            }
+            
+            // Resume the paused campaign
+            const continueBtn = document.getElementById('continueCampaignBtn');
+            continueBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Resuming...';
+            continueBtn.disabled = true;
+            
+            fetch(`/api/campaigns/${currentCampaignData.id}/resume`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', 'Campaign resumed successfully!');
+                    
+                    // Update status display
+                    currentCampaignData.status = 'running';
+                    displayCampaignStatus(currentCampaignData);
+                    
+                    // Start progress tracking
+                    startProgressTracking();
+                } else {
+                    showAlert('error', data.error || 'Failed to resume campaign');
+                }
+            })
+            .catch(error => {
+                debugError('Error resuming campaign:', error);
+                showAlert('error', 'Network error resuming campaign');
+            })
+            .finally(() => {
+                continueBtn.innerHTML = '<i class="fas fa-play me-2"></i>Continue from Where Left Off';
+                continueBtn.disabled = false;
+            });
+        }
+
+        function launchCampaign() {
+            debugLog('🚀 Launching new campaign for:', currentCategory);
+            
+            const form = document.getElementById('categoryCampaignForm');
             if (!form.checkValidity()) {
                 form.reportValidity();
                 return;
@@ -854,22 +1788,23 @@
             
             // Get form data
             const formData = {
-                category: document.getElementById('modalCategoryValue').value,
-                name: document.getElementById('statusCampaignName').value,
-                message: document.getElementById('statusCampaignMessage').value,
-                type: document.getElementById('statusMessageType').value,
-                subject: document.getElementById('statusEmailSubject').value || '',
-                recipientLimit: parseInt(document.getElementById('statusRecipientLimit').value),
-                notes: document.getElementById('statusCampaignNotes').value || ''
+                category: currentCategory,
+                name: document.getElementById('campaignName').value,
+                message: document.getElementById('campaignMessage').value,
+                type: document.getElementById('messageType').value,
+                subject: document.getElementById('emailSubject').value || '',
+                max_recipients: parseInt(document.getElementById('maxRecipients').value),
+                notes: document.getElementById('campaignNotes').value || '',
+                save_as_template: document.getElementById('saveAsTemplate').checked,
+                mode: document.getElementById('editorMode').value
             };
             
-            debugLog('💾 Saving status campaign:', formData);
-            
             // Update button state
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Sending...';
-            submitBtn.disabled = true;
+            const launchBtn = document.getElementById('launchCampaignBtn');
+            launchBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Launching...';
+            launchBtn.disabled = true;
             
-            // Send campaign (placeholder - implement actual sending logic)
+            // Send campaign
             fetch('/api/campaigns/send', {
                 method: 'POST',
                 headers: {
@@ -880,28 +1815,285 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    showAlert('success', `Campaign "${formData.name}" sent successfully to ${data.sent_count || 'selected'} recipients!`);
+                    showAlert('success', `Campaign "${formData.name}" launched successfully!`);
                     
-                    // Close modal
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('statusCampaignModal'));
-                    modal.hide();
+                    // Update current campaign data
+                    currentCampaignData = {
+                        id: data.campaign_id,
+                        name: formData.name,
+                        category: formData.category,
+                        status: 'running',
+                        started_at: new Date().toISOString(),
+                        total_count: data.total_recipients || 0,
+                        sent_count: 0,
+                        delivered_count: 0,
+                        progress: {
+                            percentage: 0,
+                            sent: 0,
+                            total: data.total_recipients || 0
+                        }
+                    };
                     
-                    // Refresh progress
-                    loadCampaignProgress();
+                    // Update display
+                    displayCampaignStatus(currentCampaignData);
+                    startProgressTracking();
+                    
+                    // Hide editor
+                    document.getElementById('campaignEditor').style.display = 'none';
+                    
+                    // Update card progress on main page
+                    updateCardProgress(currentCategory, 0, 'Starting...');
+                    
                 } else {
-                    showAlert('danger', `Failed to send campaign: ${data.error || 'Unknown error'}`);
+                    showAlert('error', data.error || 'Failed to launch campaign');
                 }
             })
             .catch(error => {
-                debugError('❌ Campaign send error:', error);
-                showAlert('danger', 'Failed to send campaign. Please try again.');
+                debugError('Error launching campaign:', error);
+                showAlert('error', 'Network error launching campaign');
             })
             .finally(() => {
-                // Restore button state
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
+                launchBtn.innerHTML = '<i class="fas fa-rocket me-2"></i>Launch Campaign';
+                launchBtn.disabled = false;
             });
         }
+
+        function pauseCampaign() {
+            debugLog('⏸️ Pausing campaign');
+            
+            if (!currentCampaignData) return;
+            
+            fetch(`/api/campaigns/${currentCampaignData.id}/pause`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    currentCampaignData.status = 'paused';
+                    displayCampaignStatus(currentCampaignData);
+                    stopProgressTracking();
+                    showAlert('success', 'Campaign paused');
+                }
+            })
+            .catch(error => {
+                debugError('Error pausing campaign:', error);
+            });
+        }
+
+        function resumeCampaign() {
+            debugLog('▶️ Resuming campaign');
+            continueCampaign();
+        }
+
+        function stopCampaign() {
+            if (!confirm('Are you sure you want to stop this campaign? This action cannot be undone.')) {
+                return;
+            }
+            
+            debugLog('⏹️ Stopping campaign');
+            
+            if (!currentCampaignData) return;
+            
+            fetch(`/api/campaigns/${currentCampaignData.id}/stop`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    currentCampaignData.status = 'stopped';
+                    displayCampaignStatus(currentCampaignData);
+                    stopProgressTracking();
+                    showAlert('warning', 'Campaign stopped');
+                }
+            })
+            .catch(error => {
+                debugError('Error stopping campaign:', error);
+            });
+        }
+
+        // Progress Tracking Functions
+        function startProgressTracking() {
+            debugLog('📊 Starting progress tracking');
+            
+            if (campaignProgressInterval) {
+                clearInterval(campaignProgressInterval);
+            }
+            
+            campaignProgressInterval = setInterval(() => {
+                updateCampaignProgress();
+            }, 2000); // Update every 2 seconds
+            
+            // Initial update
+            updateCampaignProgress();
+        }
+
+        function stopProgressTracking() {
+            debugLog('⏹️ Stopping progress tracking');
+            
+            if (campaignProgressInterval) {
+                clearInterval(campaignProgressInterval);
+                campaignProgressInterval = null;
+            }
+        }
+
+        function updateCampaignProgress() {
+            if (!currentCampaignData || !currentCampaignData.id) return;
+            
+            fetch(`/api/campaigns/${currentCampaignData.id}/progress`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Update local campaign data
+                        currentCampaignData.progress = data.progress;
+                        currentCampaignData.sent_count = data.progress.sent;
+                        currentCampaignData.delivered_count = data.progress.delivered;
+                        
+                        // Update progress display
+                        updateProgressDisplay(data.progress);
+                        
+                        // Update card progress on main page
+                        updateCardProgress(currentCategory, data.progress.percentage, 
+                            `${data.progress.sent}/${data.progress.total} sent`);
+                        
+                        // Check if campaign is complete
+                        if (data.progress.percentage >= 100 || data.campaign_status === 'completed') {
+                            currentCampaignData.status = 'completed';
+                            currentCampaignData.completed_at = new Date().toISOString();
+                            stopProgressTracking();
+                            displayCampaignStatus(currentCampaignData);
+                            showAlert('success', 'Campaign completed successfully!');
+                        }
+                    }
+                })
+                .catch(error => {
+                    debugLog('Progress update error (expected during development):', error.message);
+                });
+        }
+
+        function updateProgressDisplay(progress) {
+            const progressBar = document.getElementById('campaignProgressBar');
+            const progressText = document.getElementById('campaignProgressText');
+            const progressCount = document.getElementById('campaignProgressCount');
+            const progressBadge = document.getElementById('campaignProgressBadge');
+            
+            if (progressBar) {
+                progressBar.style.width = `${progress.percentage || 0}%`;
+            }
+            
+            if (progressText) {
+                const status = progress.percentage >= 100 ? 'Complete' : 'Sending messages...';
+                progressText.textContent = status;
+            }
+            
+            if (progressCount) {
+                progressCount.textContent = `${progress.sent || 0} / ${progress.total || 0} sent`;
+            }
+            
+            if (progressBadge) {
+                if (progress.percentage >= 100) {
+                    progressBadge.textContent = 'Completed';
+                    progressBadge.className = 'badge bg-success';
+                } else {
+                    progressBadge.textContent = 'In Progress';
+                    progressBadge.className = 'badge bg-primary';
+                }
+            }
+        }
+
+        function updateCardProgress(categoryKey, percentage, text) {
+            const progressBar = document.getElementById(`${categoryKey}-progress-bar`);
+            const progressBadge = document.getElementById(`${categoryKey}-progress-badge`);
+            const progressText = document.getElementById(`${categoryKey}-progress-text`);
+            
+            if (progressBar) {
+                progressBar.style.width = `${percentage}%`;
+            }
+            
+            if (progressBadge) {
+                if (percentage >= 100) {
+                    progressBadge.textContent = 'Completed';
+                    progressBadge.className = 'badge bg-success';
+                } else if (percentage > 0) {
+                    progressBadge.textContent = 'In Progress';
+                    progressBadge.className = 'badge bg-primary';
+                } else {
+                    progressBadge.textContent = 'Not Started';
+                    progressBadge.className = 'badge bg-secondary';
+                }
+            }
+            
+            if (progressText) {
+                progressText.textContent = text || 'Ready to start campaign';
+            }
+        }
+
+        function previewCampaign() {
+            const name = document.getElementById('campaignName').value || 'Untitled Campaign';
+            const message = document.getElementById('campaignMessage').value || '';
+            const maxRecipients = document.getElementById('maxRecipients').value || '0';
+            
+            if (!message.trim()) {
+                showAlert('error', 'Please enter a message to preview');
+                return;
+            }
+            
+            // Show preview with variable substitution example
+            const previewMessage = message
+                .replace(/{name}/g, 'John Doe')
+                .replace(/{first_name}/g, 'John')
+                .replace(/{email}/g, 'john.doe@example.com')
+                .replace(/{phone}/g, '(555) 123-4567');
+            
+            const preview = `Campaign Preview:
+
+Campaign: ${name}
+Category: ${getCategoryTitle(currentCategory)}
+Max Recipients: ${maxRecipients}
+
+Sample Message:
+"${previewMessage}"
+
+Note: Variables like {first_name} will be automatically replaced with actual member data when sent.`;
+            
+            alert(preview);
+        }
+
+        function getCategoryTitle(categoryKey) {
+            const titles = {
+                'good_standing': 'Good Standing Members',
+                'pay_per_visit': 'Pay Per Visit Members',
+                'past_due_6_30': 'Past Due 6-30 Days',
+                'past_due_30_plus': 'Past Due 30+ Days',
+                'past_due_training': 'PT Past Due Members',
+                'expiring_soon': 'Expiring Soon Members',
+                'prospects': 'Prospects',
+                'other_statuses': 'Other Status Members'
+            };
+            return titles[categoryKey] || categoryKey;
+        }
+
+        function formatDateTime(dateString) {
+            if (!dateString) return 'Unknown';
+            try {
+                return new Date(dateString).toLocaleString();
+            } catch {
+                return dateString;
+            }
+        }
+
+        // Message Type Handler for email subject field
+        document.addEventListener('change', function(event) {
+            if (event.target && event.target.id === 'messageType') {
+                const emailSubjectDiv = document.getElementById('emailSubjectDiv');
+                if (event.target.value === 'email') {
+                    emailSubjectDiv.style.display = 'block';
+                    document.getElementById('emailSubject').required = true;
+                } else {
+                    emailSubjectDiv.style.display = 'none';
+                    document.getElementById('emailSubject').required = false;
+                }
+            }
+        });
 
         function showStatusError(message) {
             debugError('🚨 Status error:', message);
@@ -1057,8 +2249,439 @@
             loadStatusCampaigns();
             loadInbox();
             loadCampaignProgress();
+            loadSavedCampaigns();
             
             debugLog('All messaging data loaded!');
         });
+
+        // Campaign Template Functions
+        function useCampaignTemplate(category) {
+            debugLog(`🚀 Using campaign template: ${category}`);
+            
+            // Get template data based on category
+            const templates = {
+                welcome: {
+                    name: 'Welcome New Members',
+                    message: 'Welcome to Anytime Fitness! We\'re excited to have you as part of our fitness family. If you have any questions or need help getting started, don\'t hesitate to reach out to our team.',
+                    target: 'new'
+                },
+                check_in: {
+                    name: 'Check-in Reminder',
+                    message: 'Hi! We noticed you haven\'t been in lately and wanted to check on you. Remember, your fitness goals are waiting for you at the gym. Come back and let\'s crush them together!',
+                    target: 'inactive'
+                },
+                payment_due: {
+                    name: 'Payment Reminder',
+                    message: 'This is a friendly reminder that your membership payment is due. Please update your payment method or contact us to discuss your account. We\'re here to help!',
+                    target: 'past_due'
+                },
+                promotion: {
+                    name: 'Special Promotion',
+                    message: 'Exciting news! We have a special promotion just for our valued members. Check out our latest offers and take advantage of exclusive deals. Limited time only!',
+                    target: 'all'
+                },
+                followup: {
+                    name: 'Member Follow-up',
+                    message: 'How has your fitness journey been going? We\'d love to hear about your progress and see if there\'s anything we can do to help you reach your goals even faster.',
+                    target: 'all'
+                }
+            };
+            
+            const template = templates[category];
+            if (template) {
+                // Populate the editor form
+                document.getElementById('templateCampaignName').value = template.name;
+                document.getElementById('templateCampaignMessage').value = template.message;
+                document.getElementById('templateTargetGroup').value = template.target;
+                
+                showAlert('success', `Template "${template.name}" loaded successfully! Customize and launch when ready.`);
+            }
+        }
+
+        function editCampaignTemplate(category) {
+            debugLog(`✏️ Editing campaign template: ${category}`);
+            useCampaignTemplate(category);
+            // Focus on the message field for editing
+            document.getElementById('templateCampaignMessage').focus();
+        }
+
+        function createCustomCampaign() {
+            debugLog('➕ Creating new custom campaign');
+            
+            // Clear the editor form
+            document.getElementById('templateCampaignName').value = '';
+            document.getElementById('templateCampaignMessage').value = '';
+            document.getElementById('templateTargetGroup').value = 'all';
+            document.getElementById('templateMaxRecipients').value = 100;
+            document.getElementById('saveAsNewTemplate').checked = false;
+            
+            // Focus on the name field
+            document.getElementById('templateCampaignName').focus();
+            
+            showAlert('info', 'Ready to create your custom campaign! Fill out the form and launch when ready.');
+        }
+
+        function launchTemplateCampaign() {
+            debugLog('🚀 Launching template campaign...');
+            
+            const name = document.getElementById('templateCampaignName').value.trim();
+            const message = document.getElementById('templateCampaignMessage').value.trim();
+            const targetGroup = document.getElementById('templateTargetGroup').value;
+            const maxRecipients = parseInt(document.getElementById('templateMaxRecipients').value);
+            const saveAsTemplate = document.getElementById('saveAsNewTemplate').checked;
+            
+            if (!name || !message) {
+                showAlert('error', 'Please fill out campaign name and message before launching.');
+                return;
+            }
+            
+            // Map target groups to categories
+            const categoryMapping = {
+                'all': ['good_standing', 'pay_per_visit'],
+                'new': ['good_standing'],
+                'inactive': ['inactive'],
+                'past_due': ['past_due'],
+                'good_standing': ['good_standing'],
+                'expiring_soon': ['expiring_soon']
+            };
+            
+            const categories = categoryMapping[targetGroup] || [targetGroup];
+            
+            // Create campaign data using the existing API format
+            const campaignData = {
+                name: name,
+                message: message,
+                type: 'sms',
+                categories: categories,
+                max_recipients: maxRecipients,
+                notes: `Template campaign: ${name}`,
+                save_as_template: saveAsTemplate
+            };
+            
+            debugLog('📤 Sending template campaign:', campaignData);
+            
+            // Show sending indicator
+            const launchBtn = event.target;
+            const originalText = launchBtn.innerHTML;
+            launchBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Sending...';
+            launchBtn.disabled = true;
+            
+            // Send campaign using existing API
+            fetch('/api/campaigns/send', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(campaignData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', `✅ Campaign sent successfully! ${data.message}`);
+                    
+                    // Refresh campaign history to show the new campaign
+                    setTimeout(() => {
+                        loadCampaignHistory();
+                    }, 1000);
+                    
+                    // Clear form if it was a new template
+                    if (saveAsTemplate) {
+                        document.getElementById('templateCampaignForm').reset();
+                        document.getElementById('templateMaxRecipients').value = 100;
+                    }
+                } else {
+                    showAlert('error', `❌ Campaign failed: ${data.error || 'Unknown error'}`);
+                }
+            })
+            .catch(error => {
+                debugError('❌ Error launching template campaign:', error);
+                showAlert('error', `❌ Network error: ${error.message}`);
+            })
+            .finally(() => {
+                // Restore button
+                launchBtn.innerHTML = originalText;
+                launchBtn.disabled = false;
+            });
+        }
+
+        function previewTemplateCampaign() {
+            debugLog('👁️ Previewing template campaign...');
+            
+            const name = document.getElementById('templateCampaignName').value.trim();
+            const message = document.getElementById('templateCampaignMessage').value.trim();
+            const targetGroup = document.getElementById('templateTargetGroup').value;
+            const maxRecipients = parseInt(document.getElementById('templateMaxRecipients').value);
+            
+            if (!message) {
+                showAlert('error', 'Please enter a message to preview.');
+                return;
+            }
+            
+            // Show preview in a simple alert or modal
+            const preview = `Campaign Preview:
+Name: ${name || 'Untitled Campaign'}
+Target: ${getTargetGroupDisplay(targetGroup)}
+Max Recipients: ${maxRecipients}
+Message: "${message}"`;
+            
+            alert(preview);
+        }
+
+        function getTargetGroupDisplay(value) {
+            const groups = {
+                'all': 'All Members',
+                'new': 'New Members (< 30 days)',
+                'inactive': 'Inactive Members',
+                'past_due': 'Past Due Members',
+                'good_standing': 'Members in Good Standing',
+                'expiring_soon': 'Memberships Expiring Soon'
+            };
+            return groups[value] || value;
+        }
+
+        function loadSavedCampaigns() {
+            debugLog('📚 Loading saved campaign templates...');
+            // This function would load user's saved templates from the server
+            // For now, we show the predefined templates
+            showAlert('info', 'Campaign templates loaded successfully!');
+        }
+
+        function loadCampaignHistory() {
+            debugLog('📊 Loading campaign history...');
+            
+            const container = document.getElementById('campaignHistoryContainer');
+            if (!container) return;
+            
+            // Show loading state
+            container.innerHTML = `
+                <div class="text-center py-4">
+                    <div class="loading-spinner"></div>
+                    <p class="text-muted mt-2">Loading campaign history...</p>
+                </div>
+            `;
+            
+            // Load actual campaign history from API with authentication handling
+            fetch('/api/campaign-templates')
+                .then(response => {
+                    debugLog('📊 Campaign templates API response status:', response.status);
+                    
+                    // Handle authentication redirect (status 302 or HTML response)
+                    if (!response.ok || response.headers.get('content-type')?.includes('text/html')) {
+                        debugLog('🔒 API requires authentication, showing placeholder');
+                        throw new Error('Authentication required');
+                    }
+                    
+                    return response.json();
+                })
+                .then(data => {
+                    debugLog('📊 Campaign templates API data:', data);
+                    
+                    if (data.success && data.templates && data.templates.length > 0) {
+                        // Display actual campaign templates
+                        const templatesHtml = data.templates.slice(0, 5).map(template => {
+                            const lastUsed = template.last_used ? new Date(template.last_used).toLocaleDateString() : 'Never';
+                            const usageCount = template.usage_count || 0;
+                            
+                            return `
+                                <div class="col-12 mb-2">
+                                    <div class="card border-0 shadow-sm">
+                                        <div class="card-body p-3">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div class="flex-grow-1">
+                                                    <h6 class="card-title mb-1 fw-semibold">${template.name}</h6>
+                                                    <p class="card-text small text-muted mb-2">${template.message.substring(0, 80)}${template.message.length > 80 ? '...' : ''}</p>
+                                                    <div class="d-flex gap-3">
+                                                        <small class="text-muted">
+                                                            <i class="fas fa-users me-1"></i>
+                                                            ${template.target_group}
+                                                        </small>
+                                                        <small class="text-muted">
+                                                            <i class="fas fa-calendar me-1"></i>
+                                                            Last used: ${lastUsed}
+                                                        </small>
+                                                        <small class="text-muted">
+                                                            <i class="fas fa-sync me-1"></i>
+                                                            Used ${usageCount} times
+                                                        </small>
+                                                    </div>
+                                                </div>
+                                                <div class="d-flex gap-2">
+                                                    <button class="btn btn-sm btn-outline-primary" onclick="reuseCampaignTemplate(${template.id})" title="Use Again">
+                                                        <i class="fas fa-redo"></i>
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-info" onclick="editSavedTemplate(${template.id})" title="Edit Template">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                        
+                        container.innerHTML = templatesHtml;
+                        
+                    } else {
+                        // Show empty state
+                        container.innerHTML = `
+                            <div class="text-center py-4">
+                                <i class="fas fa-history fa-2x text-muted mb-3"></i>
+                                <p class="text-muted">No campaign history yet</p>
+                                <small class="text-muted">Sent campaigns will appear here for easy reuse</small>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    debugError('❌ Error loading campaign history:', error);
+                    
+                    // Show appropriate message based on error type
+                    if (error.message.includes('Authentication')) {
+                        container.innerHTML = `
+                            <div class="text-center py-4">
+                                <i class="fas fa-lock fa-2x text-info mb-3"></i>
+                                <p class="text-muted">Campaign History</p>
+                                <small class="text-muted">Please log in to view saved campaign templates</small>
+                                <div class="mt-2">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="window.location.href='/login'">
+                                        <i class="fas fa-sign-in-alt me-1"></i>Login
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        container.innerHTML = `
+                            <div class="text-center py-4">
+                                <i class="fas fa-exclamation-triangle fa-2x text-warning mb-3"></i>
+                                <p class="text-muted">Error loading campaign history</p>
+                                <small class="text-muted">${error.message}</small>
+                                <div class="mt-2">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="loadCampaignHistory()">
+                                        <i class="fas fa-retry me-1"></i>Try Again
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+        }
+
+        function reuseCampaign(campaignId) {
+            debugLog(`🔄 Reusing campaign: ${campaignId}`);
+            showAlert('info', `Campaign ${campaignId} loaded for reuse. Check the Templates tab to customize and launch.`);
+        }
+
+        function reuseCampaignTemplate(templateId) {
+            debugLog(`🔄 Reusing campaign template: ${templateId}`);
+            
+            // Mark template as used and load its data
+            fetch(`/api/campaign-templates/${templateId}/use`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.template) {
+                    // Switch to the Templates tab
+                    const templatesTab = document.getElementById('campaign-templates-tab');
+                    if (templatesTab) {
+                        templatesTab.click();
+                    }
+                    
+                    // Populate the template editor with the saved data
+                    setTimeout(() => {
+                        document.getElementById('templateCampaignName').value = data.template.name;
+                        document.getElementById('templateCampaignMessage').value = data.template.message;
+                        document.getElementById('templateTargetGroup').value = data.template.target_group;
+                        document.getElementById('templateMaxRecipients').value = data.template.max_recipients;
+                        
+                        showAlert('success', `Template "${data.template.name}" loaded successfully! Customize and launch when ready.`);
+                    }, 500);
+                } else {
+                    showAlert('error', data.message || 'Error loading campaign template');
+                }
+            })
+            .catch(error => {
+                debugError('❌ Error reusing campaign template:', error);
+                showAlert('error', 'Network error loading campaign template');
+            });
+        }
+
+        function editSavedTemplate(templateId) {
+            debugLog(`✏️ Editing saved template: ${templateId}`);
+            
+            // Load template for editing (same as reuse but with edit intent)
+            fetch(`/api/campaign-templates/${templateId}/use`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.template) {
+                    // Switch to Templates tab
+                    const templatesTab = document.getElementById('campaign-templates-tab');
+                    if (templatesTab) {
+                        templatesTab.click();
+                    }
+                    
+                    // Populate editor and focus for editing
+                    setTimeout(() => {
+                        document.getElementById('templateCampaignName').value = data.template.name;
+                        document.getElementById('templateCampaignMessage').value = data.template.message;
+                        document.getElementById('templateTargetGroup').value = data.template.target_group;
+                        document.getElementById('templateMaxRecipients').value = data.template.max_recipients;
+                        document.getElementById('saveAsNewTemplate').checked = true;
+                        
+                        // Focus on message field for editing
+                        document.getElementById('templateCampaignMessage').focus();
+                        document.getElementById('templateCampaignMessage').select();
+                        
+                        showAlert('info', `Template "${data.template.name}" loaded for editing. Make changes and save as new template.`);
+                    }, 500);
+                } else {
+                    showAlert('error', data.message || 'Error loading template for editing');
+                }
+            })
+            .catch(error => {
+                debugError('❌ Error loading template for editing:', error);
+                showAlert('error', 'Network error loading template');
+            });
+        }
+
+        function viewCampaignStats() {
+            debugLog('📈 Viewing campaign statistics...');
+            
+            // Load actual campaign statistics
+            fetch('/api/campaign-templates')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.templates) {
+                        const totalCampaigns = data.templates.length;
+                        const totalUsage = data.templates.reduce((sum, t) => sum + (t.usage_count || 0), 0);
+                        const mostUsed = data.templates.reduce((prev, current) => 
+                            (prev.usage_count > current.usage_count) ? prev : current, data.templates[0]);
+                        
+                        const stats = `Campaign Statistics:
+                        
+• Total saved templates: ${totalCampaigns}
+• Total times used: ${totalUsage}
+• Most popular template: "${mostUsed?.name}" (${mostUsed?.usage_count || 0} times)
+• Categories: ${[...new Set(data.templates.map(t => t.category))].join(', ')}`;
+                        
+                        alert(stats);
+                    } else {
+                        alert('No campaign statistics available yet. Send some campaigns to see stats!');
+                    }
+                })
+                .catch(error => {
+                    debugError('❌ Error loading campaign stats:', error);
+                    alert('Error loading campaign statistics');
+                });
+        }
 </script>
 {% endblock %}

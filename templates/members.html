@@ -2336,17 +2336,19 @@ function sendMessageToMember() {
     
     // Get member ID from the current member data
     const memberId = getCurrentMemberId();
+    debugLog(`🔍 Got member ID for ${currentMemberName}: ${memberId}`);
+    
     if (!memberId) {
         alert('Member ID not found. Please refresh the member list.');
         return;
     }
-    
+
     const message = prompt(`Send SMS to ${currentMemberName}:`);
     if (!message || message.trim() === '') {
         return;
     }
     
-    // Show sending indicator
+    debugLog(`📨 Preparing to send message to member ${memberId}: "${message.trim()}"`)    // Show sending indicator
     const originalButtonText = document.querySelector('button[onclick="sendMessageToMember()"]')?.innerText;
     if (originalButtonText) {
         document.querySelector('button[onclick="sendMessageToMember()"]').innerText = 'Sending...';
@@ -2354,7 +2356,7 @@ function sendMessageToMember() {
     }
     
     // Send via ClubOS API
-    fetch('/api/send-message', {
+    fetch('/api/messages/send', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -2393,26 +2395,44 @@ function sendMessageToMember() {
 
 // Helper function to get current member ID
 function getCurrentMemberId() {
+    debugLog(`🔍 Looking for member ID for: ${currentMemberName}`);
+    
+    // First check if we have the current member ID from fetchMemberDetails
+    if (window.currentMemberId) {
+        debugLog(`✅ Found window.currentMemberId: ${window.currentMemberId}`);
+        return window.currentMemberId;
+    }
+    
     // Look for member ID in various places in the DOM
     const memberCard = document.querySelector('.member-card.selected');
     if (memberCard) {
+        debugLog(`✅ Found member card with ID: ${memberCard.dataset.memberId}`);
         return memberCard.dataset.memberId;
     }
     
     // Try to find it in the global member data
     if (window.currentMemberData && window.currentMemberData.member_id) {
+        debugLog(`✅ Found window.currentMemberData.member_id: ${window.currentMemberData.member_id}`);
         return window.currentMemberData.member_id;
     }
     
     // Last resort: search through loaded members
     if (window.membersData) {
+        debugLog(`🔍 Searching through ${window.membersData.length} loaded members`);
         const member = window.membersData.find(m => 
             (m.first_name + ' ' + m.last_name) === currentMemberName ||
             m.name === currentMemberName
         );
-        return member ? member.member_id : null;
+        if (member) {
+            debugLog(`✅ Found member in loaded data: ${member.member_id}`);
+            return member.member_id;
+        } else {
+            debugLog(`❌ Member not found in loaded data`);
+        }
     }
     
+    debugLog(`❌ Could not find member ID for: ${currentMemberName}`);
+    debugLog(`🔍 Debug info: window.currentMemberId=${window.currentMemberId}, window.currentMemberData=${!!window.currentMemberData}, window.membersData=${!!window.membersData}`);
     return null;
 }
 

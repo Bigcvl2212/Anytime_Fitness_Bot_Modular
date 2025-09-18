@@ -205,6 +205,19 @@ def create_app():
             'errors': []
         }
         
+        # Initialize Campaign Service
+        try:
+            try:
+                from .services.campaign_service import CampaignService
+            except ImportError:
+                from services.campaign_service import CampaignService
+            
+            app.campaign_service = CampaignService(app.db_manager)
+            logger.info("✅ Campaign service initialized")
+        except Exception as e:
+            app.campaign_service = None
+            logger.warning(f"⚠️ Campaign service initialization failed: {e}")
+        
         logger.info("✅ All services initialized successfully")
         
         # Run startup health checks (non-breaking)

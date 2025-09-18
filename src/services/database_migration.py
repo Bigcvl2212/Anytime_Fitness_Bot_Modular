@@ -255,6 +255,66 @@ class PostgreSQLMigrator:
                     thread_id TEXT
                 )
             """)
+
+            # Campaigns table for campaign management
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS campaigns (
+                    id SERIAL PRIMARY KEY,
+                    category TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    message_type TEXT DEFAULT 'sms',
+                    email_subject TEXT,
+                    max_recipients INTEGER DEFAULT 100,
+                    notes TEXT,
+                    status TEXT DEFAULT 'draft',
+                    total_recipients INTEGER DEFAULT 0,
+                    sent_count INTEGER DEFAULT 0,
+                    delivered_count INTEGER DEFAULT 0,
+                    failed_count INTEGER DEFAULT 0,
+                    current_position INTEGER DEFAULT 0,
+                    progress_data TEXT,
+                    started_at TIMESTAMP,
+                    completed_at TIMESTAMP,
+                    paused_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Campaign templates table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS campaign_templates (
+                    id SERIAL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    category TEXT,
+                    message TEXT NOT NULL,
+                    target_group TEXT,
+                    max_recipients INTEGER DEFAULT 100,
+                    usage_count INTEGER DEFAULT 0,
+                    last_used TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # Campaign recipients table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS campaign_recipients (
+                    id SERIAL PRIMARY KEY,
+                    campaign_id INTEGER NOT NULL,
+                    member_id TEXT NOT NULL,
+                    member_name TEXT,
+                    member_email TEXT,
+                    member_phone TEXT,
+                    status TEXT DEFAULT 'pending',
+                    sent_at TIMESTAMP,
+                    delivered_at TIMESTAMP,
+                    error_message TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (campaign_id) REFERENCES campaigns (id)
+                )
+            """)
             
             # Create indexes for performance
             indexes = [
@@ -270,7 +330,14 @@ class PostgreSQLMigrator:
                 "CREATE INDEX IF NOT EXISTS idx_events_event_id ON events(event_id)",
                 "CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at)",
                 "CREATE INDEX IF NOT EXISTS idx_messages_owner_id ON messages(owner_id)",
-                "CREATE INDEX IF NOT EXISTS idx_messages_from_user ON messages(from_user)"
+                "CREATE INDEX IF NOT EXISTS idx_messages_from_user ON messages(from_user)",
+                "CREATE INDEX IF NOT EXISTS idx_campaigns_category ON campaigns(category)",
+                "CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status)",
+                "CREATE INDEX IF NOT EXISTS idx_campaigns_created_at ON campaigns(created_at)",
+                "CREATE INDEX IF NOT EXISTS idx_campaign_templates_category ON campaign_templates(category)",
+                "CREATE INDEX IF NOT EXISTS idx_campaign_recipients_campaign_id ON campaign_recipients(campaign_id)",
+                "CREATE INDEX IF NOT EXISTS idx_campaign_recipients_member_id ON campaign_recipients(member_id)",
+                "CREATE INDEX IF NOT EXISTS idx_campaign_recipients_status ON campaign_recipients(status)"
             ]
             
             for index_sql in indexes:
