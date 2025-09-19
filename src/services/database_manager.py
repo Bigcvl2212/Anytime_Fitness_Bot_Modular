@@ -1105,13 +1105,22 @@ class DatabaseManager:
                     status_message_lower = str(status_message or '').lower()
                     status_lower = str(status or '').lower()
                     past_due_amount = float(amount_past_due or 0)
+                    agreement_type_lower = str(agreement_type or '').lower()
                     
                     # Default category and status message
                     category = 'green'
                     updated_status_message = status_message
                     
+                    # Collections members - Check for Collections agreement type or sent to collections status
+                    if (agreement_type_lower == 'collections' or 
+                        'sent to collections' in status_message_lower or
+                        'collections' in status_message_lower or
+                        (agreement_id is None and past_due_amount > 0 and 'good standing' not in status_message_lower)):
+                        category = 'collections'
+                        updated_status_message = status_message or 'Collections'
+                    
                     # Past due members - ONLY if they have specific ClubHub status messages
-                    if ('past due more than 30 days' in status_message_lower):
+                    elif ('past due more than 30 days' in status_message_lower):
                         category = 'past_due'
                         updated_status_message = 'Past Due more than 30 days'
                     elif ('past due 6-30 days' in status_message_lower):
@@ -1141,7 +1150,7 @@ class DatabaseManager:
                     
                     # Insert/update member category (cross-database compatible upsert)
                     existing_category = self.execute_query(
-                        "SELECT id FROM member_categories WHERE member_id = ?",
+                        "SELECT id, category FROM member_categories WHERE member_id = ?",
                         (str(prospect_id),),
                         fetch_one=True
                     )
@@ -1149,18 +1158,24 @@ class DatabaseManager:
                     current_time = datetime.now().isoformat()
                     
                     if existing_category:
-                        # Update existing category
+                        # Always update existing category to reflect current status
+                        old_category = existing_category.get('category') if isinstance(existing_category, dict) else existing_category[1]
                         self.execute_query("""
                             UPDATE member_categories SET 
                                 category = ?, status_message = ?, full_name = ?, classified_at = ?
                             WHERE member_id = ?
                         """, (category, updated_status_message, full_name, current_time, str(prospect_id)))
+                        
+                        # Log category changes for debugging
+                        if old_category != category:
+                            logger.info(f"📋 Category updated for {full_name}: {old_category} → {category}")
                     else:
                         # Insert new category
                         self.execute_query("""
-                            INSERT INTO member_categories (member_id, category, status_message, full_name, classified_at)
-                            VALUES (?, ?, ?, ?, ?)
-                        """, (str(prospect_id), category, updated_status_message, full_name, current_time))
+                            INSERT INTO member_categories (member_id, category, status_message, full_name, classified_at, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        """, (str(prospect_id), category, updated_status_message, full_name, current_time, current_time))
+                        logger.info(f"📋 New category assigned to {full_name}: {category}")
             
             conn.commit()
             logger.info(f"✅ Successfully processed {len(members)} members to database ({inserted_count} inserted, {updated_count} updated)")
