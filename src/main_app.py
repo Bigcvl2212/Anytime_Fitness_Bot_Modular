@@ -25,17 +25,34 @@ from .config.security_middleware import (
 )
 from .config.error_handlers import configure_error_handlers
 
-# Import validation utilities with fallback
-try:
-    from src.utils.validation import add_request_sanitization
-except ImportError:
-    try:
-        from .utils.validation import add_request_sanitization
-    except ImportError:
-        # Fallback: create a dummy function if utils module is not available
-        def add_request_sanitization(app):
-            pass
-        logger.warning("⚠️ utils.validation module not available - using dummy function")
+# Inline request sanitization (replacement for utils.validation)
+def add_request_sanitization(app):
+    """
+    Add request sanitization middleware to Flask app
+    """
+    @app.before_request
+    def sanitize_request():
+        """Sanitize request data before processing"""
+        if request.method in ['POST', 'PUT', 'PATCH']:
+            # Log suspicious requests
+            content_length = request.content_length or 0
+            if content_length > 10 * 1024 * 1024:  # 10MB
+                logger.warning(f"Large request from {request.remote_addr}: {content_length} bytes")
+
+            # Check for suspicious patterns in form data
+            if request.form:
+                for key, value in request.form.items():
+                    if isinstance(value, str):
+                        # Check for potential script injection
+                        if '<script' in value.lower() or 'javascript:' in value.lower():
+                            logger.warning(f"Potential XSS attempt from {request.remote_addr}: {key}={value[:100]}...")
+
+                        # Check for SQL injection patterns
+                        sql_patterns = ['union select', 'drop table', 'insert into', 'delete from']
+                        if any(pattern in value.lower() for pattern in sql_patterns):
+                            logger.warning(f"Potential SQL injection from {request.remote_addr}: {key}={value[:100]}...")
+
+    logger.info("✅ Request sanitization middleware configured")
 
 from .monitoring import register_monitoring, run_startup_health_check
 from .services.database_manager import DatabaseManager
