@@ -20,6 +20,10 @@
                     <p class="text-muted mb-0">Manage and view all club members</p>
                 </div>
                 <div class="d-flex gap-2">
+                    <button class="btn btn-success" onclick="showBatchInvoiceModal()" title="Create batch invoices for past due members">
+                        <i class="fas fa-file-invoice-dollar me-1"></i>
+                        Batch Invoice
+                    </button>
                     <button class="btn btn-info" onclick="refreshBillingData()" title="Refresh real billing data from ClubHub">
                         <i class="fas fa-dollar-sign me-1"></i>
                         Refresh Billing
@@ -43,6 +47,10 @@
                     <button class="btn btn-danger" onclick="openCollectionsModal()" title="Manage collections referrals">
                         <i class="fas fa-gavel me-1"></i>
                         Collections
+                    </button>
+                    <button class="btn btn-outline-primary" onclick="toggleMonitoringSystem()" id="monitoring-toggle-btn" title="Toggle automated monitoring system">
+                        <i class="fas fa-robot me-1"></i>
+                        <span id="monitoring-status-text">Monitoring</span>
                     </button>
                 </div>
             </div>
@@ -1322,6 +1330,271 @@ function sendSquareInvoice() {
     });
 }
 
+// Quick Invoice Modal Functions
+function showQuickInvoiceModal(memberId, memberName, memberEmail) {
+    debugLog(`💰 Opening quick invoice modal for ${memberName} (ID: ${memberId})`);
+    
+    const amount = prompt(`Enter invoice amount for ${memberName}:`, '50.00');
+    if (!amount || isNaN(amount)) return;
+    
+    const description = prompt('Enter invoice description:', 'Monthly Membership Dues');
+    if (!description) return;
+    
+    debugLog(`💰 Creating invoice: ${memberName} - $${amount} - ${description}`);
+    
+    fetch('/api/create-invoice', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            member_id: memberId,
+            member_name: memberName,
+            member_email: memberEmail,
+            amount: parseFloat(amount),
+            description: description
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            debugLog(`✅ Invoice created successfully for ${memberName}`);
+            alert(`✅ Invoice created successfully!\nAmount: $${parseFloat(amount).toFixed(2)}\nURL: ${data.invoice_url}`);
+        } else {
+            debugError(`❌ Error creating invoice for ${memberName}:`, data.error);
+            alert('❌ Error creating invoice: ' + data.error);
+        }
+    })
+    .catch(error => {
+        debugError('❌ Error creating invoice:', error);
+        alert('❌ Error creating invoice');
+    });
+}
+
+function showInvoicePreviewForMember(memberId, memberName, memberEmail, pastDueAmount) {
+    debugLog(`📋 Opening invoice preview for ${memberName} (ID: ${memberId}) - $${pastDueAmount}`);
+    
+    if (!confirm(`Create past due invoice for ${memberName} - $${parseFloat(pastDueAmount).toFixed(2)}?`)) {
+        return;
+    }
+    
+    // Use the backend-calculated amount (already includes proper late fees)
+    const totalAmount = parseFloat(pastDueAmount);
+    const description = `Total Amount Owed: $${totalAmount.toFixed(2)} (includes late fees)`;
+    
+    debugLog(`📋 Creating past due invoice: ${memberName} - $${totalAmount} - ${description}`);
+    
+    fetch('/api/create-invoice', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            member_id: memberId,
+            member_name: memberName,
+            member_email: memberEmail,
+            amount: totalAmount,
+            description: description,
+            is_past_due: true
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            debugLog(`✅ Past due invoice created successfully for ${memberName}`);
+            alert(`✅ Past due invoice created successfully!\nAmount: $${totalAmount.toFixed(2)}\nURL: ${data.invoice_url}`);
+            // Optionally refresh the members list
+            loadMembersByCategory('past_due');
+        } else {
+            debugError(`❌ Error creating past due invoice for ${memberName}:`, data.error);
+            alert('❌ Error creating past due invoice: ' + data.error);
+        }
+    })
+    .catch(error => {
+        debugError('❌ Error creating past due invoice:', error);
+        alert('❌ Error creating past due invoice');
+    });
+}
+
+// Batch Invoice Functions
+function showBatchInvoiceModal() {
+    debugLog('📄 Opening batch invoice modal...');
+    
+    // Open modal
+    const modalElement = document.getElementById('batchInvoiceModal');
+    const modal = new bootstrap.Modal(modalElement);
+    modal.show();
+    
+    // Load past due members for batch invoicing
+    loadPastDueMembersForBatching();
+}
+
+async function loadPastDueMembersForBatching() {
+    try {
+        debugLog('📊 Loading past due members for batch invoicing...');
+        
+        const response = await fetch('/api/members/by-category/past_due');
+        const data = await response.json();
+        
+        if (data.success && data.members) {
+            const pastDueMembers = data.members.filter(m => parseFloat(m.amount_past_due || 0) > 0);
+            displayBatchInvoiceMembers(pastDueMembers);
+        } else {
+            throw new Error(data.error || 'Failed to load past due members');
+        }
+    } catch (error) {
+        debugError('❌ Error loading past due members for batching:', error);
+        const modalBody = document.querySelector('#batchInvoiceModal .modal-body');
+        modalBody.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Error loading past due members: ${error.message}
+            </div>
+        `;
+    }
+}
+
+function displayBatchInvoiceMembers(members) {
+    const modalBody = document.querySelector('#batchInvoiceModal .modal-body');
+    
+    if (members.length === 0) {
+        modalBody.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                No past due members found for batch invoicing.
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <div class="mb-3">
+            <h6>Past Due Members (${members.length})</h6>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="selectAllPastDue" onchange="toggleAllPastDueSelection()">
+                <label class="form-check-label" for="selectAllPastDue">
+                    Select All
+                </label>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Select</th>
+                        <th>Member</th>
+                        <th>Past Due Amount</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    members.forEach(member => {
+        const pastDueAmount = parseFloat(member.amount_past_due || 0);
+        const memberName = member.full_name || member.name || 'Unknown';
+        const memberId = member.guid || member.member_id || member.id;
+        
+        html += `
+            <tr>
+                <td>
+                    <input class="form-check-input past-due-checkbox" type="checkbox" 
+                           data-member-id="${memberId}" 
+                           data-member-name="${memberName}" 
+                           data-amount="${pastDueAmount}">
+                </td>
+                <td>${memberName}</td>
+                <td>$${pastDueAmount.toFixed(2)}</td>
+                <td><span class="badge bg-danger">Past Due</span></td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-3">
+            <button class="btn btn-primary" onclick="processBatchInvoices()">
+                <i class="fas fa-file-invoice-dollar me-1"></i>
+                Create Selected Invoices
+            </button>
+            <button class="btn btn-secondary" data-bs-dismiss="modal">
+                Cancel
+            </button>
+        </div>
+    `;
+    
+    modalBody.innerHTML = html;
+}
+
+function toggleAllPastDueSelection() {
+    const selectAll = document.getElementById('selectAllPastDue');
+    const checkboxes = document.querySelectorAll('.past-due-checkbox');
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+    });
+}
+
+async function processBatchInvoices() {
+    const selectedCheckboxes = document.querySelectorAll('.past-due-checkbox:checked');
+    
+    if (selectedCheckboxes.length === 0) {
+        alert('Please select at least one member for batch invoicing.');
+        return;
+    }
+    
+    const selectedMembers = Array.from(selectedCheckboxes).map(cb => ({
+        member_id: cb.dataset.memberId,
+        member_name: cb.dataset.memberName,
+        amount: parseFloat(cb.dataset.amount)
+    }));
+    
+    debugLog(`📄 Creating batch invoices for ${selectedMembers.length} members...`);
+    
+    // Show progress
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Creating Invoices...';
+    button.disabled = true;
+    
+    try {
+        const response = await fetch('/api/invoices/batch-create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                members: selectedMembers
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(`✅ Successfully created ${data.created_count || selectedMembers.length} invoices!`);
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('batchInvoiceModal'));
+            modal.hide();
+            
+            // Refresh the page to show updated data
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            throw new Error(data.error || 'Failed to create batch invoices');
+        }
+    } catch (error) {
+        debugError('❌ Error creating batch invoices:', error);
+        alert(`❌ Error creating batch invoices: ${error.message}`);
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
+    }
+}
+
 
 
 // Global variables for async loading and caching
@@ -1705,6 +1978,27 @@ function renderMembersHTML(container, data, category) {
                                     </div>
                                 </div>
                             ` : ''}
+                            
+                            <!-- Member Action Buttons -->
+                            <div class="mt-2 pt-2 border-top">
+                                <div class="btn-group w-100" role="group">
+                                    <button class="btn btn-sm btn-warning" onclick="event.stopPropagation(); showQuickInvoiceModal('${member.guid || member.prospect_id || member.id}', '${displayName.replace(/'/g, "\\'")}', '${member.email || ''}')" title="Create Invoice">
+                                        <i class="fas fa-file-invoice-dollar"></i>
+                                    </button>
+                                    ${member.amount_past_due > 0 ? `
+                                        <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); showInvoicePreviewForMember('${member.guid || member.prospect_id || member.id}', '${displayName.replace(/'/g, "\\'")}', '${member.email || ''}', ${member.amount_past_due})" title="Send Past Due Invoice">
+                                            <i class="fas fa-exclamation-circle"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-info" onclick="event.stopPropagation(); showInvoiceTracking('${member.guid || member.prospect_id}', '${displayName.replace(/'/g, "\\'")}')" title="Track Invoices & Lock Status">
+                                            <i class="fas fa-receipt"></i>
+                                        </button>
+                                    ` : `
+                                        <button class="btn btn-sm btn-info" onclick="event.stopPropagation(); showInvoiceTracking('${member.guid || member.prospect_id}', '${displayName.replace(/'/g, "\\'")}')" title="Track Invoices & Lock Status">
+                                            <i class="fas fa-receipt"></i>
+                                        </button>
+                                    `}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1860,6 +2154,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Update agreement summary with enhanced revenue calculation
     debugLog('📊 Loading enhanced agreement summary...');
     updateAgreementSummary();
+    
+    // Load monitoring system status
+    debugLog('🔄 Loading monitoring system status...');
+    loadMonitoringStatus();
     
     // Member search functionality for individual category search inputs
     const searchInputs = [
@@ -2788,6 +3086,89 @@ async function runAutomatedUnlockCheck() {
     } finally {
         unlockBtn.innerHTML = originalText;
         unlockBtn.disabled = false;
+    }
+}
+
+// Monitoring System Control Functions
+async function toggleMonitoringSystem() {
+    const toggleBtn = document.getElementById('monitoring-toggle-btn');
+    const statusText = document.getElementById('monitoring-status-text');
+    
+    const originalText = toggleBtn.innerHTML;
+    toggleBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Updating...';
+    toggleBtn.disabled = true;
+    
+    try {
+        // First get current status
+        const statusResponse = await fetch('/api/monitoring/status');
+        const statusData = await statusResponse.json();
+        
+        if (!statusData.success) {
+            alert('❌ Could not get monitoring status');
+            return;
+        }
+        
+        const currentlyEnabled = statusData.enabled;
+        const newAction = currentlyEnabled ? 'stop' : 'start';
+        
+        // Toggle the monitoring system
+        const toggleResponse = await fetch(`/api/monitoring/${newAction}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const toggleData = await toggleResponse.json();
+        
+        if (toggleData.success) {
+            const isNowEnabled = !currentlyEnabled;
+            
+            // Update button appearance
+            if (isNowEnabled) {
+                toggleBtn.className = 'btn btn-success';
+                statusText.textContent = 'Monitoring Active';
+                debugLog('✅ Monitoring system started');
+                alert('✅ Automated monitoring system is now ACTIVE\n\n🔒 Will automatically lock past due members\n🔓 Will automatically unlock when payments received');
+            } else {
+                toggleBtn.className = 'btn btn-outline-primary';
+                statusText.textContent = 'Monitoring Stopped';
+                debugLog('⏹️ Monitoring system stopped');
+                alert('⏹️ Automated monitoring system is now STOPPED\n\n⚠️ Manual lock/unlock only');
+            }
+        } else {
+            alert('❌ Error toggling monitoring system: ' + toggleData.error);
+        }
+    } catch (error) {
+        debugError('❌ Error toggling monitoring system:', error);
+        alert('❌ Network error toggling monitoring system');
+    } finally {
+        toggleBtn.innerHTML = originalText;
+        toggleBtn.disabled = false;
+    }
+}
+
+async function loadMonitoringStatus() {
+    try {
+        const response = await fetch('/api/monitoring/status');
+        const data = await response.json();
+        
+        if (data.success) {
+            const toggleBtn = document.getElementById('monitoring-toggle-btn');
+            const statusText = document.getElementById('monitoring-status-text');
+            
+            if (data.enabled) {
+                toggleBtn.className = 'btn btn-success';
+                statusText.textContent = 'Monitoring Active';
+            } else {
+                toggleBtn.className = 'btn btn-outline-primary';
+                statusText.textContent = 'Monitoring Stopped';
+            }
+            
+            debugLog(`📊 Monitoring status loaded: ${data.enabled ? 'ACTIVE' : 'STOPPED'}`);
+        }
+    } catch (error) {
+        debugError('❌ Error loading monitoring status:', error);
     }
 }
 

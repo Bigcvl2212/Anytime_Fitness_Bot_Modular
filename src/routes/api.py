@@ -1092,22 +1092,17 @@ def api_toggle_member_lock():
 def api_automated_lock_check():
     """Run automated check to lock past due members"""
     try:
-        from src.services.member_access_control import MemberAccessControl
+        from src.services.automated_access_monitor import get_access_monitor
         
-        # Get user info from session
-        user_email = session.get('user_email', 'Gym Bot System')
-        club_id = session.get('club_id')  # This should be set during login
+        monitor = get_access_monitor()
         
-        access_control = MemberAccessControl(user_email=user_email, club_id=club_id)
-        result = access_control.check_and_lock_past_due_members()
-        
-        if 'error' in result:
-            return jsonify({'success': False, 'error': result['error']}), 500
+        # Run immediate lock check
+        monitor._perform_lock_check()
         
         return jsonify({
             'success': True,
-            'message': f'Automated lock check completed',
-            'results': result
+            'message': 'Automated lock check completed',
+            'monitoring_status': monitor.get_monitoring_status()
         })
         
     except Exception as e:
@@ -1177,8 +1172,15 @@ def api_square_webhook():
                 
                 logger.info(f"✅ Invoice {invoice_id} marked as paid")
                 
-                # Trigger automatic unlock check for this member
-                # TODO: Implement member unlock logic here
+                # Trigger automatic unlock check for this member via automated monitor
+                from src.services.automated_access_monitor import get_access_monitor
+                monitor = get_access_monitor()
+                unlock_result = monitor.process_square_webhook(webhook_data)
+                
+                if unlock_result.get('success'):
+                    logger.info(f"🔓 Automated unlock result: {unlock_result.get('message')}")
+                else:
+                    logger.warning(f"⚠️ Automated unlock failed: {unlock_result.get('error')}")
                 
         return jsonify({'success': True, 'message': 'Webhook processed'})
         
@@ -1186,26 +1188,76 @@ def api_square_webhook():
         logger.error(f"❌ Error processing Square webhook: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@api_bp.route('/monitoring/start', methods=['POST'])
+def api_start_monitoring():
+    """Start the automated access monitoring system"""
+    try:
+        from src.services.automated_access_monitor import get_access_monitor
+        
+        monitor = get_access_monitor()
+        monitor.start_monitoring()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Automated monitoring started',
+            'status': monitor.get_monitoring_status()
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error starting monitoring: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/monitoring/stop', methods=['POST'])
+def api_stop_monitoring():
+    """Stop the automated access monitoring system"""
+    try:
+        from src.services.automated_access_monitor import get_access_monitor
+        
+        monitor = get_access_monitor()
+        monitor.stop_monitoring()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Automated monitoring stopped',
+            'status': monitor.get_monitoring_status()
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error stopping monitoring: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/monitoring/status', methods=['GET'])
+def api_monitoring_status():
+    """Get the current monitoring system status"""
+    try:
+        from src.services.automated_access_monitor import get_access_monitor
+        
+        monitor = get_access_monitor()
+        
+        return jsonify({
+            'success': True,
+            'status': monitor.get_monitoring_status()
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting monitoring status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @api_bp.route('/automated-unlock-check', methods=['POST'])
 def api_automated_unlock_check():
     """Run automated check to unlock paid members"""
     try:
-        from src.services.member_access_control import MemberAccessControl
+        from src.services.automated_access_monitor import get_access_monitor
         
-        # Get user info from session
-        user_email = session.get('user_email', 'Gym Bot System')
-        club_id = session.get('club_id')  # This should be set during login
+        monitor = get_access_monitor()
         
-        access_control = MemberAccessControl(user_email=user_email, club_id=club_id)
-        result = access_control.check_and_unlock_paid_members()
-        
-        if 'error' in result:
-            return jsonify({'success': False, 'error': result['error']}), 500
+        # Run immediate unlock check
+        monitor._perform_unlock_check()
         
         return jsonify({
             'success': True,
-            'message': f'Automated unlock check completed',
-            'results': result
+            'message': 'Automated unlock check completed',
+            'monitoring_status': monitor.get_monitoring_status()
         })
         
     except Exception as e:

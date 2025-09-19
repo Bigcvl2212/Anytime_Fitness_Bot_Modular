@@ -220,6 +220,28 @@ def create_app():
         
         logger.info("✅ All services initialized successfully")
         
+        # Initialize and start automated access monitoring system
+        try:
+            try:
+                from .services.automated_access_monitor import start_global_monitoring
+            except ImportError:
+                from services.automated_access_monitor import start_global_monitoring
+            
+            # Start monitoring in a separate thread to avoid blocking app startup
+            def delayed_monitoring_start():
+                time.sleep(5)  # Wait 5 seconds for app to fully initialize
+                try:
+                    start_global_monitoring()
+                    logger.info("🔐 Automated access monitoring started successfully")
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to start automated access monitoring: {e}")
+            
+            monitoring_thread = threading.Thread(target=delayed_monitoring_start, daemon=True)
+            monitoring_thread.start()
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Automated access monitoring initialization failed: {e}")
+        
         # Run startup health checks (non-breaking)
         try:
             run_startup_health_check(app)

@@ -1,0 +1,105 @@
+# Exclude development and test files from deployment
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+.env.local
+.env.development
+
+# Git files
+.git/
+.gitignore
+
+# IDE files
+.vscode/
+.idea/
+.cursor/
+.idx/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# EXCLUDE ENTIRE SOCIAL MEDIA BOT DIRECTORY
+Social_Media_Management_Bot/
+node_modules/
+**/node_modules/
+
+# Backup and data files
+*.bak
+*.backup
+*.db-journal
+*.sqlite3-journal
+backups/
+cache/
+logs/
+captures/
+
+# Test and debug files
+test_*
+debug_*
+*_test.*
+*_debug.*
+analyze_*
+check_*
+*.har
+*.html
+*.json
+*.txt
+*.csv
+*.chls/
+*.pid
+
+# Documentation and non-essential files
+*.md
+!README.md
+
+# CRITICAL: INCLUDE ALL SRC FILES WITH MESSAGING FIXES
+# Include all Python files in src directory (contains the messaging fixes)
+!src/
+!src/**
+!wsgi.py
+!run_dashboard.py
+!requirements.txt
+!Dockerfile
+!.env.production
+
+# Exclude individual Python files in root (but keep src/)
+*.py
+!src/**/*.py
+!wsgi.py
+!run_dashboard.py
+
+# Archive and asset directories
+archive/
+assets/
+data/
+docs/
+
+# Specific large files
+all_*.json
+agreements_*.json
+prospects_*.json
+working_*.json
+final_*.json
+
+# Flask session data
+flask_session/
+
+# Additional development directories
+backups/
+mcp-server/
+new_services_analytics/
+new_services_social_media/
+scripts/
+staging_env/
+tests/
+utils/
+web/
+workflows/

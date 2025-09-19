@@ -245,7 +245,6 @@ def training_client_profile(member_id):
             client_data['member_name'] = (client_data.get('full_name') or 
                                         f"{client_data.get('first_name', '')} {client_data.get('last_name', '')}".strip() or 
                                         'Unknown Client')
-            conn.close()
             
             # Convert datetime objects to strings for template compatibility
             for key, value in client_data.items():
@@ -266,8 +265,6 @@ def training_client_profile(member_id):
                                  client=client_data, 
                                  training_client=client_data,
                                  financial_summary=financial_summary)
-        
-        conn.close()
         
         # If not found in cache or database, show error
         logger.warning(f"⚠️ Training client {member_id} not found in cache or database")

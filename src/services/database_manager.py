@@ -2979,3 +2979,115 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ Error getting pending invoices: {e}")
             return []
+    
+    def log_access_action(self, log_entry: Dict) -> bool:
+        """Log access control actions for audit trail"""
+        try:
+            # Create access_logs table if it doesn't exist
+            create_table_query = """
+                CREATE TABLE IF NOT EXISTS access_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    member_id TEXT NOT NULL,
+                    member_name TEXT,
+                    action TEXT NOT NULL,
+                    reason TEXT,
+                    success BOOLEAN NOT NULL,
+                    error TEXT,
+                    automated BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """
+            self.execute_query(create_table_query)
+            
+            # Insert log entry
+            insert_query = """
+                INSERT INTO access_logs 
+                (timestamp, member_id, member_name, action, reason, success, error, automated)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            
+            params = (
+                log_entry.get('timestamp'),
+                log_entry.get('member_id'),
+                log_entry.get('member_name'),
+                log_entry.get('action'),
+                log_entry.get('reason'),
+                log_entry.get('success'),
+                log_entry.get('error'),
+                log_entry.get('automated', False)
+            )
+            
+            result = self.execute_query(insert_query, params)
+            logger.info(f"✅ Access action logged: {log_entry.get('action')} for {log_entry.get('member_name')}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Error logging access action: {e}")
+            return False
+    
+    def get_recent_payments_for_member(self, member_id: str, hours: int = 24) -> List[Dict]:
+        """Get recent payments for a member within specified hours"""
+        try:
+            # Check invoices table for recent payments
+            cutoff_time = datetime.now() - timedelta(hours=hours)
+            
+            query = """
+                SELECT * FROM invoices 
+                WHERE (member_id = ? OR member_name LIKE ?) 
+                AND status = 'paid' 
+                AND payment_date >= ?
+                ORDER BY payment_date DESC
+            """
+            
+            # Try to match by member ID or name search
+            member_name_pattern = f"%{member_id}%"  # In case member_id is stored as name
+            
+            params = (member_id, member_name_pattern, cutoff_time.isoformat())
+            results = self.execute_query(query, params)
+            
+            logger.info(f"📊 Found {len(results)} recent payments for member {member_id}")
+            return results
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting recent payments for member {member_id}: {e}")
+            return []
+    
+    def get_access_logs(self, member_id: str = None, action: str = None, limit: int = 100) -> List[Dict]:
+        """Get access control logs with optional filtering"""
+        try:
+            query = "SELECT * FROM access_logs WHERE 1=1"
+            params = []
+            
+            if member_id:
+                query += " AND member_id = ?"
+                params.append(member_id)
+                
+            if action:
+                query += " AND action = ?"
+                params.append(action)
+            
+            query += " ORDER BY created_at DESC LIMIT ?"
+            params.append(limit)
+            
+            return self.execute_query(query, params)
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting access logs: {e}")
+            return []
+    
+    def get_member_lock_history(self, member_id: str) -> List[Dict]:
+        """Get lock/unlock history for a specific member"""
+        try:
+            query = """
+                SELECT * FROM access_logs 
+                WHERE member_id = ? 
+                AND action IN ('lock', 'unlock', 'auto_lock', 'auto_unlock', 'payment_unlock')
+                ORDER BY created_at DESC
+            """
+            
+            return self.execute_query(query, (member_id,))
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting member lock history: {e}")
+            return []
