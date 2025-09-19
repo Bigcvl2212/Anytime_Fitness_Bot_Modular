@@ -6,8 +6,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 try:
-    # Import the Flask app directly - now in same directory
-    from main_app import create_app
+    # Import from src package
+    from src.main_app import create_app
     
     # Create the application instance
     app = create_app()

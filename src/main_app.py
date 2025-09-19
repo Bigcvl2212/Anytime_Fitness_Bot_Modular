@@ -12,24 +12,24 @@ import time
 from flask import Flask
 from datetime import datetime
 
-# Load environment variables first - now using absolute imports since flattened
-from config.environment_setup import load_environment_variables, validate_environment_setup
+# Load environment variables first - use relative imports within src
+from .config.environment_setup import load_environment_variables, validate_environment_setup
 
-# Imports - using absolute imports since structure is flattened  
-from config.settings import create_app_config
-from config.security_middleware import (
+# Imports - use relative imports within src package
+from .config.settings import create_app_config
+from .config.security_middleware import (
     configure_security_headers, 
     configure_request_validation,
     configure_rate_limiting,
     configure_compression
 )
-from config.error_handlers import configure_error_handlers
-from utils.validation import add_request_sanitization
-from monitoring import register_monitoring, run_startup_health_check
-from services.database_manager import DatabaseManager
-from services.training_package_cache import TrainingPackageCache
-from services.clubos_integration import ClubOSIntegration
-from routes import register_blueprints
+from .config.error_handlers import configure_error_handlers
+from .utils.validation import add_request_sanitization
+from .monitoring import register_monitoring, run_startup_health_check
+from .services.database_manager import DatabaseManager
+from .services.training_package_cache import TrainingPackageCache
+from .services.clubos_integration import ClubOSIntegration
+from .routes import register_blueprints
 
 # Configure logging
 logging.basicConfig(
