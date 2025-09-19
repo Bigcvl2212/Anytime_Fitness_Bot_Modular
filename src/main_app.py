@@ -24,7 +24,19 @@ from .config.security_middleware import (
     configure_compression
 )
 from .config.error_handlers import configure_error_handlers
-from src.utils.validation import add_request_sanitization
+
+# Import validation utilities with fallback
+try:
+    from src.utils.validation import add_request_sanitization
+except ImportError:
+    try:
+        from .utils.validation import add_request_sanitization
+    except ImportError:
+        # Fallback: create a dummy function if utils module is not available
+        def add_request_sanitization(app):
+            pass
+        logger.warning("⚠️ utils.validation module not available - using dummy function")
+
 from .monitoring import register_monitoring, run_startup_health_check
 from .services.database_manager import DatabaseManager
 from .services.training_package_cache import TrainingPackageCache
