@@ -19,19 +19,14 @@ COPY static/ /app/static/
 COPY wsgi.py /app/
 COPY run_dashboard.py /app/
 
-# Create symlinks for fallback imports
-RUN ln -sf /app/src/utils /app/utils && \
-    ln -sf /app/src/config /app/config && \
-    ln -sf /app/src/services /app/services && \
-    ln -sf /app/src/routes /app/routes && \
-    ln -sf /app/src/monitoring /app/monitoring
+# No need for duplicate copies - PYTHONPATH handles imports correctly
 
 # Cloud Run uses PORT environment variable
 EXPOSE 8080
 
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_ENV=production
-ENV PYTHONPATH=/app:/app/src
+ENV PYTHONPATH=/app/src
 ENV PORT=8080
 
 # Use Cloud Run's PORT environment variable
