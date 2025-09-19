@@ -1481,9 +1481,44 @@ def get_recent_inbox():
             
             sender_key = message.get('from_user', 'Unknown')
             if sender_key not in threads:
+                # Try to find actual member ID by looking up in members table
+                actual_member_id = None
+                owner_id = message.get('owner_id')
+                
+                # First, try direct match with owner_id
+                member_lookup = current_app.db_manager.execute_query('''
+                    SELECT id, prospect_id, guid FROM members 
+                    WHERE id = ? OR prospect_id = ? OR guid = ? 
+                    LIMIT 1
+                ''', (owner_id, owner_id, owner_id))
+                
+                if member_lookup and len(member_lookup) > 0:
+                    # Convert to dict if needed
+                    if isinstance(member_lookup[0], dict):
+                        actual_member_id = member_lookup[0].get('id')
+                    else:
+                        actual_member_id = member_lookup[0][0]  # First column is id
+                else:
+                    # Fallback: try name lookup
+                    name_lookup = current_app.db_manager.execute_query('''
+                        SELECT id FROM members 
+                        WHERE LOWER(first_name || ' ' || last_name) LIKE LOWER(?) 
+                        LIMIT 1
+                    ''', (f'%{sender_key}%',))
+                    
+                    if name_lookup and len(name_lookup) > 0:
+                        if isinstance(name_lookup[0], dict):
+                            actual_member_id = name_lookup[0].get('id')
+                        else:
+                            actual_member_id = name_lookup[0][0]
+                
+                # Use actual member ID if found, otherwise fall back to owner_id
+                final_member_id = actual_member_id or owner_id
+                
                 threads[sender_key] = {
                     'id': len(threads) + 1,
-                    'member_id': message.get('owner_id'),
+                    'member_id': final_member_id,
+                    'owner_id': owner_id,  # Keep original for reference
                     'member_name': sender_key,
                     'member_full_name': sender_key,
                     'member_email': '',
@@ -2063,3 +2098,194 @@ def use_campaign_template(template_id):
             'success': False,
             'error': str(e)
         }), 500
+
+@messaging_bp.route('/api/messaging/member-history/<member_id>', methods=['GET'])
+# @require_auth  # Temporarily disabled for testing
+def get_member_message_history(member_id):
+    """Get complete ClubOS message history for a specific member using FollowUp endpoint"""
+    try:
+        logger.info(f"📬 Getting message history for member ID: {member_id}")
+        
+        # Get ClubOS credentials
+        credentials = get_clubos_credentials('anytime')
+        if not credentials:
+            return jsonify({
+                'success': False,
+                'error': 'ClubOS credentials not available'
+            }), 500
+        
+        # Initialize ClubOS messaging client
+        messaging_client = ClubOSMessagingClient(
+            credentials['username'], 
+            credentials['password']
+        )
+        
+        # Get message history using ClubOS FollowUp endpoint
+        # Based on your example: POST /action/FollowUp with followUpUserId and followUpType
+        try:
+            import requests
+            
+            # Authenticate first
+            auth_result = messaging_client.authenticate()
+            if not auth_result or not auth_result.get('success'):
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to authenticate with ClubOS'
+                }), 500
+            
+            # Get session and authorization from messaging client
+            session = getattr(messaging_client, 'session', None)
+            if not session:
+                return jsonify({
+                    'success': False,
+                    'error': 'No valid ClubOS session available'
+                }), 500
+            
+            # Make FollowUp request for message history
+            follow_up_url = f"{credentials['base_url']}/action/FollowUp"
+            
+            # FollowUp types: 1=Email, 2=SMS, 3=Messages (based on typical ClubOS patterns)
+            follow_up_data = {
+                'followUpUserId': member_id,
+                'followUpType': '3'  # Type 3 for messages/conversation history
+            }
+            
+            logger.info(f"📬 Making FollowUp request for member {member_id}")
+            
+            response = session.post(
+                follow_up_url,
+                data=follow_up_data,
+                headers={
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': '*/*'
+                },
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                # Parse the HTML response to extract message history
+                html_content = response.text
+                
+                # Extract message history from HTML (ClubOS typically returns structured data in HTML)
+                message_history = parse_clubos_message_history(html_content, member_id)
+                
+                logger.info(f"✅ Retrieved {len(message_history)} message history items for member {member_id}")
+                
+                return jsonify({
+                    'success': True,
+                    'member_id': member_id,
+                    'message_history': message_history,
+                    'count': len(message_history),
+                    'source': 'clubos_followup'
+                })
+            else:
+                logger.error(f"❌ FollowUp request failed with status {response.status_code}")
+                return jsonify({
+                    'success': False,
+                    'error': f'ClubOS FollowUp request failed: {response.status_code}'
+                }), 500
+                
+        except Exception as api_error:
+            logger.error(f"❌ Error calling ClubOS FollowUp API: {api_error}")
+            
+            # Fallback to database messages if ClubOS API fails
+            logger.info(f"🔄 Falling back to database messages for member {member_id}")
+            
+            messages = current_app.db_manager.execute_query('''
+                SELECT * FROM messages 
+                WHERE owner_id = ? OR member_id = ?
+                ORDER BY created_at DESC 
+                LIMIT 50
+            ''', (member_id, member_id))
+            
+            if messages is None:
+                messages = []
+            
+            # Convert to list of dicts if needed
+            if messages and not isinstance(messages[0], dict):
+                messages = [dict(row) for row in messages]
+            
+            return jsonify({
+                'success': True,
+                'member_id': member_id,
+                'message_history': messages,
+                'count': len(messages),
+                'source': 'database_fallback',
+                'note': 'Retrieved from database due to ClubOS API error'
+            })
+    
+    except Exception as e:
+        logger.error(f"❌ Error getting member message history: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+def parse_clubos_message_history(html_content: str, member_id: str) -> List[Dict]:
+    """Parse ClubOS FollowUp HTML response to extract message history"""
+    try:
+        from bs4 import BeautifulSoup
+        import re
+        
+        soup = BeautifulSoup(html_content, 'html.parser')
+        messages = []
+        
+        # Look for message containers (ClubOS typically uses specific classes or IDs)
+        # This is a general parser - may need adjustment based on actual ClubOS HTML structure
+        
+        # Try to find message rows/items
+        message_elements = soup.find_all(['tr', 'div'], class_=re.compile(r'message|follow.*up|conversation|thread'))
+        
+        if not message_elements:
+            # Fallback: look for table rows with date/time patterns
+            message_elements = soup.find_all('tr')
+        
+        for element in message_elements:
+            try:
+                # Extract message data from HTML element
+                message_data = extract_message_from_element(element, member_id)
+                if message_data:
+                    messages.append(message_data)
+            except Exception as parse_error:
+                logger.debug(f"⚠️ Error parsing message element: {parse_error}")
+                continue
+        
+        return messages
+        
+    except Exception as e:
+        logger.error(f"❌ Error parsing ClubOS message history HTML: {e}")
+        return []
+
+def extract_message_from_element(element, member_id: str) -> Dict:
+    """Extract message data from a single HTML element"""
+    try:
+        # This function needs to be customized based on ClubOS HTML structure
+        # For now, return a basic structure
+        
+        text_content = element.get_text(strip=True)
+        if len(text_content) < 10:  # Skip empty or very short elements
+            return None
+        
+        # Try to extract timestamp
+        timestamp_match = re.search(r'\d{1,2}/\d{1,2}/\d{4}', text_content)
+        timestamp = timestamp_match.group(0) if timestamp_match else datetime.now().isoformat()
+        
+        # Try to extract message content
+        # Look for common message patterns
+        content = text_content[:200]  # Limit content length
+        
+        return {
+            'id': f"clubos_{member_id}_{hash(text_content) % 10000}",
+            'member_id': member_id,
+            'content': content,
+            'timestamp': timestamp,
+            'created_at': timestamp,
+            'source': 'clubos_followup',
+            'message_type': 'conversation',
+            'status': 'received'
+        }
+        
+    except Exception as e:
+        logger.debug(f"⚠️ Error extracting message data: {e}")
+        return None

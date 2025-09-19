@@ -495,6 +495,112 @@
         </div>
     </div>
 </div>
+
+<!-- Member Profile Modal -->
+<div class="modal fade" id="memberProfileModal" tabindex="-1" aria-labelledby="memberProfileModalLabel">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="memberProfileModalLabel">
+                    <i class="fas fa-user me-2"></i>Member Profile
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <!-- Nav tabs -->
+                <ul class="nav nav-tabs" id="memberProfileTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile" type="button" role="tab">
+                            <i class="fas fa-user"></i> Profile
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="messages-tab" data-bs-toggle="tab" data-bs-target="#messages" type="button" role="tab">
+                            <i class="fas fa-comments"></i> Messages <span id="messages-badge" class="badge bg-primary ms-1">0</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="payments-tab" data-bs-toggle="tab" data-bs-target="#payments" type="button" role="tab">
+                            <i class="fas fa-credit-card"></i> Payments
+                        </button>
+                    </li>
+                </ul>
+                
+                <!-- Tab content -->
+                <div class="tab-content p-4" id="memberProfileTabContent">
+                    <!-- Profile Tab -->
+                    <div class="tab-pane fade show active" id="profile" role="tabpanel">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="fw-bold mb-3">Member Information</h6>
+                                <div class="mb-3">
+                                    <label class="form-label small text-muted">Full Name</label>
+                                    <div id="member-full-name" class="form-control-plaintext">-</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small text-muted">Phone</label>
+                                    <div id="member-phone" class="form-control-plaintext">-</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small text-muted">Email</label>
+                                    <div id="member-email" class="form-control-plaintext">-</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="fw-bold mb-3">Membership Details</h6>
+                                <div class="mb-3">
+                                    <label class="form-label small text-muted">Status</label>
+                                    <div id="member-status" class="form-control-plaintext">-</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small text-muted">Member Since</label>
+                                    <div id="member-since" class="form-control-plaintext">-</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small text-muted">Last Check-in</label>
+                                    <div id="member-last-checkin" class="form-control-plaintext">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Messages Tab -->
+                    <div class="tab-pane fade" id="messages" role="tabpanel">
+                        <div id="member-messages-loading" class="text-center py-4">
+                            <i class="fas fa-spinner fa-spin fa-2x text-muted mb-3"></i>
+                            <p class="text-muted">Loading message history...</p>
+                        </div>
+                        <div id="member-messages-content" class="d-none">
+                            <div class="message-history" style="max-height: 400px; overflow-y: auto;">
+                                <!-- Messages will be loaded here -->
+                            </div>
+                        </div>
+                        <div id="member-messages-empty" class="text-center py-4 d-none">
+                            <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No messages found</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Payments Tab -->
+                    <div class="tab-pane fade" id="payments" role="tabpanel">
+                        <div id="member-payments-content">
+                            <div class="text-center py-4">
+                                <i class="fas fa-credit-card fa-3x text-muted mb-3"></i>
+                                <p class="text-muted">Payment information will be displayed here</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="window.open(`/members?search=${encodeURIComponent(document.getElementById('member-full-name').textContent)}`, '_blank')">
+                    <i class="fas fa-external-link-alt me-1"></i>Open in Members Page
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -1271,6 +1377,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check for active or recently completed bulk check-in on page load
     checkAndRestoreBulkCheckinUI();
     
+    // Load dashboard inbox
+    loadDashboardInbox();
+    
     checkAllFundingStatusesAsync();
     
     const refreshFundingBtn = document.getElementById('refresh-funding-btn');
@@ -1347,14 +1456,251 @@ document.addEventListener('DOMContentLoaded', function() {
 // Add missing functions for onclick handlers
 window.refreshInbox = function() {
     debugLog('📬 Refreshing inbox...');
-    // Add inbox refresh logic here
-    alert('Inbox refresh functionality not implemented yet');
+    loadDashboardInbox();
 };
+
+// Load recent messages for dashboard inbox
+function loadDashboardInbox() {
+    debugLog('📬 Loading dashboard inbox messages...');
+    
+    fetch('/api/messaging/inbox/recent?limit=10', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.threads) {
+            displayDashboardInbox(data.threads);
+        } else {
+            displayDashboardInbox([]);
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error loading inbox:', error);
+        displayDashboardInbox([]);
+    });
+}
+
+// Display inbox messages on dashboard
+function displayDashboardInbox(threads) {
+    const container = document.getElementById('bot-inbox');
+    
+    if (!threads || threads.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-3">
+                <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
+                <p class="text-muted small mb-0">No recent messages</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Display threads (newest first, max 5 for dashboard)
+    const displayThreads = threads.slice(0, 5);
+    const inboxHtml = displayThreads.map(thread => {
+        const timeAgo = formatTimeAgo(thread.last_message_at);
+        const memberName = thread.member_name || 'Unknown Member';
+        const messagePreview = truncateText(thread.latest_message?.message_content || 'No content', 40);
+        
+        return `
+            <div class="inbox-message-item d-flex align-items-center p-2 border-bottom cursor-pointer" 
+                 onclick="openMemberProfileModal('${thread.member_id || ''}', '${encodeURIComponent(memberName)}')">
+                <div class="flex-shrink-0 me-2">
+                    <div class="inbox-avatar bg-primary text-white d-flex align-items-center justify-content-center rounded-circle" 
+                         style="width: 32px; height: 32px; font-size: 0.8rem;">
+                        ${memberName.charAt(0).toUpperCase()}
+                    </div>
+                </div>
+                <div class="flex-grow-1 min-w-0">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <h6 class="mb-0 text-truncate" style="font-size: 0.85rem; font-weight: 600;">
+                            ${memberName}
+                        </h6>
+                        <small class="text-muted" style="font-size: 0.7rem;">${timeAgo}</small>
+                    </div>
+                    <p class="mb-0 text-muted text-truncate" style="font-size: 0.75rem;">
+                        ${messagePreview}
+                    </p>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = `
+        <div class="inbox-messages">
+            ${inboxHtml}
+            ${threads.length > 5 ? `
+                <div class="text-center pt-2">
+                    <a href="/messaging" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-envelope me-1"></i>View All Messages
+                    </a>
+                </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+// Open member profile modal on dashboard
+function openMemberProfileModal(memberId, memberName) {
+    debugLog('� Opening member profile modal on dashboard:', memberId, memberName);
+    
+    if (!memberId || memberId === 'null' || memberId === '' || memberId === 'undefined') {
+        console.warn('⚠️ No valid member ID provided for modal:', memberId);
+        return;
+    }
+    
+    // Clean member data
+    const cleanMemberId = String(memberId).trim();
+    const cleanMemberName = String(memberName || 'Member').trim();
+    
+    debugLog('� Opening modal for member ID:', cleanMemberId, 'Name:', cleanMemberName);
+    
+    // Set modal title
+    const modalTitle = document.getElementById('memberProfileModalLabel');
+    if (modalTitle) {
+        modalTitle.innerHTML = `<i class="fas fa-user me-2"></i>${cleanMemberName}`;
+    }
+    
+    // Load member profile data
+    loadMemberProfile(cleanMemberId, cleanMemberName);
+    
+    // Show the modal
+    const modalElement = document.getElementById('memberProfileModal');
+    if (modalElement) {
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+            modal.show();
+        } else {
+            modalElement.style.display = 'block';
+            modalElement.classList.add('show');
+        }
+    }
+}
+
+// Load member profile data for modal
+function loadMemberProfile(memberId, memberName) {
+    debugLog('👤 Loading member profile data for:', memberId, memberName);
+    
+    // Clear previous data
+    document.getElementById('member-full-name').textContent = memberName;
+    document.getElementById('member-phone').textContent = '-';
+    document.getElementById('member-email').textContent = '-';
+    document.getElementById('member-status').textContent = '-';
+    document.getElementById('member-since').textContent = '-';
+    document.getElementById('member-last-checkin').textContent = '-';
+    
+    // Reset messages tab
+    document.getElementById('member-messages-loading').classList.remove('d-none');
+    document.getElementById('member-messages-content').classList.add('d-none');
+    document.getElementById('member-messages-empty').classList.add('d-none');
+    
+    // Load member details
+    fetch(`/api/members/${memberId}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.member) {
+            const member = data.member;
+            document.getElementById('member-full-name').textContent = member.full_name || memberName;
+            document.getElementById('member-phone').textContent = member.phone || '-';
+            document.getElementById('member-email').textContent = member.email || '-';
+            document.getElementById('member-status').textContent = member.status || '-';
+            document.getElementById('member-since').textContent = member.member_since || '-';
+            document.getElementById('member-last-checkin').textContent = member.last_checkin || '-';
+        }
+    })
+    .catch(error => {
+        debugLog('⚠️ Could not load member details:', error);
+    });
+    
+    // Load message history
+    loadMemberMessages(memberId);
+}
+
+// Load message history for member
+function loadMemberMessages(memberId) {
+    debugLog('💬 Loading message history for member:', memberId);
+    
+    fetch(`/api/messaging/member/${memberId}/history`)
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('member-messages-loading').classList.add('d-none');
+        
+        if (data.success && data.messages && data.messages.length > 0) {
+            displayMemberMessages(data.messages);
+            document.getElementById('messages-badge').textContent = data.messages.length;
+        } else {
+            document.getElementById('member-messages-empty').classList.remove('d-none');
+            document.getElementById('messages-badge').textContent = '0';
+        }
+    })
+    .catch(error => {
+        debugLog('❌ Error loading message history:', error);
+        document.getElementById('member-messages-loading').classList.add('d-none');
+        document.getElementById('member-messages-empty').classList.remove('d-none');
+        document.getElementById('messages-badge').textContent = '0';
+    });
+}
+
+// Display member messages in modal
+function displayMemberMessages(messages) {
+    const container = document.querySelector('#member-messages-content .message-history');
+    
+    const messagesHtml = messages.map(msg => {
+        const timestamp = new Date(msg.created_at).toLocaleString();
+        const isIncoming = msg.direction === 'incoming';
+        
+        return `
+            <div class="message-item mb-3 ${isIncoming ? 'incoming' : 'outgoing'}">
+                <div class="d-flex ${isIncoming ? 'justify-content-start' : 'justify-content-end'}">
+                    <div class="message-bubble ${isIncoming ? 'bg-light' : 'bg-primary text-white'}" style="max-width: 75%; padding: 8px 12px; border-radius: 12px;">
+                        <div class="message-content">${msg.message_content || 'No content'}</div>
+                        <div class="message-time small text-muted mt-1" style="font-size: 0.7rem;">
+                            ${timestamp}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = messagesHtml;
+    document.getElementById('member-messages-content').classList.remove('d-none');
+    
+    // Scroll to bottom
+    container.scrollTop = container.scrollHeight;
+}
+
+// Format time ago helper
+function formatTimeAgo(dateString) {
+    if (!dateString) return 'Unknown';
+    
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'Now';
+    if (diffMins < 60) return `${diffMins}m`;
+    if (diffHours < 24) return `${diffHours}h`;
+    if (diffDays < 7) return `${diffDays}d`;
+    return date.toLocaleDateString();
+}
+
+// Truncate text helper
+function truncateText(text, maxLength) {
+    if (!text) return '';
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+}
 
 window.viewConversation = function(conversationId) {
     debugLog('💬 Viewing conversation:', conversationId);
-    // Add conversation view logic here  
-    alert('Conversation view functionality not implemented yet');
+    // Redirect to messaging page with conversation focused
+    window.location.href = `/messaging?conversation_id=${conversationId}`;
 };
 </script>
 {% endblock %}

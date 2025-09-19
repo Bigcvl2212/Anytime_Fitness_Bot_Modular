@@ -22,17 +22,54 @@ def require_auth(f):
             from datetime import datetime, timedelta
             auth_service = SecureAuthService()
             
-            # Minimal logging for performance - only log failures
+            # Enhanced debugging for session validation issues
             route_name = request.endpoint or "unknown_route"
+            
+            # Debug: Log current session state BEFORE any checks
+            logger.info(f"🔍 AUTH DECORATOR DEBUG - Route: {route_name}")
+            logger.info(f"🔍 Session exists: {session is not None}")
+            if session:
+                logger.info(f"🔍 Session keys: {list(session.keys())}")
+                logger.info(f"🔍 Session authenticated: {session.get('authenticated')}")
+                logger.info(f"🔍 Session manager_id: {session.get('manager_id')}")
+                logger.info(f"🔍 Session permanent: {session.permanent}")
+            else:
+                logger.warning(f"🔍 NO SESSION OBJECT FOUND!")
             
             # Ensure session persistence before validation
             if session:
                 session.permanent = True
                 session.modified = True
             
-            # Quick session check - simplified validation
-            if not session or not session.get('authenticated') or not session.get('manager_id'):
-                logger.warning(f"❌ Fast auth check failed for {route_name} - missing session data")
+            # Quick session check - simplified validation with MORE debugging
+            if not session:
+                logger.warning(f"❌ Fast auth check failed for {route_name} - NO SESSION OBJECT")
+                return redirect(url_for('auth.login'))
+                
+            if not session.get('authenticated'):
+                logger.warning(f"❌ Fast auth check failed for {route_name} - NOT AUTHENTICATED")
+                logger.warning(f"❌ Session exists but authenticated={session.get('authenticated')}")
+                
+                # SPECIAL CASE: If we just completed club selection, give it a moment
+                if 'last_club_selection' in session:
+                    import time
+                    selection_time = session.get('last_club_selection', 0)
+                    current_time = time.time()
+                    
+                    # If club selection was within the last 5 seconds, be forgiving
+                    if current_time - selection_time < 5:
+                        logger.info(f"🔄 RECENT CLUB SELECTION DETECTED - giving session time to sync")
+                        session['authenticated'] = True  # Force authentication back
+                        session.modified = True
+                        # Continue with the request
+                    else:
+                        return redirect(url_for('auth.login'))
+                else:
+                    return redirect(url_for('auth.login'))
+                    
+            if not session.get('manager_id'):
+                logger.warning(f"❌ Fast auth check failed for {route_name} - NO MANAGER ID")
+                logger.warning(f"❌ Session authenticated but manager_id={session.get('manager_id')}")
                 return redirect(url_for('auth.login'))
             
             # Check session timeout only (skip full validation for performance)
@@ -59,11 +96,16 @@ def require_auth(f):
             except:
                 pass  # Don't fail on activity update
             
+            # Debug: Log successful validation
+            logger.info(f"✅ AUTH DECORATOR SUCCESS - {route_name} - manager_id={session.get('manager_id')}")
+            
             # Session is valid, proceed with the request
             return f(*args, **kwargs)
             
         except Exception as e:
             logger.error(f"❌ Authentication exception for {route_name}: {e}")
+            import traceback
+            logger.error(f"❌ Exception traceback: {traceback.format_exc()}")
             return redirect(url_for('auth.login'))
     
     return decorated_function

@@ -156,9 +156,15 @@ def select_clubs():
             import traceback
             logger.error(f"Sync error traceback: {traceback.format_exc()}")
         
-        # Force session save before generating response
+        # CRITICAL: Force session save multiple ways before generating response
+        session.permanent = True
+        session.modified = True
+        
+        # Force session to be saved by accessing it
+        _ = session.get('authenticated')  # Access session to trigger save
+        
         import time
-        time.sleep(0.5)  # Give session time to save
+        time.sleep(0.5)  # Give session time to save to storage
         
         # Debug the generated redirect URL - use explicit root path
         redirect_url = '/'  # Direct to root which should now properly map to dashboard
@@ -189,7 +195,15 @@ def select_clubs():
         
         logger.info(f"🚀 Sending response: {response_data}")
         logger.info(f"🔍 ====== CLUB SELECTION RESPONSE SENT ======")
-        return jsonify(response_data)
+        
+        # Create response and force session to save before return
+        response = jsonify(response_data)
+        
+        # One final session modification to ensure it gets saved
+        session['last_club_selection'] = time.time()
+        session.modified = True
+        
+        return response
         
     except Exception as e:
         logger.error(f"❌ Error selecting clubs: {e}")

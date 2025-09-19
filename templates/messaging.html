@@ -249,6 +249,54 @@
         -ms-user-select: text !important;
         user-select: text !important;
     }
+    
+    /* Messaging Inbox Styles */
+    .inbox-conversation-item {
+        transition: all 0.15s ease;
+        border-radius: 8px;
+        margin: 2px 0;
+        cursor: pointer;
+    }
+    
+    .inbox-conversation-item:hover {
+        background-color: #f8f9fa !important;
+        transform: translateX(3px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .unread-conversation {
+        background-color: #e3f2fd !important;
+        border-left: 4px solid var(--af-purple-primary);
+    }
+    
+    .conversation-avatar {
+        font-weight: 600;
+        background: linear-gradient(135deg, var(--af-purple-primary), var(--af-purple-dark)) !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .inbox-conversations {
+        border-radius: 8px;
+    }
+    
+    .inbox-conversations::-webkit-scrollbar {
+        width: 6px;
+    }
+    
+    .inbox-conversations::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+    
+    .inbox-conversations::-webkit-scrollbar-thumb {
+        background: var(--af-purple-primary);
+        border-radius: 3px;
+    }
+    
+    .inbox-footer {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef) !important;
+        border-radius: 0 0 8px 8px;
+    }
 </style>
 {% endblock %}
 
@@ -277,6 +325,35 @@
 
 <!-- Main Content -->
 <div class="row g-4">
+    <!-- Inbox Section -->
+    <div class="col-12">
+        <div class="fluent-card mb-4">
+            <div class="fluent-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0 fw-semibold">
+                            <i class="fas fa-inbox me-2"></i>
+                            Message Inbox
+                        </h5>
+                        <p class="mb-0 small opacity-75">Recent conversations with members</p>
+                    </div>
+                    <button class="btn btn-light btn-sm" onclick="refreshMessagingInbox()" title="Refresh Inbox">
+                        <i class="fas fa-sync-alt me-1"></i>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-3">
+                <div id="messaging-inbox-container">
+                    <div class="text-center py-4">
+                        <i class="fas fa-spinner fa-spin fa-2x text-muted mb-3"></i>
+                        <p class="text-muted">Loading conversations...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Status-Based Campaign Cards -->
     <div class="col-12">
         <div class="fluent-card">
@@ -1131,11 +1208,430 @@
         </div>
     </div>
 </div>
+
+<!-- Member Profile Modal -->
+<div class="modal fade" id="memberProfileModal" tabindex="-1" aria-labelledby="memberProfileModalLabel">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="memberProfileModalLabel">
+                    <i class="fas fa-user me-2"></i>Member Profile
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <!-- Nav tabs -->
+                <ul class="nav nav-tabs" id="memberProfileTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile" type="button" role="tab">
+                            <i class="fas fa-user"></i> Profile
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="messages-tab" data-bs-toggle="tab" data-bs-target="#messages" type="button" role="tab">
+                            <i class="fas fa-comments"></i> Messages <span id="messages-badge" class="badge bg-primary ms-1">0</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="payments-tab" data-bs-toggle="tab" data-bs-target="#payments" type="button" role="tab">
+                            <i class="fas fa-credit-card"></i> Payments
+                        </button>
+                    </li>
+                </ul>
+                
+                <!-- Tab content -->
+                <div class="tab-content p-4" id="memberProfileTabContent">
+                    <!-- Profile Tab -->
+                    <div class="tab-pane fade show active" id="profile" role="tabpanel">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="fw-bold mb-3">Member Information</h6>
+                                <div class="mb-3">
+                                    <label class="form-label small text-muted">Full Name</label>
+                                    <div id="member-full-name" class="form-control-plaintext">-</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small text-muted">Phone</label>
+                                    <div id="member-phone" class="form-control-plaintext">-</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small text-muted">Email</label>
+                                    <div id="member-email" class="form-control-plaintext">-</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="fw-bold mb-3">Membership Details</h6>
+                                <div class="mb-3">
+                                    <label class="form-label small text-muted">Status</label>
+                                    <div id="member-status" class="form-control-plaintext">-</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small text-muted">Member Since</label>
+                                    <div id="member-since" class="form-control-plaintext">-</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label small text-muted">Last Check-in</label>
+                                    <div id="member-last-checkin" class="form-control-plaintext">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Messages Tab -->
+                    <div class="tab-pane fade" id="messages" role="tabpanel">
+                        <div id="member-messages-loading" class="text-center py-4">
+                            <i class="fas fa-spinner fa-spin fa-2x text-muted mb-3"></i>
+                            <p class="text-muted">Loading message history...</p>
+                        </div>
+                        <div id="member-messages-content" class="d-none">
+                            <div class="message-history" style="max-height: 400px; overflow-y: auto;">
+                                <!-- Messages will be loaded here -->
+                            </div>
+                        </div>
+                        <div id="member-messages-empty" class="text-center py-4 d-none">
+                            <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No messages found</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Payments Tab -->
+                    <div class="tab-pane fade" id="payments" role="tabpanel">
+                        <div id="member-payments-content">
+                            <div class="text-center py-4">
+                                <i class="fas fa-credit-card fa-3x text-muted mb-3"></i>
+                                <p class="text-muted">Payment information will be displayed here</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="window.open(`/members?search=${encodeURIComponent(document.getElementById('member-full-name').textContent)}`, '_blank')">
+                    <i class="fas fa-external-link-alt me-1"></i>Open in Members Page
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 </div> <!-- End messaging-page wrapper -->
 {% endblock %}
 
 {% block extra_js %}
 <script>
+        // Messaging Inbox Functions
+        function loadMessagingInbox() {
+            debugLog('📬 Loading messaging inbox...');
+            
+            fetch('/api/messaging/inbox/recent?limit=15', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.threads) {
+                    displayMessagingInbox(data.threads);
+                } else {
+                    displayEmptyMessagingInbox();
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error loading messaging inbox:', error);
+                displayEmptyMessagingInbox();
+            });
+        }
+        
+        function displayMessagingInbox(threads) {
+            const container = document.getElementById('messaging-inbox-container');
+            
+            if (!threads || threads.length === 0) {
+                displayEmptyMessagingInbox();
+                return;
+            }
+            
+            const inboxHtml = threads.map(thread => {
+                const timeAgo = formatTimeAgo(thread.last_message_at);
+                const memberName = thread.member_name || 'Unknown Member';
+                const messagePreview = truncateText(thread.latest_message?.message_content || 'No content', 60);
+                const isUnread = thread.status !== 'read';
+                
+                return `
+                    <div class="inbox-conversation-item d-flex align-items-center p-3 border-bottom cursor-pointer ${isUnread ? 'unread-conversation' : ''}" 
+                         onclick="openConversationWithMember('${thread.member_id || ''}', '${encodeURIComponent(memberName)}')"
+                         title="Click to view full conversation with ${memberName}">
+                        <div class="flex-shrink-0 me-3">
+                            <div class="conversation-avatar bg-primary text-white d-flex align-items-center justify-content-center rounded-circle" 
+                                 style="width: 48px; height: 48px; font-size: 1.1rem;">
+                                ${memberName.charAt(0).toUpperCase()}
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <h6 class="mb-0 text-truncate fw-bold" style="color: var(--af-purple-primary);">
+                                    ${memberName}
+                                    ${isUnread ? '<span class="badge bg-danger ms-1 rounded-pill" style="font-size: 0.6rem;">New</span>' : ''}
+                                </h6>
+                                <small class="text-muted" style="font-size: 0.8rem;">${timeAgo}</small>
+                            </div>
+                            <p class="mb-0 text-muted text-truncate" style="font-size: 0.9rem;">
+                                ${messagePreview}
+                            </p>
+                            <div class="d-flex align-items-center mt-1">
+                                <small class="text-info">
+                                    <i class="fas fa-${thread.thread_type || 'sms'} me-1"></i>
+                                    ${(thread.thread_type || 'SMS').toUpperCase()}
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = `
+                <div class="inbox-conversations" style="max-height: 500px; overflow-y: auto;">
+                    ${inboxHtml}
+                </div>
+                <div class="inbox-footer pt-3 border-top bg-light">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <button class="btn btn-outline-primary btn-sm w-100" onclick="refreshMessagingInbox()">
+                                <i class="fas fa-sync-alt me-1"></i>Refresh
+                            </button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-primary btn-sm w-100" onclick="viewAllConversations()">
+                                <i class="fas fa-comments me-1"></i>View All
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function displayEmptyMessagingInbox() {
+            const container = document.getElementById('messaging-inbox-container');
+            container.innerHTML = `
+                <div class="text-center py-5">
+                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No conversations yet</h5>
+                    <p class="text-muted">New messages will appear here</p>
+                    <button class="btn btn-primary btn-sm" onclick="refreshMessagingInbox()">
+                        <i class="fas fa-refresh me-1"></i>Check for Messages
+                    </button>
+                </div>
+            `;
+        }
+        
+        function refreshMessagingInbox() {
+            debugLog('🔄 Refreshing messaging inbox...');
+            const container = document.getElementById('messaging-inbox-container');
+            container.innerHTML = `
+                <div class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin fa-2x text-muted mb-3"></i>
+                    <p class="text-muted">Refreshing conversations...</p>
+                </div>
+            `;
+            loadMessagingInbox();
+        }
+        
+        function openConversationWithMember(memberId, memberName) {
+            debugLog('💬 Opening conversation with member on messaging page:', memberId, memberName);
+            
+            if (memberId && memberId !== 'null' && memberId !== '') {
+                // Open member profile modal on messaging page with messages tab focused
+                openMemberProfileModal(memberId, decodeURIComponent(memberName), true);
+            } else {
+                console.warn('⚠️ No valid member ID available for conversation');
+                alert(`Unable to open conversation - member ID not available for ${decodeURIComponent(memberName)}`);
+            }
+        }
+        
+        // Open member profile modal on messaging page
+        function openMemberProfileModal(memberId, memberName, focusMessages = false) {
+            debugLog('👤 Opening member profile modal on messaging page:', memberId, memberName, focusMessages);
+            
+            if (!memberId || memberId === 'null' || memberId === '' || memberId === 'undefined') {
+                console.warn('⚠️ No valid member ID provided for modal:', memberId);
+                return;
+            }
+            
+            // Clean member data
+            const cleanMemberId = String(memberId).trim();
+            const cleanMemberName = String(memberName || 'Member').trim();
+            
+            debugLog('👤 Opening modal for member ID:', cleanMemberId, 'Name:', cleanMemberName);
+            
+            // Set modal title
+            const modalTitle = document.getElementById('memberProfileModalLabel');
+            if (modalTitle) {
+                modalTitle.innerHTML = `<i class="fas fa-user me-2"></i>${cleanMemberName}`;
+            }
+            
+            // Load member profile data
+            loadMemberProfile(cleanMemberId, cleanMemberName);
+            
+            // Show the modal
+            const modalElement = document.getElementById('memberProfileModal');
+            if (modalElement) {
+                if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                    const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+                    modal.show();
+                    
+                    // Focus messages tab if requested
+                    if (focusMessages) {
+                        modalElement.addEventListener('shown.bs.modal', function() {
+                            const messagesTab = document.getElementById('messages-tab');
+                            if (messagesTab) {
+                                messagesTab.click();
+                            }
+                        }, { once: true });
+                    }
+                } else {
+                    modalElement.style.display = 'block';
+                    modalElement.classList.add('show');
+                    
+                    // Focus messages tab if requested
+                    if (focusMessages) {
+                        setTimeout(() => {
+                            const messagesTab = document.getElementById('messages-tab');
+                            if (messagesTab) {
+                                messagesTab.click();
+                            }
+                        }, 100);
+                    }
+                }
+            }
+        }
+        
+        function viewAllConversations() {
+            debugLog('📋 Viewing all conversations...');
+            // Could implement a dedicated conversations page in the future
+            alert('All conversations view - Coming soon!\nFor now, click on individual conversations to view them on the member page.');
+        }
+        
+        // Load member profile data for modal
+        function loadMemberProfile(memberId, memberName) {
+            debugLog('👤 Loading member profile data for:', memberId, memberName);
+            
+            // Clear previous data
+            document.getElementById('member-full-name').textContent = memberName;
+            document.getElementById('member-phone').textContent = '-';
+            document.getElementById('member-email').textContent = '-';
+            document.getElementById('member-status').textContent = '-';
+            document.getElementById('member-since').textContent = '-';
+            document.getElementById('member-last-checkin').textContent = '-';
+            
+            // Reset messages tab
+            document.getElementById('member-messages-loading').classList.remove('d-none');
+            document.getElementById('member-messages-content').classList.add('d-none');
+            document.getElementById('member-messages-empty').classList.add('d-none');
+            
+            // Load member details
+            fetch(`/api/members/${memberId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.member) {
+                    const member = data.member;
+                    document.getElementById('member-full-name').textContent = member.full_name || memberName;
+                    document.getElementById('member-phone').textContent = member.phone || '-';
+                    document.getElementById('member-email').textContent = member.email || '-';
+                    document.getElementById('member-status').textContent = member.status || '-';
+                    document.getElementById('member-since').textContent = member.member_since || '-';
+                    document.getElementById('member-last-checkin').textContent = member.last_checkin || '-';
+                }
+            })
+            .catch(error => {
+                debugLog('⚠️ Could not load member details:', error);
+            });
+            
+            // Load message history
+            loadMemberMessages(memberId);
+        }
+
+        // Load message history for member
+        function loadMemberMessages(memberId) {
+            debugLog('💬 Loading message history for member:', memberId);
+            
+            fetch(`/api/messaging/member/${memberId}/history`)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('member-messages-loading').classList.add('d-none');
+                
+                if (data.success && data.messages && data.messages.length > 0) {
+                    displayMemberMessages(data.messages);
+                    document.getElementById('messages-badge').textContent = data.messages.length;
+                } else {
+                    document.getElementById('member-messages-empty').classList.remove('d-none');
+                    document.getElementById('messages-badge').textContent = '0';
+                }
+            })
+            .catch(error => {
+                debugLog('❌ Error loading message history:', error);
+                document.getElementById('member-messages-loading').classList.add('d-none');
+                document.getElementById('member-messages-empty').classList.remove('d-none');
+                document.getElementById('messages-badge').textContent = '0';
+            });
+        }
+
+        // Display member messages in modal
+        function displayMemberMessages(messages) {
+            const container = document.querySelector('#member-messages-content .message-history');
+            
+            const messagesHtml = messages.map(msg => {
+                const timestamp = new Date(msg.created_at).toLocaleString();
+                const isIncoming = msg.direction === 'incoming';
+                
+                return `
+                    <div class="message-item mb-3 ${isIncoming ? 'incoming' : 'outgoing'}">
+                        <div class="d-flex ${isIncoming ? 'justify-content-start' : 'justify-content-end'}">
+                            <div class="message-bubble ${isIncoming ? 'bg-light' : 'bg-primary text-white'}" style="max-width: 75%; padding: 8px 12px; border-radius: 12px;">
+                                <div class="message-content">${msg.message_content || 'No content'}</div>
+                                <div class="message-time small text-muted mt-1" style="font-size: 0.7rem;">
+                                    ${timestamp}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = messagesHtml;
+            document.getElementById('member-messages-content').classList.remove('d-none');
+            
+            // Scroll to bottom
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        // Utility functions for messaging inbox
+        function formatTimeAgo(dateString) {
+            if (!dateString) return 'Unknown';
+            
+            const now = new Date();
+            const date = new Date(dateString);
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+            
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins}m ago`;
+            if (diffHours < 24) return `${diffHours}h ago`;
+            if (diffDays < 7) return `${diffDays}d ago`;
+            return date.toLocaleDateString();
+        }
+        
+        function truncateText(text, maxLength) {
+            if (!text) return '';
+            if (text.length <= maxLength) return text;
+            return text.substring(0, maxLength) + '...';
+        }
+        
+        function debugLog(...args) {
+            console.log('🔍 [Messaging]', ...args);
+        }
+
         // Bootstrap tabs initialization (moved to main DOMContentLoaded)
         function initializeBootstrapTabs() {
             var triggerTabList = [].slice.call(document.querySelectorAll('#statusTabs button'));
@@ -2244,6 +2740,9 @@ Note: Variables like {first_name} will be automatically replaced with actual mem
             
             // Initialize Bootstrap tabs
             initializeBootstrapTabs();
+            
+            // Load messaging inbox first
+            loadMessagingInbox();
             
             // Load all sections (with graceful fallbacks for missing APIs)
             loadStatusCampaigns();

@@ -816,6 +816,197 @@ function fetchMemberDetails(memberId, memberName, memberEmail) {
         });
 }
 
+function openMemberProfileWithMessages(memberId, memberName, memberEmail) {
+    debugLog(`📬 Opening member profile with messages focus: ${memberName} (ID: ${memberId})`);
+    
+    // First open the member profile modal
+    openMemberProfile(memberId, memberName, memberEmail);
+    
+    // After modal opens, switch to conversation history tab and load message history
+    setTimeout(() => {
+        try {
+            // Switch to conversation tab
+            const conversationTab = document.getElementById('conversation-tab');
+            const conversationPane = document.getElementById('conversation');
+            const inboxTab = document.getElementById('inbox-tab');
+            const inboxPane = document.getElementById('inbox');
+            
+            if (conversationTab && conversationPane) {
+                // Activate conversation tab
+                inboxTab.classList.remove('active');
+                inboxPane.classList.remove('show', 'active');
+                conversationTab.classList.add('active');
+                conversationPane.classList.add('show', 'active');
+                
+                debugLog('✅ Switched to conversation history tab');
+                
+                // Load ClubOS message history for this member
+                loadMemberMessageHistory(memberId);
+            } else {
+                debugError('❌ Could not find conversation tab elements');
+            }
+        } catch (error) {
+            debugError('❌ Error focusing on messages tab:', error);
+        }
+    }, 2000); // Wait for modal to fully load
+}
+
+function loadMemberMessageHistory(memberId) {
+    debugLog(`📬 Loading ClubOS message history for member: ${memberId}`);
+    
+    const conversationContent = document.getElementById('conversation-content');
+    if (!conversationContent) {
+        debugError('❌ Conversation content element not found');
+        return;
+    }
+    
+    // Show loading state
+    conversationContent.innerHTML = `
+        <div class="text-center py-4">
+            <div class="loading-spinner"></div>
+            <p class="text-muted mt-3">Loading ClubOS message history...</p>
+        </div>
+    `;
+    
+    // Fetch message history from new API endpoint
+    fetch(`/api/messaging/member-history/${memberId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.message_history) {
+                displayMemberMessageHistory(data.message_history, memberId);
+                debugLog(`✅ Loaded ${data.count} message history items`);
+            } else {
+                conversationContent.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No message history found</p>
+                        <p class="small text-muted">${data.error || 'Unable to load message history'}</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            debugError('❌ Error loading message history:', error);
+            conversationContent.innerHTML = `
+                <div class="text-center py-4">
+                    <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                    <p class="text-danger">Error loading message history</p>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadMemberMessageHistory('${memberId}')">
+                        <i class="fas fa-redo me-1"></i>Try Again
+                    </button>
+                </div>
+            `;
+        });
+}
+
+function displayMemberMessageHistory(messageHistory, memberId) {
+    const conversationContent = document.getElementById('conversation-content');
+    
+    if (!messageHistory || messageHistory.length === 0) {
+        conversationContent.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No conversation history found</p>
+                <p class="small text-muted">Start a conversation by sending a message</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Sort messages by date (newest first)
+    const sortedMessages = messageHistory.sort((a, b) => {
+        const dateA = new Date(a.created_at || a.timestamp);
+        const dateB = new Date(b.created_at || b.timestamp);
+        return dateB - dateA;
+    });
+    
+    // Group messages by date
+    const messagesByDate = {};
+    sortedMessages.forEach(message => {
+        const messageDate = new Date(message.created_at || message.timestamp);
+        const dateKey = messageDate.toDateString();
+        
+        if (!messagesByDate[dateKey]) {
+            messagesByDate[dateKey] = [];
+        }
+        messagesByDate[dateKey].push(message);
+    });
+    
+    // Build conversation HTML
+    let conversationHtml = `
+        <div class="conversation-history">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">
+                    <i class="fas fa-comments me-2"></i>
+                    Conversation History
+                </h6>
+                <span class="badge bg-primary">${messageHistory.length} messages</span>
+            </div>
+    `;
+    
+    // Add messages grouped by date
+    Object.keys(messagesByDate).forEach(dateKey => {
+        const messages = messagesByDate[dateKey];
+        
+        conversationHtml += `
+            <div class="date-group mb-3">
+                <div class="date-header text-center mb-2">
+                    <small class="text-muted bg-light px-2 py-1 rounded">${dateKey}</small>
+                </div>
+        `;
+        
+        messages.forEach(message => {
+            const messageTime = new Date(message.created_at || message.timestamp);
+            const timeStr = messageTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            conversationHtml += `
+                <div class="message-item mb-2 p-3 border rounded">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div class="message-meta">
+                            <strong class="text-primary">
+                                ${message.from_user || 'Member'}
+                            </strong>
+                            <small class="text-muted ms-2">${timeStr}</small>
+                        </div>
+                        <span class="badge bg-${message.status === 'sent' ? 'success' : 'info'} badge-sm">
+                            ${message.status || 'received'}
+                        </span>
+                    </div>
+                    <div class="message-content">
+                        ${message.content || message.message_content || 'No content'}
+                    </div>
+                    ${message.source ? `
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-tag me-1"></i>
+                                Source: ${message.source}
+                            </small>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        });
+        
+        conversationHtml += `</div>`;
+    });
+    
+    conversationHtml += `
+        </div>
+        <div class="mt-3 text-center">
+            <button class="btn btn-outline-primary btn-sm" onclick="loadMemberMessageHistory('${memberId}')">
+                <i class="fas fa-sync-alt me-1"></i>
+                Refresh History
+            </button>
+            <button class="btn btn-primary btn-sm ms-2" onclick="sendMessageToMember()">
+                <i class="fas fa-paper-plane me-1"></i>
+                Send New Message
+            </button>
+        </div>
+    `;
+    
+    conversationContent.innerHTML = conversationHtml;
+}
+
 function populatePersonalInfo(member, paymentStatus) {
     const personalInfoContent = document.getElementById('personal-info-content');
     
@@ -2144,6 +2335,35 @@ async function loadCategoryCounts() {
 document.addEventListener('DOMContentLoaded', function() {
     debugLog('🚀 Members page DOM loaded - setting up async functionality');
     
+    // Check for inbox redirect parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const focusMessages = urlParams.get('focus_messages');
+    const searchMember = urlParams.get('search');
+    const memberId = urlParams.get('member_id');
+    const openMember = urlParams.get('open_member');
+    const memberName = urlParams.get('member_name');
+    
+    if (focusMessages === 'true' || openMember) {
+        debugLog('📬 Inbox redirect detected - will focus on member messages');
+        
+        if (openMember) {
+            // Open member modal directly with messages tab focused
+            setTimeout(() => {
+                openMemberProfileWithMessages(openMember, decodeURIComponent(memberName || 'Member'), '');
+            }, 1500);
+        } else if (memberId) {
+            // Direct member ID provided - focus on that specific member
+            setTimeout(() => {
+                focusOnMemberMessages(memberId);
+            }, 1000);
+        } else if (searchMember) {
+            // Search for member by name
+            setTimeout(() => {
+                searchAndFocusOnMember(searchMember);
+            }, 1000);
+        }
+    }
+    
     // Load category counts immediately
     debugLog('📊 Loading category counts...');
     loadCategoryCounts();
@@ -2498,58 +2718,273 @@ function loadMemberMessages() {
 
 // Display inbox for the member
 function displayMemberInbox(messages) {
+    // Use the enhanced conversation display
+    displayEnhancedMemberInbox(messages, currentMemberName);
+}
+
+// Focus on specific member messages (called from inbox redirect)
+function focusOnMemberMessages(memberId) {
+    debugLog('🎯 Focusing on member messages for ID:', memberId);
+    
+    // First, try to find and display the member
+    fetch(`/api/member/${memberId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.member) {
+                const member = data.member;
+                debugLog('✅ Found member:', member.name);
+                
+                // Show the member in the appropriate category
+                switchToMemberCategory(member);
+                
+                // Focus on the member card and show messages
+                setTimeout(() => {
+                    showMemberCard(member);
+                    activateMessageTab();
+                }, 500);
+            } else {
+                console.warn('⚠️ Member not found for ID:', memberId);
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error loading member:', error);
+        });
+}
+
+// Search for member by name and focus on messages
+function searchAndFocusOnMember(memberName) {
+    debugLog('🔍 Searching for member:', memberName);
+    
+    // Search across all categories
+    const searchQuery = memberName.trim().toLowerCase();
+    
+    // Try to find member in current members data
+    const categories = ['green', 'comp', 'ppv', 'staff', 'collections', 'inactive'];
+    
+    for (const category of categories) {
+        const membersContainer = document.getElementById(`${category}Members`);
+        if (membersContainer) {
+            const memberCards = membersContainer.querySelectorAll('.member-card');
+            
+            for (const card of memberCards) {
+                const memberNameElement = card.querySelector('.member-name');
+                if (memberNameElement && memberNameElement.textContent.toLowerCase().includes(searchQuery)) {
+                    debugLog('✅ Found member in category:', category);
+                    
+                    // Switch to the appropriate category tab
+                    const categoryTab = document.querySelector(`[data-bs-target="#${category}"]`);
+                    if (categoryTab) {
+                        categoryTab.click();
+                    }
+                    
+                    // Focus on member and show messages
+                    setTimeout(() => {
+                        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        card.click();
+                        activateMessageTab();
+                    }, 500);
+                    return;
+                }
+            }
+        }
+    }
+    
+    console.warn('⚠️ Member not found:', memberName);
+}
+
+// Switch to the appropriate member category tab
+function switchToMemberCategory(member) {
+    // Determine category based on member properties
+    let category = 'green'; // default
+    
+    if (member.category) {
+        category = member.category.toLowerCase();
+    } else if (member.status) {
+        // Map status to category
+        const statusCategory = member.status.toLowerCase();
+        if (['comp', 'ppv', 'staff', 'collections', 'inactive'].includes(statusCategory)) {
+            category = statusCategory;
+        }
+    }
+    
+    debugLog('🎯 Switching to category tab:', category);
+    
+    const categoryTab = document.querySelector(`[data-bs-target="#${category}"]`);
+    if (categoryTab) {
+        categoryTab.click();
+        
+        // Load the category if not already loaded
+        setTimeout(() => {
+            loadMembersByCategory(category);
+        }, 200);
+    }
+}
+
+// Activate the message tab when showing member details
+function activateMessageTab() {
+    debugLog('📨 Activating message history tab');
+    
+    setTimeout(() => {
+        const inboxTab = document.querySelector('#inbox-tab');
+        if (inboxTab) {
+            inboxTab.click();
+            debugLog('✅ Message tab activated');
+        }
+    }, 800);
+}
+
+// Enhanced message display with full conversation history
+function displayEnhancedMemberInbox(messages, memberName) {
     const container = document.getElementById('member-inbox-container');
     
     if (!messages || messages.length === 0) {
         container.innerHTML = `
             <div class="text-center py-4">
-                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">No messages in inbox</h5>
-                <p class="text-muted">Messages will appear here when received</p>
+                <i class="fas fa-comments fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No conversation history</h5>
+                <p class="text-muted">Start a conversation with ${memberName || 'this member'}</p>
+                <button class="btn btn-primary btn-sm" onclick="startNewConversation()">
+                    <i class="fas fa-plus me-1"></i>Send Message
+                </button>
             </div>
         `;
         return;
     }
     
-    // Display messages in inbox format (newest first)
-    const inboxHtml = messages.map(message => {
-        const isFromMember = message.from_user && message.from_user.toLowerCase().includes(currentMemberName.toLowerCase());
-        const messageClass = isFromMember ? 'member-message' : 'user-message';
-        
-        // Parse message actions
-        let messageActions = '';
-        try {
-            const actions = JSON.parse(message.message_actions || '{}');
-            if (actions.is_confirmation) messageActions += '<span class="badge bg-success me-1">✓ Confirmed</span>';
-            if (actions.is_opt_in) messageActions += '<span class="badge bg-info me-1">📱 Opt-in</span>';
-            if (actions.is_opt_out) messageActions += '<span class="badge bg-warning me-1">🚫 Opt-out</span>';
-            if (actions.has_emoji) {
-                const emojis = actions.emojis || [];
-                messageActions += emojis.map(emoji => `<span class="emoji-reaction">${emoji}</span>`).join('');
-            }
-        } catch (e) {
-            // Ignore parsing errors
-        }
-        
-        return `
-            <div class="message-item p-3 border-bottom ${messageClass}">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div class="flex-grow-1">
-                        <div class="d-flex align-items-center mb-1">
-                            <strong class="me-2">${isFromMember ? currentMemberName : 'You'}</strong>
-                            <small class="text-muted">${formatDateTime(message.timestamp)}</small>
-                        </div>
-                        <div class="message-content">
-                            <p class="mb-1">${message.content || 'No content'}</p>
-                            ${messageActions ? `<div class="message-actions mt-2">${messageActions}</div>` : ''}
-                        </div>
-                    </div>
+    // Group messages by date for better organization
+    const messagesByDate = groupMessagesByDate(messages);
+    
+    let conversationHtml = '';
+    
+    for (const [date, dayMessages] of Object.entries(messagesByDate)) {
+        conversationHtml += `
+            <div class="conversation-date-separator">
+                <div class="date-badge">
+                    <small class="text-muted fw-bold">${formatConversationDate(date)}</small>
                 </div>
             </div>
         `;
-    }).join('');
+        
+        dayMessages.forEach(message => {
+            const isFromMember = message.from_user && message.from_user.toLowerCase().includes((memberName || '').toLowerCase());
+            const messageClass = isFromMember ? 'message-from-member' : 'message-from-staff';
+            
+            conversationHtml += `
+                <div class="conversation-message ${messageClass} mb-3">
+                    <div class="d-flex ${isFromMember ? '' : 'justify-content-end'}">
+                        <div class="message-bubble ${isFromMember ? 'member-bubble' : 'staff-bubble'}">
+                            <div class="message-header d-flex align-items-center justify-content-between mb-1">
+                                <small class="sender-name fw-bold">
+                                    ${isFromMember ? (memberName || 'Member') : 'You'}
+                                </small>
+                                <small class="message-time text-muted">
+                                    ${formatMessageTime(message.timestamp)}
+                                </small>
+                            </div>
+                            <div class="message-text">
+                                ${message.content || 'No content'}
+                            </div>
+                            ${message.message_actions ? `
+                                <div class="message-actions mt-2">
+                                    ${parseMessageActions(message.message_actions)}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    }
     
-    container.innerHTML = inboxHtml;
+    container.innerHTML = `
+        <div class="conversation-history" style="max-height: 400px; overflow-y: auto;">
+            ${conversationHtml}
+        </div>
+        <div class="conversation-actions mt-3 pt-3 border-top">
+            <button class="btn btn-primary btn-sm" onclick="startNewConversation()">
+                <i class="fas fa-reply me-1"></i>Reply
+            </button>
+            <button class="btn btn-outline-secondary btn-sm ms-2" onclick="exportConversation('${memberName || 'member'}')">
+                <i class="fas fa-download me-1"></i>Export
+            </button>
+        </div>
+    `;
+}
+
+// Group messages by date for conversation view
+function groupMessagesByDate(messages) {
+    const groups = {};
+    
+    messages.forEach(message => {
+        const date = new Date(message.timestamp || message.created_at);
+        const dateKey = date.toDateString();
+        
+        if (!groups[dateKey]) {
+            groups[dateKey] = [];
+        }
+        groups[dateKey].push(message);
+    });
+    
+    // Sort messages within each day
+    Object.keys(groups).forEach(date => {
+        groups[date].sort((a, b) => 
+            new Date(a.timestamp || a.created_at) - new Date(b.timestamp || b.created_at)
+        );
+    });
+    
+    return groups;
+}
+
+// Format conversation date
+function formatConversationDate(dateString) {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    if (date.toDateString() === today.toDateString()) {
+        return 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+        return 'Yesterday';
+    } else {
+        return date.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        });
+    }
+}
+
+// Format message time
+function formatMessageTime(timestamp) {
+    if (!timestamp) return '';
+    
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit',
+        hour12: true 
+    });
+}
+
+// Parse message actions for display
+function parseMessageActions(actionsJson) {
+    try {
+        const actions = JSON.parse(actionsJson || '{}');
+        let badges = '';
+        
+        if (actions.is_confirmation) badges += '<span class="badge bg-success me-1">✓ Confirmed</span>';
+        if (actions.is_opt_in) badges += '<span class="badge bg-info me-1">📱 Opt-in</span>';
+        if (actions.is_opt_out) badges += '<span class="badge bg-warning me-1">🚫 Opt-out</span>';
+        if (actions.has_emoji && actions.emojis) {
+            badges += actions.emojis.map(emoji => `<span class="emoji-reaction">${emoji}</span>`).join('');
+        }
+        
+        return badges;
+    } catch (e) {
+        return '';
+    }
 }
 
 // Search messages for the current member
@@ -2564,7 +2999,7 @@ function searchMemberMessages() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                displayMemberInbox(data.messages);
+                displayEnhancedMemberInbox(data.messages, currentMemberName);
             }
         })
         .catch(error => {
@@ -3652,5 +4087,20 @@ function sendCollectionsEmail() {
         </div>
     </div>
 </div>
+
+<script>
+// Helper function to start new conversation
+function startNewConversation() {
+    debugLog('💬 Starting new conversation with member:', currentMemberName);
+    // This could open a compose message modal
+    alert(`Starting new conversation with ${currentMemberName || 'this member'}\n\nThis feature will open a compose window in a future update.`);
+}
+
+// Export conversation function
+function exportConversation(memberName) {
+    debugLog('📥 Exporting conversation for:', memberName);
+    alert(`Exporting conversation with ${memberName}\n\nThis feature will generate a downloadable conversation history in a future update.`);
+}
+</script>
 
 {% endblock %}

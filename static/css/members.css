@@ -415,6 +415,117 @@
     opacity: 1 !important;
 }
 
+/* Message Conversation Styles */
+.conversation-history {
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.conversation-date-separator {
+    text-align: center;
+    margin: 1.5rem 0 1rem;
+    position: relative;
+}
+
+.conversation-date-separator::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: #dee2e6;
+}
+
+.date-badge {
+    background: #f8f9fa;
+    padding: 0 1rem;
+    display: inline-block;
+    position: relative;
+    z-index: 1;
+}
+
+.conversation-message {
+    margin-bottom: 1rem;
+}
+
+.message-bubble {
+    max-width: 70%;
+    padding: 0.75rem 1rem;
+    border-radius: 18px;
+    position: relative;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.member-bubble {
+    background: #e3f2fd;
+    border-bottom-left-radius: 6px;
+}
+
+.staff-bubble {
+    background: var(--af-purple-primary);
+    color: white;
+    border-bottom-right-radius: 6px;
+}
+
+.message-header {
+    margin-bottom: 0.25rem;
+}
+
+.sender-name {
+    font-size: 0.85rem;
+}
+
+.message-time {
+    font-size: 0.75rem;
+}
+
+.staff-bubble .message-time {
+    color: rgba(255,255,255,0.8);
+}
+
+.message-text {
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
+.message-actions .badge {
+    margin-right: 0.25rem;
+    margin-top: 0.25rem;
+    display: inline-block;
+}
+
+.emoji-reaction {
+    font-size: 1.1rem;
+    margin: 0 0.15rem;
+}
+
+.conversation-actions {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+/* Scrollbar styling for conversation history */
+.conversation-history::-webkit-scrollbar {
+    width: 6px;
+}
+
+.conversation-history::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.conversation-history::-webkit-scrollbar-thumb {
+    background: var(--af-purple-primary);
+    border-radius: 3px;
+}
+
+.conversation-history::-webkit-scrollbar-thumb:hover {
+    background: var(--af-purple-dark);
+}
+
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
     .member-card {
