@@ -19,14 +19,12 @@ COPY static/ /app/static/
 COPY wsgi.py /app/
 COPY run_dashboard.py /app/
 
-# No need for duplicate copies - PYTHONPATH handles imports correctly
-
 # Cloud Run uses PORT environment variable
 EXPOSE 8080
 
 ENV PYTHONUNBUFFERED=1
 ENV FLASK_ENV=production
-ENV PYTHONPATH=/app/src
+ENV PYTHONPATH="/app:/app/src"
 ENV PORT=8080
 
 # Use Cloud Run's PORT environment variable
