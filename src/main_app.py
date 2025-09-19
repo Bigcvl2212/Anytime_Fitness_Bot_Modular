@@ -24,7 +24,7 @@ from .config.security_middleware import (
     configure_compression
 )
 from .config.error_handlers import configure_error_handlers
-from .utils.validation import add_request_sanitization
+from src.utils.validation import add_request_sanitization
 from .monitoring import register_monitoring, run_startup_health_check
 from .services.database_manager import DatabaseManager
 from .services.training_package_cache import TrainingPackageCache
