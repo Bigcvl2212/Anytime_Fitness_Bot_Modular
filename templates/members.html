@@ -52,6 +52,10 @@
                         <i class="fas fa-robot me-1"></i>
                         <span id="monitoring-status-text">Monitoring</span>
                     </button>
+                    <button class="btn btn-outline-secondary" onclick="refreshAllMemberLockStatuses()" title="Refresh all member lock statuses">
+                        <i class="fas fa-sync-alt me-1"></i>
+                        Refresh Status
+                    </button>
                 </div>
             </div>
         </div>
@@ -1927,6 +1931,7 @@ function renderMembersHTML(container, data, category) {
                                 <span class="badge ${badgeClass}">${categoryLabel}</span>
                                 ${member.user_type ? `<span class="badge bg-outline-secondary ms-1">${member.user_type}</span>` : ''}
                                 ${member.status ? `<span class="badge bg-secondary ms-1">${member.status}</span>` : ''}
+                                ${parseFloat(member.amount_past_due || 0) > 0 ? `<span class="badge bg-danger ms-1" title="Gym access may be locked due to past due amount"><i class="fas fa-lock me-1"></i>ACCESS LOCKED</span>` : `<span class="badge bg-success ms-1" title="Gym access active"><i class="fas fa-unlock me-1"></i>ACCESS OPEN</span>`}
                             </div>
                             <div class="small text-muted mb-2">
                                 ${member.email ? `<div><i class="fas fa-envelope me-1"></i><span class="text-truncate" title="${member.email}">${member.email}</span></div>` : '<div class="text-warning"><i class="fas fa-envelope me-1"></i>No email</div>'}
@@ -2793,6 +2798,9 @@ function showInvoiceTracking(memberId, memberName) {
     document.getElementById('past-due-amount').textContent = '$0.00';
     document.getElementById('total-invoices').textContent = '0';
     document.getElementById('paid-invoices').textContent = '0';
+    
+    // Load real-time lock status
+    loadMemberLockStatus(memberId);
     document.getElementById('invoice-timeline').innerHTML = `
         <div class="text-center text-muted py-4">
             <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
@@ -3086,6 +3094,114 @@ async function runAutomatedUnlockCheck() {
     } finally {
         unlockBtn.innerHTML = originalText;
         unlockBtn.disabled = false;
+    }
+}
+
+// Member Lock Status Functions
+async function checkMemberLockStatus(memberId) {
+    try {
+        const response = await fetch(`/api/member-access-status/${memberId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            return {
+                is_locked: data.is_locked,
+                past_due_amount: data.past_due_amount,
+                should_be_locked: data.should_be_locked,
+                access_status: data.access_status
+            };
+        }
+    } catch (error) {
+        debugError('❌ Error checking member lock status:', error);
+    }
+    
+    return null;
+}
+
+async function loadMemberLockStatus(memberId) {
+    try {
+        debugLog(`🔐 Loading lock status for member ID: ${memberId}`);
+        
+        const lockStatus = await checkMemberLockStatus(memberId);
+        if (lockStatus) {
+            // Update access status badge
+            const accessStatusElement = document.getElementById('member-access-status');
+            const pastDueElement = document.getElementById('past-due-amount');
+            
+            if (lockStatus.is_locked) {
+                accessStatusElement.innerHTML = '<i class="fas fa-lock me-1"></i>LOCKED';
+                accessStatusElement.className = 'badge bg-danger';
+            } else {
+                accessStatusElement.innerHTML = '<i class="fas fa-unlock me-1"></i>ACTIVE';
+                accessStatusElement.className = 'badge bg-success';
+            }
+            
+            // Update past due amount
+            const pastDue = parseFloat(lockStatus.past_due_amount) || 0;
+            pastDueElement.textContent = `$${pastDue.toFixed(2)}`;
+            
+            // Update parent card styling based on status
+            const parentCard = accessStatusElement.closest('.card');
+            if (lockStatus.is_locked) {
+                parentCard.className = 'card bg-danger text-white';
+            } else {
+                parentCard.className = 'card bg-success text-white';
+            }
+            
+            debugLog(`🔐 Lock status updated - Locked: ${lockStatus.is_locked}, Past Due: $${pastDue.toFixed(2)}`);
+        } else {
+            debugError('❌ Failed to load lock status');
+            const accessStatusElement = document.getElementById('member-access-status');
+            accessStatusElement.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i>ERROR';
+            accessStatusElement.className = 'badge bg-warning';
+        }
+    } catch (error) {
+        debugError('❌ Error loading member lock status:', error);
+    }
+}
+
+async function updateMemberCardLockStatus(memberCard, memberId) {
+    try {
+        const lockStatus = await checkMemberLockStatus(memberId);
+        if (lockStatus) {
+            const lockBadge = memberCard.querySelector('.lock-status-badge');
+            if (lockBadge) {
+                if (lockStatus.is_locked) {
+                    lockBadge.className = 'badge bg-danger ms-1 lock-status-badge';
+                    lockBadge.innerHTML = '<i class="fas fa-lock me-1"></i>LOCKED';
+                    lockBadge.title = `Gym access is LOCKED - Past Due: $${lockStatus.past_due_amount.toFixed(2)}`;
+                } else {
+                    lockBadge.className = 'badge bg-success ms-1 lock-status-badge';
+                    lockBadge.innerHTML = '<i class="fas fa-unlock me-1"></i>ACTIVE';
+                    lockBadge.title = 'Gym access is ACTIVE - No outstanding balance';
+                }
+            }
+        }
+    } catch (error) {
+        debugError('❌ Error updating member card lock status:', error);
+    }
+}
+
+// Refresh all member card lock statuses
+async function refreshAllMemberLockStatuses() {
+    try {
+        debugLog('🔄 Refreshing all member lock statuses...');
+        
+        const memberCards = document.querySelectorAll('[data-member-id]');
+        const promises = [];
+        
+        memberCards.forEach(card => {
+            const memberId = card.getAttribute('data-member-id');
+            if (memberId) {
+                promises.push(updateMemberCardLockStatus(card, memberId));
+            }
+        });
+        
+        await Promise.all(promises);
+        debugLog(`✅ Refreshed lock status for ${promises.length} members`);
+        
+    } catch (error) {
+        debugError('❌ Error refreshing member lock statuses:', error);
     }
 }
 

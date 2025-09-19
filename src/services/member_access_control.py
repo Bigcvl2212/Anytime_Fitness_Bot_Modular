@@ -410,3 +410,53 @@ class MemberAccessControl:
         except Exception as e:
             logger.error(f"❌ Error manually toggling member access: {e}")
             return {'success': False, 'error': str(e)}
+    
+    def check_member_access_status(self, member_id: str) -> Dict:
+        """Check current member access status and past due information"""
+        try:
+            logger.info(f"🔐 Checking access status for member: {member_id}")
+            
+            # Get all members by combining all categories
+            all_members = []
+            for category in ['green', 'past_due', 'comp', 'ppv', 'staff', 'inactive']:
+                try:
+                    category_members = self.db_manager.get_members_by_category(category)
+                    all_members.extend(category_members)
+                except Exception as e:
+                    logger.warning(f"Failed to get {category} members: {e}")
+            
+            # Find the member
+            member = None
+            for m in all_members:
+                if str(m.get('prospect_id', '')) == str(member_id) or str(m.get('guid', '')) == str(member_id):
+                    member = m
+                    break
+            
+            if not member:
+                logger.warning(f"Member {member_id} not found in database")
+                return {'success': False, 'error': 'Member not found'}
+            
+            # Get member's past due amount
+            past_due_amount = float(member.get('past_due_amount', 0)) if member.get('past_due_amount') else 0
+            
+            # For now, assume member is locked if they have past due amount
+            # In the future, this could query ClubHub's actual ban status
+            is_locked = past_due_amount > 0
+            should_be_locked = past_due_amount > 0
+            
+            logger.info(f"🔐 Member {member_id} status - Past Due: ${past_due_amount:.2f}, Locked: {is_locked}")
+            
+            return {
+                'success': True,
+                'member_id': member_id,
+                'is_locked': is_locked,
+                'should_be_locked': should_be_locked,
+                'past_due_amount': past_due_amount,
+                'access_status': 'LOCKED' if is_locked else 'ACTIVE',
+                'member_category': member.get('category', 'Unknown'),
+                'last_updated': datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error checking member access status: {e}")
+            return {'success': False, 'error': str(e)}

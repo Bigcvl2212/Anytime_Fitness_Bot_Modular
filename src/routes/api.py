@@ -1088,6 +1088,53 @@ def api_toggle_member_lock():
         logger.error(f"❌ Error toggling member lock: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@api_bp.route('/member-access-status/<member_id>', methods=['GET'])
+def api_get_member_access_status(member_id):
+    """Get detailed member access status including lock state and past due amount"""
+    try:
+        from src.services.database_manager import DatabaseManager
+        from src.services.member_access_control import MemberAccessControl
+        
+        # Get member data from database
+        db_manager = DatabaseManager()
+        
+        # Get member details
+        member = db_manager.get_member_by_id(member_id)
+        if not member:
+            return jsonify({'success': False, 'error': 'Member not found'}), 404
+        
+        # Calculate past due amount
+        past_due_amount = float(member.get('past_due_amount', 0)) if member.get('past_due_amount') else 0
+        
+        # Get actual lock status from ClubHub
+        user_email = session.get('user_email', 'Gym Bot System')
+        club_id = session.get('club_id')
+        
+        access_control = MemberAccessControl(user_email=user_email, club_id=club_id)
+        lock_status = access_control.check_member_access_status(member_id)
+        
+        # Determine if member should be locked based on past due amount
+        should_be_locked = past_due_amount > 0
+        
+        # Get current lock status from access control result
+        is_currently_locked = lock_status.get('is_locked', False) if lock_status else should_be_locked
+        
+        return jsonify({
+            'success': True,
+            'member_id': member_id,
+            'member_name': f"{member.get('first_name', '')} {member.get('last_name', '')}",
+            'is_locked': is_currently_locked,
+            'should_be_locked': should_be_locked,
+            'past_due_amount': past_due_amount,
+            'access_status': 'LOCKED' if is_currently_locked else 'ACTIVE',
+            'member_status': member.get('status', 'Active'),
+            'last_updated': lock_status.get('last_updated') if lock_status else None
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting member access status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @api_bp.route('/automated-lock-check', methods=['POST'])
 def api_automated_lock_check():
     """Run automated check to lock past due members"""
