@@ -6,10 +6,17 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Ensure the project root is on sys.path for proper imports
+# Ensure the project root and src directory are on sys.path for proper imports
 ROOT_DIR = os.path.dirname(__file__)
+SRC_DIR = os.path.join(ROOT_DIR, 'src')
+
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
+
+logger.info(f"WSGI: ROOT_DIR={ROOT_DIR}, SRC_DIR={SRC_DIR}")
+logger.info(f"WSGI: sys.path={sys.path}")
 
 try:
     # Import the Flask app from the modular structure
