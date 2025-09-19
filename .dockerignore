@@ -38,6 +38,11 @@ gym_bot.db
 !requirements.txt
 !README.md
 !.env.production
+!src/utils/
+!src/config/
+!src/services/
+!src/routes/
+!src/monitoring/
 
 # IDE and editor files
 .vscode/
