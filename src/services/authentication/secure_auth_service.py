@@ -342,7 +342,7 @@ class SecureAuthService:
         
         return session_token
     
-        def validate_session(self) -> Tuple[bool, str]:
+    def validate_session(self) -> Tuple[bool, str]:
         """
         Validate current session (simplified for performance)
         
