@@ -17,54 +17,53 @@ def require_auth(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         try:
-            # Import authentication service
+            # Import authentication service and datetime
             from src.services.authentication.secure_auth_service import SecureAuthService
+            from datetime import datetime, timedelta
             auth_service = SecureAuthService()
             
-            # Enhanced debugging for production troubleshooting
+            # Minimal logging for performance - only log failures
             route_name = request.endpoint or "unknown_route"
-            user_agent = request.headers.get('User-Agent', 'Unknown')
-            ip_address = request.remote_addr
-            request_url = request.url
-            
-            logger.info(f"🔍 ====== REQUIRE_AUTH DECORATOR START ======")
-            logger.info(f"🔍 Auth check for {route_name} from {ip_address}")
-            logger.info(f"🔍 Full request URL: {request_url}")
-            logger.info(f"🔍 Session keys: {list(session.keys()) if session else 'No session'}")
-            logger.info(f"🔍 Session authenticated: {session.get('authenticated') if session else 'N/A'}")
-            logger.info(f"🔍 Session manager_id: {session.get('manager_id') if session else 'N/A'}")
-            logger.info(f"🔍 Session permanent: {session.permanent if session else 'N/A'}")
-            logger.info(f"🔍 Session modified: {session.modified if session else 'N/A'}")
-            logger.info(f"🔍 Request cookies: {request.headers.get('Cookie', 'No cookies')[:200]}...")
             
             # Ensure session persistence before validation
             if session:
                 session.permanent = True
                 session.modified = True
             
-            # Check if session is valid
-            is_valid, manager_id = auth_service.validate_session()
-            
-            if not is_valid:
-                logger.warning(f"❌ AUTHENTICATION FAILED for {route_name}")
-                logger.warning(f"❌ IP: {ip_address}, User-Agent: {user_agent}")
-                logger.warning(f"❌ Full request URL: {request_url}")
-                logger.warning(f"❌ Full session data: {dict(session) if session else 'No session data'}")
-                logger.warning(f"❌ Session cookie header: {request.headers.get('Cookie', 'No cookies')}")
-                logger.warning(f"❌ Redirecting to login...")
-                logger.info(f"🔍 ====== REQUIRE_AUTH DECORATOR END (FAILED) ======")
+            # Quick session check - simplified validation
+            if not session or not session.get('authenticated') or not session.get('manager_id'):
+                logger.warning(f"❌ Fast auth check failed for {route_name} - missing session data")
                 return redirect(url_for('auth.login'))
             
+            # Check session timeout only (skip full validation for performance)
+            if 'login_time' in session:
+                try:
+                    from datetime import datetime, timedelta
+                    login_time = datetime.fromisoformat(session['login_time'])
+                    session_age = datetime.now() - login_time
+                    
+                    # 8 hour timeout
+                    if session_age > timedelta(hours=8):
+                        logger.warning(f"⚠️ Session expired for {route_name}: age={session_age}")
+                        session.clear()
+                        return redirect(url_for('auth.login'))
+                except (ValueError, TypeError):
+                    # Invalid time format, but don't fail - just update it
+                    session['login_time'] = datetime.now().isoformat()
+                    session.modified = True
+            
+            # Update last activity silently
+            try:
+                session['last_activity'] = datetime.now().isoformat()
+                session.modified = True
+            except:
+                pass  # Don't fail on activity update
+            
             # Session is valid, proceed with the request
-            logger.info(f"✅ Authentication successful for {route_name} - Manager: {manager_id}")
-            logger.info(f"🔍 ====== REQUIRE_AUTH DECORATOR END (SUCCESS) ======")
             return f(*args, **kwargs)
             
         except Exception as e:
             logger.error(f"❌ Authentication exception for {route_name}: {e}")
-            logger.error(f"❌ Exception details: {str(e)}")
-            import traceback
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return redirect(url_for('auth.login'))
     
     return decorated_function

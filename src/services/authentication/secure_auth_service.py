@@ -342,130 +342,53 @@ class SecureAuthService:
         
         return session_token
     
-    def validate_session(self) -> Tuple[bool, str]:
+        def validate_session(self) -> Tuple[bool, str]:
         """
-        Validate the current session with comprehensive debugging
+        Validate current session (simplified for performance)
         
         Returns:
             Tuple of (is_valid, manager_id)
         """
         try:
-            # COMPREHENSIVE SESSION DEBUGGING
-            logger.info(f"🔍 ====== SESSION VALIDATION DEBUG START ======")
-            logger.info(f"🔍 Request URL: {request.url if request else 'No request'}")
-            logger.info(f"🔍 Request method: {request.method if request else 'No request'}")
-            logger.info(f"🔍 Request headers cookies: {request.headers.get('Cookie', 'No cookies') if request else 'No request'}")
-            
-            # Check Flask session object existence
-            logger.info(f"🔍 Flask session object exists: {session is not None}")
-            logger.info(f"🔍 Flask session type: {type(session)}")
-            
-            # Try to access session in different ways
-            try:
-                session_length = len(session) if session is not None else 0
-                logger.info(f"🔍 Session length: {session_length}")
-            except Exception as e:
-                logger.error(f"❌ Error getting session length: {e}")
-            
-            try:
-                session_keys = list(session.keys()) if session is not None else []
-                logger.info(f"🔍 Session keys: {session_keys}")
-            except Exception as e:
-                logger.error(f"❌ Error getting session keys: {e}")
-                session_keys = []
-            
-            # Check each session attribute individually
-            try:
-                authenticated = session.get('authenticated') if session else None
-                logger.info(f"🔍 Session authenticated value: {authenticated} (type: {type(authenticated)})")
-            except Exception as e:
-                logger.error(f"❌ Error getting authenticated: {e}")
-                authenticated = None
-            
-            try:
-                manager_id = session.get('manager_id') if session else None
-                logger.info(f"🔍 Session manager_id value: {manager_id} (type: {type(manager_id)})")
-            except Exception as e:
-                logger.error(f"❌ Error getting manager_id: {e}")
-                manager_id = None
-            
-            try:
-                session_token = session.get('session_token') if session else None
-                logger.info(f"🔍 Session token exists: {session_token is not None}")
-            except Exception as e:
-                logger.error(f"❌ Error getting session_token: {e}")
-            
-            try:
-                login_time = session.get('login_time') if session else None
-                logger.info(f"🔍 Session login_time: {login_time}")
-            except Exception as e:
-                logger.error(f"❌ Error getting login_time: {e}")
-            
-            try:
-                is_permanent = session.permanent if session else None
-                logger.info(f"🔍 Session permanent: {is_permanent}")
-            except Exception as e:
-                logger.error(f"❌ Error getting session.permanent: {e}")
-            
-            # More robust session existence check
-            if session is None or len(session_keys) == 0:
-                logger.warning("❌ Session validation failed: session is None or has no keys")
-                logger.warning(f"❌ Session object: {session}")
-                logger.warning(f"❌ Session keys: {session_keys}")
-                return False, ""
-                
-            # Check if session has basic required fields with more lenient handling
-            if authenticated is None or authenticated is False:
-                logger.warning(f"❌ Session validation failed: authenticated={authenticated}")
-                logger.warning(f"❌ All session data: {dict(session) if session else 'No session'}")
+            # Quick session existence check
+            if not session:
                 return False, ""
             
-            if not manager_id:
-                logger.warning("❌ Session validation failed: manager_id is missing or empty")
-                logger.warning(f"❌ All session data: {dict(session) if session else 'No session'}")
+            # Check required session data
+            authenticated = session.get('authenticated')
+            manager_id = session.get('manager_id')
+            
+            if not authenticated or not manager_id:
                 return False, ""
             
-            # Check session timeout
+            # Check session timeout (simplified)
             if 'login_time' in session:
                 try:
                     login_time = datetime.fromisoformat(session['login_time'])
                     session_age = datetime.now() - login_time
                     
-                    logger.info(f"🔍 Session age: {session_age}, timeout: {self.session_timeout}")
-                    
                     if session_age > self.session_timeout:
-                        logger.warning(f"⚠️ Session expired for manager {manager_id}: age={session_age}")
                         self.logout()
                         return False, ""
-                except (ValueError, TypeError) as e:
-                    logger.error(f"❌ Invalid session login_time format: {e}")
-                    # Don't logout on time format error - just continue
-                    pass
+                except (ValueError, TypeError):
+                    # Invalid time format - reset it but don't fail
+                    session['login_time'] = datetime.now().isoformat()
+                    session.modified = True
             else:
-                logger.warning("⚠️ No login_time in session - old session format?")
-                # Add login_time for future validation
+                # Add login_time if missing
                 session['login_time'] = datetime.now().isoformat()
                 session.modified = True
             
-            # Update last activity and ensure session persistence
-            try:
-                session['last_activity'] = datetime.now().isoformat()
-                session.modified = True  # Ensure changes are saved
-                logger.info(f"✅ Updated last_activity and marked session as modified")
-            except Exception as e:
-                logger.error(f"❌ Error updating last_activity: {e}")
+            # Update last activity (minimal)
+            session['last_activity'] = datetime.now().isoformat()
+            session.modified = True
             
-            logger.info(f"✅ Session validated successfully for manager {manager_id}")
-            logger.info(f"🔍 ====== SESSION VALIDATION DEBUG END (SUCCESS) ======")
             return True, manager_id
             
         except Exception as e:
             logger.error(f"❌ Session validation exception: {e}")
-            import traceback
-            logger.error(f"❌ Validation traceback: {traceback.format_exc()}")
-            logger.info(f"🔍 ====== SESSION VALIDATION DEBUG END (ERROR) ======")
             return False, ""
-    
+
     def logout(self) -> None:
         """
         Clear the current session
