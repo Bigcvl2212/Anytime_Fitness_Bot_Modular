@@ -20,11 +20,11 @@ COPY wsgi.py /app/
 COPY run_dashboard.py /app/
 
 # Copy essential directories to root for fallback imports
-COPY src/utils/ /app/utils/
-COPY src/config/ /app/config/
-COPY src/services/ /app/services/
-COPY src/routes/ /app/routes/
-COPY src/monitoring/ /app/monitoring/
+COPY src/utils /app/utils
+COPY src/config /app/config
+COPY src/services /app/services
+COPY src/routes /app/routes
+COPY src/monitoring /app/monitoring
 
 # Cloud Run uses PORT environment variable
 EXPOSE 8080
