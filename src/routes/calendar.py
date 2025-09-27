@@ -17,41 +17,19 @@ from .auth import require_auth
 @calendar_bp.route('/calendar')
 @require_auth
 def calendar_page():
-    """Calendar page."""
+    """Calendar page - loads instantly with progressive loading."""
     try:
-        # Get today's events for display
-        try:
-            if hasattr(current_app, 'clubos') and current_app.clubos:
-                today_events = current_app.clubos.get_todays_events_lightweight()
-            else:
-                today_events = []
-        except Exception as e:
-            logger.warning(f"⚠️ Could not get today's events: {e}")
-            today_events = []
-        
-        # Get calendar summary
-        try:
-            if hasattr(current_app, 'clubos') and current_app.clubos:
-                calendar_summary = current_app.clubos.get_calendar_summary()
-            else:
-                calendar_summary = {
-                    'total_events': 0,
-                    'training_sessions': 0,
-                    'classes': 0,
-                    'updated_at': None
-                }
-        except Exception as e:
-            logger.warning(f"⚠️ Could not get calendar summary: {e}")
-            calendar_summary = {
-                'total_events': 0,
-                'training_sessions': 0,
-                'classes': 0,
-                'updated_at': None
-            }
-        
+        # Return template immediately with minimal context for instant loading
+        # All data loads progressively via JavaScript
         return render_template('calendar.html', 
-                            today_events=today_events,
-                            calendar_summary=calendar_summary)
+                            today_events=[],  # Empty initially, loaded via JavaScript
+                            calendar_summary={
+                                'total_events': 0,
+                                'training_sessions': 0,
+                                'classes': 0,
+                                'updated_at': None
+                            },
+                            loading_calendar=True)  # Flag for progressive loading
                             
     except Exception as e:
         logger.error(f"❌ Error loading calendar page: {e}")
@@ -64,15 +42,49 @@ def get_calendar_events():
         start_date = request.args.get('start', '')
         end_date = request.args.get('end', '')
         
-        # Get events from ClubOS
+        # Get events from ClubOS with automatic authentication
         try:
+            # Try the ClubOS integration first
             if hasattr(current_app, 'clubos') and current_app.clubos:
                 events = current_app.clubos.get_events_for_date_range(start_date, end_date)
             else:
-                events = []
+                # Fallback: Use unified auth service directly
+                logger.info("🔐 Using unified auth service for ClubOS events")
+                from src.services.authentication.unified_auth_service import UnifiedAuthService
+                auth_service = UnifiedAuthService()
+                
+                # Authenticate and get events manually
+                clubos_session = auth_service.authenticate_clubos()
+                if clubos_session and clubos_session.authenticated:
+                    # Use the authenticated session to get events
+                    # This would need to be implemented with direct ClubOS API calls
+                    logger.warning("⚠️ Direct ClubOS API calls for events not yet implemented")
+                    events = []
+                else:
+                    logger.error("❌ ClubOS authentication failed for events")
+                    events = []
         except Exception as e:
             logger.error(f"❌ Error getting events from ClubOS: {str(e)}")
-            events = []
+            # Try to re-authenticate and retry once
+            try:
+                logger.info("🔄 Attempting ClubOS re-authentication for events...")
+                from src.services.authentication.unified_auth_service import UnifiedAuthService
+                auth_service = UnifiedAuthService()
+                clubos_session = auth_service.authenticate_clubos()
+                
+                if clubos_session and clubos_session.authenticated:
+                    # Retry getting events with fresh auth
+                    if hasattr(current_app, 'clubos') and current_app.clubos:
+                        events = current_app.clubos.get_events_for_date_range(start_date, end_date)
+                    else:
+                        events = []
+                    logger.info(f"✅ Successfully got {len(events)} events after re-authentication")
+                else:
+                    events = []
+                    logger.error("❌ ClubOS re-authentication failed")
+            except Exception as retry_error:
+                logger.error(f"❌ ClubOS retry failed: {retry_error}")
+                events = []
         
         # Enhanced name lookup for attendees
         enhanced_events = []

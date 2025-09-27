@@ -9,7 +9,7 @@ import sys
 import logging
 import threading
 import time
-from flask import Flask
+from flask import Flask, request
 from datetime import datetime
 
 # Load environment variables first - use relative imports within src
@@ -58,6 +58,7 @@ from .monitoring import register_monitoring, run_startup_health_check
 from .services.database_manager import DatabaseManager
 from .services.training_package_cache import TrainingPackageCache
 from .services.clubos_integration import ClubOSIntegration
+from .services.performance_cache import setup_cache_cleanup_task, performance_cache
 from .routes import register_blueprints
 
 # Configure logging
@@ -198,6 +199,17 @@ def create_app():
             'last_sync': {},
             'cache_timestamp': datetime.now().isoformat()
         }
+        
+        # Initialize performance cache system
+        setup_cache_cleanup_task()
+        logger.info("✅ Performance caching system initialized")
+        
+        # Log cache statistics
+        cache_stats = performance_cache.get_stats()
+        logger.info(f"📋 Cache statistics: {cache_stats}")
+        
+        # Set app performance cache reference
+        app.performance_cache = performance_cache
         
         app.bulk_checkin_status = {
             'is_running': False,

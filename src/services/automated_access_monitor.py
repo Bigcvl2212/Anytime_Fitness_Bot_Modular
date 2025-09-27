@@ -23,8 +23,8 @@ class AutomatedAccessMonitor:
         self.access_control = MemberAccessControl()
         self.monitoring_active = False
         self.monitor_thread = None
-        self.lock_check_interval = 3600  # Check for locks every hour
-        self.unlock_check_interval = 300  # Check for unlocks every 5 minutes
+        self.lock_check_interval = 1800  # Check for locks every 30 minutes (faster)
+        self.unlock_check_interval = 180  # Check for unlocks every 3 minutes (faster)
         self.last_lock_check = datetime.min
         self.last_unlock_check = datetime.min
         
@@ -76,8 +76,8 @@ class AutomatedAccessMonitor:
                     self._perform_unlock_check()
                     self.last_unlock_check = current_time
                 
-                # Sleep for 30 seconds before next check
-                time.sleep(30)
+                # Sleep for 15 seconds before next check (faster response)
+                time.sleep(15)
                 
             except Exception as e:
                 logger.error(f"❌ Error in monitoring loop: {e}")
@@ -87,166 +87,281 @@ class AutomatedAccessMonitor:
         """Perform automated lock check for past due members"""
         try:
             logger.info("🔒 Checking for members who should be locked...")
-            
-            # Get all members who are past due but not yet locked
+
+            # Get only past due members for efficiency
             past_due_members = self.db_manager.get_members_by_category('past_due')
-            
-            locked_count = 0
+
+            # Pre-filter members who should be locked to reduce API calls
+            candidates_for_locking = []
             for member in past_due_members:
-                try:
-                    member_id = member.get('prospect_id') or member.get('guid')
-                    member_name = member.get('display_name', 'Unknown')
-                    past_due_amount = float(member.get('amount_past_due', 0))
-                    
-                    if past_due_amount > 0 and member_id:
-                        # Check if member should be locked (not staff, not already locked)
-                        if self._should_lock_member(member):
+                if self._should_lock_member(member):
+                    candidates_for_locking.append(member)
+
+            logger.info(f"🔍 Found {len(candidates_for_locking)} candidates for locking out of {len(past_due_members)} past due members")
+
+            locked_count = 0
+            batch_size = 5  # Process in smaller batches to avoid overwhelming the API
+
+            for i in range(0, len(candidates_for_locking), batch_size):
+                batch = candidates_for_locking[i:i + batch_size]
+
+                for member in batch:
+                    try:
+                        member_id = member.get('prospect_id') or member.get('guid')
+                        member_name = member.get('display_name') or member.get('full_name', 'Unknown')
+                        past_due_amount = float(member.get('amount_past_due', 0))
+                        status_message = member.get('status_message', '')
+
+                        if member_id:
                             result = self.access_control.manual_toggle_member_access(member_id, 'lock')
-                            
+
                             if result.get('success'):
                                 locked_count += 1
-                                logger.info(f"🔒 Auto-locked member: {member_name} (${past_due_amount:.2f} past due)")
-                                
+                                logger.info(f"🔒 Auto-locked member: {member_name} (${past_due_amount:.2f}) - {status_message}")
+
                                 # Log the lock action
                                 self._log_access_action(
                                     member_id=member_id,
                                     member_name=member_name,
                                     action='auto_lock',
-                                    reason=f'Past due amount: ${past_due_amount:.2f}',
+                                    reason=f'Status: {status_message}, Amount: ${past_due_amount:.2f}',
                                     success=True
                                 )
                             else:
                                 logger.warning(f"⚠️ Failed to auto-lock {member_name}: {result.get('error')}")
-                                
+
                                 # Log the failed lock action
                                 self._log_access_action(
                                     member_id=member_id,
                                     member_name=member_name,
                                     action='auto_lock',
-                                    reason=f'Past due amount: ${past_due_amount:.2f}',
+                                    reason=f'Status: {status_message}, Amount: ${past_due_amount:.2f}',
                                     success=False,
                                     error=result.get('error')
                                 )
-                        
-                except Exception as e:
-                    logger.error(f"❌ Error processing member {member.get('display_name', 'Unknown')} for lock: {e}")
-            
+
+                    except Exception as e:
+                        logger.error(f"❌ Error processing member {member.get('display_name', 'Unknown')} for lock: {e}")
+
+                # Small delay between batches to prevent API rate limiting
+                if i + batch_size < len(candidates_for_locking):
+                    time.sleep(1)
+
             logger.info(f"🔒 Lock check completed: {locked_count} members auto-locked")
-            
+
         except Exception as e:
             logger.error(f"❌ Error in automated lock check: {e}")
     
     def _perform_unlock_check(self):
-        """Perform automated unlock check for paid members"""
+        """Perform automated unlock check for members who are no longer past due"""
         try:
             logger.info("🔓 Checking for members who should be unlocked...")
-            
-            # Get all members to check payment status
-            all_categories = ['green', 'past_due', 'comp', 'ppv', 'staff', 'inactive']
+
+            # Focus on categories that might have locked members who are now current
+            priority_categories = ['green', 'comp', 'ppv', 'staff']  # These should definitely not be locked
+            secondary_categories = ['past_due', 'inactive']  # Check these for status changes
+
             all_members = []
-            
-            for category in all_categories:
+
+            # First check priority categories (members who should never be locked)
+            for category in priority_categories:
                 try:
                     category_members = self.db_manager.get_members_by_category(category)
                     all_members.extend(category_members)
+                    logger.debug(f"✅ Retrieved {len(category_members)} members from {category} category")
                 except Exception as e:
                     logger.warning(f"Failed to get {category} members: {e}")
-            
+
+            # Then check secondary categories for status message changes
+            for category in secondary_categories:
+                try:
+                    category_members = self.db_manager.get_members_by_category(category)
+                    all_members.extend(category_members)
+                    logger.debug(f"✅ Retrieved {len(category_members)} members from {category} category")
+                except Exception as e:
+                    logger.warning(f"Failed to get {category} members: {e}")
+
             unlocked_count = 0
+            checked_count = 0
+
             for member in all_members:
                 try:
                     member_id = member.get('prospect_id') or member.get('guid')
-                    member_name = member.get('display_name', 'Unknown')
+                    member_name = member.get('display_name') or member.get('full_name', 'Unknown')
+                    status_message = member.get('status_message', '')
                     past_due_amount = float(member.get('amount_past_due', 0))
-                    
-                    # Check if member should be unlocked (no past due amount or recent payment)
-                    if member_id and self._should_unlock_member(member):
-                        result = self.access_control.manual_toggle_member_access(member_id, 'unlock')
-                        
-                        if result.get('success'):
-                            unlocked_count += 1
-                            logger.info(f"🔓 Auto-unlocked member: {member_name} (payment received or account current)")
-                            
-                            # Log the unlock action
-                            self._log_access_action(
-                                member_id=member_id,
-                                member_name=member_name,
-                                action='auto_unlock',
-                                reason='Payment received or account current',
-                                success=True
-                            )
-                        else:
-                            logger.warning(f"⚠️ Failed to auto-unlock {member_name}: {result.get('error')}")
-                            
-                            # Log the failed unlock action
-                            self._log_access_action(
-                                member_id=member_id,
-                                member_name=member_name,
-                                action='auto_unlock',
-                                reason='Payment received or account current',
-                                success=False,
-                                error=result.get('error')
-                            )
-                        
+
+                    if not member_id:
+                        continue
+
+                    checked_count += 1
+
+                    # Check if member should be unlocked based on status message
+                    if self._should_unlock_member(member):
+                        # Only attempt unlock if we think they might be locked
+                        if self._might_be_locked(member):
+                            result = self.access_control.manual_toggle_member_access(member_id, 'unlock')
+
+                            if result.get('success'):
+                                unlocked_count += 1
+                                unlock_reason = self._get_unlock_reason(member)
+                                logger.info(f"🔓 Auto-unlocked member: {member_name} - {unlock_reason}")
+
+                                # Log the unlock action
+                                self._log_access_action(
+                                    member_id=member_id,
+                                    member_name=member_name,
+                                    action='auto_unlock',
+                                    reason=unlock_reason,
+                                    success=True
+                                )
+                            else:
+                                logger.warning(f"⚠️ Failed to auto-unlock {member_name}: {result.get('error')}")
+
+                                # Log the failed unlock action
+                                self._log_access_action(
+                                    member_id=member_id,
+                                    member_name=member_name,
+                                    action='auto_unlock',
+                                    reason=self._get_unlock_reason(member),
+                                    success=False,
+                                    error=result.get('error')
+                                )
+
                 except Exception as e:
                     logger.error(f"❌ Error processing member {member.get('display_name', 'Unknown')} for unlock: {e}")
-            
-            logger.info(f"🔓 Unlock check completed: {unlocked_count} members auto-unlocked")
-            
+
+            logger.info(f"🔓 Unlock check completed: {unlocked_count} members auto-unlocked out of {checked_count} checked")
+
         except Exception as e:
             logger.error(f"❌ Error in automated unlock check: {e}")
     
     def _should_lock_member(self, member: Dict) -> bool:
-        """Determine if a member should be auto-locked"""
+        """Determine if a member should be auto-locked based on status message"""
         try:
-            # Check past due amount
-            past_due_amount = float(member.get('amount_past_due', 0))
-            if past_due_amount <= 0:
-                return False
-            
-            # Don't lock staff or comp members
-            member_type = (member.get('user_type') or '').lower()
             status_message = (member.get('status_message') or '').lower()
-            
-            if member_type in ['staff', 'comp', 'complimentary'] or 'staff' in status_message:
+            past_due_amount = float(member.get('amount_past_due', 0))
+            member_type = (member.get('user_type') or '').lower()
+
+            # Never lock these member types
+            if (member_type in ['staff', 'comp', 'complimentary'] or
+                'staff' in status_message or 'comp' in status_message or
+                'pay per visit' in status_message or 'ppv' in status_message):
                 return False
-            
+
             # Check if already locked (skip if already processed)
             member_id = member.get('prospect_id') or member.get('guid')
             if self._is_member_currently_locked(member_id):
                 return False
-            
-            # Additional criteria: only lock if past due for more than 7 days
-            # This prevents immediate locking on payment date mismatches
-            return past_due_amount > 25.00  # Only lock for significant amounts
-            
+
+            # Only lock members with specific past due status messages
+            # Lock based on status message ONLY - no amount criteria
+            past_due_lock_messages = [
+                'past due 6-30 days',
+                'past due more than 30 days',
+                'past due more than 30 days.'
+            ]
+
+            # Lock if they have a past due status message - period
+            if any(pd_msg in status_message for pd_msg in past_due_lock_messages):
+                return True
+
+            return False
+
         except Exception as e:
             logger.error(f"❌ Error checking if member should be locked: {e}")
             return False
     
     def _should_unlock_member(self, member: Dict) -> bool:
-        """Determine if a member should be auto-unlocked"""
+        """Determine if a member should be auto-unlocked based on status message"""
         try:
-            # Only check members who might be locked
-            member_id = member.get('prospect_id') or member.get('guid')
-            if not self._is_member_currently_locked(member_id):
-                return False
-            
-            # Check if past due amount is now zero or minimal
+            status_message = (member.get('status_message') or '').lower()
             past_due_amount = float(member.get('amount_past_due', 0))
-            if past_due_amount <= 5.00:  # Allow small rounding differences
+            member_type = (member.get('user_type') or '').lower()
+
+            # Always unlock these member types regardless of past due amount
+            if ('staff' in status_message or 'staff' in member_type or
+                'comp' in status_message or 'comp' in member_type or
+                'pay per visit' in status_message or 'ppv' in status_message):
                 return True
-            
-            # Check for recent payments in Square invoices
-            if self._has_recent_payment(member_id):
+
+            # Unlock members in good standing
+            if ('good standing' in status_message or
+                'member is in good standing' in status_message):
                 return True
-            
+
+            # Unlock members who are no longer past due (key requirement)
+            # Only keep locked if they have specific past due status messages
+            past_due_status_messages = [
+                'past due 6-30 days',
+                'past due more than 30 days',
+                'past due more than 30 days.'
+            ]
+
+            # If they don't have a past due status message, they should be unlocked
+            if not any(pd_msg in status_message for pd_msg in past_due_status_messages):
+                return True
+
             return False
-            
+
         except Exception as e:
             logger.error(f"❌ Error checking if member should be unlocked: {e}")
             return False
     
+    def _might_be_locked(self, member: Dict) -> bool:
+        """Check if a member might be locked based on heuristics"""
+        try:
+            past_due_amount = float(member.get('amount_past_due', 0))
+            status_message = (member.get('status_message') or '').lower()
+
+            # Members who might be locked are those who:
+            # 1. Have had past due amounts recently, OR
+            # 2. Are transitioning from past due status messages
+
+            # If they currently have past due status, they might be locked
+            if ('past due' in status_message and past_due_amount > 0):
+                return True
+
+            # If they're in good standing now but have some past due amount,
+            # they might have been locked and need unlocking
+            if ('good standing' in status_message and past_due_amount <= 10.00):
+                return True
+
+            # Staff, comp, and PPV members should never be locked
+            if ('staff' in status_message or 'comp' in status_message or
+                'pay per visit' in status_message):
+                return True
+
+            return False
+
+        except Exception as e:
+            logger.error(f"❌ Error checking if member might be locked: {e}")
+            return False
+
+    def _get_unlock_reason(self, member: Dict) -> str:
+        """Get a descriptive reason for unlocking a member"""
+        try:
+            status_message = (member.get('status_message') or '').lower()
+            past_due_amount = float(member.get('amount_past_due', 0))
+            member_type = (member.get('user_type') or '').lower()
+
+            if 'staff' in status_message or 'staff' in member_type:
+                return 'Staff member should not be locked'
+            elif 'comp' in status_message or 'comp' in member_type:
+                return 'Complimentary member should not be locked'
+            elif 'pay per visit' in status_message or 'ppv' in status_message:
+                return 'Pay-per-visit member should not be locked'
+            elif 'good standing' in status_message:
+                return f'Member in good standing (${past_due_amount:.2f} past due)'
+            elif past_due_amount <= 10.00:
+                return f'Low/zero past due amount (${past_due_amount:.2f})'
+            else:
+                return f'Status changed from past due: "{member.get("status_message", "")}"'
+
+        except Exception as e:
+            logger.error(f"❌ Error getting unlock reason: {e}")
+            return 'Status change detected'
+
     def _is_member_currently_locked(self, member_id: str) -> bool:
         """Check if a member is currently locked (placeholder - would check actual lock status)"""
         # TODO: Implement actual lock status check via ClubHub API
@@ -442,6 +557,40 @@ class AutomatedAccessMonitor:
             logger.error(f"❌ Error getting member by ID: {e}")
             return None
     
+    def manual_access_check(self) -> Dict:
+        """Run a manual comprehensive access check"""
+        try:
+            logger.info("🔍 Running manual comprehensive access check...")
+
+            start_time = datetime.now()
+
+            # Force both lock and unlock checks
+            logger.info("🔒 Running manual lock check...")
+            self._perform_lock_check()
+
+            logger.info("🔓 Running manual unlock check...")
+            self._perform_unlock_check()
+
+            end_time = datetime.now()
+            duration = (end_time - start_time).total_seconds()
+
+            logger.info(f"✅ Manual access check completed in {duration:.2f} seconds")
+
+            return {
+                'success': True,
+                'message': f'Access check completed in {duration:.2f} seconds',
+                'duration_seconds': duration,
+                'timestamp': end_time.isoformat()
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Error in manual access check: {e}")
+            return {
+                'success': False,
+                'error': str(e),
+                'timestamp': datetime.now().isoformat()
+            }
+
     def get_monitoring_status(self) -> Dict:
         """Get current monitoring system status"""
         return {
@@ -450,7 +599,13 @@ class AutomatedAccessMonitor:
             'last_unlock_check': self.last_unlock_check.isoformat() if self.last_unlock_check != datetime.min else None,
             'lock_check_interval': self.lock_check_interval,
             'unlock_check_interval': self.unlock_check_interval,
-            'thread_alive': self.monitor_thread.is_alive() if self.monitor_thread else False
+            'thread_alive': self.monitor_thread.is_alive() if self.monitor_thread else False,
+            'performance_info': {
+                'lock_check_interval_minutes': self.lock_check_interval / 60,
+                'unlock_check_interval_minutes': self.unlock_check_interval / 60,
+                'optimized': True,
+                'batch_processing': True
+            }
         }
 
 # Global monitor instance

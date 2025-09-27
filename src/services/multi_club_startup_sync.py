@@ -114,6 +114,44 @@ def enhanced_startup_sync(app, selected_clubs_override: List[str] = None, multi_
             sync_results['combined_totals']['training_clients'] = len(combined_data.get('training_clients', []))
             sync_results['club_results'] = combined_data.get('club_metadata', {})
             
+            # CRITICAL FIX: Save fresh multi-club data to database
+            try:
+                if app and hasattr(app, 'db_manager'):
+                    members_data = combined_data.get('members', [])
+                    prospects_data = combined_data.get('prospects', [])
+                    training_data = combined_data.get('training_clients', [])
+                    
+                    # Save members to database with agreement data
+                    if members_data:
+                        success = app.db_manager.save_members_to_db(members_data)
+                        if success:
+                            logger.info(f"💾 Successfully saved {len(members_data)} members with agreement data to database")
+                        else:
+                            logger.error(f"❌ Failed to save members to database")
+                    
+                    # Save prospects to database  
+                    if prospects_data:
+                        success = app.db_manager.save_prospects_to_db(prospects_data)
+                        if success:
+                            logger.info(f"💾 Successfully saved {len(prospects_data)} prospects to database")
+                        else:
+                            logger.error(f"❌ Failed to save prospects to database")
+                    
+                    # Save training clients to database
+                    if training_data:
+                        success = app.db_manager.save_training_clients_to_db(training_data)
+                        if success:
+                            logger.info(f"💾 Successfully saved {len(training_data)} training clients to database")
+                        else:
+                            logger.error(f"❌ Failed to save training clients to database")
+                    
+                    logger.info("✅ Fresh multi-club data saved to database successfully!")
+                else:
+                    logger.warning("⚠️ No database manager available, skipping database save")
+                    
+            except Exception as db_e:
+                logger.error(f"❌ Multi-club database save error: {db_e}")
+            
             # Cache combined data in app
             app.cached_members = combined_data.get('members', [])
             app.cached_prospects = combined_data.get('prospects', [])
@@ -132,16 +170,50 @@ def enhanced_startup_sync(app, selected_clubs_override: List[str] = None, multi_
             prospects = sync_prospects_for_club(app=app)
             training_clients = sync_training_clients_for_club(app=app)
             
-            sync_results['success'] = True
-            sync_results['combined_totals']['members'] = len(members) if members else 0
-            sync_results['combined_totals']['prospects'] = len(prospects) if prospects else 0
-            sync_results['combined_totals']['training_clients'] = len(training_clients) if training_clients else 0
-            
-            # Cache data in app
-            app.cached_members = members or []
-            app.cached_prospects = prospects or []
-            app.cached_training_clients = training_clients or []
+        sync_results['success'] = True
+        sync_results['combined_totals']['members'] = len(members) if members else 0
+        sync_results['combined_totals']['prospects'] = len(prospects) if prospects else 0
+        sync_results['combined_totals']['training_clients'] = len(training_clients) if training_clients else 0
         
+        # CRITICAL FIX: Save fresh data to database (single-club mode)
+        try:
+            if app and hasattr(app, 'db_manager'):
+                # Save members to database with agreement data
+                if members:
+                    success = app.db_manager.save_members_to_db(members)
+                    if success:
+                        logger.info(f"💾 Successfully saved {len(members)} members with agreement data to database")
+                    else:
+                        logger.error(f"❌ Failed to save members to database")
+                
+                # Save prospects to database  
+                if prospects:
+                    success = app.db_manager.save_prospects_to_db(prospects)
+                    if success:
+                        logger.info(f"💾 Successfully saved {len(prospects)} prospects to database")
+                    else:
+                        logger.error(f"❌ Failed to save prospects to database")
+                
+                # Save training clients to database (already handled in individual sync)
+                if training_clients:
+                    success = app.db_manager.save_training_clients_to_db(training_clients)
+                    if success:
+                        logger.info(f"💾 Successfully saved {len(training_clients)} training clients to database")
+                    else:
+                        logger.error(f"❌ Failed to save training clients to database")
+                
+                logger.info("✅ Fresh data saved to database successfully!")
+            else:
+                logger.warning("⚠️ No database manager available, skipping database save")
+                
+        except Exception as db_e:
+            logger.error(f"❌ Database save error: {db_e}")
+        
+        # Cache data in app
+        app.cached_members = members or []
+        app.cached_prospects = prospects or []
+        app.cached_training_clients = training_clients or []
+
         sync_results['total_time'] = time.time() - start_time
         logger.info(f"✅ Startup sync completed in {sync_results['total_time']:.2f} seconds")
         

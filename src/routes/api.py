@@ -1295,20 +1295,61 @@ def api_automated_unlock_check():
     """Run automated check to unlock paid members"""
     try:
         from src.services.automated_access_monitor import get_access_monitor
-        
+
         monitor = get_access_monitor()
-        
+
         # Run immediate unlock check
         monitor._perform_unlock_check()
-        
+
         return jsonify({
             'success': True,
             'message': 'Automated unlock check completed',
             'monitoring_status': monitor.get_monitoring_status()
         })
-        
+
     except Exception as e:
         logger.error(f"❌ Error running automated unlock check: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/automated-access-check', methods=['POST'])
+def api_automated_access_check():
+    """Run comprehensive automated access check (both lock and unlock)"""
+    try:
+        from src.services.automated_access_monitor import get_access_monitor
+
+        monitor = get_access_monitor()
+
+        # Run comprehensive manual check
+        result = monitor.manual_access_check()
+
+        return jsonify({
+            'success': result.get('success', True),
+            'message': result.get('message', 'Access check completed'),
+            'duration_seconds': result.get('duration_seconds'),
+            'monitoring_status': monitor.get_monitoring_status(),
+            'timestamp': result.get('timestamp')
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Error running automated access check: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/access-monitor-status', methods=['GET'])
+def api_access_monitor_status():
+    """Get the current status of the automated access monitor"""
+    try:
+        from src.services.automated_access_monitor import get_access_monitor
+
+        monitor = get_access_monitor()
+        status = monitor.get_monitoring_status()
+
+        return jsonify({
+            'success': True,
+            'monitoring_status': status
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Error getting access monitor status: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @api_bp.route('/create-invoice', methods=['POST'])

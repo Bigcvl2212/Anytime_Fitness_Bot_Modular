@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+
+{% block title %}Edit {{ member.full_name or ((member.first_name or '') + ' ' + (member.last_name or '')).strip() or 'Member' }} - Member Profile{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+                            <li class="breadcrumb-item"><a href="/members">Members</a></li>
+                            <li class="breadcrumb-item"><a href="/member/{{ member.id }}">{{ member.full_name or ((member.first_name or '') + ' ' + (member.last_name or '')).strip() or 'Unknown Member' }}</a></li>
+                            <li class="breadcrumb-item active">Edit</li>
+                        </ol>
+                    </nav>
+                    <h1 class="h2 mb-0">
+                        <i class="fas fa-edit me-2 text-warning"></i>
+                        Edit Member: {{ member.full_name or ((member.first_name or '') + ' ' + (member.last_name or '')).strip() or 'Unknown Member' }}
+                    </h1>
+                    <p class="text-muted mb-0">Member ID: {{ member.id }} | ClubOS ID: {{ member.clubos_member_id or 'N/A' }}</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="/member/{{ member.id }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>Back to Profile
+                    </a>
+                    <button class="btn btn-success" onclick="saveMemberChanges()">
+                        <i class="fas fa-save me-1"></i>Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Form -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">
+                        <i class="fas fa-user-edit me-2"></i>Member Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="memberEditForm">
+                        <input type="hidden" id="memberId" value="{{ member.id }}">
+                        
+                        <!-- Basic Information -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary mb-3">
+                                    <i class="fas fa-user me-2"></i>Basic Information
+                                </h6>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="firstName" class="form-label">First Name</label>
+                                <input type="text" class="form-control" id="firstName" value="{{ member.first_name or '' }}" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="lastName" class="form-label">Last Name</label>
+                                <input type="text" class="form-control" id="lastName" value="{{ member.last_name or '' }}" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="email" class="form-label">Email Address</label>
+                                <input type="email" class="form-control" id="email" value="{{ member.email or '' }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="phone" class="form-label">Mobile Phone</label>
+                                <input type="tel" class="form-control" id="phone" value="{{ member.mobile_phone or '' }}">
+                            </div>
+                        </div>
+
+                        <!-- Address Information -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary mb-3">
+                                    <i class="fas fa-map-marker-alt me-2"></i>Address Information
+                                </h6>
+                            </div>
+                            <div class="col-md-8 mb-3">
+                                <label for="address" class="form-label">Street Address</label>
+                                <input type="text" class="form-control" id="address" value="{{ member.address or '' }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="city" class="form-label">City</label>
+                                <input type="text" class="form-control" id="city" value="{{ member.city or '' }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="state" class="form-label">State</label>
+                                <input type="text" class="form-control" id="state" value="{{ member.state or '' }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="zip" class="form-label">ZIP Code</label>
+                                <input type="text" class="form-control" id="zip" value="{{ member.zip or '' }}">
+                            </div>
+                        </div>
+
+                        <!-- Membership Information -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary mb-3">
+                                    <i class="fas fa-id-card me-2"></i>Membership Information
+                                </h6>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="membershipStart" class="form-label">Membership Start Date</label>
+                                <input type="date" class="form-control" id="membershipStart" value="{{ member.membership_start[:10] if member.membership_start else '' }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="status" class="form-label">Status</label>
+                                <select class="form-select" id="status">
+                                    <option value="Active" {% if member.status == 'Active' %}selected{% endif %}>Active</option>
+                                    <option value="Inactive" {% if member.status == 'Inactive' %}selected{% endif %}>Inactive</option>
+                                    <option value="Past Due" {% if member.status == 'Past Due' %}selected{% endif %}>Past Due</option>
+                                    <option value="Suspended" {% if member.status == 'Suspended' %}selected{% endif %}>Suspended</option>
+                                    <option value="Cancelled" {% if member.status == 'Cancelled' %}selected{% endif %}>Cancelled</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="membershipType" class="form-label">Membership Type</label>
+                                <input type="text" class="form-control" id="membershipType" value="{{ member.membership_type or '' }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="paymentMethod" class="form-label">Payment Method</label>
+                                <input type="text" class="form-control" id="paymentMethod" value="{{ member.payment_method or '' }}">
+                            </div>
+                        </div>
+
+                        <!-- Additional Information -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary mb-3">
+                                    <i class="fas fa-info-circle me-2"></i>Additional Information
+                                </h6>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="emergencyContact" class="form-label">Emergency Contact</label>
+                                <input type="text" class="form-control" id="emergencyContact" value="{{ member.emergency_contact or '' }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="emergencyPhone" class="form-label">Emergency Phone</label>
+                                <input type="tel" class="form-control" id="emergencyPhone" value="{{ member.emergency_phone or '' }}">
+                            </div>
+                            <div class="col-12 mb-3">
+                                <label for="notes" class="form-label">Notes</label>
+                                <textarea class="form-control" id="notes" rows="3" placeholder="Add any additional notes about this member...">{{ member.notes or '' }}</textarea>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="row">
+                            <div class="col-12 text-center">
+                                <button type="button" class="btn btn-success me-2" onclick="saveMemberChanges()">
+                                    <i class="fas fa-save me-2"></i>Save Changes
+                                </button>
+                                <a href="/member/{{ member.id }}" class="btn btn-outline-secondary me-2">
+                                    <i class="fas fa-times me-2"></i>Cancel
+                                </a>
+                                <button type="button" class="btn btn-outline-warning" onclick="resetForm()">
+                                    <i class="fas fa-undo me-2"></i>Reset
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-check-circle me-2"></i>Success
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">Member information has been updated successfully!</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Error Modal -->
+<div class="modal fade" id="errorModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-circle me-2"></i>Error
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0" id="errorMessage">An error occurred while updating member information.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Member Edit Functions
+function saveMemberChanges() {
+    const memberId = document.getElementById('memberId').value;
+    
+    // Collect form data
+    const formData = {
+        first_name: document.getElementById('firstName').value,
+        last_name: document.getElementById('lastName').value,
+        email: document.getElementById('email').value,
+        mobile_phone: document.getElementById('phone').value,
+        address: document.getElementById('address').value,
+        city: document.getElementById('city').value,
+        state: document.getElementById('state').value,
+        zip: document.getElementById('zip').value,
+        membership_start: document.getElementById('membershipStart').value,
+        status: document.getElementById('status').value,
+        membership_type: document.getElementById('membershipType').value,
+        payment_method: document.getElementById('paymentMethod').value,
+        emergency_contact: document.getElementById('emergencyContact').value,
+        emergency_phone: document.getElementById('emergencyPhone').value,
+        notes: document.getElementById('notes').value
+    };
+    
+    // Validate required fields
+    if (!formData.first_name || !formData.last_name) {
+        showError('First name and last name are required.');
+        return;
+    }
+    
+    // Show loading state
+    const saveButton = document.querySelector('button[onclick="saveMemberChanges()"]');
+    const originalText = saveButton.innerHTML;
+    saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+    saveButton.disabled = true;
+    
+    // Send update request
+    fetch(`/api/member/${memberId}/update`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showSuccess();
+            // Optionally redirect to member profile after a delay
+            setTimeout(() => {
+                window.location.href = `/member/${memberId}`;
+            }, 2000);
+        } else {
+            showError(data.error || 'Failed to update member information.');
+        }
+    })
+    .catch(error => {
+        console.error('Error updating member:', error);
+        showError('Network error occurred while updating member information.');
+    })
+    .finally(() => {
+        // Restore button state
+        saveButton.innerHTML = originalText;
+        saveButton.disabled = false;
+    });
+}
+
+function resetForm() {
+    if (confirm('Are you sure you want to reset all changes? This will restore the original values.')) {
+        window.location.reload();
+    }
+}
+
+function showSuccess() {
+    const modal = new bootstrap.Modal(document.getElementById('successModal'));
+    modal.show();
+}
+
+function showError(message) {
+    document.getElementById('errorMessage').textContent = message;
+    const modal = new bootstrap.Modal(document.getElementById('errorModal'));
+    modal.show();
+}
+
+// Auto-save draft functionality (optional)
+let autoSaveTimeout;
+function autoSaveDraft() {
+    clearTimeout(autoSaveTimeout);
+    autoSaveTimeout = setTimeout(() => {
+        // Save form data to localStorage as draft
+        const formData = {
+            first_name: document.getElementById('firstName').value,
+            last_name: document.getElementById('lastName').value,
+            email: document.getElementById('email').value,
+            mobile_phone: document.getElementById('phone').value,
+            address: document.getElementById('address').value,
+            city: document.getElementById('city').value,
+            state: document.getElementById('state').value,
+            zip: document.getElementById('zip').value,
+            membership_start: document.getElementById('membershipStart').value,
+            status: document.getElementById('status').value,
+            membership_type: document.getElementById('membershipType').value,
+            payment_method: document.getElementById('paymentMethod').value,
+            emergency_contact: document.getElementById('emergencyContact').value,
+            emergency_phone: document.getElementById('emergencyPhone').value,
+            notes: document.getElementById('notes').value
+        };
+        
+        localStorage.setItem(`member_edit_draft_${document.getElementById('memberId').value}`, JSON.stringify(formData));
+    }, 2000);
+}
+
+// Add event listeners for auto-save
+document.addEventListener('DOMContentLoaded', function() {
+    const inputs = document.querySelectorAll('#memberEditForm input, #memberEditForm select, #memberEditForm textarea');
+    inputs.forEach(input => {
+        input.addEventListener('input', autoSaveDraft);
+    });
+    
+    // Check for draft data on page load
+    const memberId = document.getElementById('memberId').value;
+    const draftData = localStorage.getItem(`member_edit_draft_${memberId}`);
+    if (draftData) {
+        const draft = JSON.parse(draftData);
+        Object.keys(draft).forEach(key => {
+            const element = document.getElementById(key);
+            if (element && draft[key] !== '{{ member.' + key + ' or \'\' }}') {
+                element.value = draft[key];
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
+
+
+

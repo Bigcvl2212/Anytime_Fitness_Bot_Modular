@@ -75,8 +75,8 @@
                             <small class="text-muted">Green Members</small>
                         </div>
                         <div class="col-md-3">
-                            <div class="h4 text-success" id="total-monthly-revenue">-</div>
-                            <small class="text-muted">Monthly Revenue</small>
+                            <div class="h4 text-success" id="membership-revenue">-</div>
+                            <small class="text-muted">Membership Revenue</small>
                         </div>
                         <div class="col-md-3">
                             <div class="h4 text-warning" id="past-due-count">-</div>
@@ -2463,8 +2463,8 @@ async function updateAgreementSummary() {
     debugLog('📊 Updating agreement summary with enhanced revenue calculation...');
     
     try {
-        // Get enhanced monthly revenue calculation from API
-        const response = await fetch('/api/members/monthly-revenue');
+        // Get membership-only revenue calculation from API
+        const response = await fetch('/api/members/membership-revenue');
         const data = await response.json();
         
         if (data.success) {
@@ -2472,25 +2472,23 @@ async function updateAgreementSummary() {
             
             // Update summary display with proper revenue-generating member data
             const activeCountEl = document.getElementById('active-agreements-count');
-            const revenueEl = document.getElementById('total-monthly-revenue');
+            const revenueEl = document.getElementById('membership-revenue');
             const pastDueCountEl = document.getElementById('past-due-count');
             const totalPastDueEl = document.getElementById('total-past-due');
             
             // Green members count (revenue-generating only)
-            if (activeCountEl) activeCountEl.textContent = revenue.revenue_members_count || 0;
+            if (activeCountEl) activeCountEl.textContent = revenue.membership_count || 0;
             
-            // Total monthly revenue (members + training clients)
+            // Membership revenue only (exclude training)
             if (revenueEl) {
-                const totalRevenue = revenue.total_monthly_revenue || 0;
-                revenueEl.textContent = `$${totalRevenue.toFixed(2)}`;
-                revenueEl.title = `Member Revenue: $${(revenue.member_revenue || 0).toFixed(2)} + Training Revenue: $${(revenue.training_revenue || 0).toFixed(2)}`;
+                const membershipRevenue = revenue.membership_revenue || 0;
+                revenueEl.textContent = `$${membershipRevenue.toFixed(2)}`;
+                revenueEl.title = `Membership Revenue Only`;
             }
             
-            debugLog('✅ Enhanced revenue calculation updated:', {
-                green_members: revenue.revenue_members_count,
-                total_revenue: revenue.total_monthly_revenue,
-                member_revenue: revenue.member_revenue,
-                training_revenue: revenue.training_revenue
+            debugLog('✅ Membership revenue calculation updated:', {
+                membership_count: revenue.membership_count,
+                membership_revenue: revenue.membership_revenue
             });
         } else {
             debugError('❌ Error fetching revenue data:', data.error);
@@ -2548,7 +2546,7 @@ function updateAgreementSummaryFallback(members) {
     
     // Update summary display
     const activeCountEl = document.getElementById('active-agreements-count');
-    const revenueEl = document.getElementById('total-monthly-revenue');
+    const revenueEl = document.getElementById('membership-revenue');
     const pastDueCountEl = document.getElementById('past-due-count');
     const totalPastDueEl = document.getElementById('total-past-due');
     

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Logs{% endblock %}
+{% block page_title %}System Logs{% endblock %}
+{% block content %}
+<div class="card">
+    <div class="card-header"><h5>Recent Activity</h5></div>
+    <div class="card-body">
+        {% for log in logs %}
+        <div class="d-flex justify-content-between mb-2">
+            <div>
+                <span class="badge bg-info">{{ log.level }}</span>
+                {{ log.message }}
+            </div>
+            <small class="text-muted">{{ log.component }} - {{ log.timestamp[:19] }}</small>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

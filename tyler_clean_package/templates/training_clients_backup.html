@@ -1,0 +1,753 @@
+{% extends "base.html" %}
+{% block title %}Personal Training - Anytime Fitness®{% endblock %}
+{% block page_title %}Personal Training Management{% endblock %}
+{% block page_subtitle %}Maximize your personal training revenue and client satisfaction{% endblock %}
+
+{% block extra_css %}
+<style>
+    .client-card {
+        transition: transform 0.2s ease-in-out;
+        cursor: pointer;
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .client-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        border-color: #0d6efd;
+    }
+    
+    .agreement-status-current {
+        background: #d1e7dd;
+        color: #0f5132;
+        border: 1px solid #badbcc;
+    }
+    
+    .agreement-status-past-due {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c2c7;
+    }
+    
+    .agreement-status-unknown {
+        background: #e2e3e5;
+        color: #41464b;
+        border: 1px solid #c4c8cc;
+    }
+    
+    .stats-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+    }
+    
+    .count-display {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-dumbbell me-2 text-primary"></i>
+                        Personal Training Management
+                    </h1>
+                    <p class="text-muted mb-0">Manage training clients, agreements, and billing</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-warning" onclick="showBatchInvoiceModal()">
+                        <i class="fas fa-file-invoice-dollar me-1"></i>
+                        Batch Invoice Past Due
+                    </button>
+                    <button class="btn btn-primary" onclick="refreshTrainingClients()">
+                        <i class="fas fa-sync-alt me-1"></i>
+                        Refresh Data
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filter Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Search Clients</label>
+                            <div class="input-group">
+                                <input type="text" id="clientSearch" class="form-control" placeholder="Client name or trainer...">
+                                <button class="btn btn-outline-secondary" onclick="searchClients()">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Payment Status</label>
+                            <select id="statusFilter" class="form-select" onchange="filterClients()">
+                                <option value="">All Clients</option>
+                                <option value="current">Current</option>
+                                <option value="past_due">Past Due</option>
+                                <option value="unknown">Unknown Status</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Trainer</label>
+                            <select id="trainerFilter" class="form-select" onchange="filterClients()">
+                                <option value="">All Trainers</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <div>
+                                <button class="btn btn-info w-100" onclick="showAgreementsSummary()">
+                                    <i class="fas fa-chart-pie me-1"></i>
+                                    Summary
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stats-card">
+                <div class="card-body text-center">
+                    <div class="count-display" id="totalClientsCount">-</div>
+                    <div>Total Clients</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <div class="count-display" id="currentClientsCount">-</div>
+                    <div>Current</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <div class="count-display" id="pastDueClientsCount">-</div>
+                    <div>Past Due</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <div class="count-display" id="monthlyRevenue">-</div>
+                    <div>Monthly Revenue</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Training Clients List -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-users me-2"></i>
+                        Training Clients
+                        <span id="client-count-badge" class="badge bg-primary ms-2">Loading...</span>
+                    </h5>
+                    <div id="clientsLoadingIndicator" style="display: none;">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        <span class="ms-2">Loading...</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Clients Container -->
+                    <div id="clientsContainer">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status"></div>
+                            <p class="text-muted mt-3">Loading training clients from ClubOS...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Batch Invoice Modal for Past Due Clients -->
+<div class="modal fade" id="batchInvoiceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-invoice-dollar me-2"></i>
+                    Batch Invoice Past Due Clients
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="pastDueClientsList">
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="text-muted mt-3">Loading past due clients...</p>
+                    </div>
+                </div>
+                <div class="alert alert-warning mt-3">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    This will create Square invoices for all selected past due training clients.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="batchInvoiceBtn" onclick="processBatchInvoices()" disabled>
+                    <i class="fas fa-file-invoice me-1"></i>
+                    Create Invoices
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Agreements Summary Modal -->
+<div class="modal fade" id="agreementsSummaryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-chart-pie me-2"></i>
+                    Training Agreements Summary
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="agreementsSummaryContent">
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="text-muted mt-3">Generating summary...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let trainingClients = [];
+let filteredClients = [];
+let currentSearch = '';
+let currentStatusFilter = '';
+let currentTrainerFilter = '';
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    loadTrainingClients();
+});
+
+// Load training clients from API
+async function loadTrainingClients() {
+    const container = document.getElementById('clientsContainer');
+    const loadingIndicator = document.getElementById('clientsLoadingIndicator');
+    const countBadge = document.getElementById('client-count-badge');
+    
+    loadingIndicator.style.display = 'block';
+    countBadge.textContent = 'Loading...';
+    
+    try {
+        const response = await fetch('/api/training-clients/all');
+        const data = await response.json();
+        
+        if (data.success) {
+            trainingClients = data.clients;
+            updateTrainerFilter();
+            applyFilters();
+            updateStats();
+            countBadge.textContent = trainingClients.length;
+        } else {
+            container.innerHTML = `<div class="alert alert-danger">Error loading training clients: ${data.error}</div>`;
+            countBadge.textContent = 'Error';
+        }
+    } catch (error) {
+        container.innerHTML = `<div class="alert alert-danger">Network error: ${error.message}</div>`;
+        countBadge.textContent = 'Error';
+    } finally {
+        loadingIndicator.style.display = 'none';
+    }
+}
+
+// Render training clients
+function renderClients(clients) {
+    const container = document.getElementById('clientsContainer');
+    
+    if (!clients || clients.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-dumbbell fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No training clients found</h5>
+                <p class="text-muted">Try adjusting your search or filter criteria</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const clientsHtml = clients.map(client => `
+        <div class="client-card card mb-3" onclick="showClientDetail('${client.member_id || client.clubos_member_id}')">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-4">
+                        <h6 class="mb-1">${escapeHtml(client.member_name || 'Unknown Client')}</h6>
+                        <p class="text-muted mb-0 small">
+                            <i class="fas fa-user-tie me-1"></i>
+                            ${escapeHtml(client.trainer_name || 'No trainer assigned')}
+                        </p>
+                    </div>
+                    <div class="col-md-3">
+                        <p class="mb-0 small">
+                            <i class="fas fa-calendar me-1"></i>
+                            ${client.sessions_remaining || 0} sessions remaining
+                        </p>
+                        <p class="mb-0 small text-muted">
+                            Last: ${escapeHtml(client.last_session || 'Never')}
+                        </p>
+                    </div>
+                    <div class="col-md-3">
+                        ${renderPaymentStatus(client)}
+                    </div>
+                    <div class="col-md-2 text-end">
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary" onclick="event.stopPropagation(); showClientDetail('${client.member_id || client.clubos_member_id}')">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button class="btn btn-outline-success" onclick="event.stopPropagation(); createClientInvoice('${client.member_id || client.clubos_member_id}')">
+                                <i class="fas fa-file-invoice"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    container.innerHTML = clientsHtml;
+}
+
+// Render payment status badge
+function renderPaymentStatus(client) {
+    const paymentStatus = client.payment_status || 'Unknown';
+    let badgeClass = 'agreement-status-unknown';
+    
+    if (paymentStatus === 'Current') {
+        badgeClass = 'agreement-status-current';
+    } else if (paymentStatus === 'Past Due') {
+        badgeClass = 'agreement-status-past-due';
+    }
+    
+    return `
+        <div>
+            <span class="badge ${badgeClass} mb-1">${paymentStatus}</span>
+            ${client.funding_cache && client.funding_cache.amount_remaining ? 
+                `<div class="small text-muted">$${(client.funding_cache.amount_remaining || 0).toFixed(2)} remaining</div>` : 
+                ''
+            }
+        </div>
+    `;
+}
+
+// Update trainer filter dropdown
+function updateTrainerFilter() {
+    const trainerFilter = document.getElementById('trainerFilter');
+    const trainers = [...new Set(trainingClients.map(client => client.trainer_name).filter(Boolean))].sort();
+    
+    const trainerOptions = trainers.map(trainer => 
+        `<option value="${escapeHtml(trainer)}">${escapeHtml(trainer)}</option>`
+    ).join('');
+    
+    trainerFilter.innerHTML = '<option value="">All Trainers</option>' + trainerOptions;
+}
+
+// Apply filters and search
+function applyFilters() {
+    filteredClients = trainingClients.filter(client => {
+        // Search filter
+        if (currentSearch) {
+            const searchLower = currentSearch.toLowerCase();
+            const matchesSearch = 
+                (client.member_name || '').toLowerCase().includes(searchLower) ||
+                (client.trainer_name || '').toLowerCase().includes(searchLower);
+            if (!matchesSearch) return false;
+        }
+        
+        // Status filter
+        if (currentStatusFilter) {
+            const paymentStatus = (client.payment_status || 'Unknown').toLowerCase();
+            if (currentStatusFilter === 'current' && paymentStatus !== 'current') return false;
+            if (currentStatusFilter === 'past_due' && paymentStatus !== 'past due') return false;
+            if (currentStatusFilter === 'unknown' && paymentStatus !== 'unknown') return false;
+        }
+        
+        // Trainer filter
+        if (currentTrainerFilter) {
+            if ((client.trainer_name || '') !== currentTrainerFilter) return false;
+        }
+        
+        return true;
+    });
+    
+    renderClients(filteredClients);
+}
+
+// Search and filter functions
+function searchClients() {
+    currentSearch = document.getElementById('clientSearch').value;
+    applyFilters();
+}
+
+function filterClients() {
+    currentStatusFilter = document.getElementById('statusFilter').value;
+    currentTrainerFilter = document.getElementById('trainerFilter').value;
+    applyFilters();
+}
+
+function refreshTrainingClients() {
+    loadTrainingClients();
+}
+
+// Update statistics
+function updateStats() {
+    const total = trainingClients.length;
+    const current = trainingClients.filter(c => (c.payment_status || '').toLowerCase() === 'current').length;
+    const pastDue = trainingClients.filter(c => (c.payment_status || '').toLowerCase() === 'past due').length;
+    
+    // Calculate estimated monthly revenue
+    const monthlyRevenue = trainingClients.reduce((total, client) => {
+        if (client.funding_cache && client.funding_cache.package_amount) {
+            return total + (client.funding_cache.package_amount || 0);
+        }
+        return total;
+    }, 0);
+    
+    document.getElementById('totalClientsCount').textContent = total;
+    document.getElementById('currentClientsCount').textContent = current;
+    document.getElementById('pastDueClientsCount').textContent = pastDue;
+    document.getElementById('monthlyRevenue').textContent = '$' + monthlyRevenue.toFixed(0);
+}
+
+// Client detail functions
+function showClientDetail(clientId) {
+    // For now, show an alert - could be enhanced with a modal like members
+    const client = trainingClients.find(c => 
+        (c.member_id || c.clubos_member_id) == clientId
+    );
+    
+    if (client) {
+        alert(`Client: ${client.member_name}\nTrainer: ${client.trainer_name}\nStatus: ${client.payment_status}\nSessions: ${client.sessions_remaining || 0} remaining`);
+    }
+}
+
+// Invoice functions
+function showBatchInvoiceModal() {
+    const modal = new bootstrap.Modal(document.getElementById('batchInvoiceModal'));
+    modal.show();
+    loadPastDueClients();
+}
+
+function loadPastDueClients() {
+    const container = document.getElementById('pastDueClientsList');
+    const pastDueClients = trainingClients.filter(c => 
+        (c.payment_status || '').toLowerCase() === 'past due'
+    );
+    
+    if (pastDueClients.length === 0) {
+        container.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                No past due training clients found.
+            </div>
+        `;
+        document.getElementById('batchInvoiceBtn').disabled = true;
+        return;
+    }
+    
+    const clientsList = pastDueClients.map((client, index) => `
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" value="${client.member_id || client.clubos_member_id}" 
+                   id="pastDueClient${index}" checked>
+            <label class="form-check-label" for="pastDueClient${index}">
+                <strong>${escapeHtml(client.member_name || 'Unknown')}</strong> - ${escapeHtml(client.trainer_name || 'No trainer')}
+                <small class="text-muted d-block">
+                    ${client.funding_cache && client.funding_cache.amount_remaining ? 
+                        `$${(client.funding_cache.amount_remaining || 0).toFixed(2)} remaining` : 
+                        'Amount TBD'
+                    }
+                </small>
+            </label>
+        </div>
+    `).join('');
+    
+    container.innerHTML = `
+        <div class="mb-3">
+            <strong>${pastDueClients.length} past due clients found:</strong>
+        </div>
+        ${clientsList}
+        <div class="mt-3">
+            <button class="btn btn-sm btn-outline-secondary" onclick="toggleAllPastDue(true)">Select All</button>
+            <button class="btn btn-sm btn-outline-secondary ms-2" onclick="toggleAllPastDue(false)">Select None</button>
+        </div>
+    `;
+    
+    document.getElementById('batchInvoiceBtn').disabled = false;
+}
+
+function toggleAllPastDue(selectAll) {
+    const checkboxes = document.querySelectorAll('#pastDueClientsList input[type="checkbox"]');
+    checkboxes.forEach(checkbox => checkbox.checked = selectAll);
+}
+
+async function processBatchInvoices() {
+    const selectedClients = Array.from(document.querySelectorAll('#pastDueClientsList input[type="checkbox"]:checked'))
+        .map(checkbox => checkbox.value);
+    
+    if (selectedClients.length === 0) {
+        alert('Please select at least one client to invoice.');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/invoices/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: 'training_clients',
+                filter: 'past_due',
+                selected_clients: selectedClients
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(`Batch invoicing completed!\n\nTotal processed: ${data.summary.total_processed}\nSuccessful: ${data.summary.successful}\nFailed: ${data.summary.failed}`);
+            const modal = bootstrap.Modal.getInstance(document.getElementById('batchInvoiceModal'));
+            modal.hide();
+            refreshTrainingClients(); // Refresh to update statuses
+        } else {
+            alert('Error creating batch invoices: ' + data.error);
+        }
+    } catch (error) {
+        alert('Network error: ' + error.message);
+    }
+}
+
+async function createClientInvoice(clientId) {
+    const client = trainingClients.find(c => 
+        (c.member_id || c.clubos_member_id) == clientId
+    );
+    
+    if (!client) {
+        alert('Client not found');
+        return;
+    }
+    
+    const defaultAmount = client.funding_cache && client.funding_cache.amount_remaining ? 
+        client.funding_cache.amount_remaining : 50.0;
+    
+    const amount = prompt(`Enter invoice amount for ${client.member_name}:`, defaultAmount);
+    if (!amount || isNaN(amount)) return;
+    
+    const description = prompt('Enter invoice description:', 'Training Package Payment');
+    if (!description) return;
+    
+    try {
+        const response = await fetch('/api/invoices/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                member_id: clientId,
+                amount: parseFloat(amount),
+                description: description
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Invoice created successfully!');
+            refreshTrainingClients(); // Refresh to update status
+        } else {
+            alert('Error creating invoice: ' + data.error);
+        }
+    } catch (error) {
+        alert('Network error: ' + error.message);
+    }
+}
+
+// Agreements summary
+function showAgreementsSummary() {
+    const modal = new bootstrap.Modal(document.getElementById('agreementsSummaryModal'));
+    modal.show();
+    generateAgreementsSummary();
+}
+
+function generateAgreementsSummary() {
+    const container = document.getElementById('agreementsSummaryContent');
+    
+    // Calculate summary statistics
+    const totalClients = trainingClients.length;
+    const currentClients = trainingClients.filter(c => (c.payment_status || '').toLowerCase() === 'current').length;
+    const pastDueClients = trainingClients.filter(c => (c.payment_status || '').toLowerCase() === 'past due').length;
+    const unknownClients = totalClients - currentClients - pastDueClients;
+    
+    const trainerStats = {};
+    trainingClients.forEach(client => {
+        const trainer = client.trainer_name || 'Unassigned';
+        if (!trainerStats[trainer]) {
+            trainerStats[trainer] = { total: 0, current: 0, pastDue: 0 };
+        }
+        trainerStats[trainer].total++;
+        if ((client.payment_status || '').toLowerCase() === 'current') {
+            trainerStats[trainer].current++;
+        } else if ((client.payment_status || '').toLowerCase() === 'past due') {
+            trainerStats[trainer].pastDue++;
+        }
+    });
+    
+    const trainerStatsHtml = Object.entries(trainerStats).map(([trainer, stats]) => `
+        <tr>
+            <td>${escapeHtml(trainer)}</td>
+            <td class="text-center">${stats.total}</td>
+            <td class="text-center text-success">${stats.current}</td>
+            <td class="text-center text-warning">${stats.pastDue}</td>
+        </tr>
+    `).join('');
+    
+    container.innerHTML = `
+        <div class="row mb-4">
+            <div class="col-md-3 text-center">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h3>${totalClients}</h3>
+                        <small>Total Clients</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 text-center">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h3>${currentClients}</h3>
+                        <small>Current</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 text-center">
+                <div class="card bg-warning text-dark">
+                    <div class="card-body">
+                        <h3>${pastDueClients}</h3>
+                        <small>Past Due</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 text-center">
+                <div class="card bg-secondary text-white">
+                    <div class="card-body">
+                        <h3>${unknownClients}</h3>
+                        <small>Unknown</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <h6 class="mb-3">Breakdown by Trainer</h6>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Trainer</th>
+                        <th class="text-center">Total</th>
+                        <th class="text-center">Current</th>
+                        <th class="text-center">Past Due</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${trainerStatsHtml}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+// Utility functions
+function escapeHtml(unsafe) {
+    if (!unsafe) return '';
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+// Enable search on enter key
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('clientSearch').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            searchClients();
+        }
+    });
+});
+</script>
+                            <th>Session Type</th>
+                            <th>Sessions Left</th>
+                            <th>Last Session</th>
+                            <th>Funding Status</th>
+                            <th>Agreement</th>
+                        </tr>
+                    </thead>
+                    <tbody id="training-clients-tbody">
+                        <!-- Training clients will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- No Training Clients Found -->
+        <div id="no-training-clients" style="display: none;">
+            <div class="text-center py-4">
+                <i class="fas fa-user-friends fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No training clients found</h5>
+                <p class="text-muted">No personal training clients available from ClubOS.</p>
+                <button class="btn btn-primary" onclick="refreshTrainingClients()">
+                    <i class="fas fa-sync-alt me-2"></i>Try Again
+                </button>
+            </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="training-clients-error" style="display: none;">
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <span id="error-message">Error loading training clients</span>
+                <button class="btn btn-sm btn-outline-danger ms-2" onclick="refreshTrainingClients()">
+                    <i class="fas fa-retry me-1"></i>Retry
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

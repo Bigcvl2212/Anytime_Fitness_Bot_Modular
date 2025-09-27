@@ -12,10 +12,12 @@ from .api import api_bp
 from .messaging import messaging_bp
 from .auth import auth_bp
 from .club_selection import club_selection_bp
+from ..services.progressive_loading import progressive_bp
+from ..services.progressive_loading import progressive_bp
 
 def register_blueprints(app):
     """Register all route blueprints with the Flask app"""
-    from flask import redirect, url_for, session
+    from flask import redirect, url_for, session, render_template
     from .auth import require_auth
     
     # Register blueprints
@@ -27,6 +29,7 @@ def register_blueprints(app):
     app.register_blueprint(training_bp)
     app.register_blueprint(calendar_bp)
     app.register_blueprint(api_bp, url_prefix='/api')
+    app.register_blueprint(progressive_bp, url_prefix='/api')  # Progressive loading API
     app.register_blueprint(messaging_bp)
     
     # Root route is handled directly by dashboard blueprint - no redirect needed
@@ -35,6 +38,12 @@ def register_blueprints(app):
     @app.route('/health')
     def health_check():
         return {'status': 'healthy', 'timestamp': '2025-01-27T00:00:00Z'}
+    
+    # Add performance demo route
+    @app.route('/performance-demo')
+    def performance_demo():
+        """Performance optimization demo page"""
+        return render_template('performance_demo.html')
     
     # Add a test route for collections without any authentication
     @app.route('/test-collections-api')

@@ -1,0 +1,728 @@
+{% extends "base.html" %}
+
+{% block title %}{{ member.full_name }} - Member Details{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="text-purple">
+                <i class="fas fa-user me-2"></i>
+                {{ member.full_name }}
+                <span class="badge badge-purple ms-3">Member ID: {{ member.id }}</span>
+            </h1>
+            <a href="/members" class="btn btn-outline-purple">
+                <i class="fas fa-arrow-left me-2"></i>Back to Members
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced Quick Stats -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-id-card fa-2x text-purple mb-2"></i>
+                <h5>Member Status</h5>
+                {% if member.status_message %}
+                    {% if 'Past Due' in member.status_message %}
+                        <span class="badge bg-danger">{{ member.status_message }}</span>
+                    {% elif 'good standing' in member.status_message.lower() %}
+                        <span class="badge bg-success">{{ member.status_message }}</span>
+                    {% elif 'comp' in member.status_message.lower() %}
+                        <span class="badge bg-info">{{ member.status_message }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary">{{ member.status_message }}</span>
+                    {% endif %}
+                {% else %}
+                    <span class="badge bg-success">{{ member.status or 'Active' }}</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-calendar fa-2x text-purple mb-2"></i>
+                <h5>Member Since</h5>
+                {% if member.created_at %}
+                    {% if member.created_at is string %}
+                        <p class="mb-0">{{ member.created_at[:10] if member.created_at else 'N/A' }}</p>
+                    {% else %}
+                        <p class="mb-0">{{ member.created_at.strftime('%m/%d/%Y') }}</p>
+                        {% set days_since = (moment().date() - member.created_at.date()).days %}
+                        {% set years = days_since // 365 %}
+                        {% set months = (days_since % 365) // 30 %}
+                        <small class="text-muted">
+                            {% if years > 0 %}{{ years }}y {% endif %}
+                            {% if months > 0 %}{{ months }}m{% endif %}
+                            {% if years == 0 and months == 0 %}{{ days_since }}d{% endif %}
+                        </small>
+                    {% endif %}
+                {% else %}
+                    <p class="mb-0">N/A</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-dollar-sign fa-2x text-purple mb-2"></i>
+                <h5>Monthly Rate</h5>
+                <p class="mb-0">${{ "%.2f"|format(member.agreement_recurring_cost) if member.agreement_recurring_cost else 'N/A' }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <i class="fas fa-lock fa-2x {% if member.amount_past_due > 0 %}text-danger{% else %}text-success{% endif %} mb-2"></i>
+                <h5>Gym Access</h5>
+                {% if member.amount_past_due > 0 %}
+                    <span class="badge bg-danger">LOCKED</span>
+                    <p class="mb-0 small">Past Due: ${{ "%.2f"|format(member.amount_past_due) }}</p>
+                {% else %}
+                    <span class="badge bg-success">OPEN</span>
+                    <p class="mb-0 small">Good Standing</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Contact Information -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-purple text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-address-book me-2"></i>Contact Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <strong>Full Name:</strong> {{ member.full_name }}
+                    </div>
+                    {% if member.email %}
+                    <div class="col-12 mb-3">
+                        <strong>Email:</strong> 
+                        <a href="mailto:{{ member.email }}">{{ member.email }}</a>
+                    </div>
+                    {% endif %}
+                    {% if member.mobile_phone %}
+                    <div class="col-12 mb-3">
+                        <strong>Mobile:</strong> 
+                        <a href="tel:{{ member.mobile_phone }}">{{ member.mobile_phone }}</a>
+                    </div>
+                    {% endif %}
+                    {% if member.home_phone %}
+                    <div class="col-12 mb-3">
+                        <strong>Home Phone:</strong> 
+                        <a href="tel:{{ member.home_phone }}">{{ member.home_phone }}</a>
+                    </div>
+                    {% endif %}
+                    {% if member.work_phone %}
+                    <div class="col-12 mb-3">
+                        <strong>Work Phone:</strong> 
+                        <a href="tel:{{ member.work_phone }}">{{ member.work_phone }}</a>
+                    </div>
+                    {% endif %}
+                    {% if member.address1 %}
+                    <div class="col-12 mb-3">
+                        <strong>Address:</strong><br>
+                        {{ member.address1 }}<br>
+                        {% if member.address2 %}{{ member.address2 }}<br>{% endif %}
+                        {{ member.city or '' }}, {{ member.state or '' }} {{ member.zip_code or '' }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Personal Information -->
+    <div class="col-md-6 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-purple text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-user me-2"></i>Personal Information
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if member.date_of_birth %}
+                <div class="mb-3">
+                    <strong>Date of Birth:</strong> {{ member.date_of_birth }}
+                </div>
+                {% endif %}
+                {% if member.gender %}
+                <div class="mb-3">
+                    <strong>Gender:</strong> {{ member.gender }}
+                </div>
+                {% endif %}
+                {% if member.emergency_contact_name %}
+                <div class="mb-3">
+                    <strong>Emergency Contact:</strong> {{ member.emergency_contact_name }}
+                    {% if member.emergency_contact_phone %}
+                    <br><small class="text-muted">{{ member.emergency_contact_phone }}</small>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% if member.preferred_contact_method %}
+                <div class="mb-3">
+                    <strong>Preferred Contact:</strong> {{ member.preferred_contact_method }}
+                </div>
+                {% endif %}
+                {% if member.referral_source %}
+                <div class="mb-3">
+                    <strong>Referral Source:</strong> {{ member.referral_source }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced Billing & Payment Information -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-purple text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-credit-card me-2"></i>Billing & Payment Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- Current Payment Status -->
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center p-3 {% if member.amount_past_due > 0 %}bg-danger bg-opacity-10{% else %}bg-success bg-opacity-10{% endif %} rounded">
+                            <h6 class="mb-2">Payment Status</h6>
+                            {% if member.amount_past_due > 0 %}
+                                <span class="badge bg-danger fs-6">PAST DUE</span>
+                                <p class="mb-0 mt-2"><strong>${{ "%.2f"|format(member.amount_past_due) }}</strong></p>
+                            {% else %}
+                                <span class="badge bg-success fs-6">CURRENT</span>
+                                <p class="mb-0 mt-2">Up to Date</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Next Payment -->
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center p-3 bg-info bg-opacity-10 rounded">
+                            <h6 class="mb-2">Next Payment</h6>
+                            {% if member.date_of_next_payment %}
+                                {% if member.date_of_next_payment is string %}
+                                    <p class="mb-0"><strong>{{ member.date_of_next_payment[:10] }}</strong></p>
+                                {% else %}
+                                    <p class="mb-0"><strong>{{ member.date_of_next_payment.strftime('%m/%d/%Y') }}</strong></p>
+                                {% endif %}
+                            {% else %}
+                                <p class="mb-0 text-muted">Not Scheduled</p>
+                            {% endif %}
+                            {% if member.agreement_recurring_cost %}
+                                <small class="text-muted">${{ "%.2f"|format(member.agreement_recurring_cost) }}/month</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Payment History -->
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center p-3 bg-warning bg-opacity-10 rounded">
+                            <h6 class="mb-2">Payment History</h6>
+                            {% if member.missed_payments %}
+                                <p class="mb-0"><strong>{{ member.missed_payments }} Missed</strong></p>
+                                <small class="text-muted">${{ "%.2f"|format(member.late_fees) }} in fees</small>
+                            {% else %}
+                                <p class="mb-0 text-success"><strong>No Missed Payments</strong></p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Detailed Billing Breakdown -->
+                {% if member.amount_past_due > 0 %}
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="alert alert-danger">
+                            <h6><i class="fas fa-exclamation-triangle me-2"></i>Past Due Breakdown</h6>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <strong>Base Amount:</strong><br>
+                                    <span class="fs-5">${{ "%.2f"|format(member.base_amount_past_due or member.amount_past_due) }}</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>Late Fees:</strong><br>
+                                    <span class="fs-5">${{ "%.2f"|format(member.late_fees or 0) }}</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>Missed Payments:</strong><br>
+                                    <span class="fs-5">{{ member.missed_payments or 0 }}</span>
+                                </div>
+                                <div class="col-md-3">
+                                    <strong>Total Owed:</strong><br>
+                                    <span class="fs-4 fw-bold text-danger">${{ "%.2f"|format(member.amount_past_due) }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Message History Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-purple text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-comments me-2"></i>Message History
+                </h5>
+                <button class="btn btn-light btn-sm" onclick="loadMemberMessages('{{ member.full_name }}')">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="message-history-container">
+                    <div class="text-center py-4">
+                        <i class="fas fa-spinner fa-spin fa-2x text-muted mb-3"></i>
+                        <p class="text-muted">Loading message history...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Enhanced Agreement Information -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-purple text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-file-contract me-2"></i>Agreement & Membership Details
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- Agreement Details -->
+                    <div class="col-md-6 mb-4">
+                        <h6 class="text-primary mb-3"><i class="fas fa-file-contract me-2"></i>Agreement Information</h6>
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <strong>Agreement ID:</strong> 
+                                <span class="badge bg-primary">{{ member.agreement_id or 'Not Available' }}</span>
+                            </div>
+                            {% if member.agreement_guid %}
+                            <div class="col-12 mb-3">
+                                <strong>Agreement GUID:</strong> 
+                                <code class="small">{{ member.agreement_guid }}</code>
+                            </div>
+                            {% endif %}
+                            {% if member.agreement_type %}
+                            <div class="col-12 mb-3">
+                                <strong>Agreement Type:</strong> 
+                                <span class="badge bg-info">{{ member.agreement_type }}</span>
+                            </div>
+                            {% endif %}
+                            {% if member.agreement_status %}
+                            <div class="col-12 mb-3">
+                                <strong>Agreement Status:</strong> 
+                                <span class="badge bg-{{ 'success' if 'active' in member.agreement_status.lower() else 'warning' }}">{{ member.agreement_status }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Membership Details -->
+                    <div class="col-md-6 mb-4">
+                        <h6 class="text-success mb-3"><i class="fas fa-user-clock me-2"></i>Membership Details</h6>
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <strong>User Type:</strong> 
+                                <span class="badge bg-secondary">{{ member.user_type or 'Standard Member' }}</span>
+                            </div>
+                            <div class="col-12 mb-3">
+                                <strong>Member Status:</strong> 
+                                <span class="badge bg-{{ 'success' if member.status and 'active' in member.status.lower() else 'secondary' }}">{{ member.status or 'Unknown' }}</span>
+                            </div>
+                            {% if member.agreement_recurring_cost %}
+                            <div class="col-12 mb-3">
+                                <strong>Monthly Rate:</strong> 
+                                <span class="fs-5 text-success">${{ "%.2f"|format(member.agreement_recurring_cost) }}</span>
+                            </div>
+                            {% endif %}
+                            <div class="col-12 mb-3">
+                                <strong>Database ID:</strong> 
+                                <code class="small">{{ member.prospect_id or member.id }}</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Additional Details Row -->
+                <div class="row mt-3 pt-3 border-top">
+                    <div class="col-md-4 mb-3">
+                        <strong>Created:</strong> 
+                        {% if member.created_at %}
+                            {% if member.created_at is string %}
+                                {{ member.created_at[:19] if member.created_at|length > 19 else member.created_at }}
+                            {% else %}
+                                {{ member.created_at.strftime('%m/%d/%Y at %I:%M %p') }}
+                            {% endif %}
+                        {% else %}
+                            Unknown
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <strong>Last Updated:</strong> 
+                        {% if member.updated_at %}
+                            {% if member.updated_at is string %}
+                                {{ member.updated_at[:19] if member.updated_at|length > 19 else member.updated_at }}
+                            {% else %}
+                                {{ member.updated_at.strftime('%m/%d/%Y at %I:%M %p') }}
+                            {% endif %}
+                        {% else %}
+                            Unknown
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <strong>Data Source:</strong> 
+                        <span class="badge bg-{{ 'success' if member.fresh_data else 'secondary' }}">
+                            {{ 'Live Data' if member.fresh_data else 'Database' }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Information -->
+{% if member.payment_token %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-purple text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-credit-card me-2"></i>Payment Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% if member.card_type %}
+                    <div class="col-md-3 mb-3">
+                        <strong>Card Type:</strong> {{ member.card_type }}
+                    </div>
+                    {% endif %}
+                    {% if member.card_last_four %}
+                    <div class="col-md-3 mb-3">
+                        <strong>Last 4 Digits:</strong> ���� {{ member.card_last_four }}
+                    </div>
+                    {% endif %}
+                    {% if member.card_exp_month and member.card_exp_year %}
+                    <div class="col-md-3 mb-3">
+                        <strong>Expiration:</strong> {{ member.card_exp_month }}/{{ member.card_exp_year }}
+                    </div>
+                    {% endif %}
+                    {% if member.billing_name %}
+                    <div class="col-md-3 mb-3">
+                        <strong>Billing Name:</strong> {{ member.billing_name }}
+                    </div>
+                    {% endif %}
+                    {% if member.billing_address1 %}
+                    <div class="col-12 mb-3">
+                        <strong>Billing Address:</strong><br>
+                        {{ member.billing_address1 }}<br>
+                        {% if member.billing_address2 %}{{ member.billing_address2 }}<br>{% endif %}
+                        {{ member.billing_city or '' }}, {{ member.billing_state or '' }} {{ member.billing_zip_code or '' }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Home Club Information -->
+{% if member.home_club_name %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-purple text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-home me-2"></i>Home Club Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <strong>Club Name:</strong> {{ member.home_club_name }}
+                    </div>
+                    {% if member.home_club_id %}
+                    <div class="col-md-6 mb-3">
+                        <strong>Club ID:</strong> {{ member.home_club_id }}
+                    </div>
+                    {% endif %}
+                    {% if member.home_club_phone %}
+                    <div class="col-md-6 mb-3">
+                        <strong>Club Phone:</strong> 
+                        <a href="tel:{{ member.home_club_phone }}">{{ member.home_club_phone }}</a>
+                    </div>
+                    {% endif %}
+                    {% if member.home_club_address1 %}
+                    <div class="col-12 mb-3">
+                        <strong>Club Address:</strong><br>
+                        {{ member.home_club_address1 }}<br>
+                        {% if member.home_club_address2 %}{{ member.home_club_address2 }}<br>{% endif %}
+                        {{ member.home_club_city or '' }}, {{ member.home_club_state or '' }} {{ member.home_club_zip_code or '' }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Action Buttons -->
+<div class="row mt-4">
+    <div class="col-12 text-center">
+        <a href="/member/{{ member.id }}/edit" class="btn btn-purple me-2">
+            <i class="fas fa-edit me-2"></i>Edit Member
+        </a>
+        <button class="btn btn-outline-purple me-2" data-bs-toggle="modal" data-bs-target="#messageModal">
+            <i class="fas fa-envelope me-2"></i>Send Message
+        </button>
+        <a href="/member/{{ member.id }}/agreements" class="btn btn-outline-purple">
+            <i class="fas fa-file-contract me-2"></i>View All Agreements
+        </a>
+    </div>
+</div>
+
+<!-- Message Modal -->
+<div class="modal fade" id="messageModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Send Message to {{ member.full_name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form>
+                    <div class="mb-3">
+                        <label class="form-label">Message Type</label>
+                        <select class="form-select" name="message_type">
+                            <option value="email">Email</option>
+                            <option value="sms">SMS</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="messageSubject" class="form-label">Subject</label>
+                        <input type="text" class="form-control" name="subject" id="messageSubject" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="messageContent" class="form-label">Message</label>
+                        <textarea class="form-control" name="message" rows="5" id="messageContent" required></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-purple">Send Message</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Load member message history
+function loadMemberMessages(memberName) {
+    const container = document.getElementById('message-history-container');
+    
+    // Show loading state
+    container.innerHTML = `
+        <div class="text-center py-4">
+            <i class="fas fa-spinner fa-spin fa-2x text-muted mb-3"></i>
+            <p class="text-muted">Loading message history for ${memberName}...</p>
+        </div>
+    `;
+    
+    // Fetch message history
+    fetch(`/api/member-conversation-history/${encodeURIComponent(memberName)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.messages.length > 0) {
+                // Display messages
+                let messagesHtml = '<div class="timeline">';
+                
+                data.messages.forEach((message, index) => {
+                    const isFromMember = message.sender_type === 'member';
+                    const messageClass = isFromMember ? 'timeline-item-left' : 'timeline-item-right';
+                    const badgeClass = isFromMember ? 'bg-primary' : 'bg-secondary';
+                    
+                    messagesHtml += `
+                        <div class="timeline-item ${messageClass}">
+                            <div class="timeline-marker">
+                                <span class="badge ${badgeClass}">
+                                    <i class="fas fa-${isFromMember ? 'user' : 'user-tie'}"></i>
+                                </span>
+                            </div>
+                            <div class="timeline-content">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-start mb-2">
+                                            <h6 class="card-title mb-0">
+                                                ${isFromMember ? memberName : 'Staff'}
+                                            </h6>
+                                            <small class="text-muted">
+                                                ${new Date(message.timestamp).toLocaleString()}
+                                            </small>
+                                        </div>
+                                        <p class="card-text">${message.message_content}</p>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <small class="text-muted">
+                                                <i class="fas fa-${message.channel === 'ClubOS' ? 'envelope' : 'comment'} me-1"></i>
+                                                ${message.channel}
+                                            </small>
+                                            <span class="badge bg-${message.status === 'received' ? 'success' : 'info'}">
+                                                ${message.status}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                messagesHtml += '</div>';
+                
+                container.innerHTML = `
+                    <div class="mb-3">
+                        <h6><i class="fas fa-comments me-2"></i>Conversation with ${memberName}</h6>
+                        <small class="text-muted">${data.total_messages} messages found</small>
+                    </div>
+                    ${messagesHtml}
+                `;
+            } else {
+                container.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-comment-slash fa-3x text-muted mb-3"></i>
+                        <h6>No Messages Found</h6>
+                        <p class="text-muted">No conversation history found for ${memberName}</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading messages:', error);
+            container.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Error loading message history: ${error.message}
+                </div>
+            `;
+        });
+}
+
+// Load messages on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadMemberMessages('{{ member.full_name }}');
+});
+</script>
+
+<style>
+/* Timeline Styling for Messages */
+.timeline {
+    position: relative;
+    padding-left: 0;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #dee2e6;
+    transform: translateX(-50%);
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 2rem;
+    width: 50%;
+}
+
+.timeline-item-left {
+    left: 0;
+    padding-right: 2rem;
+}
+
+.timeline-item-right {
+    left: 50%;
+    padding-left: 2rem;
+}
+
+.timeline-marker {
+    position: absolute;
+    top: 1rem;
+    width: 2rem;
+    height: 2rem;
+    background: white;
+    border: 2px solid #dee2e6;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+}
+
+.timeline-item-left .timeline-marker {
+    right: -1rem;
+}
+
+.timeline-item-right .timeline-marker {
+    left: -1rem;
+}
+
+.timeline-content .card {
+    border: 1px solid #dee2e6;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.timeline-item-left .timeline-content .card {
+    border-left: 3px solid #007bff;
+}
+
+.timeline-item-right .timeline-content .card {
+    border-left: 3px solid #6c757d;
+}
+
+@media (max-width: 768px) {
+    .timeline::before {
+        left: 1rem;
+    }
+    
+    .timeline-item {
+        width: 100%;
+        left: 0 !important;
+        padding-left: 3rem !important;
+        padding-right: 0 !important;
+    }
+    
+    .timeline-marker {
+        left: 0.5rem !important;
+    }
+}
+</style>
+{% endblock %}

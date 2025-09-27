@@ -337,9 +337,24 @@ class SecureAuthService:
         except Exception as e:
             logger.error(f"❌ Error getting final session state: {e}")
         
+        # PERMANENT FIX: Store session data in secure storage
+        session_data = {
+            'manager_id': manager_id,
+            'login_time': session['login_time'],
+            'last_activity': session['last_activity'],
+            'user_info': session.get('user_info', {}),
+            'selected_clubs': []
+        }
+
+        success = self.secrets_manager.store_session_data(session_token, session_data)
+        if success:
+            logger.info(f"✅ Session data stored in secure storage for manager {manager_id}")
+        else:
+            logger.warning(f"⚠️ Failed to store session data in secure storage for {manager_id}")
+
         logger.info(f"✅ Created session for manager {manager_id}")
         logger.info(f"🔍 ====== SESSION CREATION DEBUG END ======")
-        
+
         return session_token
     
     def validate_session(self) -> Tuple[bool, str]:
@@ -570,3 +585,89 @@ class SecureAuthService:
             except Exception as e:
                 logger.error(f"❌ Failed to store secret {secret_name}: {e}")
                 raise e
+
+    def validate_session_token(self, session_token: str) -> dict:
+        """
+        Validate a session token and return session data
+
+        Args:
+            session_token: The session token to validate
+
+        Returns:
+            Dict with validation result and session data
+        """
+        try:
+            # Get session data from secure storage
+            session_data = self.secrets_manager.get_session_data(session_token)
+
+            if not session_data:
+                logger.warning(f"❌ Session token not found: {session_token[:10]}...")
+                return {'is_valid': False}
+
+            # Check if session has expired
+            from datetime import datetime, timedelta
+            login_time = datetime.fromisoformat(session_data.get('login_time', ''))
+            current_time = datetime.now()
+
+            # Session expires after 8 hours
+            if current_time - login_time > timedelta(hours=8):
+                logger.warning(f"❌ Session expired for token: {session_token[:10]}...")
+                # Clean up expired session
+                self.secrets_manager.delete_session_data(session_token)
+                return {'is_valid': False}
+
+            # Session is valid, return the data
+            return {
+                'is_valid': True,
+                'manager_id': session_data.get('manager_id'),
+                'login_time': session_data.get('login_time'),
+                'last_activity': session_data.get('last_activity'),
+                'selected_clubs': session_data.get('selected_clubs', []),
+                'user_info': session_data.get('user_info', {})
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Error validating session token: {e}")
+            return {'is_valid': False}
+
+    def update_session_activity(self, session_token: str) -> bool:
+        """
+        Update the last activity time for a session
+
+        Args:
+            session_token: The session token to update
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            session_data = self.secrets_manager.get_session_data(session_token)
+            if session_data:
+                from datetime import datetime
+                session_data['last_activity'] = datetime.now().isoformat()
+                return self.secrets_manager.store_session_data(session_token, session_data)
+            return False
+        except Exception as e:
+            logger.error(f"❌ Error updating session activity: {e}")
+            return False
+
+    def store_selected_clubs(self, session_token: str, selected_clubs: list) -> bool:
+        """
+        Store selected clubs in session data
+
+        Args:
+            session_token: The session token
+            selected_clubs: List of selected club IDs
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            session_data = self.secrets_manager.get_session_data(session_token)
+            if session_data:
+                session_data['selected_clubs'] = selected_clubs
+                return self.secrets_manager.store_session_data(session_token, session_data)
+            return False
+        except Exception as e:
+            logger.error(f"❌ Error storing selected clubs: {e}")
+            return False

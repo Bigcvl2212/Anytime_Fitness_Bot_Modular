@@ -435,36 +435,65 @@ function refreshMemberData() {
 
 // Message History Functions
 function loadMessageHistory() {
+    // Get member ID from the template - use guid or prospect_id
+    const memberId = '{{ member.guid or member.prospect_id or member_id }}';
     const memberName = '{{ member.full_name or ((member.first_name or "") + " " + (member.last_name or "")).strip() or "Unknown Member" }}';
     
-    fetch(`/api/messages/member/${encodeURIComponent(memberName)}`)
+    console.log('📬 Loading message history for member ID:', memberId, 'Name:', memberName);
+    
+    // Try ClubOS FollowUp API first for real-time message history
+    fetch(`/api/messaging/member-history/${encodeURIComponent(memberId)}`)
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                displayMessageHistory(data.messages);
+            if (data.success && data.message_history) {
+                displayMessageHistory(data.message_history, data.source);
+                console.log('✅ Loaded', data.count, 'messages from', data.source);
             } else {
+                // Fallback to legacy message API by member name
+                console.log('🔄 Falling back to legacy message API');
+                return fetch(`/api/messages/member/${encodeURIComponent(memberName)}`);
+            }
+        })
+        .then(fallbackResponse => {
+            if (fallbackResponse) {
+                return fallbackResponse.json();
+            }
+            return null;
+        })
+        .then(fallbackData => {
+            if (fallbackData && fallbackData.success) {
+                displayMessageHistory(fallbackData.messages, 'database_legacy');
+                console.log('✅ Loaded', fallbackData.messages.length, 'messages from database fallback');
+            } else {
+                // No messages found anywhere
                 document.getElementById('messageHistory').innerHTML = `
                     <div class="text-center py-4">
-                        <i class="fas fa-exclamation-triangle fa-3x text-muted mb-3"></i>
-                        <h6 class="text-muted">Error loading messages</h6>
-                        <p class="text-muted">${data.error || 'Could not load message history'}</p>
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <h6 class="text-muted">No messages found</h6>
+                        <p class="text-muted">No message history available for this member.</p>
+                        <button class="btn btn-outline-primary btn-sm mt-2" onclick="loadMessageHistory()">
+                            <i class="fas fa-refresh me-1"></i>Retry
+                        </button>
                     </div>
                 `;
             }
         })
         .catch(error => {
-            debugError('Error loading messages:', error);
+            console.error('❌ Error loading messages:', error);
             document.getElementById('messageHistory').innerHTML = `
                 <div class="text-center py-4">
                     <i class="fas fa-exclamation-triangle fa-3x text-muted mb-3"></i>
                     <h6 class="text-muted">Error loading messages</h6>
-                    <p class="text-muted">Network error occurred</p>
+                    <p class="text-muted">Network error occurred while loading message history</p>
+                    <button class="btn btn-outline-primary btn-sm mt-2" onclick="loadMessageHistory()">
+                        <i class="fas fa-refresh me-1"></i>Retry
+                    </button>
                 </div>
             `;
         });
 }
 
-function displayMessageHistory(messages) {
+function displayMessageHistory(messages, source = 'unknown') {
     const container = document.getElementById('messageHistory');
     
     if (!messages || messages.length === 0) {
@@ -473,36 +502,63 @@ function displayMessageHistory(messages) {
                 <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
                 <h6 class="text-muted">No messages found</h6>
                 <p class="text-muted">No message history available for this member.</p>
+                <button class="btn btn-outline-primary btn-sm mt-2" onclick="loadMessageHistory()">
+                    <i class="fas fa-refresh me-1"></i>Retry
+                </button>
             </div>
         `;
         return;
     }
     
+    // Source indicator
+    const sourceInfo = {
+        'clubos_followup_api': { icon: 'fas fa-cloud', text: 'ClubOS Live Data', color: 'success' },
+        'database_fallback': { icon: 'fas fa-database', text: 'Database Cache', color: 'warning' },
+        'database_legacy': { icon: 'fas fa-archive', text: 'Legacy Database', color: 'secondary' }
+    };
+    
+    const sourceDisplay = sourceInfo[source] || { icon: 'fas fa-question', text: 'Unknown Source', color: 'secondary' };
+    
     const messagesHtml = messages.map(message => {
-        const timestamp = new Date(message.timestamp);
+        const timestamp = new Date(message.timestamp || message.created_at);
         const timeString = timestamp.toLocaleDateString() + ' ' + timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
+        // Determine message type and styling
+        const messageType = message.message_type || 'conversation';
+        const status = message.status || 'received';
+        
+        const typeIcons = {
+            'sms': 'fas fa-sms',
+            'email': 'fas fa-envelope',
+            'call': 'fas fa-phone',
+            'conversation': 'fas fa-comments'
+        };
+        
+        const statusStyles = {
+            'sent': 'bg-primary text-white',
+            'received': 'bg-light text-dark',
+            'pending': 'bg-warning text-dark'
+        };
         
         return `
             <div class="message-item p-3 border-bottom">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
                         <div class="d-flex align-items-center mb-2">
-                            <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px; font-size: 14px; font-weight: bold;">
+                            <div class="${statusStyles[status] || 'bg-secondary text-white'} rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 32px; height: 32px; font-size: 14px; font-weight: bold;">
                                 ${message.from_user ? message.from_user.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
                             </div>
                             <div>
-                                <strong class="d-block">${message.from_user || 'Unknown'}</strong>
-                                <small class="text-muted">${timeString}</small>
+                                <strong class="d-block">${message.from_user || 'Unknown User'}</strong>
+                                <small class="text-muted">
+                                    <i class="${typeIcons[messageType] || 'fas fa-comments'} me-1"></i>
+                                    ${timeString}
+                                    ${status === 'sent' ? '<span class="badge bg-primary ms-1">Sent</span>' : ''}
+                                </small>
                             </div>
                         </div>
-                        <div class="message-content text-muted mb-2">
-                            ${message.content || 'No message content'}
-                        </div>
-                        <div class="d-flex gap-1">
-                            ${message.is_confirmation ? '<span class="badge bg-success">✓ Confirmed</span>' : ''}
-                            ${message.is_opt_in ? '<span class="badge bg-primary">📱 Opt-in</span>' : ''}
-                            ${message.is_opt_out ? '<span class="badge bg-warning">🚫 Opt-out</span>' : ''}
-                            ${message.has_emoji ? '<span class="badge bg-info">😊 Emoji</span>' : ''}
+                        <div class="message-content">
+                            <p class="mb-0">${message.content || message.message || 'No content available'}</p>
                         </div>
                     </div>
                 </div>
@@ -510,7 +566,22 @@ function displayMessageHistory(messages) {
         `;
     }).join('');
     
-    container.innerHTML = messagesHtml;
+    container.innerHTML = `
+        <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="badge bg-${sourceDisplay.color}">
+                    <i class="${sourceDisplay.icon} me-1"></i>
+                    ${sourceDisplay.text} (${messages.length} messages)
+                </span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="loadMessageHistory()">
+                    <i class="fas fa-refresh me-1"></i>Refresh
+                </button>
+            </div>
+        </div>
+        <div class="messages-list" style="max-height: 500px; overflow-y: auto;">
+            ${messagesHtml}
+        </div>
+    `;
 }
 
 function sendMessage() {
@@ -670,3 +741,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 {% endblock %}
+

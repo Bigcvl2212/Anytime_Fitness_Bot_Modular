@@ -738,49 +738,70 @@ class ClubOSIntegration:
                                     invoices = include_data.get('invoices', [])
                                     scheduled_payments = include_data.get('scheduledPayments', [])
                                     
-                                    # Calculate amount owed from past due invoices (invoiceStatus == 5)
+                                    # Calculate amount owed from past due invoices and capture ALL invoice data for revenue analysis
                                     agreement_past_due = 0.0
                                     past_due_invoices = []
+                                    paid_invoices = []
+                                    unpaid_invoices = []
                                     all_invoices = []
                                     
                                     for invoice in invoices:
                                         invoice_status = invoice.get('invoiceStatus')
                                         invoice_amount = float(invoice.get('total', 0))
                                         invoice_id = invoice.get('id', 'unknown')
+                                        invoice_date = invoice.get('invoiceDate') or invoice.get('created') or invoice.get('dueDate')
+                                        paid_date = invoice.get('paidDate') or invoice.get('paymentDate')
                                         
                                         all_invoices.append({
                                             'id': invoice_id,
                                             'status': invoice_status,
-                                            'amount': invoice_amount
+                                            'amount': invoice_amount,
+                                            'invoice_date': invoice_date,
+                                            'paid_date': paid_date
                                         })
                                         
                                         # Debug: Log all invoice statuses to understand what we're working with
                                         logger.info(f"🔍 Invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
                                         
-                                        # Only count invoices that are actually past due, not just unpaid
-                                        # Status 4 = Overdue, Status 5 = Past Due are the only ones that should count
-                                        if invoice_status in [4, 5] and invoice_amount > 0:  # Only overdue and past due
+                                        # CAPTURE PAID INVOICES FOR REVENUE ANALYSIS
+                                        if invoice_status == 1 and invoice_amount > 0:  # Status 1 = Paid
+                                            paid_invoices.append({
+                                                'id': invoice_id,
+                                                'amount': invoice_amount,
+                                                'status': invoice_status,
+                                                'invoice_date': invoice_date,
+                                                'paid_date': paid_date,
+                                                'payment_month': self._extract_payment_month(paid_date or invoice_date)
+                                            })
+                                            logger.info(f"💰 PAID invoice {invoice_id}: ${invoice_amount} (paid: {paid_date or invoice_date})")
+                                        
+                                        # Past due invoices for current tracking
+                                        elif invoice_status in [4, 5] and invoice_amount > 0:  # Overdue/Past Due
                                             agreement_past_due += invoice_amount
                                             past_due_invoices.append({
                                                 'id': invoice_id,
                                                 'amount': invoice_amount,
-                                                'status': invoice_status
+                                                'status': invoice_status,
+                                                'invoice_date': invoice_date,
+                                                'due_date': invoice.get('dueDate')
                                             })
-                                            logger.info(f"💰 Found past due invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
-                                        elif invoice_status == 1:
-                                            # Status 1 is paid
-                                            logger.debug(f"✅ Paid invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
-                                        elif invoice_status == 2:
-                                            # Status 2 is unpaid but not past due
-                                            logger.debug(f"📋 Unpaid invoice {invoice_id}: ${invoice_amount} (status: {invoice_status}) - not past due")
-                                        elif invoice_status == 3:
-                                            # Status 3 is partial payment
-                                            logger.debug(f"🔄 Partial invoice {invoice_id}: ${invoice_amount} (status: {invoice_status}) - not past due")
+                                            logger.info(f"� Past due invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
+                                        
+                                        # Current unpaid invoices
+                                        elif invoice_status in [2, 3] and invoice_amount > 0:  # Unpaid/Partial
+                                            unpaid_invoices.append({
+                                                'id': invoice_id,
+                                                'amount': invoice_amount,
+                                                'status': invoice_status,
+                                                'invoice_date': invoice_date,
+                                                'due_date': invoice.get('dueDate')
+                                            })
+                                            logger.debug(f"� Unpaid invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
+                                        
                                         else:
-                                            # Other statuses
-                                            logger.debug(f"❓ Unknown invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
+                                            logger.debug(f"❓ Other invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
                                     
-                                    logger.debug(f"📊 Thread {threading.get_ident()}: Invoice analysis for {agreement_id}: {len(past_due_invoices)} past due out of {len(invoices)} total invoices")
+                                    logger.debug(f"📊 Thread {threading.get_ident()}: Invoice analysis for {agreement_id}: {len(paid_invoices)} paid, {len(past_due_invoices)} past due, {len(unpaid_invoices)} unpaid out of {len(invoices)} total")
                                     
                                     total_past_due += agreement_past_due
                                     
@@ -794,14 +815,22 @@ class ClubOSIntegration:
                         'payment_status': payment_status,
                         'amount_owed': agreement_past_due,
                         'invoice_count': len(invoices),
+                        'paid_invoices_count': len(paid_invoices),
                         'scheduled_payments_count': len(scheduled_payments),
                         'has_billing_data': True,
                         'has_v2_data': True,
+                        # ENHANCED: Add paid invoices for revenue analysis
+                        'paid_invoices': paid_invoices,
+                        'unpaid_invoices': unpaid_invoices,
+                        'all_invoices': all_invoices,
                         # Add billing_status structure for database manager compatibility
                         'billing_status': {
-                            'past': [{'amount': agreement_past_due, 'dueDate': 'See ClubOS'}] if agreement_past_due > 0 else [],
-                            'current': [],
-                            'total_past_due': agreement_past_due
+                            'past': past_due_invoices,
+                            'current': unpaid_invoices,
+                            'paid': paid_invoices,  # NEW: Paid invoices with dates
+                            'total_past_due': agreement_past_due,
+                            'total_paid': sum(inv['amount'] for inv in paid_invoices),
+                            'total_unpaid': sum(inv['amount'] for inv in unpaid_invoices)
                         }
                     })
                                     
@@ -1117,3 +1146,33 @@ class ClubOSIntegration:
         except Exception as e:
             logger.error(f"❌ Error getting events for date range: {e}")
             return []
+
+    def _extract_payment_month(self, date_str):
+        """Extract YYYY-MM format from various date formats for monthly revenue grouping"""
+        if not date_str:
+            return None
+            
+        try:
+            # Handle various date formats
+            if isinstance(date_str, str):
+                # Remove timezone info and parse
+                date_str = date_str.replace('T', ' ').replace('Z', '').split('.')[0]
+                if ' ' in date_str:
+                    date_str = date_str.split(' ')[0]  # Take date part only
+                
+                # Try different date formats
+                for fmt in ['%Y-%m-%d', '%m/%d/%Y', '%d/%m/%Y', '%Y-%m-%d %H:%M:%S']:
+                    try:
+                        dt = datetime.strptime(date_str, fmt)
+                        return f"{dt.year}-{dt.month:02d}"
+                    except ValueError:
+                        continue
+            
+            elif hasattr(date_str, 'year') and hasattr(date_str, 'month'):
+                # Already a datetime object
+                return f"{date_str.year}-{date_str.month:02d}"
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Could not parse date '{date_str}': {e}")
+            
+        return None

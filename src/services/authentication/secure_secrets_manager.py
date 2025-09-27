@@ -324,3 +324,64 @@ class SecureSecretsManager:
         except Exception as e:
             logger.error(f"❌ Failed to set secret {secret_name}: {e}")
             return False
+
+    def store_session_data(self, session_token: str, session_data: dict) -> bool:
+        """
+        Store session data in Google Secret Manager
+
+        Args:
+            session_token: The session token as key
+            session_data: Dictionary containing session data
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            import json
+            secret_name = f"session-{session_token}"
+            json_data = json.dumps(session_data)
+            return self.set_secret(secret_name, json_data)
+        except Exception as e:
+            logger.error(f"❌ Failed to store session data: {e}")
+            return False
+
+    def get_session_data(self, session_token: str) -> dict:
+        """
+        Retrieve session data from Google Secret Manager
+
+        Args:
+            session_token: The session token
+
+        Returns:
+            Dictionary containing session data or None if not found
+        """
+        try:
+            import json
+            secret_name = f"session-{session_token}"
+            json_data = self.get_secret(secret_name)
+            if json_data:
+                return json.loads(json_data)
+            return None
+        except Exception as e:
+            logger.error(f"❌ Failed to get session data: {e}")
+            return None
+
+    def delete_session_data(self, session_token: str) -> bool:
+        """
+        Delete session data from Google Secret Manager
+
+        Args:
+            session_token: The session token
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            secret_name = f"session-{session_token}"
+            secret_path = f"projects/{self.project_id}/secrets/{secret_name}"
+            self.client.delete_secret(request={"name": secret_path})
+            logger.info(f"✅ Deleted session data: {secret_name}")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Failed to delete session data: {e}")
+            return False

@@ -99,20 +99,20 @@
             </div>
         </div>
 
-        <!-- Revenue -->
+        <!-- Monthly Revenue -->
         <div class="col-md-3">
             <div class="outlook-stat-card h-100">
                 <div class="d-flex align-items-center justify-content-between">
                     <div>
                         <h6 class="fw-bold mb-1 dashboard-card-title">
-                            <i class="fas fa-dollar-sign me-2 dashboard-icon"></i>Today's Revenue
+                            <i class="fas fa-dollar-sign me-2 dashboard-icon"></i>Monthly Revenue
                         </h6>
-                        <div class="h4 fw-bold mb-1">${{ stats['revenue'] }}</div>
-                        <small class="text-muted">Training & packages</small>
+                        <div class="h4 fw-bold mb-1" id="dashboard-monthly-revenue">$0.00</div>
+                        <small class="text-muted" id="dashboard-revenue-breakdown">Members + Training</small>
                         <div class="mt-2">
                             <small class="text-success">
-                                <i class="fas fa-arrow-up"></i>
-                                +12% vs yesterday
+                                <i class="fas fa-chart-line"></i>
+                                <span id="dashboard-member-count">0</span> revenue members
                             </small>
                         </div>
                     </div>
@@ -157,7 +157,7 @@
                             </a>
                         </div>
                     </div>
-                    <span class="outlook-badge outlook-badge-info">{{ recent_events|length }} sessions</span>
+                    <span class="outlook-badge outlook-badge-info">{{ day_events|length }} sessions</span>
                 </div>
                 </div>
 
@@ -171,8 +171,8 @@
                 </div>
 
                 <!-- Schedule Items -->
-                {% if recent_events %}
-                    {% for event in recent_events %}
+                {% if day_events %}
+                    {% for event in day_events %}
                     {% set participants_list = event.get('participants', []) %}
                     {% set all_participants = participants_list|selectattr('name')|map(attribute='name')|list %}
                     {% set participants_with_past_due = participants_list|selectattr('past_due')|list %}
@@ -182,8 +182,7 @@
                         'meeting' in (event.get('title', '') | string).lower() or
                         'appointment' in (event.get('title', '') | string).lower() or
                         'tour' in (event.get('title', '') | string).lower() or
-                        'assessment' in (event.get('title', '') | string).lower() or
-                        not all_participants or (all_participants | length) == 0
+                        'assessment' in (event.get('title', '') | string).lower()
                     ) %}
                     <div class="d-flex align-items-center border-bottom session-row" 
                          data-participant="{{ (all_participants | join(', ')) if all_participants else 'Unknown' }}"
@@ -269,14 +268,21 @@
                             {% if is_appointment %}
                                 <span class="outlook-badge outlook-badge-info">Free</span>
                             {% else %}
-                                <span id="funding-status-{{ loop.index }}" class="outlook-badge outlook-badge-warning" 
-                                      data-participant="{{ (all_participants[0] | string) if all_participants else '' }}"
-                                      data-time="{{ (event.get('start_time', '') | string) }} - {{ (event.get('end_time', '') | string) }}"
-                                      data-all-participants="{{ (all_participants | join(', ')) if all_participants else '' }}"
-                                      title="Loading live funding data...">
-                                    <i class="fas fa-wifi"></i>
-                                    Live...
-                                </span>
+                                {% if all_participants %}
+                                    <span id="funding-status-{{ loop.index }}" class="outlook-badge outlook-badge-warning"
+                                          data-participant="{{ all_participants[0] | string }}"
+                                          data-time="{{ (event.get('start_time', '') | string) }} - {{ (event.get('end_time', '') | string) }}"
+                                          data-all-participants="{{ (all_participants | join(', ')) }}"
+                                          title="Loading live funding data...">
+                                        <i class="fas fa-wifi"></i>
+                                        Live...
+                                    </span>
+                                {% else %}
+                                    <span class="outlook-badge outlook-badge-secondary">
+                                        <i class="fas fa-question-circle"></i>
+                                        No Client
+                                    </span>
+                                {% endif %}
                             {% endif %}
                         </div>
 
@@ -1239,22 +1245,65 @@ function updateBulkCheckinProgress(status, bulkBtn = null, originalText = null, 
 
 function checkAllFundingStatusesAsync() {
     debugLog('🔍 Starting asynchronous funding status checks...');
-    
+
     const fundingElements = document.querySelectorAll('[id^="funding-status-"]');
     debugLog(`Found ${fundingElements.length} funding status elements to check`);
-    
+
+    // Debug: Log all funding elements and their data
     fundingElements.forEach((element, index) => {
         const participant = element.getAttribute('data-participant');
+        const allParticipants = element.getAttribute('data-all-participants');
         const time = element.getAttribute('data-time');
-        
-        debugLog(`Element ${index + 1}: participant="${participant}", time="${time}"`);
-        
+        debugLog(`🔍 Element ${index + 1} Debug:`, {
+            id: element.id,
+            participant: participant,
+            allParticipants: allParticipants,
+            time: time,
+            hasParticipant: !!participant,
+            participantLength: participant ? participant.length : 0
+        });
+    });
+
+    // Process visible elements first for better perceived performance
+    const visibleElements = Array.from(fundingElements).filter(el => {
+        const rect = el.getBoundingClientRect();
+        return rect.top >= 0 && rect.bottom <= window.innerHeight;
+    });
+
+    // Check visible elements immediately with shorter delays
+    visibleElements.forEach((element, index) => {
+        const participant = element.getAttribute('data-participant');
+        const time = element.getAttribute('data-time');
+
         if (participant && participant.trim() !== '' && participant !== 'Unknown') {
             setTimeout(() => {
                 checkEventCardFunding(element, participant, time);
-            }, index * 300);
+            }, index * 100); // Faster for visible elements
         } else {
-            debugLog(`Skipping element ${index + 1} - no valid participant`);
+            element.innerHTML = `
+                <span class="outlook-badge outlook-badge-secondary">
+                    <i class="fas fa-question-circle"></i>
+                    Unknown
+                </span>
+            `;
+        }
+    });
+
+    // Check non-visible elements with longer delays
+    const nonVisibleElements = Array.from(fundingElements).filter(el => {
+        const rect = el.getBoundingClientRect();
+        return rect.top < 0 || rect.bottom > window.innerHeight;
+    });
+
+    nonVisibleElements.forEach((element, index) => {
+        const participant = element.getAttribute('data-participant');
+        const time = element.getAttribute('data-time');
+
+        if (participant && participant.trim() !== '' && participant !== 'Unknown') {
+            setTimeout(() => {
+                checkEventCardFunding(element, participant, time);
+            }, 1000 + (index * 300)); // Slower for non-visible elements
+        } else {
             element.innerHTML = `
                 <span class="outlook-badge outlook-badge-secondary">
                     <i class="fas fa-question-circle"></i>
@@ -1269,7 +1318,20 @@ function checkEventCardFunding(element, participant, time) {
     debugLog(`💰 CHECKING PAST DUE STATUS for event card: ${participant}`);
     debugLog('API endpoint: /api/member/past-due-status');
     debugLog('Request data:', { participant });
-    
+    debugLog('Element:', element);
+
+    // Validate participant name
+    if (!participant || participant.trim() === '' || participant === 'Unknown') {
+        debugLog(`❌ Invalid participant name: "${participant}"`);
+        element.innerHTML = `
+            <span class="outlook-badge outlook-badge-secondary">
+                <i class="fas fa-question-circle"></i>
+                No Client
+            </span>
+        `;
+        return;
+    }
+
     // Show loading state
     element.innerHTML = `
         <span class="outlook-badge outlook-badge-warning">
@@ -1278,7 +1340,9 @@ function checkEventCardFunding(element, participant, time) {
         </span>
     `;
     element.title = 'Fetching past due status from database...';
-    
+
+    debugLog(`🚀 Making API call for participant: ${participant}`);
+
     fetch('/api/member/past-due-status', {
         method: 'POST',
         headers: {
@@ -1289,18 +1353,18 @@ function checkEventCardFunding(element, participant, time) {
         })
     })
     .then(response => {
-        debugLog('Past Due API response status:', response.status);
+        debugLog(`📡 API Response Status: ${response.status} for ${participant}`);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         return response.json();
     })
     .then(data => {
-        debugLog('Past Due API response data:', data);
+        debugLog(`📊 API Response Data for ${participant}:`, data);
         if (data.success) {
             const pastDueInfo = data.past_due_info;
             debugLog(`✅ Past due data received for ${participant}:`, pastDueInfo);
-            
+
             const statusIcon = pastDueInfo.status_icon || 'fas fa-question-circle';
             const statusClass = `outlook-badge-${pastDueInfo.status_class || 'secondary'}`;
             const statusText = pastDueInfo.status_text || 'Unknown';
@@ -1313,24 +1377,27 @@ function checkEventCardFunding(element, participant, time) {
                 </span>
             `;
             element.title = 'Past due status from training payment tracking system';
+            debugLog(`✅ Updated funding status for ${participant}: ${statusText}`);
         } else {
-            debugError('❌ API error for', participant, ':', data.error);
+            debugError(`❌ API error for ${participant}:`, data.error);
             element.innerHTML = `
                 <span class="outlook-badge outlook-badge-secondary">
                     <i class="fas fa-question-circle"></i>
                     Not Found
                 </span>
             `;
+            element.title = `API Error: ${data.error}`;
         }
     })
     .catch(error => {
-        debugError('❌ Network error checking past due for', participant, ':', error);
+        debugError(`❌ Network error checking past due for ${participant}:`, error);
         element.innerHTML = `
-            <span class="outlook-badge outlook-badge-secondary">
+            <span class="outlook-badge outlook-badge-danger">
                 <i class="fas fa-exclamation-triangle"></i>
                 Error
             </span>
         `;
+        element.title = `Network Error: ${error.message}`;
     });
 }
 
@@ -1345,7 +1412,7 @@ function testEventCardClick() {
         location: 'Training Floor',
         eventId: 'test-123'
     };
-    
+
     // Create a mock element for testing
     const mockElement = {
         getAttribute: function(key) {
@@ -1362,9 +1429,107 @@ function testEventCardClick() {
             return mapping[key] || null;
         }
     };
-    
+
     debugLog('🧪 Calling openEventDetails with test data...');
     openEventDetails(mockElement);
+}
+
+// Test function to manually check funding status API
+function testFundingAPI(participantName = 'Baraa Manasrah') {
+    debugLog(`🧪 Testing funding API for: ${participantName}`);
+
+    return fetch('/api/member/past-due-status', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            participant: participantName
+        })
+    })
+    .then(response => {
+        debugLog(`📡 API Response Status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
+        debugLog(`📊 API Response Data:`, data);
+        return data;
+    })
+    .catch(error => {
+        debugError(`❌ API Error:`, error);
+        return { error: error.message };
+    });
+}
+
+// Test function to debug all current funding elements
+function debugAllFundingElements() {
+    debugLog('🔍 Debugging all current funding elements...');
+
+    const fundingElements = document.querySelectorAll('[id^="funding-status-"]');
+    debugLog(`Found ${fundingElements.length} funding elements`);
+
+    fundingElements.forEach((element, index) => {
+        const participant = element.getAttribute('data-participant');
+        const allParticipants = element.getAttribute('data-all-participants');
+        const time = element.getAttribute('data-time');
+
+        debugLog(`Element ${index + 1}:`, {
+            id: element.id,
+            participant: participant,
+            allParticipants: allParticipants,
+            time: time,
+            innerHTML: element.innerHTML.substring(0, 100) + '...'
+        });
+
+        // Try to call API for this participant if they exist
+        if (participant && participant.trim() !== '' && participant !== 'Unknown') {
+            debugLog(`Testing API call for: ${participant}`);
+            setTimeout(() => {
+                testFundingAPI(participant).then(result => {
+                    debugLog(`Result for ${participant}:`, result);
+                });
+            }, index * 500);
+        }
+    });
+}
+
+// Test function to debug messaging API
+function testMessagingAPI() {
+    debugLog('🧪 Testing messaging API...');
+
+    return fetch('/api/messaging/inbox/recent?limit=20', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        debugLog(`📡 Messaging API Response Status: ${response.status}`);
+        return response.json();
+    })
+    .then(data => {
+        debugLog(`📊 Messaging API Response Data:`, data);
+        if (data.success && data.messages) {
+            debugLog(`✅ Found ${data.messages.length} individual messages:`);
+            data.messages.forEach((message, index) => {
+                debugLog(`Message ${index + 1}: ${message.member_name} (ID: ${message.member_id}) - "${message.message_content.substring(0, 50)}..."`);
+            });
+
+            // Also test the debug endpoint
+            debugLog('🔍 Testing debug endpoint...');
+            return fetch('/api/debug/raw-messages?limit=10')
+                .then(res => res.json())
+                .then(debugData => {
+                    debugLog('📊 Raw messages from debug endpoint:', debugData);
+                    return data;
+                });
+        }
+        return data;
+    })
+    .catch(error => {
+        debugError(`❌ Messaging API Error:`, error);
+        return { error: error.message };
+    });
 }
 
 // Initialize when DOM is ready
@@ -1374,13 +1539,22 @@ document.addEventListener('DOMContentLoaded', function() {
     // Add test button for debugging
     debugLog('🧪 To test event card functionality, run: testEventCardClick()');
     
-    // Check for active or recently completed bulk check-in on page load
-    checkAndRestoreBulkCheckinUI();
-    
-    // Load dashboard inbox
-    loadDashboardInbox();
-    
-    checkAllFundingStatusesAsync();
+    // Load critical features first with optimized timing
+    setTimeout(() => {
+        checkAllFundingStatusesAsync();
+    }, 50);
+
+    // Defer non-critical features to improve perceived performance
+    setTimeout(() => {
+        // Check for active or recently completed bulk check-in
+        checkAndRestoreBulkCheckinUI();
+
+        // Load dashboard inbox (non-critical)
+        loadDashboardInbox();
+
+        // Load monthly revenue data (non-critical)
+        loadDashboardRevenue();
+    }, 200);
     
     const refreshFundingBtn = document.getElementById('refresh-funding-btn');
     if (refreshFundingBtn) {
@@ -1447,10 +1621,18 @@ document.addEventListener('DOMContentLoaded', function() {
         debugLog('✅ Event cards found and ready for clicking!');
     }
     
-    // Make test function available globally for debugging
+    // Make test functions available globally for debugging
     window.testEventCardClick = testEventCardClick;
-    
+    window.testFundingAPI = testFundingAPI;
+    window.debugAllFundingElements = debugAllFundingElements;
+    window.testMessagingAPI = testMessagingAPI;
+
     debugLog('✅ Dashboard initialization complete');
+    debugLog('🧪 Available test functions:');
+    debugLog('  - testFundingAPI("Baraa Manasrah") - Test funding API');
+    debugLog('  - debugAllFundingElements() - Debug all funding elements');
+    debugLog('  - testEventCardClick() - Test event card modal');
+    debugLog('  - testMessagingAPI() - Test messaging inbox API');
 });
 
 // Add missing functions for onclick handlers
@@ -1459,11 +1641,11 @@ window.refreshInbox = function() {
     loadDashboardInbox();
 };
 
-// Load recent messages for dashboard inbox
-function loadDashboardInbox() {
-    debugLog('📬 Loading dashboard inbox messages...');
+// Load monthly revenue data for dashboard
+function loadDashboardRevenue() {
+    debugLog('💰 Loading dashboard revenue data...');
     
-    fetch('/api/messaging/inbox/recent?limit=10', {
+    fetch('/api/members/monthly-revenue', {
         method: 'GET',
         headers: {
             'Content-Type': 'application/json'
@@ -1471,8 +1653,74 @@ function loadDashboardInbox() {
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success && data.threads) {
-            displayDashboardInbox(data.threads);
+        if (data.success && data.revenue_data) {
+            updateDashboardRevenue(data.revenue_data);
+        } else {
+            debugLog('❌ Failed to load revenue data:', data.error);
+            updateDashboardRevenue({
+                total_monthly_revenue: 0,
+                member_revenue: 0,
+                training_revenue: 0,
+                revenue_members_count: 0
+            });
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error loading revenue data:', error);
+        updateDashboardRevenue({
+            total_monthly_revenue: 0,
+            member_revenue: 0,
+            training_revenue: 0,
+            revenue_members_count: 0
+        });
+    });
+}
+
+// Update dashboard revenue display
+function updateDashboardRevenue(revenueData) {
+    const revenueElement = document.getElementById('dashboard-monthly-revenue');
+    const breakdownElement = document.getElementById('dashboard-revenue-breakdown');
+    const memberCountElement = document.getElementById('dashboard-member-count');
+    
+    if (revenueElement) {
+        const totalRevenue = revenueData.total_monthly_revenue || 0;
+        revenueElement.textContent = `$${totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+    
+    if (breakdownElement) {
+        const memberRevenue = revenueData.member_revenue || 0;
+        const trainingRevenue = revenueData.training_revenue || 0;
+        breakdownElement.textContent = `Members: $${memberRevenue.toFixed(0)} + Training: $${trainingRevenue.toFixed(0)}`;
+        breakdownElement.title = `Member Revenue: $${memberRevenue.toFixed(2)} + Training Revenue: $${trainingRevenue.toFixed(2)}`;
+    }
+    
+    if (memberCountElement) {
+        const memberCount = revenueData.revenue_members_count || 0;
+        memberCountElement.textContent = memberCount;
+    }
+    
+    debugLog('✅ Dashboard revenue updated:', {
+        total: totalRevenue,
+        member_revenue: memberRevenue,
+        training_revenue: trainingRevenue,
+        member_count: memberCount
+    });
+}
+
+// Load recent messages for dashboard inbox
+function loadDashboardInbox() {
+    debugLog('📬 Loading dashboard inbox messages...');
+    
+    fetch('/api/messaging/inbox/recent?limit=20', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.messages) {
+            displayDashboardInbox(data.messages);
         } else {
             displayDashboardInbox([]);
         }
@@ -1484,10 +1732,10 @@ function loadDashboardInbox() {
 }
 
 // Display inbox messages on dashboard
-function displayDashboardInbox(threads) {
+function displayDashboardInbox(messages) {
     const container = document.getElementById('bot-inbox');
-    
-    if (!threads || threads.length === 0) {
+
+    if (!messages || messages.length === 0) {
         container.innerHTML = `
             <div class="text-center py-3">
                 <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
@@ -1496,53 +1744,94 @@ function displayDashboardInbox(threads) {
         `;
         return;
     }
-    
-    // Display threads (newest first, max 5 for dashboard)
-    const displayThreads = threads.slice(0, 5);
-    const inboxHtml = displayThreads.map(thread => {
-        const timeAgo = formatTimeAgo(thread.last_message_at);
-        const memberName = thread.member_name || 'Unknown Member';
-        const messagePreview = truncateText(thread.latest_message?.message_content || 'No content', 40);
-        
+
+    // Display individual messages in a scrollable list
+    const inboxHtml = messages.map((message, index) => {
+        const timeAgo = formatTimeAgo(message.created_at);
+        const memberName = message.member_name || 'Unknown Member';
+        const messagePreview = truncateText(message.message_content || 'No content', 35);
+        const memberId = message.member_id || message.owner_id || '';
+
+        // Skip messages without valid member ID
+        if (!memberId) {
+            console.warn('⚠️ Skipping message without valid member ID:', message);
+            return '';
+        }
+
         return `
-            <div class="inbox-message-item d-flex align-items-center p-2 border-bottom cursor-pointer" 
-                 onclick="openMemberProfileModal('${thread.member_id || ''}', '${encodeURIComponent(memberName)}')">
+            <div class="inbox-message-item d-flex align-items-center p-2 border-bottom cursor-pointer"
+                 onclick="openMemberProfile('${memberId}', '${memberName.replace(/'/g, "\\'")}')"
+                 title="${message.message_content}">
                 <div class="flex-shrink-0 me-2">
-                    <div class="inbox-avatar bg-primary text-white d-flex align-items-center justify-content-center rounded-circle" 
-                         style="width: 32px; height: 32px; font-size: 0.8rem;">
+                    <div class="inbox-avatar bg-primary text-white d-flex align-items-center justify-content-center rounded-circle"
+                         style="width: 30px; height: 30px; font-size: 0.75rem;">
                         ${memberName.charAt(0).toUpperCase()}
                     </div>
                 </div>
                 <div class="flex-grow-1 min-w-0">
                     <div class="d-flex justify-content-between align-items-start">
-                        <h6 class="mb-0 text-truncate" style="font-size: 0.85rem; font-weight: 600;">
+                        <h6 class="mb-0 text-truncate" style="font-size: 0.8rem; font-weight: 600;">
                             ${memberName}
                         </h6>
-                        <small class="text-muted" style="font-size: 0.7rem;">${timeAgo}</small>
+                        <small class="text-muted" style="font-size: 0.65rem;">${timeAgo}</small>
                     </div>
-                    <p class="mb-0 text-muted text-truncate" style="font-size: 0.75rem;">
+                    <p class="mb-0 text-muted text-truncate" style="font-size: 0.7rem;">
                         ${messagePreview}
                     </p>
                 </div>
             </div>
         `;
-    }).join('');
-    
+    }).filter(html => html.trim() !== '').join('');
+
     container.innerHTML = `
-        <div class="inbox-messages">
+        <div class="inbox-messages" style="max-height: 300px; overflow-y: auto;">
             ${inboxHtml}
-            ${threads.length > 5 ? `
-                <div class="text-center pt-2">
-                    <a href="/messaging" class="btn btn-sm btn-outline-primary">
-                        <i class="fas fa-envelope me-1"></i>View All Messages
-                    </a>
-                </div>
-            ` : ''}
+        </div>
+        <div class="text-center pt-2 border-top">
+            <a href="/messaging" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-envelope me-1"></i>View All Messages
+            </a>
         </div>
     `;
 }
 
-// Open member profile modal on dashboard
+// Open member profile - now redirects to correct member profile page
+function openMemberProfile(memberId, memberName) {
+    debugLog(`🔗 Opening member profile for: ${memberName} (ID: ${memberId})`);
+
+    // Handle search fallback case - redirect to contact profile
+    if (memberId && memberId.startsWith('search:')) {
+        const contactName = memberId.replace('search:', '');
+        const contactUrl = `/contact/${contactName}`;
+        debugLog(`📞 Opening contact profile for: ${contactName}`);
+        window.location.href = contactUrl;
+        return;
+    }
+
+    // Validate member ID for real members
+    if (!memberId || memberId === 'null' || memberId === '' || memberId === 'undefined') {
+        console.warn('⚠️ No valid member ID provided for profile:', memberId);
+
+        // Try to create a contact profile by name instead
+        if (memberName && memberName !== 'Unknown Member') {
+            const contactName = memberName.replace(/\s+/g, '_');
+            const contactUrl = `/contact/${contactName}`;
+            debugLog(`📞 Creating contact profile for: ${memberName}`);
+            window.location.href = contactUrl;
+            return;
+        }
+
+        alert('Unable to find member profile. Member ID not available.');
+        return;
+    }
+
+    // Navigate to member profile page for real members
+    const profileUrl = `/member/${memberId}`;
+    debugLog(`🔗 Navigating to member profile: ${profileUrl}`);
+    window.location.href = profileUrl;
+}
+
+// DEPRECATED: This function is no longer used - messages now redirect directly to member account pages
 function openMemberProfileModal(memberId, memberName) {
     debugLog('� Opening member profile modal on dashboard:', memberId, memberName);
     

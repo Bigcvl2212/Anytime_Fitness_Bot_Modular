@@ -356,7 +356,48 @@ document.addEventListener('DOMContentLoaded', function() {
     loadCalendarEvents();
     updateWeekLabel();
     renderWeeklyCalendar();
+    
+    // Load progressive data if enabled
+    if (window.location.search.includes('progressive=true')) {
+        loadProgressiveCalendarData();
+    }
 });
+
+// Progressive loading for calendar data
+async function loadProgressiveCalendarData() {
+    try {
+        debugLog('Loading calendar data progressively...');
+        
+        const response = await fetch('/api/progressive/calendar/events');
+        const data = await response.json();
+        
+        debugLog('Progressive calendar response:', data);
+        
+        if (data.today_events) {
+            // Update today's events display
+            updateTodayEvents(data.today_events);
+        }
+        
+        if (data.calendar_summary) {
+            // Update calendar summary
+            updateCalendarSummary(data.calendar_summary);
+        }
+        
+    } catch (error) {
+        console.error('Error loading progressive calendar data:', error);
+        debugLog('Error loading progressive calendar data:', error);
+    }
+}
+
+function updateTodayEvents(todayEvents) {
+    // Update today's events in the summary
+    debugLog('Updating today events:', todayEvents);
+}
+
+function updateCalendarSummary(summary) {
+    // Update calendar summary display
+    debugLog('Updating calendar summary:', summary);
+}
 
 // Load events from API
 async function loadCalendarEvents() {

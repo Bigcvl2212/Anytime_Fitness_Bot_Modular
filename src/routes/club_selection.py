@@ -109,10 +109,22 @@ def select_clubs():
         if not valid_clubs:
             return jsonify({'error': 'No valid clubs selected'}), 400
         
-        # Store in session and force persistence
+        # Store in session and secure storage for persistence
         session['selected_clubs'] = valid_clubs
         session.permanent = True
-        session.modified = True  # Force Flask to save session
+        session.modified = True
+
+        # PERMANENT FIX: Store in secure storage using session token
+        from src.services.authentication.secure_auth_service import SecureAuthService
+        auth_service = SecureAuthService()
+        session_token = session.get('session_token')
+
+        if session_token:
+            success = auth_service.store_selected_clubs(session_token, valid_clubs)
+            if success:
+                logger.info(f"✅ Stored selected clubs in secure storage: {valid_clubs}")
+            else:
+                logger.warning(f"⚠️ Failed to store clubs in secure storage, using session only")
         
         # Debug: Verify session data is set correctly
         logger.info(f"🔍 Session after setting selected_clubs: {dict(session)}")

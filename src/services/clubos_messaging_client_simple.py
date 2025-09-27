@@ -16,6 +16,8 @@ from bs4 import BeautifulSoup
 import urllib3
 import time
 from urllib.parse import quote
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
 from src.services.authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
 
 # Suppress SSL warnings
@@ -47,6 +49,9 @@ class ClubOSMessagingClient:
         self.logged_in_user_id = None
         self.delegated_user_id = None
         self.delegated_bearer_token = None
+        
+        # Thread safety for parallel processing
+        self._lock = Lock()
         
     def authenticate(self) -> bool:
         """Authenticate using the unified authentication service"""
@@ -94,7 +99,7 @@ class ClubOSMessagingClient:
                 "Referer": f"{self.base_url}/action/LeadProfile/view"
             }
             
-            delegate_response = self.session.get(delegate_url, headers=delegate_headers, verify=False, timeout=30)
+            delegate_response = self.session.get(delegate_url, headers=delegate_headers, verify=False, timeout=15)
             delegate_response.raise_for_status()
             
             logger.info(f"✅ Delegation call successful - status: {delegate_response.status_code}")
@@ -437,13 +442,13 @@ class ClubOSMessagingClient:
                 "x-requested-with": "XMLHttpRequest"
             }
             
-            # Use delegated Bearer token
+            # Use delegated Bearer token with timeout optimization
             if self.delegated_bearer_token:
                 headers["authorization"] = f"Bearer {self.delegated_bearer_token}"
             elif self.session.cookies.get('apiV3AccessToken'):
                 headers["authorization"] = f"Bearer {self.session.cookies.get('apiV3AccessToken')}"
             
-            # Submit to ClubOS
+            # Submit to ClubOS with reduced timeout for faster processing
             submit_url = "https://anytime.club-os.com/action/FollowUp/save"
             
             logger.info(f"📤 Submitting message with PRESERVED member data...")
@@ -457,7 +462,7 @@ class ClubOSMessagingClient:
                 submit_url,
                 data=form_data,
                 headers=headers,
-                timeout=30,
+                timeout=15,  # Reduced timeout for faster processing
                 verify=False,
                 allow_redirects=False
             )
@@ -486,6 +491,130 @@ class ClubOSMessagingClient:
             logger.error(f"❌ Exception sending message: {e}")
             return False
     
+    def send_bulk_campaign_parallel(self, member_data_list: List[Dict[str, Any]] = None, member_ids: List[str] = None, message: str = "", message_type: str = "sms", max_workers: int = 5) -> Dict[str, Any]:
+        """Send bulk campaign using parallel processing for much faster execution"""
+        # Handle both parameter styles
+        if member_data_list:
+            members_to_process = member_data_list
+            total_count = len(member_data_list)
+        elif member_ids:
+            members_to_process = [{'member_id': mid} for mid in member_ids]
+            total_count = len(member_ids)
+        else:
+            return {
+                'total': 0,
+                'successful': 0,
+                'failed': 0,
+                'errors': ['No members provided']
+            }
+        
+        results = {
+            'total': total_count,
+            'successful': 0,
+            'failed': 0,
+            'errors': [],
+            'sent_messages': [],
+            'last_processed_member_id': None,
+            'last_processed_index': 0
+        }
+        
+        logger.info(f"🚀 Starting PARALLEL bulk campaign to {total_count} members with {max_workers} workers")
+        
+        def send_single_message(member_data):
+            """Send a single message - designed for parallel execution"""
+            try:
+                member_id = member_data.get('member_id') or member_data.get('prospect_id') or str(member_data.get('id', ''))
+                member_name = member_data.get('name') or member_data.get('full_name', f'Member {member_id}')
+                
+                if not member_id:
+                    return {
+                        'success': False,
+                        'member_id': member_id,
+                        'member_name': member_name,
+                        'error': 'No member ID found'
+                    }
+                
+                # Determine actual channel to use (SMS with email fallback)
+                actual_channel = message_type
+                if message_type == 'sms' and member_data.get('fallback_to_email'):
+                    actual_channel = 'email'
+                
+                # Create a new session for this thread to avoid conflicts
+                thread_client = ClubOSMessagingClient(self.username, self.password)
+                if not thread_client.authenticate():
+                    return {
+                        'success': False,
+                        'member_id': member_id,
+                        'member_name': member_name,
+                        'error': 'Authentication failed'
+                    }
+                
+                success = thread_client.send_message(
+                    member_id=member_id,
+                    message_text=message,
+                    channel=actual_channel,
+                    member_data=member_data
+                )
+                
+                if success:
+                    return {
+                        'success': True,
+                        'member_id': member_id,
+                        'member_name': member_name,
+                        'message_text': message,
+                        'timestamp': datetime.now().isoformat(),
+                        'channel': message_type
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'member_id': member_id,
+                        'member_name': member_name,
+                        'error': 'Send message failed'
+                    }
+                    
+            except Exception as e:
+                return {
+                    'success': False,
+                    'member_id': member_data.get('member_id', 'Unknown'),
+                    'member_name': member_data.get('full_name', 'Unknown'),
+                    'error': str(e)
+                }
+        
+        # Execute in parallel
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_member = {
+                executor.submit(send_single_message, member_data): member_data 
+                for member_data in members_to_process
+            }
+            
+            # Process completed tasks
+            for future in as_completed(future_to_member):
+                member_data = future_to_member[future]
+                try:
+                    result = future.result()
+                    
+                    if result['success']:
+                        results['successful'] += 1
+                        results['sent_messages'].append(result)
+                        logger.info(f"✅ Parallel message sent to {result['member_name']}")
+                    else:
+                        results['failed'] += 1
+                        error_msg = f"Failed to send to {result['member_name']}: {result.get('error', 'Unknown error')}"
+                        results['errors'].append(error_msg)
+                        logger.error(f"❌ {error_msg}")
+                        
+                except Exception as e:
+                    results['failed'] += 1
+                    member_name = member_data.get('full_name', f'Member {member_data.get("member_id", "Unknown")}')
+                    error_msg = f"Exception processing {member_name}: {str(e)}"
+                    results['errors'].append(error_msg)
+                    logger.error(f"❌ {error_msg}")
+        
+        logger.info(f"📊 PARALLEL Campaign completed: {results['successful']}/{results['total']} successful")
+        return results
+
     def send_bulk_campaign(self, member_data_list: List[Dict[str, Any]] = None, member_ids: List[str] = None, message: str = "", message_type: str = "sms") -> Dict[str, Any]:
         """Send bulk campaign using the corrected messaging workflow"""
         # Handle both parameter styles
@@ -516,7 +645,7 @@ class ClubOSMessagingClient:
         logger.info(f"📢 Starting bulk campaign to {total_count} members")
         
         consecutive_failures = 0
-        max_consecutive_failures = 2
+        max_consecutive_failures = 5  # Increased tolerance for faster processing
         
         for i, member_data in enumerate(members_to_process):
             try:
@@ -576,8 +705,8 @@ class ClubOSMessagingClient:
                             logger.error("❌ Re-authentication failed, stopping campaign")
                             break
                 
-                # Small delay between messages
-                time.sleep(0.5)
+                # Reduced delay for faster sending
+                time.sleep(0.1)
                 
             except Exception as e:
                 results['failed'] += 1

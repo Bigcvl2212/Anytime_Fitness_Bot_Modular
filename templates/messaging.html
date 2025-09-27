@@ -914,8 +914,8 @@
                                                         </select>
                                                     </div>
                                                     <div class="col-12">
-                                                        <label for="templateMaxRecipients" class="form-label fw-medium">Max Recipients</label>
-                                                        <input type="number" class="form-control" id="templateMaxRecipients" value="100" min="1" max="500">
+                                                        <label for="templateMaxRecipients" class="form-label fw-medium">Max Recipients (Unlimited)</label>
+                                                        <input type="number" class="form-control" id="templateMaxRecipients" value="999999" min="1" max="999999" placeholder="Unlimited" disabled>
                                                     </div>
                                                     <div class="col-12">
                                                         <div class="form-check">
@@ -1135,8 +1135,8 @@
                                                 </select>
                                             </div>
                                             <div class="col-md-6">
-                                                <label for="maxRecipients" class="form-label fw-medium">Max Recipients</label>
-                                                <input type="number" class="form-control" id="maxRecipients" value="100" min="1" max="1000" required>
+                                                <label for="maxRecipients" class="form-label fw-medium">Max Recipients (Unlimited)</label>
+                                                <input type="number" class="form-control" id="maxRecipients" value="999999" min="1" max="999999" placeholder="Unlimited" disabled>
                                             </div>
                                             <div class="col-12" id="emailSubjectDiv" style="display: none;">
                                                 <label for="emailSubject" class="form-label fw-medium">Email Subject</label>
@@ -1331,8 +1331,8 @@
             })
             .then(response => response.json())
             .then(data => {
-                if (data.success && data.threads) {
-                    displayMessagingInbox(data.threads);
+                if (data.success && data.messages) {
+                    displayMessagingInbox(data.messages);
                 } else {
                     displayEmptyMessagingInbox();
                 }
@@ -1343,23 +1343,30 @@
             });
         }
         
-        function displayMessagingInbox(threads) {
+        function displayMessagingInbox(messages) {
             const container = document.getElementById('messaging-inbox-container');
-            
-            if (!threads || threads.length === 0) {
+
+            if (!messages || messages.length === 0) {
                 displayEmptyMessagingInbox();
                 return;
             }
-            
-            const inboxHtml = threads.map(thread => {
-                const timeAgo = formatTimeAgo(thread.last_message_at);
-                const memberName = thread.member_name || 'Unknown Member';
-                const messagePreview = truncateText(thread.latest_message?.message_content || 'No content', 60);
-                const isUnread = thread.status !== 'read';
+
+            const inboxHtml = messages.map((message, index) => {
+                const timeAgo = formatTimeAgo(message.created_at);
+                const memberName = message.member_name || 'Unknown Member';
+                const messagePreview = truncateText(message.message_content || 'No content', 60);
+                const isUnread = message.status !== 'read';
+                const memberId = message.member_id || message.owner_id || '';
+
+                // Skip messages without valid member ID
+                if (!memberId) {
+                    console.warn('⚠️ Skipping message without valid member ID:', message);
+                    return '';
+                }
                 
                 return `
                     <div class="inbox-conversation-item d-flex align-items-center p-3 border-bottom cursor-pointer ${isUnread ? 'unread-conversation' : ''}" 
-                         onclick="openConversationWithMember('${thread.member_id || ''}', '${encodeURIComponent(memberName)}')"
+                         onclick="openConversationWithMember('${memberId}', '${encodeURIComponent(memberName)}')"
                          title="Click to view full conversation with ${memberName}">
                         <div class="flex-shrink-0 me-3">
                             <div class="conversation-avatar bg-primary text-white d-flex align-items-center justify-content-center rounded-circle" 
@@ -1387,7 +1394,7 @@
                         </div>
                     </div>
                 `;
-            }).join('');
+            }).filter(html => html.trim() !== '').join('');
             
             container.innerHTML = `
                 <div class="inbox-conversations" style="max-height: 500px; overflow-y: auto;">
@@ -1437,73 +1444,40 @@
         }
         
         function openConversationWithMember(memberId, memberName) {
-            debugLog('💬 Opening conversation with member on messaging page:', memberId, memberName);
-            
-            if (memberId && memberId !== 'null' && memberId !== '') {
-                // Open member profile modal on messaging page with messages tab focused
-                openMemberProfileModal(memberId, decodeURIComponent(memberName), true);
-            } else {
-                console.warn('⚠️ No valid member ID available for conversation');
-                alert(`Unable to open conversation - member ID not available for ${decodeURIComponent(memberName)}`);
-            }
-        }
-        
-        // Open member profile modal on messaging page
-        function openMemberProfileModal(memberId, memberName, focusMessages = false) {
-            debugLog('👤 Opening member profile modal on messaging page:', memberId, memberName, focusMessages);
-            
-            if (!memberId || memberId === 'null' || memberId === '' || memberId === 'undefined') {
-                console.warn('⚠️ No valid member ID provided for modal:', memberId);
+            debugLog('💬 Redirecting to member account page:', memberId, memberName);
+
+            // Handle search fallback case - redirect to contact profile
+            if (memberId && memberId.startsWith('search:')) {
+                const contactName = memberId.replace('search:', '');
+                const contactUrl = `/contact/${contactName}`;
+                debugLog(`📞 Opening contact profile for: ${contactName}`);
+                window.location.href = contactUrl;
                 return;
             }
-            
-            // Clean member data
-            const cleanMemberId = String(memberId).trim();
-            const cleanMemberName = String(memberName || 'Member').trim();
-            
-            debugLog('👤 Opening modal for member ID:', cleanMemberId, 'Name:', cleanMemberName);
-            
-            // Set modal title
-            const modalTitle = document.getElementById('memberProfileModalLabel');
-            if (modalTitle) {
-                modalTitle.innerHTML = `<i class="fas fa-user me-2"></i>${cleanMemberName}`;
-            }
-            
-            // Load member profile data
-            loadMemberProfile(cleanMemberId, cleanMemberName);
-            
-            // Show the modal
-            const modalElement = document.getElementById('memberProfileModal');
-            if (modalElement) {
-                if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-                    const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
-                    modal.show();
-                    
-                    // Focus messages tab if requested
-                    if (focusMessages) {
-                        modalElement.addEventListener('shown.bs.modal', function() {
-                            const messagesTab = document.getElementById('messages-tab');
-                            if (messagesTab) {
-                                messagesTab.click();
-                            }
-                        }, { once: true });
-                    }
+
+            if (memberId && memberId !== 'null' && memberId !== '') {
+                // Redirect to member's account page for real members
+                const memberUrl = `/member/${memberId}`;
+                debugLog('🔗 Redirecting to member profile:', memberUrl);
+                window.location.href = memberUrl;
+            } else {
+                console.warn('⚠️ No valid member ID available for navigation');
+                // Try to create a contact profile by name instead
+                const decodedName = decodeURIComponent(memberName);
+                if (decodedName && decodedName !== 'Unknown Member') {
+                    const contactName = decodedName.replace(/\s+/g, '_');
+                    const contactUrl = `/contact/${contactName}`;
+                    debugLog(`📞 Creating contact profile for: ${decodedName}`);
+                    window.location.href = contactUrl;
                 } else {
-                    modalElement.style.display = 'block';
-                    modalElement.classList.add('show');
-                    
-                    // Focus messages tab if requested
-                    if (focusMessages) {
-                        setTimeout(() => {
-                            const messagesTab = document.getElementById('messages-tab');
-                            if (messagesTab) {
-                                messagesTab.click();
-                            }
-                        }, 100);
-                    }
+                    alert(`Unable to open profile - no valid information for ${decodedName}`);
                 }
             }
         }
+        
+        // REMOVED: openMemberProfileModal function - now redirecting directly to member account pages
+        
+        // REMOVED: openMemberProfileModal function - now redirecting directly to member account pages
         
         function viewAllConversations() {
             debugLog('📋 Viewing all conversations...');
@@ -2155,7 +2129,7 @@
             } else if (mode === 'fresh') {
                 // Clear form for fresh start
                 document.getElementById('categoryCampaignForm').reset();
-                document.getElementById('maxRecipients').value = 100;
+                document.getElementById('maxRecipients').value = 999999;  // Unlimited
                 document.getElementById('campaignName').focus();
             }
         }
@@ -2526,7 +2500,7 @@
         function previewCampaign() {
             const name = document.getElementById('campaignName').value || 'Untitled Campaign';
             const message = document.getElementById('campaignMessage').value || '';
-            const maxRecipients = document.getElementById('maxRecipients').value || '0';
+            const maxRecipients = document.getElementById('maxRecipients').value || 'Unlimited';
             
             if (!message.trim()) {
                 showAlert('error', 'Please enter a message to preview');
@@ -2544,7 +2518,7 @@
 
 Campaign: ${name}
 Category: ${getCategoryTitle(currentCategory)}
-Max Recipients: ${maxRecipients}
+Recipients: ${maxRecipients === '999999' ? 'Unlimited' : maxRecipients}
 
 Sample Message:
 "${previewMessage}"
@@ -2811,7 +2785,7 @@ Note: Variables like {first_name} will be automatically replaced with actual mem
             document.getElementById('templateCampaignName').value = '';
             document.getElementById('templateCampaignMessage').value = '';
             document.getElementById('templateTargetGroup').value = 'all';
-            document.getElementById('templateMaxRecipients').value = 100;
+            document.getElementById('templateMaxRecipients').value = 999999;  // Unlimited
             document.getElementById('saveAsNewTemplate').checked = false;
             
             // Focus on the name field
@@ -2886,7 +2860,7 @@ Note: Variables like {first_name} will be automatically replaced with actual mem
                     // Clear form if it was a new template
                     if (saveAsTemplate) {
                         document.getElementById('templateCampaignForm').reset();
-                        document.getElementById('templateMaxRecipients').value = 100;
+                        document.getElementById('templateMaxRecipients').value = 999999;  // Unlimited
                     }
                 } else {
                     showAlert('error', `❌ Campaign failed: ${data.error || 'Unknown error'}`);
@@ -2920,7 +2894,7 @@ Note: Variables like {first_name} will be automatically replaced with actual mem
             const preview = `Campaign Preview:
 Name: ${name || 'Untitled Campaign'}
 Target: ${getTargetGroupDisplay(targetGroup)}
-Max Recipients: ${maxRecipients}
+Recipients: ${maxRecipients === '999999' ? 'Unlimited' : maxRecipients}
 Message: "${message}"`;
             
             alert(preview);

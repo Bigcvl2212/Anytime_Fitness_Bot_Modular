@@ -2737,9 +2737,9 @@ class DatabaseManager:
             member_revenue = float(member_result[0]['member_revenue']) if member_result else 0.0
             revenue_members_count = int(member_result[0]['revenue_members']) if member_result else 0
             
-            # TRAINING CLIENT REVENUE: Extract recurring fees from package_details JSON
+            # TRAINING CLIENT REVENUE: Calculate from enhanced paid invoice data
             training_clients = self.execute_query("""
-                SELECT package_details, payment_status
+                SELECT package_details, payment_status, member_name
                 FROM training_clients
                 WHERE package_details IS NOT NULL AND package_details != ''
             """)
@@ -2750,30 +2750,57 @@ class DatabaseManager:
             for client in training_clients:
                 try:
                     if client['package_details']:
-                        # Parse package_details JSON to extract monthly recurring amounts
+                        # Parse package_details JSON to extract paid invoice amounts
                         package_details = json.loads(client['package_details'])
                         if isinstance(package_details, list):
                             for package in package_details:
                                 if isinstance(package, dict):
-                                    # Look for recurring payment amount fields
-                                    recurring_amount = (
-                                        package.get('recurring_amount', 0) or
-                                        package.get('monthly_amount', 0) or
-                                        package.get('payment_amount', 0) or
-                                        0
-                                    )
-                                    if isinstance(recurring_amount, (int, float)) and recurring_amount > 0:
-                                        training_revenue += float(recurring_amount)
-                                    # Also check for estimated monthly based on payment schedule
-                                    elif package.get('scheduled_payments_count', 0) > 0 and package.get('invoice_count', 0) > 0:
-                                        # Estimate monthly payment based on payment schedule
-                                        total_paid = package.get('total_paid', 0) or 0
-                                        if total_paid > 0 and package.get('invoice_count', 0) > 0:
-                                            estimated_monthly = float(total_paid) / max(1, package.get('invoice_count', 1))
-                                            if estimated_monthly > 0:
-                                                training_revenue += estimated_monthly
+                                    # ENHANCED: Use paid invoices for actual revenue calculation
+                                    if 'paid_invoices' in package and package['paid_invoices']:
+                                        paid_invoices = package['paid_invoices']
+                                        
+                                        # Calculate monthly revenue from paid invoices
+                                        monthly_revenue = 0.0
+                                        for invoice in paid_invoices:
+                                            if isinstance(invoice, dict):
+                                                # Get invoice amount (status=1 means paid)
+                                                amount = float(invoice.get('amount', 0))
+                                                if amount > 0:
+                                                    # For now, treat each paid invoice as contributing to monthly revenue
+                                                    # This could be refined to actual monthly amounts later
+                                                    monthly_revenue += amount
+                                        
+                                        # Estimate monthly recurring revenue
+                                        # If we have multiple paid invoices, estimate monthly recurring
+                                        if len(paid_invoices) > 1:
+                                            # Estimate monthly recurring based on total paid / number of payments
+                                            estimated_monthly = monthly_revenue / len(paid_invoices)
+                                            training_revenue += estimated_monthly
+                                        elif monthly_revenue > 0:
+                                            # Single payment - could be a monthly amount
+                                            training_revenue += monthly_revenue
+                                    
+                                    # FALLBACK: Original calculation for clients without enhanced data
+                                    else:
+                                        # Look for recurring payment amount fields
+                                        recurring_amount = (
+                                            package.get('recurring_amount', 0) or
+                                            package.get('monthly_amount', 0) or
+                                            package.get('payment_amount', 0) or
+                                            0
+                                        )
+                                        if isinstance(recurring_amount, (int, float)) and recurring_amount > 0:
+                                            training_revenue += float(recurring_amount)
+                                        # Also check for estimated monthly based on payment schedule
+                                        elif package.get('scheduled_payments_count', 0) > 0 and package.get('invoice_count', 0) > 0:
+                                            # Estimate monthly payment based on payment schedule
+                                            total_paid = package.get('total_paid', 0) or 0
+                                            if total_paid > 0 and package.get('invoice_count', 0) > 0:
+                                                estimated_monthly = float(total_paid) / max(1, package.get('invoice_count', 1))
+                                                if estimated_monthly > 0:
+                                                    training_revenue += estimated_monthly
                 except (json.JSONDecodeError, TypeError, KeyError) as e:
-                    logger.warning(f"⚠️ Error parsing package_details for training client: {e}")
+                    logger.warning(f"⚠️ Error parsing package_details for training client {client.get('member_name', 'Unknown')}: {e}")
                     continue
             
             # TOTAL MONTHLY REVENUE
@@ -3068,6 +3095,231 @@ class DatabaseManager:
             logger.error(f"❌ Error getting recent payments for member {member_id}: {e}")
             return []
     
+    # ==========================================
+    # PERFORMANCE OPTIMIZATION METHODS
+    # ==========================================
+    
+    def get_members_paginated(self, page: int = 1, per_page: int = 25, search: str = "", status_filter: str = "") -> Dict[str, Any]:
+        """Get paginated members with optimized queries for fast loading"""
+        try:
+            from .performance_cache import query_cache
+            
+            # Build WHERE conditions
+            where_conditions = []
+            params = []
+            
+            if search:
+                # Use indexed columns for fast search
+                where_conditions.append("(full_name LIKE ? OR email LIKE ? OR mobile_phone LIKE ?)")
+                search_term = f"%{search}%"
+                params.extend([search_term, search_term, search_term])
+            
+            if status_filter and status_filter != 'all':
+                if status_filter == 'ppv':
+                    where_conditions.append("(status = 'ppv' OR user_type = 'ppv')")
+                elif status_filter == 'comp':
+                    where_conditions.append("(status = 'comp' OR user_type = 'comp')")
+                else:
+                    where_conditions.append("status = ?")
+                    params.append(status_filter)
+            
+            where_clause = ""
+            if where_conditions:
+                where_clause = "WHERE " + " AND ".join(where_conditions)
+            
+            # Get total count for pagination (cached)
+            count_query = f"SELECT COUNT(*) FROM members {where_clause}"
+            
+            def count_executor(sql, params):
+                return self.execute_query(sql, params)[0][0] if self.execute_query(sql, params) else 0
+            
+            total_members = query_cache.get_or_execute(count_query, tuple(params), count_executor, ttl=120)
+            
+            # Calculate pagination
+            total_pages = (total_members + per_page - 1) // per_page
+            offset = (page - 1) * per_page
+            
+            # Get members for current page (optimized query) - using actual column names
+            members_query = f"""
+                SELECT id, first_name, last_name, full_name, email, mobile_phone, phone, status,
+                       user_type, member_type, amount_past_due, join_date, 
+                       date_of_next_payment, created_at, agreement_recurring_cost
+                FROM members {where_clause}
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            """
+            
+            def members_executor(sql, params):
+                return self.execute_query(sql, params)
+            
+            members_data = query_cache.get_or_execute(
+                members_query, 
+                tuple(params + [per_page, offset]), 
+                members_executor, 
+                ttl=60  # Cache for 1 minute
+            )
+            
+            return {
+                'members': members_data,
+                'total_members': total_members,
+                'total_pages': total_pages,
+                'current_page': page
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting paginated members: {e}")
+            return {
+                'members': [],
+                'total_members': 0,
+                'total_pages': 0,
+                'current_page': 1
+            }
+    
+    def get_training_clients_paginated(self, page: int = 1, per_page: int = 25) -> Dict[str, Any]:
+        """Get paginated training clients with fast loading"""
+        try:
+            from .performance_cache import query_cache
+            
+            # Get total count (cached)
+            count_query = "SELECT COUNT(*) FROM training_clients"
+            
+            def count_executor(sql, params):
+                return self.execute_query(sql, params)[0][0] if self.execute_query(sql, params) else 0
+            
+            total_training_clients = query_cache.get_or_execute(count_query, (), count_executor, ttl=300)
+            
+            # Calculate pagination
+            total_pages = (total_training_clients + per_page - 1) // per_page
+            offset = (page - 1) * per_page
+            
+            # Get training clients for current page
+            clients_query = """
+                SELECT member_name, clubos_member_id, agreement_name, trainer_name,
+                       created_at, next_invoice_subtotal, sessions_remaining,
+                       package_details
+                FROM training_clients 
+                ORDER BY member_name
+                LIMIT ? OFFSET ?
+            """
+            
+            def clients_executor(sql, params):
+                return self.execute_query(sql, params)
+            
+            training_clients_data = query_cache.get_or_execute(
+                clients_query,
+                (per_page, offset),
+                clients_executor,
+                ttl=180  # Cache for 3 minutes
+            )
+            
+            return {
+                'training_clients': training_clients_data,
+                'total_training_clients': total_training_clients,
+                'total_pages': total_pages,
+                'current_page': page
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting paginated training clients: {e}")
+            return {
+                'training_clients': [],
+                'total_training_clients': 0,
+                'total_pages': 0,
+                'current_page': 1
+            }
+    
+    def get_prospects_paginated(self, page: int = 1, per_page: int = 25) -> Dict[str, Any]:
+        """Get paginated prospects with fast loading"""
+        try:
+            from .performance_cache import query_cache
+            
+            # Get total count (cached)
+            count_query = "SELECT COUNT(*) FROM prospects"
+            
+            def count_executor(sql, params):
+                return self.execute_query(sql, params)[0][0] if self.execute_query(sql, params) else 0
+            
+            total_prospects = query_cache.get_or_execute(count_query, (), count_executor, ttl=300)
+            
+            # Calculate pagination
+            total_pages = (total_prospects + per_page - 1) // per_page
+            offset = (page - 1) * per_page
+            
+            # Get prospects for current page
+            prospects_query = """
+                SELECT first_name, last_name, full_name, email, mobile_phone,
+                       status, created_at, lead_source
+                FROM prospects 
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            """
+            
+            def prospects_executor(sql, params):
+                return self.execute_query(sql, params)
+            
+            prospects_data = query_cache.get_or_execute(
+                prospects_query,
+                (per_page, offset),
+                prospects_executor,
+                ttl=180  # Cache for 3 minutes
+            )
+            
+            return {
+                'prospects': prospects_data,
+                'total_prospects': total_prospects,
+                'total_pages': total_pages,
+                'current_page': page
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting paginated prospects: {e}")
+            return {
+                'prospects': [],
+                'total_prospects': 0,
+                'total_pages': 0,
+                'current_page': 1
+            }
+    
+    def get_category_counts(self) -> Dict[str, int]:
+        """Get member category counts with caching for dashboard summary"""
+        try:
+            from .performance_cache import cache_medium
+            
+            @cache_medium
+            def _get_category_counts():
+                # Use indexed queries for fast category counting - using actual column names
+                counts = {}
+                
+                category_queries = [
+                    ("ppv", "SELECT COUNT(*) FROM members WHERE status = 'ppv' OR user_type = 'ppv'"),
+                    ("comp", "SELECT COUNT(*) FROM members WHERE status = 'comp' OR user_type = 'comp'"),
+                    ("frozen", "SELECT COUNT(*) FROM members WHERE status = 'frozen'"),
+                    ("active", "SELECT COUNT(*) FROM members WHERE status = 'active'"),
+                    ("past_due", "SELECT COUNT(*) FROM members WHERE amount_past_due > 0"),
+                ]
+                
+                for category, query in category_queries:
+                    try:
+                        result = self.execute_query(query)
+                        counts[category] = result[0][0] if result else 0
+                    except Exception as e:
+                        logger.error(f"Error counting {category} members: {e}")
+                        counts[category] = 0
+                
+                return counts
+            
+            return _get_category_counts()
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting category counts: {e}")
+            return {
+                'ppv': 0,
+                'comp': 0,
+                'frozen': 0,
+                'active': 0,
+                'past_due': 0
+            }
+
     def get_access_logs(self, member_id: str = None, action: str = None, limit: int = 100) -> List[Dict]:
         """Get access control logs with optional filtering"""
         try:

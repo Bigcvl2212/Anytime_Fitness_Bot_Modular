@@ -255,10 +255,18 @@
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-info text-white">
+            <div class="card bg-success text-white">
                 <div class="card-body text-center">
-                    <div class="count-display" id="monthlyRevenue">-</div>
-                    <div>Monthly Revenue</div>
+                    <div class="count-display" id="training-revenue">$0.00</div>
+                    <div>Training Revenue</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <div class="count-display" id="training-past-due">$0.00</div>
+                    <div>Training Past Due</div>
                 </div>
             </div>
         </div>
@@ -483,7 +491,7 @@ async function loadTrainingClients() {
             trainingClients = data.training_clients;
             updateTrainerFilter();
             applyFilters();
-            updateStats();
+            await updateStats();
             countBadge.textContent = trainingClients.length;
         } else {
             container.innerHTML = `<div class="alert alert-danger">Error loading training clients: ${data.error}</div>`;
@@ -833,23 +841,112 @@ function refreshTrainingClients() {
 }
 
 // Update statistics
-function updateStats() {
+async function updateStats() {
     const total = trainingClients.length;
     const current = trainingClients.filter(c => (c.payment_status || '').toLowerCase() === 'current').length;
     const pastDue = trainingClients.filter(c => (c.payment_status || '').toLowerCase() === 'past due').length;
     
-    // Calculate estimated monthly revenue
+    // Calculate training revenue and past due amounts
+    await updateTrainingRevenueCards(trainingClients);
+    
+    // Calculate estimated monthly revenue using enhanced paid invoice data
     const monthlyRevenue = trainingClients.reduce((total, client) => {
+        let clientRevenue = 0;
+        
+        // First try funding_cache (original method)
         if (client.funding_cache && client.funding_cache.package_amount) {
-            return total + (client.funding_cache.package_amount || 0);
+            clientRevenue = client.funding_cache.package_amount || 0;
         }
-        return total;
+        // Enhanced method: Use package_details with paid_invoices
+        else if (client.package_details) {
+            try {
+                let packageDetails;
+                if (typeof client.package_details === 'string') {
+                    packageDetails = JSON.parse(client.package_details);
+                } else {
+                    packageDetails = client.package_details;
+                }
+                
+                if (Array.isArray(packageDetails)) {
+                    for (const package of packageDetails) {
+                        if (package && package.paid_invoices && Array.isArray(package.paid_invoices)) {
+                            const invoiceTotal = package.paid_invoices.reduce((sum, invoice) => {
+                                return sum + (parseFloat(invoice.amount) || 0);
+                            }, 0);
+                            
+                            // Estimate monthly revenue
+                            if (package.paid_invoices.length > 1) {
+                                clientRevenue += invoiceTotal / package.paid_invoices.length;
+                            } else if (invoiceTotal > 0) {
+                                clientRevenue += invoiceTotal;
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Error parsing package_details for', client.member_name, ':', e);
+            }
+        }
+        
+        return total + clientRevenue;
     }, 0);
     
     document.getElementById('totalClientsCount').textContent = total;
     document.getElementById('currentClientsCount').textContent = current;
     document.getElementById('pastDueClientsCount').textContent = pastDue;
-    document.getElementById('monthlyRevenue').textContent = '$' + monthlyRevenue.toFixed(0);
+    // Update training revenue card
+    document.getElementById('training-revenue').textContent = '$' + monthlyRevenue.toFixed(2);
+}
+
+// Update training revenue and past due cards
+async function updateTrainingRevenueCards(clients) {
+    try {
+        // Get training revenue from API
+        const response = await fetch('/api/training/training-revenue');
+        const data = await response.json();
+        
+        let totalRevenue = 0;
+        let totalPastDue = 0;
+        
+        if (data.success) {
+            totalRevenue = data.revenue_data.training_revenue || 0;
+        } else {
+            // Fallback: calculate from client data
+            clients.forEach(client => {
+                if (client.package_details && Array.isArray(client.package_details)) {
+                    client.package_details.forEach(pkg => {
+                        if (pkg.package_amount) {
+                            totalRevenue += parseFloat(pkg.package_amount) || 0;
+                        }
+                    });
+                }
+            });
+        }
+        
+        // Calculate past due amount from client data
+        clients.forEach(client => {
+            if (client.total_past_due) {
+                totalPastDue += parseFloat(client.total_past_due) || 0;
+            }
+        });
+        
+        // Update the cards
+        const revenueEl = document.getElementById('training-revenue');
+        const pastDueEl = document.getElementById('training-past-due');
+        
+        if (revenueEl) {
+            revenueEl.textContent = `$${totalRevenue.toFixed(2)}`;
+        }
+        
+        if (pastDueEl) {
+            pastDueEl.textContent = `$${totalPastDue.toFixed(2)}`;
+        }
+        
+        console.log(`Training Revenue: $${totalRevenue.toFixed(2)}, Past Due: $${totalPastDue.toFixed(2)}`);
+        
+    } catch (error) {
+        console.error('Error updating training revenue cards:', error);
+    }
 }
 
 // Client detail functions

@@ -13,63 +13,51 @@ logger = logging.getLogger(__name__)
 auth_bp = Blueprint('auth', __name__)
 
 def require_auth(f):
-    """Decorator to require authentication for routes"""
+    """Decorator to require authentication for routes - FIXED VERSION"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         try:
-            # Import authentication service and datetime
-            from src.services.authentication.secure_auth_service import SecureAuthService
-            from datetime import datetime, timedelta
-            auth_service = SecureAuthService()
-            
-            # Enhanced debugging for session validation issues
             route_name = request.endpoint or "unknown_route"
-            
-            # Debug: Log current session state BEFORE any checks
-            logger.info(f"🔍 AUTH DECORATOR DEBUG - Route: {route_name}")
-            logger.info(f"🔍 Session exists: {session is not None}")
-            if session:
-                logger.info(f"🔍 Session keys: {list(session.keys())}")
-                logger.info(f"🔍 Session authenticated: {session.get('authenticated')}")
-                logger.info(f"🔍 Session manager_id: {session.get('manager_id')}")
-                logger.info(f"🔍 Session permanent: {session.permanent}")
-            else:
-                logger.warning(f"🔍 NO SESSION OBJECT FOUND!")
-            
-            # Ensure session persistence before validation
-            if session:
-                session.permanent = True
-                session.modified = True
-            
-            # Quick session check - simplified validation with MORE debugging
-            if not session:
-                logger.warning(f"❌ Fast auth check failed for {route_name} - NO SESSION OBJECT")
-                return redirect(url_for('auth.login'))
-                
-            if not session.get('authenticated'):
-                logger.warning(f"❌ Fast auth check failed for {route_name} - NOT AUTHENTICATED")
-                logger.warning(f"❌ Session exists but authenticated={session.get('authenticated')}")
-                
-                # SPECIAL CASE: If we just completed club selection, give it a moment
-                if 'last_club_selection' in session:
-                    import time
-                    selection_time = session.get('last_club_selection', 0)
-                    current_time = time.time()
-                    
-                    # If club selection was within the last 5 seconds, be forgiving
-                    if current_time - selection_time < 5:
-                        logger.info(f"🔄 RECENT CLUB SELECTION DETECTED - giving session time to sync")
-                        session['authenticated'] = True  # Force authentication back
-                        session.modified = True
-                        # Continue with the request
-                    else:
-                        return redirect(url_for('auth.login'))
+
+            # PERMANENT FIX: Check session token directly from secure storage
+            from src.services.authentication.secure_auth_service import SecureAuthService
+            auth_service = SecureAuthService()
+
+            # Get session token from session or headers
+            session_token = session.get('session_token') or request.headers.get('X-Session-Token')
+
+            if session_token:
+                # Validate token and restore session if valid
+                validation_result = auth_service.validate_session_token(session_token)
+
+                if validation_result.get('is_valid'):
+                    # FORCE session restoration from validated data
+                    session.clear()  # Clear any corrupted session data
+                    session.permanent = True
+                    session['authenticated'] = True
+                    session['manager_id'] = validation_result.get('manager_id')
+                    session['session_token'] = session_token
+                    session['login_time'] = validation_result.get('login_time')
+                    session['last_activity'] = validation_result.get('last_activity')
+
+                    # Include selected clubs if available
+                    if validation_result.get('selected_clubs'):
+                        session['selected_clubs'] = validation_result.get('selected_clubs')
+
+                    session.modified = True
+
+                    # Update activity time
+                    auth_service.update_session_activity(session_token)
+
+                    logger.info(f"✅ Session restored for {validation_result.get('manager_id')} on route {route_name}")
+                    return f(*args, **kwargs)
                 else:
+                    logger.warning(f"❌ Invalid session token for route {route_name}")
+                    session.clear()
                     return redirect(url_for('auth.login'))
-                    
-            if not session.get('manager_id'):
-                logger.warning(f"❌ Fast auth check failed for {route_name} - NO MANAGER ID")
-                logger.warning(f"❌ Session authenticated but manager_id={session.get('manager_id')}")
+            else:
+                logger.warning(f"❌ No session token found for route {route_name}")
+                session.clear()
                 return redirect(url_for('auth.login'))
             
             # Check session timeout only (skip full validation for performance)
