@@ -36,6 +36,11 @@ def enhanced_startup_sync(app, selected_clubs_override: List[str] = None, multi_
     }
     
     try:
+        # Initialize variables to avoid UnboundLocalError
+        members = []
+        prospects = []
+        training_clients = []
+
         if multi_club_enabled:
             # Multi-club sync
             from src.services.multi_club_manager import multi_club_manager
@@ -156,10 +161,14 @@ def enhanced_startup_sync(app, selected_clubs_override: List[str] = None, multi_
             app.cached_members = combined_data.get('members', [])
             app.cached_prospects = combined_data.get('prospects', [])
             app.cached_training_clients = combined_data.get('training_clients', [])
-            
-            logger.info(f"🎉 Multi-club sync complete! Members: {sync_results['combined_totals']['members']}, "
-                       f"Prospects: {sync_results['combined_totals']['prospects']}, "
-                       f"Training Clients: {sync_results['combined_totals']['training_clients']}")
+
+            # Set variables for unified processing below
+            members = combined_data.get('members', [])
+            prospects = combined_data.get('prospects', [])
+            training_clients = combined_data.get('training_clients', [])
+
+            logger.info(f"🎉 Multi-club sync complete! Members: {len(members)}, "
+                       f"Prospects: {len(prospects)}, Training Clients: {len(training_clients)}")
             
         else:
             # Single club sync (existing functionality)

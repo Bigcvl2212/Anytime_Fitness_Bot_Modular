@@ -18,7 +18,7 @@ validators>=0.20.0
 bleach>=6.0.0
 
 # Database dependencies
-psycopg2-binary>=2.9.5  # PostgreSQL adapter for production
+# SQLite is used (built into Python standard library)
 
 # Google Cloud dependencies  
 google-cloud-secret-manager>=2.16.0

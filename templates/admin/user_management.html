@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management - Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .admin-header {
+            background: linear-gradient(135deg, #dc3545, #6f42c1);
+            color: white;
+            padding: 1.5rem 0;
+        }
+        .admin-card {
+            border: none;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+        .admin-card:hover {
+            transform: translateY(-2px);
+        }
+        .sidebar {
+            min-height: 100vh;
+            background-color: #343a40;
+        }
+        .sidebar a {
+            color: #adb5bd;
+            text-decoration: none;
+            padding: 0.75rem 1rem;
+            display: block;
+            border-radius: 0.25rem;
+            margin: 0.25rem;
+        }
+        .sidebar a:hover, .sidebar a.active {
+            background-color: #495057;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-2 sidebar text-white p-0">
+                <div class="p-3">
+                    <h5><i class="fas fa-shield-alt me-2"></i>Admin Panel</h5>
+                    <hr>
+                </div>
+                <nav>
+                    <a href="{{ url_for('admin.admin_dashboard') }}">
+                        <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                    </a>
+                    <a href="{{ url_for('admin.user_management') }}" class="active">
+                        <i class="fas fa-users me-2"></i>User Management
+                    </a>
+                    <a href="{{ url_for('admin.system_monitoring') }}">
+                        <i class="fas fa-chart-line me-2"></i>System Monitor
+                    </a>
+                    <a href="{{ url_for('admin.data_management') }}">
+                        <i class="fas fa-database me-2"></i>Data Management
+                    </a>
+                    <a href="{{ url_for('admin.audit_logs') }}">
+                        <i class="fas fa-history me-2"></i>Audit Logs
+                    </a>
+                    <hr>
+                    <a href="{{ url_for('dashboard.dashboard') }}">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </nav>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-10">
+                <!-- Header -->
+                <div class="admin-header">
+                    <div class="container-fluid">
+                        <h1><i class="fas fa-users me-3"></i>User Management</h1>
+                        <p class="mb-0">Manage admin users and permissions</p>
+                    </div>
+                </div>
+
+                <!-- Main Content -->
+                <div class="container-fluid py-4">
+                    <!-- Admin Users -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card admin-card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h5><i class="fas fa-shield me-2"></i>Admin Users</h5>
+                                    <button class="btn btn-primary btn-sm" onclick="showPromoteUserModal()">
+                                        <i class="fas fa-user-plus me-2"></i>Promote User to Admin
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    {% if admin_users and admin_users|length > 0 %}
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Username</th>
+                                                    <th>Email</th>
+                                                    <th>Role</th>
+                                                    <th>Status</th>
+                                                    <th>Last Login</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for user in admin_users %}
+                                                <tr>
+                                                    <td>{{ user.username }}</td>
+                                                    <td>{{ user.email }}</td>
+                                                    <td>
+                                                        {% if user.is_super_admin %}
+                                                            <span class="badge bg-danger">
+                                                                <i class="fas fa-crown me-1"></i>Super Admin
+                                                            </span>
+                                                        {% else %}
+                                                            <span class="badge bg-warning">
+                                                                <i class="fas fa-shield me-1"></i>Admin
+                                                            </span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if user.is_active %}
+                                                            <span class="badge bg-success">Active</span>
+                                                        {% else %}
+                                                            <span class="badge bg-secondary">Inactive</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>{{ user.last_login or 'Never' }}</td>
+                                                    <td>
+                                                        <div class="btn-group btn-group-sm">
+                                                            <button class="btn btn-outline-primary" onclick="editUser('{{ user.manager_id }}')">
+                                                                <i class="fas fa-edit"></i>
+                                                            </button>
+                                                            {% if not user.is_super_admin %}
+                                                            <button class="btn btn-outline-danger" onclick="deactivateUser('{{ user.manager_id }}')">
+                                                                <i class="fas fa-ban"></i>
+                                                            </button>
+                                                            {% endif %}
+                                                            {% if user.manager_id != session.get('manager_id') %}
+                                                            <button class="btn btn-outline-danger" onclick="deleteUser('{{ user.manager_id }}', '{{ user.username }}')">
+                                                                <i class="fas fa-trash"></i>
+                                                            </button>
+                                                            {% endif %}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {% else %}
+                                    <div class="text-center py-4">
+                                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                                        <h5>No admin users found</h5>
+                                        <p class="text-muted">The default admin user may not have been created yet.</p>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- System Users -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card admin-card">
+                                <div class="card-header">
+                                    <h5><i class="fas fa-users me-2"></i>System Users</h5>
+                                </div>
+                                <div class="card-body">
+                                    {% if system_users and system_users|length > 0 %}
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Manager ID</th>
+                                                    <th>Status</th>
+                                                    <th>Last Activity</th>
+                                                    <th>Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for user in system_users %}
+                                                <tr>
+                                                    <td>{{ user.manager_id }}</td>
+                                                    <td>
+                                                        <span class="badge bg-success">Active</span>
+                                                    </td>
+                                                    <td>{{ user.last_activity or 'Unknown' }}</td>
+                                                    <td>
+                                                        <button class="btn btn-outline-primary btn-sm" onclick="promoteUser('{{ user.manager_id }}')">
+                                                            <i class="fas fa-shield me-1"></i>Promote to Admin
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    {% else %}
+                                    <div class="text-center py-4">
+                                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                                        <h5>No system users found</h5>
+                                        <p class="text-muted">System users will appear here once they log in.</p>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Promote User Modal -->
+    <div class="modal fade" id="promoteUserModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Promote User to Admin</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="promoteUserForm">
+                        <div class="mb-3">
+                            <label for="managerIdInput" class="form-label">Manager ID</label>
+                            <input type="text" class="form-control" id="managerIdInput" required>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="superAdminCheck">
+                            <label class="form-check-label" for="superAdminCheck">
+                                Make Super Admin
+                            </label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="submitPromoteUser()">Promote User</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div class="modal fade" id="editUserModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user-edit me-2"></i>Edit Admin User
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editUserForm">
+                        <input type="hidden" id="editManagerId">
+
+                        <!-- Basic Information -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary mb-3">
+                                    <i class="fas fa-user me-1"></i>Basic Information
+                                </h6>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="editUsername" class="form-label">Username</label>
+                                    <input type="text" class="form-control" id="editUsername" required>
+                                    <div class="form-text">Must be unique</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="editEmail" class="form-label">Email</label>
+                                    <input type="email" class="form-control" id="editEmail" required>
+                                    <div class="form-text">Must be unique</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Roles and Permissions -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary mb-3">
+                                    <i class="fas fa-shield-alt me-1"></i>Roles and Permissions
+                                </h6>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check mb-2">
+                                    <input type="checkbox" class="form-check-input" id="editIsAdmin">
+                                    <label class="form-check-label" for="editIsAdmin">
+                                        <strong>Admin User</strong>
+                                        <div class="form-text">Can access admin panel</div>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check mb-2">
+                                    <input type="checkbox" class="form-check-input" id="editIsSuperAdmin">
+                                    <label class="form-check-label" for="editIsSuperAdmin">
+                                        <strong>Super Admin</strong>
+                                        <div class="form-text">Full system access</div>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="form-check mb-2">
+                                    <input type="checkbox" class="form-check-input" id="editIsActive">
+                                    <label class="form-check-label" for="editIsActive">
+                                        <strong>Active Account</strong>
+                                        <div class="form-text">Can log in</div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Specific Permissions -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary mb-3">
+                                    <i class="fas fa-key me-1"></i>Specific Permissions
+                                </h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input type="checkbox" class="form-check-input permission-check"
+                                                   id="perm_user_management" data-permission="user_management">
+                                            <label class="form-check-label" for="perm_user_management">
+                                                User Management
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input type="checkbox" class="form-check-input permission-check"
+                                                   id="perm_system_settings" data-permission="system_settings">
+                                            <label class="form-check-label" for="perm_system_settings">
+                                                System Settings
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input type="checkbox" class="form-check-input permission-check"
+                                                   id="perm_audit_logs" data-permission="audit_logs">
+                                            <label class="form-check-label" for="perm_audit_logs">
+                                                Audit Logs
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-check mb-2">
+                                            <input type="checkbox" class="form-check-input permission-check"
+                                                   id="perm_database_management" data-permission="database_management">
+                                            <label class="form-check-label" for="perm_database_management">
+                                                Database Management
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input type="checkbox" class="form-check-input permission-check"
+                                                   id="perm_all_data_access" data-permission="all_data_access">
+                                            <label class="form-check-label" for="perm_all_data_access">
+                                                All Data Access
+                                            </label>
+                                        </div>
+                                        <div class="form-check mb-2">
+                                            <input type="checkbox" class="form-check-input permission-check"
+                                                   id="perm_system_monitoring" data-permission="system_monitoring">
+                                            <label class="form-check-label" for="perm_system_monitoring">
+                                                System Monitoring
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-text mt-2">
+                                    Super Admins automatically have all permissions
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Account Status -->
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <h6 class="text-primary mb-3">
+                                    <i class="fas fa-info-circle me-1"></i>Account Information
+                                </h6>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Manager ID</label>
+                                        <input type="text" class="form-control" id="editManagerIdDisplay" readonly>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Login Attempts</label>
+                                        <input type="number" class="form-control" id="editLoginAttempts" min="0" max="10">
+                                        <div class="form-text">Reset failed login attempts</div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Last Login</label>
+                                        <input type="text" class="form-control" id="editLastLogin" readonly>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Cancel
+                    </button>
+                    <button type="button" class="btn btn-warning" onclick="resetUserPassword()">
+                        <i class="fas fa-key me-1"></i>Reset Access
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="submitEditUser()">
+                        <i class="fas fa-save me-1"></i>Save Changes
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        function showPromoteUserModal() {
+            new bootstrap.Modal(document.getElementById('promoteUserModal')).show();
+        }
+
+        function promoteUser(managerId) {
+            document.getElementById('managerIdInput').value = managerId;
+            showPromoteUserModal();
+        }
+
+        function submitPromoteUser() {
+            const managerId = document.getElementById('managerIdInput').value;
+            const isSuperAdmin = document.getElementById('superAdminCheck').checked;
+
+            if (!managerId) {
+                alert('Please enter a Manager ID');
+                return;
+            }
+
+            fetch('/admin/api/users/promote', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    manager_id: managerId,
+                    is_super_admin: isSuperAdmin
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('User promoted successfully!');
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to promote user'));
+                }
+            })
+            .catch(error => {
+                alert('Network error: ' + error);
+            });
+        }
+
+        async function editUser(managerId) {
+            try {
+                console.log('Fetching user data for:', managerId);
+                // Fetch user data
+                const response = await fetch(`/admin/api/users/${managerId}`);
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Error response:', errorText);
+                    alert(`HTTP Error ${response.status}: ${errorText.substring(0, 200)}`);
+                    return;
+                }
+
+                const data = await response.json();
+                console.log('Response data:', data);
+
+                if (!data.success) {
+                    alert('Error loading user data: ' + (data.error || 'Unknown error'));
+                    return;
+                }
+
+                const user = data.user;
+
+                // Populate the edit form
+                document.getElementById('editManagerId').value = user.manager_id;
+                document.getElementById('editManagerIdDisplay').value = user.manager_id;
+                document.getElementById('editUsername').value = user.username || '';
+                document.getElementById('editEmail').value = user.email || '';
+                document.getElementById('editIsAdmin').checked = user.is_admin;
+                document.getElementById('editIsSuperAdmin').checked = user.is_super_admin;
+                document.getElementById('editIsActive').checked = user.is_active;
+                document.getElementById('editLoginAttempts').value = user.login_attempts || 0;
+                document.getElementById('editLastLogin').value = user.last_login || 'Never';
+
+                // Parse and set permissions
+                let permissions = {};
+                try {
+                    permissions = user.permissions ? JSON.parse(user.permissions) : {};
+                } catch (e) {
+                    permissions = {};
+                }
+
+                // Set permission checkboxes
+                document.querySelectorAll('.permission-check').forEach(checkbox => {
+                    const permission = checkbox.getAttribute('data-permission');
+                    checkbox.checked = permissions[permission] === true;
+                });
+
+                // Show the modal
+                new bootstrap.Modal(document.getElementById('editUserModal')).show();
+
+            } catch (error) {
+                alert('Network error loading user data: ' + error);
+            }
+        }
+
+        async function submitEditUser() {
+            try {
+                const managerId = document.getElementById('editManagerId').value;
+
+                // Collect permission data
+                const permissions = {};
+                document.querySelectorAll('.permission-check').forEach(checkbox => {
+                    const permission = checkbox.getAttribute('data-permission');
+                    permissions[permission] = checkbox.checked;
+                });
+
+                const userData = {
+                    username: document.getElementById('editUsername').value,
+                    email: document.getElementById('editEmail').value,
+                    is_admin: document.getElementById('editIsAdmin').checked,
+                    is_super_admin: document.getElementById('editIsSuperAdmin').checked,
+                    is_active: document.getElementById('editIsActive').checked,
+                    login_attempts: parseInt(document.getElementById('editLoginAttempts').value) || 0,
+                    permissions: permissions
+                };
+
+                // Validate required fields
+                if (!userData.username || !userData.email) {
+                    alert('Username and email are required');
+                    return;
+                }
+
+                const response = await fetch(`/admin/api/users/${managerId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(userData)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('User updated successfully!');
+                    bootstrap.Modal.getInstance(document.getElementById('editUserModal')).hide();
+                    window.location.reload();
+                } else {
+                    alert('Error updating user: ' + (data.error || 'Unknown error'));
+                }
+
+            } catch (error) {
+                alert('Network error updating user: ' + error);
+            }
+        }
+
+        async function resetUserPassword() {
+            const managerId = document.getElementById('editManagerId').value;
+
+            if (!confirm('Are you sure you want to reset this user\'s access? This will reset their login attempts and unlock their account.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/admin/api/users/${managerId}/reset-access`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('User access reset successfully!');
+                    // Refresh the user data in the modal
+                    editUser(managerId);
+                } else {
+                    alert('Error resetting user access: ' + (data.error || 'Unknown error'));
+                }
+
+            } catch (error) {
+                alert('Network error resetting user access: ' + error);
+            }
+        }
+
+        function deactivateUser(managerId) {
+            if (confirm('Are you sure you want to deactivate this user? They will no longer be able to log in.')) {
+                // Open edit modal and automatically set is_active to false
+                editUser(managerId).then(() => {
+                    document.getElementById('editIsActive').checked = false;
+                });
+            }
+        }
+
+        async function deleteUser(managerId, username) {
+            if (confirm(`Are you sure you want to permanently delete the user "${username}"? This action cannot be undone.`)) {
+                try {
+                    const response = await fetch(`/admin/api/users/${managerId}`, {
+                        method: 'DELETE'
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        alert(`User "${username}" deleted successfully!`);
+                        window.location.reload(); // Refresh the page to update the user list
+                    } else {
+                        alert('Error deleting user: ' + (data.error || 'Unknown error'));
+                    }
+                } catch (error) {
+                    alert('Network error deleting user: ' + error);
+                }
+            }
+        }
+
+        // Auto-manage permission checkboxes based on super admin status
+        document.addEventListener('DOMContentLoaded', function() {
+            const superAdminCheck = document.getElementById('editIsSuperAdmin');
+            const permissionChecks = document.querySelectorAll('.permission-check');
+
+            if (superAdminCheck) {
+                superAdminCheck.addEventListener('change', function() {
+                    if (this.checked) {
+                        // If super admin is checked, check all permissions and disable them
+                        permissionChecks.forEach(checkbox => {
+                            checkbox.checked = true;
+                            checkbox.disabled = true;
+                        });
+                    } else {
+                        // If super admin is unchecked, enable permission checkboxes
+                        permissionChecks.forEach(checkbox => {
+                            checkbox.disabled = false;
+                        });
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

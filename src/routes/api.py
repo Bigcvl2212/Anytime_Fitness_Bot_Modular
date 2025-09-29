@@ -1784,15 +1784,18 @@ def perform_bulk_checkin_background():
         
         for member in members:
             try:
+                # Convert sqlite3.Row to dict first
+                member_dict = dict(member)
+
                 # Extract member data with proper null handling
-                member_type = member.get('member_type') or ''
-                agreement_type = member.get('agreement_type') or ''
-                status_message = member.get('status_message') or ''
-                user_type = member.get('user_type') or 0
-                
+                member_type = member_dict.get('member_type') or ''
+                agreement_type = member_dict.get('agreement_type') or ''
+                status_message = member_dict.get('status_message') or ''
+                user_type = member_dict.get('user_type') or 0
+
                 # Only check for PPV (Pay Per Visit) - everything else gets checked in
                 is_ppv = False
-                
+
                 # PPV Check - based on actual database analysis
                 if 'Pay Per Visit' in status_message:
                     is_ppv = True
@@ -1800,18 +1803,18 @@ def perform_bulk_checkin_background():
                     is_ppv = True
                 elif 'day pass' in status_message.lower() or 'guest pass' in status_message.lower():
                     is_ppv = True
-                
+
                 # Only exclude PPV members - include everyone else (comp, staff, frozen, good standing, past due, etc.)
                 if is_ppv:
                     ppv_excluded += 1
-                    logger.info(f"⚠️ Excluding PPV member: {member.get('full_name', 'Unknown')} - Status: {status_message}")
+                    logger.info(f"⚠️ Excluding PPV member: {member_dict.get('full_name', 'Unknown')} - Status: {status_message}")
                 else:
-                    eligible_members.append(member)
-                    
+                    eligible_members.append(member_dict)
+
             except Exception as e:
-                logger.warning(f"Error categorizing member {member.get('full_name', 'Unknown')}: {e}")
+                logger.warning(f"Error categorizing member {dict(member).get('full_name', 'Unknown')}: {e}")
                 # If categorization fails, include member to be safe (better to check them in than miss them)
-                eligible_members.append(member)
+                eligible_members.append(dict(member))
         
         total_eligible = len(eligible_members)
         logger.info(f"✅ Member selection: {total_eligible} eligible for check-in, {ppv_excluded} PPV excluded (fraud prevention)")

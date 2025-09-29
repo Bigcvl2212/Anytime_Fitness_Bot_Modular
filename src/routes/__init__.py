@@ -11,18 +11,55 @@ from .calendar import calendar_bp
 from .api import api_bp
 from .messaging import messaging_bp
 from .auth import auth_bp
+from .admin import admin_bp
+from .admin_ai import admin_ai_bp
+from .sales_ai import sales_ai_bp
 from .club_selection import club_selection_bp
-from ..services.progressive_loading import progressive_bp
+from .debug_session import debug_bp
 from ..services.progressive_loading import progressive_bp
 
 def register_blueprints(app):
     """Register all route blueprints with the Flask app"""
     from flask import redirect, url_for, session, render_template
     from .auth import require_auth
-    
+
+    # Register template context processor for safe admin access
+    @app.context_processor
+    def inject_admin_context():
+        """Safely inject admin context into templates"""
+        admin_context = {
+            'is_admin': False,
+            'admin_permissions': [],
+            'admin_user': None
+        }
+
+        try:
+            # Only check admin status if user is authenticated and admin service exists
+            if (session.get('authenticated') and
+                session.get('manager_id') and
+                hasattr(app, 'admin_service') and
+                app.admin_service is not None):
+
+                manager_id = session.get('manager_id')
+                admin_context['is_admin'] = app.admin_service.is_admin(manager_id)
+
+                if admin_context['is_admin']:
+                    admin_context['admin_permissions'] = app.admin_service.get_admin_permissions(manager_id)
+                    admin_context['admin_user'] = app.admin_service.admin_schema.get_admin_user(manager_id)
+
+        except Exception as e:
+            # Silently fail - don't break template rendering
+            app.logger.debug(f"Admin context injection error: {e}")
+
+        return admin_context
+
     # Register blueprints
     app.register_blueprint(auth_bp)  # Register auth blueprint first
     app.register_blueprint(club_selection_bp)  # Register club selection blueprint
+    app.register_blueprint(admin_bp)  # Register admin blueprint
+    app.register_blueprint(admin_ai_bp)  # Register admin AI blueprint
+    app.register_blueprint(sales_ai_bp)  # Register sales AI blueprint
+    app.register_blueprint(debug_bp)  # Register debug blueprint
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(members_bp)
     app.register_blueprint(prospects_bp)

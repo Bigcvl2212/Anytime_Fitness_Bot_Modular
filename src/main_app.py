@@ -125,18 +125,12 @@ def create_app():
     
     # Initialize services
     with app.app_context():
-        # Initialize database manager (will use environment variables to determine database type)
+        # Initialize SQLite database manager
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         db_path = os.path.join(project_root, 'gym_bot.db')
-        
-        # Pass db_path only if using SQLite, otherwise let DatabaseManager use PostgreSQL config from env
-        db_type = os.getenv('DB_TYPE', 'sqlite').lower()
-        if db_type == 'postgresql':
-            app.db_manager = DatabaseManager()  # No db_path - will use PostgreSQL from env vars
-            logger.info(f"🐘 Database configured for PostgreSQL: {os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}")
-        else:
-            app.db_manager = DatabaseManager(db_path=db_path)
-            logger.info(f"📁 Database path: {db_path}")
+
+        app.db_manager = DatabaseManager(db_path=db_path)
+        logger.info(f"📁 SQLite Database path: {db_path}")
         
         # Initialize training package cache
         app.training_package_cache = TrainingPackageCache()
@@ -233,36 +227,127 @@ def create_app():
                 from .services.campaign_service import CampaignService
             except ImportError:
                 from services.campaign_service import CampaignService
-            
+
             app.campaign_service = CampaignService(app.db_manager)
             logger.info("✅ Campaign service initialized")
         except Exception as e:
             app.campaign_service = None
             logger.warning(f"⚠️ Campaign service initialization failed: {e}")
-        
-        logger.info("✅ All services initialized successfully")
-        
-        # Initialize and start automated access monitoring system
+
+        # Initialize Admin Service
         try:
             try:
-                from .services.automated_access_monitor import start_global_monitoring
+                from .services.admin_auth_service import AdminAuthService
+                from .services.authentication.secure_secrets_manager import SecureSecretsManager
             except ImportError:
-                from services.automated_access_monitor import start_global_monitoring
-            
-            # Start monitoring in a separate thread to avoid blocking app startup
-            def delayed_monitoring_start():
-                time.sleep(5)  # Wait 5 seconds for app to fully initialize
-                try:
-                    start_global_monitoring()
-                    logger.info("🔐 Automated access monitoring started successfully")
-                except Exception as e:
-                    logger.warning(f"⚠️ Failed to start automated access monitoring: {e}")
-            
-            monitoring_thread = threading.Thread(target=delayed_monitoring_start, daemon=True)
-            monitoring_thread.start()
-            
+                from services.admin_auth_service import AdminAuthService
+                from services.authentication.secure_secrets_manager import SecureSecretsManager
+
+            # Initialize with secrets manager if available
+            secrets_manager = None
+            try:
+                secrets_manager = SecureSecretsManager()
+            except Exception as e:
+                logger.warning(f"⚠️ Could not initialize secrets manager for admin service: {e}")
+
+            app.admin_service = AdminAuthService(app.db_manager, secrets_manager)
+
+            # Initialize admin system (create tables and default admin)
+            app.admin_service.initialize_admin_system()
+
+            logger.info("✅ Admin service initialized successfully")
         except Exception as e:
-            logger.warning(f"⚠️ Automated access monitoring initialization failed: {e}")
+            app.admin_service = None
+            logger.warning(f"⚠️ Admin service initialization failed: {e}")
+
+        # Initialize AI Services
+        try:
+            from .services.ai.ai_service_manager import AIServiceManager
+            from .services.ai.ai_context_manager import AIContextManager
+            from .services.ai.database_ai_adapter import DatabaseAIAdapter
+            from .services.ai.admin_ai_agent import AdminAIAgent
+            from .services.ai.sales_ai_agent import SalesAIAgent
+
+            logger.info("🤖 Initializing AI services...")
+
+            # Initialize core AI service manager
+            app.ai_service = AIServiceManager()
+
+            # Initialize AI context manager
+            app.ai_context_manager = AIContextManager(app.db_manager)
+
+            # Initialize database AI adapter
+            app.db_ai_adapter = DatabaseAIAdapter(app.db_manager, app.ai_service)
+
+            # Initialize Admin AI Agent
+            if hasattr(app, 'admin_service') and app.admin_service:
+                app.admin_ai_agent = AdminAIAgent(
+                    ai_service_manager=app.ai_service,
+                    context_manager=app.ai_context_manager,
+                    db_adapter=app.db_ai_adapter,
+                    admin_service=app.admin_service
+                )
+                logger.info("✅ Admin AI Agent initialized")
+            else:
+                logger.warning("⚠️ Admin AI Agent not initialized - admin service unavailable")
+
+            # Initialize Sales AI Agent
+            app.sales_ai_agent = SalesAIAgent(
+                ai_service_manager=app.ai_service,
+                context_manager=app.ai_context_manager,
+                db_adapter=app.db_ai_adapter,
+                campaign_service=getattr(app, 'campaign_service', None),
+                square_client=None,  # Will be imported as needed
+                messaging_client=getattr(app, 'clubos_messaging_client', None),
+                db_manager=app.db_manager
+            )
+
+            logger.info("✅ AI services initialized successfully")
+
+        except Exception as e:
+            logger.warning(f"⚠️ AI services initialization failed: {e}")
+            logger.warning("🤖 AI features will not be available")
+
+            # Set AI services to None if initialization fails
+            app.ai_service = None
+            app.ai_context_manager = None
+            app.db_ai_adapter = None
+            app.admin_ai_agent = None
+            app.sales_ai_agent = None
+
+        logger.info("✅ All services initialized successfully")
+        
+        # Initialize automated access monitoring system (but don't start it yet)
+        # Will be started after user authentication to prevent issues during deployment
+        app.monitoring_started = False
+        logger.info("ℹ️ Automated access monitoring initialized but not started - will start after authentication")
+
+        # Add helper function to start monitoring after authentication
+        def start_monitoring_after_auth():
+            """Start automated access monitoring after successful authentication"""
+            if not app.monitoring_started:
+                try:
+                    try:
+                        from .services.automated_access_monitor import start_global_monitoring
+                    except ImportError:
+                        from services.automated_access_monitor import start_global_monitoring
+
+                    # Start monitoring in a separate thread
+                    def monitoring_thread():
+                        try:
+                            start_global_monitoring()
+                            logger.info("🔐 Automated access monitoring started after authentication")
+                        except Exception as e:
+                            logger.warning(f"⚠️ Failed to start automated access monitoring: {e}")
+
+                    thread = threading.Thread(target=monitoring_thread, daemon=True)
+                    thread.start()
+                    app.monitoring_started = True
+
+                except Exception as e:
+                    logger.warning(f"⚠️ Automated access monitoring start failed: {e}")
+
+        app.start_monitoring_after_auth = start_monitoring_after_auth
         
         # Run startup health checks (non-breaking)
         try:

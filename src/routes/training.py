@@ -278,20 +278,18 @@ def training_client_profile(member_id):
 def get_training_clients():
     """Get training clients data for messaging interface."""
     try:
-        # Get training clients from database first (prioritized)
-        conn = current_app.db_manager.get_connection()
-        cursor = current_app.db_manager.get_cursor(conn)
-        
-        # Get all training clients with their payment status
-        cursor.execute("""
-            SELECT tc.*, m.first_name, m.last_name, m.full_name, m.email, m.mobile_phone, m.status_message
+        # Get training clients from database
+        query = """
+            SELECT tc.*, m.first_name, m.last_name, m.full_name, m.email, m.mobile_phone
             FROM training_clients tc
-            LEFT JOIN members m ON (tc.member_id = m.guid OR tc.member_id = m.prospect_id)
+            LEFT JOIN members m ON (tc.prospect_id = m.prospect_id)
             ORDER BY tc.member_name, tc.created_at DESC
-        """)
-        
+        """
+
+        result = current_app.db_manager.execute_query(query, fetch_all=True)
+
         training_clients = []
-        for row in cursor.fetchall():
+        for row in (result or []):
             client = dict(row)
             
             # Ensure member_name is properly set

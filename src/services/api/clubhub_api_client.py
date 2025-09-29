@@ -6,9 +6,12 @@ ClubHub API Client - Comprehensive implementation based on discovered endpoints
 import requests
 import json
 import time
+import logging
 from typing import Dict, List, Any, Optional
 from urllib.parse import urlencode
 from src.services.authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
+
+logger = logging.getLogger(__name__)
 
 class ClubHubAPIClient:
     """ClubHub API Client with all discovered endpoints"""
@@ -256,32 +259,67 @@ class ClubHubAPIClient:
         url = f"{self.base_url}/api/clubs/{self.club_id}/Sources"
         return self._make_request("GET", url)
     
-    def _make_request(self, method: str, url: str, params: Dict[str, Any] = None, 
-                     json_data: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
-        """Make HTTP request with error handling"""
-        try:
-            if method == "GET":
-                response = requests.get(url, headers=self.headers, params=params, timeout=30)
-            elif method == "POST":
-                response = requests.post(url, headers=self.headers, params=params, json=json_data, timeout=30)
-            elif method == "PUT":
-                response = requests.put(url, headers=self.headers, params=params, json=json_data, timeout=30)
-            elif method == "DELETE":
-                response = requests.delete(url, headers=self.headers, params=params, timeout=30)
-            else:
-                print(f"❌ Unsupported HTTP method: {method}")
-                return None
+    def _make_request(self, method: str, url: str, params: Dict[str, Any] = None,
+                     json_data: Dict[str, Any] = None, retries: int = 3) -> Optional[Dict[str, Any]]:
+        """Make HTTP request with error handling and retry logic"""
+        import time
+
+        for attempt in range(retries):
+            try:
+                if attempt > 0:
+                    # Wait before retry (exponential backoff)
+                    wait_time = 2 ** attempt
+                    logger.warning(f"🔄 Retrying request (attempt {attempt + 1}/{retries}) after {wait_time}s...")
+                    time.sleep(wait_time)
+
+                if method == "GET":
+                    response = requests.get(url, headers=self.headers, params=params, timeout=30)
+                elif method == "POST":
+                    response = requests.post(url, headers=self.headers, params=params, json=json_data, timeout=30)
+                elif method == "PUT":
+                    response = requests.put(url, headers=self.headers, params=params, json=json_data, timeout=30)
+                elif method == "DELETE":
+                    response = requests.delete(url, headers=self.headers, params=params, timeout=30)
+                else:
+                    logger.error(f"❌ Unsupported HTTP method: {method}")
+                    return None
             
-            if response.status_code == 200:
-                return response.json()
-            else:
-                print(f"❌ {method} {url} failed: {response.status_code}")
-                print(f"Response: {response.text[:500]}")
-                return None
-                
-        except Exception as e:
-            print(f"❌ Request error: {e}")
-            return None
+                if response.status_code == 200:
+                    # Handle empty responses (which can happen with DELETE requests)
+                    if not response.text or response.text.strip() == '':
+                        # Return success indicator for empty responses
+                        return {'success': True, 'message': 'Operation completed successfully'}
+
+                    try:
+                        return response.json()
+                    except ValueError as json_error:
+                        # Handle malformed JSON responses
+                        logger.error(f"❌ JSON parsing error for {method} {url}: {json_error}")
+                        logger.error(f"Response text: {response.text[:500]}")
+                        return {'error': f'Invalid JSON response: {json_error}', 'response_text': response.text[:500]}
+
+                # Handle retryable errors (5xx server errors, timeouts, connection issues)
+                elif response.status_code >= 500 and attempt < retries - 1:
+                    logger.warning(f"⚠️ Server error {response.status_code} for {method} {url} - will retry")
+                    continue
+                else:
+                    # Non-retryable error or final attempt
+                    logger.error(f"❌ {method} {url} failed: {response.status_code}")
+                    logger.error(f"Response: {response.text[:500]}")
+                    return {'error': f'HTTP {response.status_code}', 'response_text': response.text[:500]}
+
+            except Exception as e:
+                # Handle connection errors, timeouts, etc.
+                if attempt < retries - 1:
+                    logger.warning(f"⚠️ Request error for {method} {url}: {e} - will retry")
+                    continue
+                else:
+                    logger.error(f"❌ Final request error: {e}")
+                    return {'error': f'Connection error: {e}'}
+
+        # If we get here, all retries failed
+        logger.error(f"❌ All retry attempts failed for {method} {url}")
+        return {'error': 'All retry attempts failed'}
     
     def get_all_members_paginated(self) -> List[Dict[str, Any]]:
         """Get all members with pagination - OPTIMIZED with parallel page fetching"""

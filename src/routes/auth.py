@@ -13,60 +13,35 @@ logger = logging.getLogger(__name__)
 auth_bp = Blueprint('auth', __name__)
 
 def require_auth(f):
-    """Decorator to require authentication for routes - FIXED VERSION"""
+    """Decorator to require authentication for routes - SIMPLIFIED VERSION"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         try:
             route_name = request.endpoint or "unknown_route"
 
-            # PERMANENT FIX: Check session token directly from secure storage
-            from src.services.authentication.secure_auth_service import SecureAuthService
-            auth_service = SecureAuthService()
+            # Debug: Log current session state
+            logger.info(f"🔍 AUTH CHECK - Route: {route_name}")
+            logger.info(f"🔍 AUTH CHECK - Session keys: {list(session.keys())}")
+            logger.info(f"🔍 AUTH CHECK - Session authenticated: {session.get('authenticated')}")
+            logger.info(f"🔍 AUTH CHECK - Session manager_id: {session.get('manager_id')}")
+            logger.info(f"🔍 AUTH CHECK - Session selected_clubs: {session.get('selected_clubs')}")
 
-            # Get session token from session or headers
-            session_token = session.get('session_token') or request.headers.get('X-Session-Token')
-
-            if session_token:
-                # Validate token and restore session if valid
-                validation_result = auth_service.validate_session_token(session_token)
-
-                if validation_result.get('is_valid'):
-                    # FORCE session restoration from validated data
-                    session.clear()  # Clear any corrupted session data
-                    session.permanent = True
-                    session['authenticated'] = True
-                    session['manager_id'] = validation_result.get('manager_id')
-                    session['session_token'] = session_token
-                    session['login_time'] = validation_result.get('login_time')
-                    session['last_activity'] = validation_result.get('last_activity')
-
-                    # Include selected clubs if available
-                    if validation_result.get('selected_clubs'):
-                        session['selected_clubs'] = validation_result.get('selected_clubs')
-
-                    session.modified = True
-
-                    # Update activity time
-                    auth_service.update_session_activity(session_token)
-
-                    logger.info(f"✅ Session restored for {validation_result.get('manager_id')} on route {route_name}")
-                    return f(*args, **kwargs)
-                else:
-                    logger.warning(f"❌ Invalid session token for route {route_name}")
-                    session.clear()
-                    return redirect(url_for('auth.login'))
-            else:
-                logger.warning(f"❌ No session token found for route {route_name}")
+            # SIMPLIFIED AUTH: Just check Flask session directly
+            if not session.get('authenticated') or not session.get('manager_id'):
+                logger.warning(f"❌ AUTH FAILED for route {route_name}")
+                logger.warning(f"❌ authenticated: {session.get('authenticated')}")
+                logger.warning(f"❌ manager_id: {session.get('manager_id')}")
+                logger.warning(f"❌ REDIRECTING TO LOGIN")
                 session.clear()
                 return redirect(url_for('auth.login'))
-            
-            # Check session timeout only (skip full validation for performance)
+
+            # Check session timeout
             if 'login_time' in session:
                 try:
                     from datetime import datetime, timedelta
                     login_time = datetime.fromisoformat(session['login_time'])
                     session_age = datetime.now() - login_time
-                    
+
                     # 8 hour timeout
                     if session_age > timedelta(hours=8):
                         logger.warning(f"⚠️ Session expired for {route_name}: age={session_age}")
@@ -74,28 +49,30 @@ def require_auth(f):
                         return redirect(url_for('auth.login'))
                 except (ValueError, TypeError):
                     # Invalid time format, but don't fail - just update it
+                    from datetime import datetime
                     session['login_time'] = datetime.now().isoformat()
                     session.modified = True
-            
-            # Update last activity silently
+
+            # Update last activity
             try:
+                from datetime import datetime
                 session['last_activity'] = datetime.now().isoformat()
                 session.modified = True
             except:
                 pass  # Don't fail on activity update
-            
+
             # Debug: Log successful validation
             logger.info(f"✅ AUTH DECORATOR SUCCESS - {route_name} - manager_id={session.get('manager_id')}")
-            
+
             # Session is valid, proceed with the request
             return f(*args, **kwargs)
-            
+
         except Exception as e:
             logger.error(f"❌ Authentication exception for {route_name}: {e}")
             import traceback
             logger.error(f"❌ Exception traceback: {traceback.format_exc()}")
             return redirect(url_for('auth.login'))
-    
+
     return decorated_function
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -140,7 +117,15 @@ def login():
             logger.info(f"🔍 Session immediately after creation: authenticated={session.get('authenticated')}, manager_id={session.get('manager_id')}")
             
             logger.info(f"✅ Manager {manager_id} logged in successfully from {request.remote_addr}")
-            
+
+            # Start automated access monitoring after successful authentication
+            try:
+                if hasattr(current_app, 'start_monitoring_after_auth'):
+                    current_app.start_monitoring_after_auth()
+                    logger.info("🔐 Automated access monitoring started after login")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not start automated access monitoring: {e}")
+
             # Get authentication tokens to check for multi-club access
             from src.services.multi_club_manager import multi_club_manager
             
