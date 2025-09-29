@@ -1403,8 +1403,8 @@
                 <div class="inbox-footer pt-3 border-top bg-light">
                     <div class="row g-2">
                         <div class="col-6">
-                            <button class="btn btn-outline-primary btn-sm w-100" onclick="refreshMessagingInbox()">
-                                <i class="fas fa-sync-alt me-1"></i>Refresh
+                            <button class="btn btn-outline-secondary btn-sm w-100" onclick="clearMessagingInbox()">
+                                <i class="fas fa-trash me-1"></i>Clear
                             </button>
                         </div>
                         <div class="col-6">
@@ -1425,7 +1425,7 @@
                     <h5 class="text-muted">No conversations yet</h5>
                     <p class="text-muted">New messages will appear here</p>
                     <button class="btn btn-primary btn-sm" onclick="refreshMessagingInbox()">
-                        <i class="fas fa-refresh me-1"></i>Check for Messages
+                        <i class="fas fa-sync-alt me-1"></i>Check for Messages
                     </button>
                 </div>
             `;
@@ -1442,37 +1442,123 @@
             `;
             loadMessagingInbox();
         }
+
+        function clearMessagingInbox() {
+            debugLog('🗑️ Clearing messaging inbox...');
+            const container = document.getElementById('messaging-inbox-container');
+            container.innerHTML = `
+                <div class="text-center py-4">
+                    <i class="fas fa-trash fa-2x text-muted mb-3"></i>
+                    <p class="text-muted">Inbox cleared</p>
+                    <button class="btn btn-primary btn-sm mt-2" onclick="refreshMessagingInbox()">
+                        <i class="fas fa-sync-alt me-1"></i>Reload Messages
+                    </button>
+                </div>
+            `;
+        }
+
+        // Search for a person across prospects, members, then show error if not found
+        function searchForPersonProfile(personName) {
+            debugLog(`🔍 Searching for person profile: ${personName}`);
+
+            // First, try to find them as a prospect
+            fetch(`/api/prospects/search?name=${encodeURIComponent(personName)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.prospects && data.prospects.length > 0) {
+                        // Found as prospect - redirect to prospect profile
+                        const prospect = data.prospects[0];
+                        const prospectId = prospect.prospect_id || prospect.id;
+                        debugLog(`👤 Found as prospect: ${prospectId}`);
+                        window.location.href = `/prospect/${prospectId}`;
+                        return;
+                    }
+
+                    // Not found as prospect, try as member
+                    return fetch(`/api/members/search?name=${encodeURIComponent(personName)}`);
+                })
+                .then(response => {
+                    if (!response) return null; // Already handled as prospect
+                    return response.json();
+                })
+                .then(data => {
+                    if (data && data.success && data.members && data.members.length > 0) {
+                        // Found as member - redirect to member profile
+                        const member = data.members[0];
+                        const memberId = member.prospect_id || member.guid || member.id;
+                        debugLog(`👥 Found as member: ${memberId}`);
+                        window.location.href = `/member/${memberId}`;
+                        return;
+                    }
+
+                    // Not found as prospect or member - show error
+                    alert(`Unable to find profile for ${personName}. Person not found in prospects or members.`);
+                })
+                .catch(error => {
+                    console.error('❌ Error searching for person:', error);
+                    alert(`Error searching for ${personName}. Please try again.`);
+                });
+        }
         
         function openConversationWithMember(memberId, memberName) {
-            debugLog('💬 Redirecting to member account page:', memberId, memberName);
+            debugLog('💬 Redirecting to specific person page:', memberId, memberName);
 
-            // Handle search fallback case - redirect to contact profile
-            if (memberId && memberId.startsWith('search:')) {
-                const contactName = memberId.replace('search:', '');
-                const contactUrl = `/contact/${contactName}`;
-                debugLog(`📞 Opening contact profile for: ${contactName}`);
-                window.location.href = contactUrl;
+            // Handle prospect case - direct navigation to prospect profile
+            if (memberId && memberId.startsWith('prospect:')) {
+                const prospectId = memberId.replace('prospect:', '');
+                debugLog(`🎯 Direct navigation to prospect profile: ${prospectId}`);
+                window.location.href = `/prospect/${prospectId}`;
                 return;
             }
 
-            if (memberId && memberId !== 'null' && memberId !== '') {
-                // Redirect to member's account page for real members
-                const memberUrl = `/member/${memberId}`;
-                debugLog('🔗 Redirecting to member profile:', memberUrl);
-                window.location.href = memberUrl;
-            } else {
-                console.warn('⚠️ No valid member ID available for navigation');
-                // Try to create a contact profile by name instead
-                const decodedName = decodeURIComponent(memberName);
-                if (decodedName && decodedName !== 'Unknown Member') {
-                    const contactName = decodedName.replace(/\s+/g, '_');
-                    const contactUrl = `/contact/${contactName}`;
-                    debugLog(`📞 Creating contact profile for: ${decodedName}`);
-                    window.location.href = contactUrl;
-                } else {
-                    alert(`Unable to open profile - no valid information for ${decodedName}`);
-                }
+            // If we have a real member ID, go to their member profile
+            if (memberId && !memberId.startsWith('search:') && memberId !== 'null' && memberId !== '') {
+                window.location.href = `/member/${memberId}`;
+                return;
             }
+
+            // If no real member ID, search for them as prospect first, then member
+            const personName = memberName ? decodeURIComponent(memberName) : (memberId.startsWith('search:') ? memberId.replace('search:', '').replace(/_/g, ' ') : '');
+
+            if (!personName) {
+                alert('Unable to identify person');
+                return;
+            }
+
+            // Search prospects first
+            fetch(`/api/prospects/search?name=${encodeURIComponent(personName)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.prospects && data.prospects.length > 0) {
+                        const prospect = data.prospects[0];
+                        const prospectId = prospect.prospect_id || prospect.id;
+                        window.location.href = `/prospect/${prospectId}`;
+                        return;
+                    }
+
+                    // Not found as prospect, try as member
+                    return fetch(`/api/members/search?name=${encodeURIComponent(personName)}`);
+                })
+                .then(response => {
+                    if (!response) return null;
+                    return response.json();
+                })
+                .then(data => {
+                    if (data && data.success && data.members && data.members.length > 0) {
+                        const member = data.members[0];
+                        const realMemberId = member.prospect_id || member.guid || member.id;
+                        window.location.href = `/member/${realMemberId}`;
+                        return;
+                    }
+
+                    // This should never happen - if they sent a message, they must exist
+                    console.error(`CRITICAL: Person ${personName} sent message but not found in database!`);
+                    alert(`Error: ${personName} sent a message but was not found in the system. This is a database issue.`);
+                })
+                .catch(error => {
+                    console.error('CRITICAL: Search API completely failed:', error);
+                    alert(`System error: Unable to search for ${personName}. Please check your connection.`);
+                });
         }
         
         // REMOVED: openMemberProfileModal function - now redirecting directly to member account pages

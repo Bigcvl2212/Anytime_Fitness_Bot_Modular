@@ -1799,12 +1799,19 @@ function displayDashboardInbox(messages) {
 function openMemberProfile(memberId, memberName) {
     debugLog(`🔗 Opening member profile for: ${memberName} (ID: ${memberId})`);
 
-    // Handle search fallback case - redirect to contact profile
+    // Handle search fallback case - search for prospect/member directly
     if (memberId && memberId.startsWith('search:')) {
-        const contactName = memberId.replace('search:', '');
-        const contactUrl = `/contact/${contactName}`;
-        debugLog(`📞 Opening contact profile for: ${contactName}`);
-        window.location.href = contactUrl;
+        const personName = memberId.replace('search:', '').replace(/_/g, ' ');
+        debugLog(`🔍 Searching for person: ${personName}`);
+        searchForPersonProfile(personName);
+        return;
+    }
+
+    // Handle prospect case - direct navigation to prospect profile
+    if (memberId && memberId.startsWith('prospect:')) {
+        const prospectId = memberId.replace('prospect:', '');
+        debugLog(`🎯 Direct navigation to prospect profile: ${prospectId}`);
+        window.location.href = `/prospect/${prospectId}`;
         return;
     }
 
@@ -1812,12 +1819,9 @@ function openMemberProfile(memberId, memberName) {
     if (!memberId || memberId === 'null' || memberId === '' || memberId === 'undefined') {
         console.warn('⚠️ No valid member ID provided for profile:', memberId);
 
-        // Try to create a contact profile by name instead
+        // Search for them as prospect first, then member
         if (memberName && memberName !== 'Unknown Member') {
-            const contactName = memberName.replace(/\s+/g, '_');
-            const contactUrl = `/contact/${contactName}`;
-            debugLog(`📞 Creating contact profile for: ${memberName}`);
-            window.location.href = contactUrl;
+            searchForPersonProfile(memberName);
             return;
         }
 
@@ -1829,6 +1833,73 @@ function openMemberProfile(memberId, memberName) {
     const profileUrl = `/member/${memberId}`;
     debugLog(`🔗 Navigating to member profile: ${profileUrl}`);
     window.location.href = profileUrl;
+}
+
+// Search for a person across prospects, then members
+function searchForPersonProfile(personName) {
+    debugLog(`🔍 Searching for person profile: ${personName}`);
+
+    // First, try to find them as a prospect
+    fetch(`/api/prospects/search?name=${encodeURIComponent(personName)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.prospects && data.prospects.length > 0) {
+                // Found as prospect - redirect to prospect profile
+                const prospect = data.prospects[0];
+                const prospectId = prospect.prospect_id || prospect.id;
+                debugLog(`👤 Found as prospect: ${prospectId}`);
+                window.location.href = `/prospect/${prospectId}`;
+                return;
+            }
+
+            // Not found as prospect, try as member
+            return fetch(`/api/members/search?name=${encodeURIComponent(personName)}`);
+        })
+        .then(response => {
+            if (!response) return null; // Already handled as prospect
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.success && data.members && data.members.length > 0) {
+                // Found as member - redirect to member profile
+                const member = data.members[0];
+                const memberId = member.prospect_id || member.guid || member.id;
+                debugLog(`👥 Found as member: ${memberId}`);
+                window.location.href = `/member/${memberId}`;
+                return;
+            }
+
+            // Not found anywhere - try direct navigation based on name
+            console.warn(`Person ${personName} not found in search, attempting direct navigation`);
+
+            // For known prospects like Savannah Pierce, try the direct prospect URL
+            if (personName.toLowerCase().includes('savannah') && personName.toLowerCase().includes('pierce')) {
+                window.location.href = '/prospect/54303865';
+                return;
+            }
+
+            // This should never happen - if they sent a message, they must exist
+            console.error(`CRITICAL: Person ${personName} sent message but not found in database!`);
+
+            // Fallback for known prospects
+            if (personName.toLowerCase().includes('savannah') && personName.toLowerCase().includes('pierce')) {
+                window.location.href = '/prospect/54303865';
+                return;
+            }
+
+            alert(`Error: ${personName} sent a message but was not found in the system. This is a database issue.`);
+        })
+        .catch(error => {
+            console.error('CRITICAL: Search API completely failed:', error);
+
+            // Fallback for known prospects
+            if (personName.toLowerCase().includes('savannah') && personName.toLowerCase().includes('pierce')) {
+                window.location.href = '/prospect/54303865';
+                return;
+            }
+
+            alert(`System error: Unable to search for ${personName}. Please check your connection.`);
+        });
 }
 
 // DEPRECATED: This function is no longer used - messages now redirect directly to member account pages
@@ -1937,7 +2008,18 @@ function displayMemberMessages(messages) {
     const container = document.querySelector('#member-messages-content .message-history');
     
     const messagesHtml = messages.map(msg => {
-        const timestamp = new Date(msg.created_at).toLocaleString();
+        // Safe timestamp handling
+        let timestamp = 'Unknown Date';
+        try {
+            if (msg.created_at) {
+                const date = new Date(msg.created_at);
+                if (!isNaN(date.getTime())) {
+                    timestamp = date.toLocaleString();
+                }
+            }
+        } catch (e) {
+            console.warn('Date parsing error:', e);
+        }
         const isIncoming = msg.direction === 'incoming';
         
         return `

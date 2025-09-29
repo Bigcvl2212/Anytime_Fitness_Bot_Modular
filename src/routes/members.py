@@ -95,29 +95,23 @@ def get_all_members():
             return jsonify({'success': True, 'members': cached_members, 'source': 'cache'})
 
         # Fallback to database
-        conn = current_app.db_manager.get_connection()
-        cursor = current_app.db_manager.get_cursor(conn)
-        
-        cursor.execute("""
-            SELECT 
+        query = """
+            SELECT
                 prospect_id,
                 id,
-                guid,
                 first_name,
                 last_name,
                 full_name,
                 email,
                 mobile_phone,
                 status,
-                status_message,
-                amount_past_due,
-                date_of_next_payment
-            FROM members 
+                amount_past_due
+            FROM members
             ORDER BY full_name
-        """)
-        
-        members = [dict(row) for row in cursor.fetchall()]
-        conn.close()
+        """
+
+        result = current_app.db_manager.execute_query(query, fetch_all=True)
+        members = [dict(row) for row in result] if result else []
         
         logger.info(f"✅ Retrieved {len(members)} members from database")
         return jsonify({'success': True, 'members': members, 'source': 'database'})
@@ -203,7 +197,8 @@ def get_past_due_members():
             ORDER BY amount_past_due DESC
         """)
         
-        past_due_members = [dict(row) for row in cursor.fetchall()]
+        past_due_data = cursor.fetchall()
+        past_due_members = [dict(row) for row in past_due_data] if past_due_data else []
         conn.close()
         
         logger.info(f"✅ Retrieved {len(past_due_members)} past due members")
@@ -247,8 +242,11 @@ def get_members_by_category(category):
                 db_count = -1
             logger.info(f"ℹ️ Category '{category}' returned 0; cache={cache_len}, db_count={db_count}")
         
+        # Convert SQLite Row objects to dictionaries for JSON serialization
+        members_list = [dict(member) for member in members] if members else []
+
         logger.info(f"✅ Retrieved {len(members)} members in category '{category}'")
-        return jsonify({'success': True, 'members': members, 'category': category})
+        return jsonify({'success': True, 'members': members_list, 'category': category})
         
     except Exception as e:
         logger.error(f"❌ Error getting members by category '{category}': {e}")
@@ -258,37 +256,65 @@ def get_members_by_category(category):
 def search_members():
     """Search for members by name."""
     try:
-        query = request.args.get('q', '').strip()
+        # Accept both 'q' and 'name' parameters for flexibility
+        query = request.args.get('name', request.args.get('q', '')).strip()
         if not query:
             return jsonify({'success': False, 'error': 'Search query required'}), 400
-        
-        # Search by first name, last name, or full name using database manager
-        members = current_app.db_manager.execute_query("""
-            SELECT 
-                prospect_id,
-                id,
-                guid,
-                first_name,
-                last_name,
-                full_name,
-                email,
-                mobile_phone,
-                status,
-                status_message,
-                amount_past_due,
-                date_of_next_payment
-            FROM members 
-            WHERE first_name LIKE ? OR last_name LIKE ? OR full_name LIKE ?
-            ORDER BY full_name
-            LIMIT 10
-        """, (f'%{query}%', f'%{query}%', f'%{query}%'), fetch_all=True)
-        
+
+        # More aggressive search - try multiple variations
+        search_variations = [
+            query,  # Exact search
+            query.replace(' ', ''),  # No spaces
+            query.replace('_', ' '),  # Replace underscores with spaces
+            query.split()[0] if ' ' in query else query,  # First name only
+            query.split()[-1] if ' ' in query else query,  # Last name only
+        ]
+
+        members = None
+        for search_name in search_variations:
+            if not search_name:
+                continue
+
+            members = current_app.db_manager.execute_query("""
+                SELECT
+                    prospect_id,
+                    id,
+                    guid,
+                    first_name,
+                    last_name,
+                    full_name,
+                    email,
+                    mobile_phone,
+                    status,
+                    status_message,
+                    amount_past_due,
+                    date_of_next_payment
+                FROM members
+                WHERE LOWER(first_name) LIKE LOWER(?)
+                   OR LOWER(last_name) LIKE LOWER(?)
+                   OR LOWER(full_name) LIKE LOWER(?)
+                   OR LOWER(first_name || ' ' || last_name) LIKE LOWER(?)
+                   OR LOWER(full_name) = LOWER(?)
+                   OR LOWER(first_name || ' ' || last_name) = LOWER(?)
+                ORDER BY
+                    CASE WHEN LOWER(full_name) = LOWER(?) THEN 1
+                         WHEN LOWER(first_name || ' ' || last_name) = LOWER(?) THEN 2
+                         ELSE 3 END,
+                    full_name
+                LIMIT 10
+            """, (f'%{search_name}%', f'%{search_name}%', f'%{search_name}%', f'%{search_name}%',
+                  search_name, search_name, search_name, search_name), fetch_all=True)
+
+            if members and len(members) > 0:
+                logger.info(f"🎯 Found members with variation '{search_name}': {len(members)}")
+                break
+
         # Convert to list of dicts if not already
         members = [dict(row) for row in members] if members else []
-        
+
         logger.info(f"✅ Search for '{query}' returned {len(members)} members")
         return jsonify({'success': True, 'members': members, 'query': query})
-        
+
     except Exception as e:
         logger.error(f"❌ Error searching members for '{query}': {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -615,11 +641,11 @@ def get_monthly_revenue():
             'success': True,
             'revenue_data': revenue_data,
             'breakdown': {
-                'member_revenue': revenue_data['member_revenue'],
-                'training_revenue': revenue_data['training_revenue'],
+                'member_revenue': revenue_data['total_monthly_revenue'],  # Use total as member revenue
+                'training_revenue': 0.0,  # Training revenue not calculated yet
                 'total_monthly_revenue': revenue_data['total_monthly_revenue'],
-                'revenue_members_count': revenue_data['revenue_members_count'],
-                'training_clients_count': revenue_data['training_clients_count']
+                'revenue_members_count': revenue_data['active_members'],
+                'training_clients_count': 0  # Training clients count not calculated yet
             }
         })
         
@@ -634,8 +660,8 @@ def get_membership_revenue():
         revenue_data = current_app.db_manager.get_monthly_revenue_calculation()
         
         # Return only membership revenue
-        membership_revenue = revenue_data.get('member_revenue', 0)
-        membership_count = revenue_data.get('revenue_members_count', 0)
+        membership_revenue = revenue_data.get('total_monthly_revenue', 0)
+        membership_count = revenue_data.get('active_members', 0)
         
         logger.info(f"✅ Membership revenue calculation: ${membership_revenue:.2f}")
         
@@ -738,8 +764,8 @@ def get_past_due_collections():
     """Get all past due members and training clients for collections management using database manager"""
     try:
         # Get past due members using database manager for cross-platform compatibility
-        past_due_members = current_app.db_manager.execute_query("""
-            SELECT 
+        past_due_members_data = current_app.db_manager.execute_query("""
+            SELECT
                 full_name as name,
                 email,
                 mobile_phone as phone,
@@ -752,18 +778,21 @@ def get_past_due_collections():
                 agreement_id,
                 agreement_guid,
                 agreement_type
-            FROM members 
-            WHERE status_message LIKE '%Past Due 6-30 days%' 
+            FROM members
+            WHERE status_message LIKE '%Past Due 6-30 days%'
                OR status_message LIKE '%Past Due more than 30 days%'
             ORDER BY amount_past_due DESC
-        """)
+        """, fetch_all=True)
+
+        # Convert SQLite Row objects to dictionaries for JSON serialization
+        past_due_members = [dict(row) for row in past_due_members_data] if past_due_members_data else []
         
         if not past_due_members:
             past_due_members = []
         
         # Get past due training clients using database manager
-        past_due_training = current_app.db_manager.execute_query("""
-            SELECT 
+        past_due_training_data = current_app.db_manager.execute_query("""
+            SELECT
                 member_name as name,
                 email,
                 phone,
@@ -773,10 +802,13 @@ def get_past_due_collections():
                 'training_client' as type,
                 package_details,
                 active_packages
-            FROM training_clients 
+            FROM training_clients
             WHERE total_past_due > 0
             ORDER BY total_past_due DESC
-        """)
+        """, fetch_all=True)
+
+        # Convert SQLite Row objects to dictionaries for JSON serialization
+        past_due_training = [dict(row) for row in past_due_training_data] if past_due_training_data else []
         
         if not past_due_training:
             past_due_training = []
@@ -829,18 +861,15 @@ def get_past_due_collections():
         # Get count of members already sent to collections using database manager
         collections_sent_data = current_app.db_manager.execute_query("""
             SELECT COUNT(*) as count, COALESCE(SUM(amount_past_due), 0) as total_amount
-            FROM members 
+            FROM members
             WHERE status_message = 'Sent to Collections'
-        """)
+        """, fetch_one=True)
         
-        if collections_sent_data and len(collections_sent_data) > 0:
-            sent_row = collections_sent_data[0]
-            if isinstance(sent_row, dict):
-                sent_count = sent_row['count']
-                sent_amount = sent_row['total_amount']
-            else:
-                sent_count = sent_row[0] if sent_row else 0
-                sent_amount = sent_row[1] if sent_row and len(sent_row) > 1 else 0
+        if collections_sent_data:
+            # Convert SQLite Row to dictionary for consistent access
+            sent_data_dict = dict(collections_sent_data)
+            sent_count = sent_data_dict.get('count', 0)
+            sent_amount = sent_data_dict.get('total_amount', 0)
         else:
             sent_count = 0
             sent_amount = 0

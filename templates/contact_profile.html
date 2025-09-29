@@ -73,7 +73,7 @@
                                 <p><strong>Total Messages:</strong> {{ message_count or 0 }}</p>
                                 <p><strong>Last Contact:</strong>
                                     {% if last_message_date %}
-                                        {{ last_message_date.strftime('%Y-%m-%d %H:%M') }}
+                                        {{ last_message_date }}
                                     {% else %}
                                         Never
                                     {% endif %}
@@ -89,7 +89,7 @@
                                 {% for message in messages %}
                                 <div class="message-item">
                                     <div class="message-date">
-                                        {{ message.created_at.strftime('%Y-%m-%d %H:%M:%S') if message.created_at else 'Unknown Date' }}
+                                        {{ message.created_at or 'Unknown Date' }}
                                     </div>
                                     <div class="message-direction">
                                         {% if message.direction == 'outbound' %}

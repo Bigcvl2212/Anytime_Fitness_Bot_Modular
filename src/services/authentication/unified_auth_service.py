@@ -230,7 +230,12 @@ class UnifiedAuthService:
             
             try:
                 logger.info(f"🔐 Authenticating ClubOS user: {username}")
-                
+
+                # Debug: Check if we have valid credentials
+                if not username or not password:
+                    logger.error(f"❌ Missing ClubOS credentials - username: {bool(username)}, password: {bool(password)}")
+                    return None
+
                 # Create new session
                 session = AuthenticationSession('clubos')
                 session.username = username
@@ -247,14 +252,19 @@ class UnifiedAuthService:
                 # Extract required form fields
                 source_page = soup.find('input', {'name': '_sourcePage'})
                 fp_token = soup.find('input', {'name': '__fp'})
-                
+
+                # Debug: Check if CSRF tokens were found
+                source_page_value = source_page.get('value') if source_page else ''
+                fp_token_value = fp_token.get('value') if fp_token else ''
+                logger.info(f"🔍 CSRF tokens - _sourcePage: {bool(source_page_value)}, __fp: {bool(fp_token_value)}")
+
                 # Step 2: Submit login form
                 login_data = {
                     'login': 'Submit',
                     'username': username,
                     'password': password,
-                    '_sourcePage': source_page.get('value') if source_page else '',
-                    '__fp': fp_token.get('value') if fp_token else ''
+                    '_sourcePage': source_page_value,
+                    '__fp': fp_token_value
                 }
                 
                 login_headers = {
@@ -270,15 +280,29 @@ class UnifiedAuthService:
                     verify=False,
                     timeout=30
                 )
-                
+
+                # Debug: Log authentication response details
+                logger.info(f"🔍 ClubOS auth response status: {auth_response.status_code}")
+                logger.info(f"🔍 ClubOS auth response URL: {auth_response.url}")
+
                 # Step 3: Extract session information from cookies
                 session.session_id = session.session.cookies.get('JSESSIONID')
                 session.logged_in_user_id = session.session.cookies.get('loggedInUserId')
                 session.delegated_user_id = session.session.cookies.get('delegatedUserId')
                 session.api_v3_access_token = session.session.cookies.get('apiV3AccessToken')
-                
+
+                # Debug: Log available cookies
+                available_cookies = list(session.session.cookies.keys())
+                logger.info(f"🔍 Available cookies: {available_cookies}")
+
                 if not session.session_id or not session.logged_in_user_id:
                     logger.error(f"❌ ClubOS authentication failed for {username} - missing session cookies")
+                    logger.error(f"❌ Session ID: {session.session_id}, User ID: {session.logged_in_user_id}")
+
+                    # Check if we got redirected to error page
+                    if 'error' in auth_response.url.lower() or 'login' in auth_response.url.lower():
+                        logger.error("❌ Authentication appears to have failed - redirected to login/error page")
+
                     return None
                 
                 # Step 4: Create Bearer token for API calls

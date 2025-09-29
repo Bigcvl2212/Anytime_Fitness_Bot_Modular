@@ -251,6 +251,72 @@ def get_prospect_statuses():
         logger.error(f"❌ Error getting prospect statuses: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@prospects_bp.route('/api/prospects/search')
+def search_prospects():
+    """Search for prospects by name"""
+    try:
+        name = request.args.get('name', '').strip()
+        if not name:
+            return jsonify({
+                'success': False,
+                'error': 'Name parameter is required'
+            }), 400
+
+        # More aggressive search - try multiple variations
+        search_variations = [
+            name,  # Exact search
+            name.replace(' ', ''),  # No spaces
+            name.replace('_', ' '),  # Replace underscores with spaces
+            name.split()[0] if ' ' in name else name,  # First name only
+            name.split()[-1] if ' ' in name else name,  # Last name only
+        ]
+
+        prospects = None
+        for search_name in search_variations:
+            if not search_name:
+                continue
+
+            prospects = current_app.db_manager.execute_query("""
+                SELECT prospect_id, id, full_name, first_name, last_name, email, phone, status
+                FROM prospects
+                WHERE LOWER(full_name) LIKE LOWER(?)
+                   OR LOWER(first_name || ' ' || last_name) LIKE LOWER(?)
+                   OR LOWER(first_name) LIKE LOWER(?)
+                   OR LOWER(last_name) LIKE LOWER(?)
+                   OR LOWER(full_name) = LOWER(?)
+                   OR LOWER(first_name || ' ' || last_name) = LOWER(?)
+                ORDER BY
+                    CASE WHEN LOWER(full_name) = LOWER(?) THEN 1
+                         WHEN LOWER(first_name || ' ' || last_name) = LOWER(?) THEN 2
+                         ELSE 3 END,
+                    full_name
+                LIMIT 10
+            """, (f'%{search_name}%', f'%{search_name}%', f'%{search_name}%', f'%{search_name}%',
+                  search_name, search_name, search_name, search_name), fetch_all=True)
+
+            if prospects and len(prospects) > 0:
+                logger.info(f"🎯 Found prospects with variation '{search_name}': {len(prospects)}")
+                break
+
+        if prospects is None:
+            prospects = []
+
+        # Convert to list of dicts if needed
+        if prospects and not isinstance(prospects[0], dict):
+            prospects = [dict(row) for row in prospects]
+
+        logger.info(f"🔍 Found {len(prospects)} prospects matching '{name}'")
+
+        return jsonify({
+            'success': True,
+            'prospects': prospects,
+            'count': len(prospects)
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Error searching prospects: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @prospects_bp.route('/api/prospects/refresh')
 def refresh_prospects():
     """Trigger a refresh of prospects data from ClubHub API."""
@@ -261,7 +327,7 @@ def refresh_prospects():
             'success': True,
             'message': 'Prospects refresh triggered. Please run the startup sync to update data.'
         })
-        
+
     except Exception as e:
         logger.error(f"❌ Error refreshing prospects: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500

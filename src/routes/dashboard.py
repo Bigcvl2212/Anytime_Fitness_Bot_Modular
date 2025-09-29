@@ -22,12 +22,18 @@ from .auth import require_auth
 def dashboard(day_offset=0):
     """Dashboard route with working events display"""
     try:
+        # DEBUGGING: Log that we made it past the auth decorator
+        logger.info(f"🎉 DASHBOARD ROUTE REACHED - Auth decorator passed!")
+        logger.info(f"🔍 Dashboard session check - authenticated: {session.get('authenticated')}")
+        logger.info(f"🔍 Dashboard session check - manager_id: {session.get('manager_id')}")
+        logger.info(f"🔍 Dashboard session check - selected_clubs: {session.get('selected_clubs')}")
+
         # Ensure session persistence
         session.permanent = True
         session.modified = True
-        
+
         logger.info(f"🔍 Dashboard accessed - Session state: authenticated={session.get('authenticated')}")
-        
+
         # Calculate target date
         target_date = datetime.now().date() + timedelta(days=day_offset)
         
@@ -118,9 +124,9 @@ def dashboard(day_offset=0):
                 counts = db_manager.execute_query(counts_query, fetch_one=True)
 
                 if counts:
-                    total_members = counts.get('member_count', 0)
-                    total_prospects = counts.get('prospect_count', 0)
-                    total_training_clients = counts.get('training_client_count', 0)
+                    total_members = counts['member_count'] if counts['member_count'] else 0
+                    total_prospects = counts['prospect_count'] if counts['prospect_count'] else 0
+                    total_training_clients = counts['training_client_count'] if counts['training_client_count'] else 0
 
                     # Cache the results
                     count_data = {
@@ -183,17 +189,17 @@ def dashboard(day_offset=0):
             )
 
             if bot_data:
-                bot_stats['messages_sent'] = bot_data.get('messages_today', 0)
-                bot_stats['unread_conversations'] = bot_data.get('unread_conversations', 0)
+                bot_stats['messages_sent'] = bot_data['messages_today'] if bot_data['messages_today'] else 0
+                bot_stats['unread_conversations'] = bot_data['unread_conversations'] if bot_data['unread_conversations'] else 0
 
                 # Calculate response rate
-                total_msg_count = bot_data.get('total_messages', 0)
+                total_msg_count = bot_data['total_messages'] if bot_data['total_messages'] else 0
                 if total_msg_count > 0:
                     response_rate = min(95, max(0, 100 - (bot_stats['unread_conversations'] * 10)))
                     bot_stats['response_rate'] = response_rate
 
                 # Process last activity time
-                last_message_time = bot_data.get('last_message_time')
+                last_message_time = bot_data['last_message_time'] if 'last_message_time' in bot_data else None
                 if last_message_time:
                     try:
                         last_activity_dt = datetime.fromisoformat(last_message_time.replace('Z', '+00:00'))

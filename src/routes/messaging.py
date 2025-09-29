@@ -13,6 +13,7 @@ import json
 import re
 import hashlib
 import traceback
+import requests
 from datetime import datetime
 from src.services.clubos_messaging_client_simple import ClubOSMessagingClient
 from .auth import require_auth
@@ -1464,14 +1465,14 @@ def get_recent_inbox():
             AND LENGTH(TRIM(content)) > 5
             ORDER BY created_at DESC
             LIMIT ?
-        ''', (limit,))
+        ''', (limit,), fetch_all=True)
 
         # Handle None result from execute_query
         if messages is None:
             messages = []
 
         # Convert to list of dicts if needed
-        if messages and not isinstance(messages[0], dict):
+        if messages and hasattr(messages[0], 'keys'):
             messages = [dict(row) for row in messages]
 
         # Convert messages to individual message items (not grouped by sender)
@@ -1493,47 +1494,69 @@ def get_recent_inbox():
                 # Try multiple lookup strategies to find the member
                 member_lookup = None
 
-                # Strategy 1: Try exact name match
-                member_lookup = current_app.db_manager.execute_query('''
-                    SELECT id, guid, prospect_id, first_name, last_name FROM members
-                    WHERE LOWER(first_name || ' ' || last_name) = LOWER(?)
-                    OR LOWER(full_name) = LOWER(?)
-                    LIMIT 1
-                ''', (sender_name, sender_name))
+                # Use the working search APIs instead of custom database logic
+                # Try member search API first
+                try:
+                    from urllib.parse import urlencode
+                    import requests
 
-                if not member_lookup or len(member_lookup) == 0:
-                    # Strategy 2: Try owner_id direct lookup
+                    # Call the working member search API
+                    params = urlencode({'name': sender_name})
+                    response = requests.get(f'http://localhost:5000/api/members/search?{params}', timeout=5)
+
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data.get('success') and data.get('members') and len(data['members']) > 0:
+                            member = data['members'][0]
+                            member_id = member.get('prospect_id') or member.get('guid') or member.get('id')
+                            logger.info(f"✅ Found member via API: {member_id} for '{sender_name}'")
+                        else:
+                            logger.info(f"🔍 Member API found no results for '{sender_name}'")
+                    else:
+                        logger.warning(f"Member search API failed with status {response.status_code}")
+
+                except Exception as e:
+                    logger.warning(f"Member search API call failed: {e}")
+                    # Fallback to direct database lookup for owner_id if API fails
                     if owner_id:
                         member_lookup = current_app.db_manager.execute_query('''
-                            SELECT id, guid, prospect_id, first_name, last_name FROM members
+                            SELECT id, guid, prospect_id FROM members
                             WHERE id = ? OR guid = ? OR prospect_id = ?
                             LIMIT 1
                         ''', (owner_id, owner_id, owner_id))
 
-                if not member_lookup or len(member_lookup) == 0:
-                    # Strategy 3: Try partial name match (first name or last name)
-                    name_parts = sender_name.split()
-                    if len(name_parts) >= 2:
-                        first_name = name_parts[0]
-                        last_name = name_parts[-1]
-                        member_lookup = current_app.db_manager.execute_query('''
-                            SELECT id, guid, prospect_id, first_name, last_name FROM members
-                            WHERE LOWER(first_name) = LOWER(?) AND LOWER(last_name) = LOWER(?)
-                            LIMIT 1
-                        ''', (first_name, last_name))
+                        if member_lookup and len(member_lookup) > 0:
+                            if isinstance(member_lookup[0], dict):
+                                member_id = member_lookup[0].get('id') or member_lookup[0].get('guid') or member_lookup[0].get('prospect_id')
+                            else:
+                                member_id = member_lookup[0][0] or member_lookup[0][1] or member_lookup[0][2]
 
-                # Extract member ID if found
-                if member_lookup and len(member_lookup) > 0:
-                    if isinstance(member_lookup[0], dict):
-                        member_id = member_lookup[0].get('id') or member_lookup[0].get('guid') or member_lookup[0].get('prospect_id')
-                    else:
-                        member_id = member_lookup[0][0] or member_lookup[0][1] or member_lookup[0][2]
-
-                # If still no member found, use a search fallback strategy
+                # If still no member found, try prospect search API as fallback
                 if not member_id or member_id == owner_id:
-                    # Create a searchable member identifier for fallback
-                    member_id = f"search:{sender_name.replace(' ', '_')}"
-                    logger.info(f"No member found for '{sender_name}', using search fallback: {member_id}")
+                    try:
+                        # Call the working prospect search API
+                        params = urlencode({'name': sender_name})
+                        response = requests.get(f'http://localhost:5000/api/prospects/search?{params}', timeout=5)
+
+                        if response.status_code == 200:
+                            data = response.json()
+                            if data.get('success') and data.get('prospects') and len(data['prospects']) > 0:
+                                prospect = data['prospects'][0]
+                                prospect_id = prospect.get('prospect_id') or prospect.get('id')
+                                member_id = f"prospect:{prospect_id}"
+                                logger.info(f"✅ Found prospect via API: {member_id} for '{sender_name}'")
+                            else:
+                                logger.info(f"🔍 Prospect API found no results for '{sender_name}'")
+                        else:
+                            logger.warning(f"Prospect search API failed with status {response.status_code}")
+
+                    except Exception as e:
+                        logger.warning(f"Prospect search API call failed: {e}")
+
+                    # If still no match found, use search fallback
+                    if not member_id or member_id == owner_id:
+                        member_id = f"search:{sender_name.replace(' ', '_')}"
+                        logger.info(f"❌ No member or prospect found for '{sender_name}', using search fallback: {member_id}")
 
             except Exception as e:
                 logger.debug(f"Member lookup failed for {sender_name}: {e}")
@@ -1653,7 +1676,10 @@ def contact_profile(contact_name):
         }
 
         return render_template('contact_profile.html',
-                             contact=contact_data,
+                             contact_name=contact_name,
+                             contact_info=contact_data,
+                             message_count=len(formatted_messages),
+                             last_message_date=formatted_messages[0]['created_at'] if formatted_messages else None,
                              messages=formatted_messages)
 
     except Exception as e:
@@ -2536,12 +2562,12 @@ def get_member_message_history(member_id):
         # Defensive DB fallback: try a richer query, fall back to simpler forms if schema differs
         try:
             messages = current_app.db_manager.execute_query('''
-                SELECT * FROM messages 
-                WHERE (owner_id = ? OR member_id = ?) 
+                SELECT * FROM messages
+                WHERE (owner_id = ? OR member_id = ?)
                 OR (content LIKE ? OR from_user LIKE ? OR to_user LIKE ?)
-                ORDER BY created_at DESC 
+                ORDER BY created_at DESC
                 LIMIT 100
-            ''', (member_id, member_id, f'%{member_id}%', f'%{member_id}%', f'%{member_id}%'))
+            ''', (member_id, member_id, f'%{member_id}%', f'%{member_id}%', f'%{member_id}%'), fetch_all=True)
             if messages and not isinstance(messages[0], dict):
                 messages = [dict(row) for row in messages]
         except Exception as e_db:
@@ -2549,7 +2575,7 @@ def get_member_message_history(member_id):
             try:
                 messages = current_app.db_manager.execute_query(
                     "SELECT * FROM messages WHERE owner_id = ? OR member_id = ? ORDER BY created_at DESC LIMIT 100",
-                    (member_id, member_id)
+                    (member_id, member_id), fetch_all=True
                 )
                 if messages and not isinstance(messages[0], dict):
                     messages = [dict(row) for row in messages]

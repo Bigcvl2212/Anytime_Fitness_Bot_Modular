@@ -107,6 +107,11 @@ class AutomatedAccessMonitor:
 
                 for member in batch:
                     try:
+                        # Debug check for Row object issue
+                        if not isinstance(member, dict):
+                            logger.error(f"❌ DEBUG: Member is not a dict! Type: {type(member)}, converting...")
+                            member = dict(member)
+
                         member_id = member.get('prospect_id') or member.get('guid')
                         member_name = member.get('display_name') or member.get('full_name', 'Unknown')
                         past_due_amount = float(member.get('amount_past_due', 0))
@@ -186,6 +191,11 @@ class AutomatedAccessMonitor:
 
             for member in all_members:
                 try:
+                    # Debug check for Row object issue
+                    if not isinstance(member, dict):
+                        logger.error(f"❌ DEBUG: Member is not a dict! Type: {type(member)}, converting...")
+                        member = dict(member)
+
                     member_id = member.get('prospect_id') or member.get('guid')
                     member_name = member.get('display_name') or member.get('full_name', 'Unknown')
                     status_message = member.get('status_message', '')
@@ -239,6 +249,10 @@ class AutomatedAccessMonitor:
     def _should_lock_member(self, member: Dict) -> bool:
         """Determine if a member should be auto-locked based on status message"""
         try:
+            # Ensure member is a dictionary
+            if not isinstance(member, dict):
+                member = dict(member)
+
             status_message = (member.get('status_message') or '').lower()
             past_due_amount = float(member.get('amount_past_due', 0))
             member_type = (member.get('user_type') or '').lower()
@@ -275,9 +289,20 @@ class AutomatedAccessMonitor:
     def _should_unlock_member(self, member: Dict) -> bool:
         """Determine if a member should be auto-unlocked based on status message"""
         try:
+            # Ensure member is a dictionary
+            if not isinstance(member, dict):
+                member = dict(member)
+
             status_message = (member.get('status_message') or '').lower()
             past_due_amount = float(member.get('amount_past_due', 0))
             member_type = (member.get('user_type') or '').lower()
+            member_id = member.get('prospect_id') or member.get('guid')
+            member_name = member.get('full_name', member.get('display_name', 'Unknown'))
+
+            # CRITICAL CHECK: Don't unlock past due training clients
+            if self._is_past_due_training_client(member_id, member_name):
+                logger.info(f"🚫 Not unlocking {member_name} - they are a past due training client")
+                return False
 
             # Always unlock these member types regardless of past due amount
             if ('staff' in status_message or 'staff' in member_type or
@@ -307,10 +332,41 @@ class AutomatedAccessMonitor:
         except Exception as e:
             logger.error(f"❌ Error checking if member should be unlocked: {e}")
             return False
-    
+
+    def _is_past_due_training_client(self, member_id: str, member_name: str) -> bool:
+        """Check if this person is a past due training client who should remain locked"""
+        try:
+            # Query the training_clients table for past due clients
+            query = """
+                SELECT member_name, past_due_amount, member_id
+                FROM training_clients
+                WHERE past_due_amount > 0
+                AND (member_id = ? OR LOWER(member_name) = LOWER(?))
+            """
+            result = self.db_manager.execute_query(query, (member_id, member_name), fetch_one=True)
+
+            if result:
+                # Convert SQLite Row to dictionary for .get() access
+                result_dict = dict(result)
+                past_due_amount = result_dict.get('past_due_amount', 0)
+                training_client_name = result_dict.get('member_name', '')
+                logger.debug(f"🎯 Found past due training client: {training_client_name} owes ${past_due_amount}")
+                return True
+
+            return False
+
+        except Exception as e:
+            logger.error(f"❌ Error checking past due training clients: {e}")
+            # If we can't check, err on the side of caution and don't unlock
+            return True
+
     def _might_be_locked(self, member: Dict) -> bool:
         """Check if a member might be locked based on heuristics"""
         try:
+            # Ensure member is a dictionary
+            if not isinstance(member, dict):
+                member = dict(member)
+
             past_due_amount = float(member.get('amount_past_due', 0))
             status_message = (member.get('status_message') or '').lower()
 
@@ -341,6 +397,10 @@ class AutomatedAccessMonitor:
     def _get_unlock_reason(self, member: Dict) -> str:
         """Get a descriptive reason for unlocking a member"""
         try:
+            # Ensure member is a dictionary
+            if not isinstance(member, dict):
+                member = dict(member)
+
             status_message = (member.get('status_message') or '').lower()
             past_due_amount = float(member.get('amount_past_due', 0))
             member_type = (member.get('user_type') or '').lower()
