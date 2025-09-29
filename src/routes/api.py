@@ -1396,6 +1396,17 @@ def api_create_invoice():
                             member_email = member.get('email')
                         break
             
+            # Find the member_id (prospect_id) for database tracking
+            member_id = None
+            for member in all_members:
+                if member.get('display_name') == member_name or member.get('full_name') == member_name:
+                    member_id = member.get('prospect_id') or member.get('guid')
+                    if not mobile_phone:
+                        mobile_phone = member.get('mobile_phone')
+                    if not member_email:
+                        member_email = member.get('email')
+                    break
+
             # Create the invoice using the Square client - prioritize phone over email
             if mobile_phone and mobile_phone.strip() != '' and mobile_phone != 'None':
                 invoice_result = create_square_invoice(member_name, mobile_phone, amount, description, delivery_method='sms', email_address=member_email)
@@ -1404,24 +1415,27 @@ def api_create_invoice():
             else:
                 # No contact method available - return error
                 return jsonify({
-                    'success': False, 
+                    'success': False,
                     'error': 'No valid email or phone number available for this member'
                 }), 400
-            
+
             # Handle different return types from square client
             if isinstance(invoice_result, dict):
                 if invoice_result.get('success'):
                     invoice_url = invoice_result.get('public_url') or invoice_result.get('invoice_url')
+                    square_invoice_id = invoice_result.get('invoice_id')
+
+                    # Note: Invoice tracking now handled directly via Square API instead of database storage
                 else:
                     return jsonify({'success': False, 'error': invoice_result.get('error', 'Failed to create invoice')}), 500
             else:
                 # Assume it's a direct URL if not a dict
                 invoice_url = invoice_result
-            
+
             if invoice_url:
                 logger.info(f"✅ Invoice created for {member_name}: ${amount:.2f}")
                 return jsonify({
-                    'success': True, 
+                    'success': True,
                     'invoice_url': invoice_url,
                     'message': f'Invoice created successfully for {member_name}',
                     'amount': amount,
@@ -1439,6 +1453,120 @@ def api_create_invoice():
             
     except Exception as e:
         logger.error(f"Error in api_create_invoice: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/invoices', methods=['GET'])
+def api_get_invoices():
+    """Get all invoices directly from Square API"""
+    try:
+        from src.services.payments.square_invoice_service import SquareInvoiceService
+        
+        invoice_service = SquareInvoiceService()
+        invoices = invoice_service.get_all_invoices()
+
+        return jsonify({
+            'success': True,
+            'invoices': invoices,
+            'count': len(invoices)
+        })
+    except Exception as e:
+        logger.error(f"Error getting invoices: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/invoices/member/<member_id>', methods=['GET'])
+def api_get_member_invoices(member_id):
+    """Get invoices for a specific member from Square API"""
+    try:
+        from src.services.payments.square_invoice_service import SquareInvoiceService
+        
+        invoice_service = SquareInvoiceService()
+        invoices = invoice_service.get_invoices_by_customer(member_id)
+
+        return jsonify({
+            'success': True,
+            'invoices': invoices,
+            'count': len(invoices)
+        })
+    except Exception as e:
+        logger.error(f"Error getting member invoices: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/invoices/<square_invoice_id>/payment-status', methods=['PUT'])
+def api_update_invoice_payment_status(square_invoice_id):
+    """Check and update invoice payment status via Square API"""
+    try:
+        from src.services.payments.square_invoice_service import SquareInvoiceService
+        
+        invoice_service = SquareInvoiceService()
+        payment_status = invoice_service.check_payment_status(square_invoice_id)
+
+        if payment_status.get('success'):
+            # If invoice is paid, trigger auto-unlock logic
+            if payment_status.get('is_paid'):
+                try:
+                    # Get invoice details to find customer_id
+                    invoice_details = invoice_service.get_invoice_details(square_invoice_id)
+                    if invoice_details and invoice_details.get('customer_info'):
+                        customer_id = invoice_details['customer_info'].get('id')
+                        if customer_id:
+                            # Auto-unlock member
+                            from src.services.automated_access_monitor import AutomatedAccessMonitor
+                            from src.services.database_manager import DatabaseManager
+                            
+                            db_manager = DatabaseManager()
+                            access_monitor = AutomatedAccessMonitor(db_manager)
+                            access_monitor.unlock_member_access(customer_id, reason='Invoice payment received')
+                            logger.info(f"🔓 Auto-unlocked member {customer_id} due to invoice payment")
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to auto-unlock member: {e}")
+
+            return jsonify({
+                'success': True, 
+                'message': 'Payment status checked',
+                'payment_status': payment_status
+            })
+        else:
+            return jsonify({'success': False, 'error': payment_status.get('error', 'Failed to check payment status')}), 500
+
+    except Exception as e:
+        logger.error(f"Error checking invoice payment status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/invoices/check-payments', methods=['POST'])
+def api_check_payment_statuses():
+    """Check payment status for all unpaid invoices via Square API"""
+    try:
+        from src.services.payments.square_invoice_service import SquareInvoiceService
+
+        invoice_service = SquareInvoiceService()
+        results = invoice_service.check_all_unpaid_invoices()
+
+        return jsonify({
+            'success': True,
+            'results': results,
+            'message': f"Checked payments: {results.get('newly_paid', 0)} newly paid, {results.get('still_unpaid', 0)} still unpaid"
+        })
+
+    except Exception as e:
+        logger.error(f"Error checking payment statuses: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@api_bp.route('/invoices/payment-summary', methods=['GET'])
+def api_get_payment_summary():
+    """Get invoice payment summary from Square API"""
+    try:
+        from src.services.payments.square_invoice_service import SquareInvoiceService
+
+        invoice_service = SquareInvoiceService()
+        summary = invoice_service.get_payment_summary()
+
+        return jsonify({
+            'success': True,
+            'summary': summary
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting payment summary: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @api_bp.route('/invoices/batch', methods=['POST'])

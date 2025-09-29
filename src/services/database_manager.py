@@ -81,6 +81,7 @@ class DatabaseManager:
                 )
             """)
 
+
             # Create prospects table
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS prospects (
@@ -591,27 +592,9 @@ class DatabaseManager:
             logger.error(f"❌ Error getting member by ID {member_id}: {e}")
             return None
 
-    def save_invoice(self, invoice_data):
-        """Save invoice data to database"""
-        try:
-            # For now, just log the invoice since we don't have an invoices table
-            # This could be expanded to create an invoices table if needed
-            logger.info(f"💾 Invoice saved (logged): {invoice_data.get('id', 'unknown')} for ${invoice_data.get('total_amount', 0)}")
-            return True
-        except Exception as e:
-            logger.error(f"❌ Error saving invoice: {e}")
-            return False
 
-    def get_member_invoices(self, member_id):
-        """Get invoices for a specific member"""
-        try:
-            # For now, return empty list since we don't have an invoices table
-            # This could be expanded to query an actual invoices table if needed
-            logger.info(f"📋 Getting invoices for member {member_id} (not implemented yet)")
-            return []
-        except Exception as e:
-            logger.error(f"❌ Error getting member invoices for {member_id}: {e}")
-            return []
+
+
 
     def get_monthly_revenue_calculation(self):
         """Get monthly revenue calculation (for members API)"""
@@ -643,3 +626,12 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ Error calculating monthly revenue: {e}")
             return {'total_monthly_revenue': 0.0, 'active_members': 0, 'average_fee': 0.0}
+
+    def get_training_client_count(self) -> int:
+        """Get total training client count"""
+        try:
+            result = self.execute_query("SELECT COUNT(*) FROM training_clients", fetch_one=True)
+            return result[0] if result else 0
+        except Exception as e:
+            logger.error(f"❌ Error getting training client count: {e}")
+            return 0

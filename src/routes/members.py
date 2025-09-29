@@ -1073,3 +1073,13 @@ def send_email_to_club(email_content):
     except Exception as e:
         logger.error(f"❌ Error in send_email_to_club: {e}")
         return False
+
+@members_bp.route('/invoices')
+@require_auth
+def invoices_page():
+    """Invoices management page"""
+    try:
+        return render_template('invoices.html')
+    except Exception as e:
+        logger.error(f"❌ Error rendering invoices page: {e}")
+        return f"Error loading invoices page: {str(e)}", 500

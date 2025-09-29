@@ -283,27 +283,7 @@ def create_square_invoice(member_name, contact_info, amount, description, delive
                 
         logger.info(f"✅ Published invoice successfully via {square_delivery_method} to {contact_info}")
         
-        # Save invoice to database
-        try:
-            from src.services.database_manager import DatabaseManager
-            db_manager = DatabaseManager()
-            
-            invoice_data = {
-                'member_id': customer_id,
-                'square_invoice_id': invoice_id,
-                'amount': amount,
-                'status': 'sent',
-                'payment_method': 'CARD',
-                'delivery_method': delivery_method.upper(),
-                'due_date': None,  # Square handles due dates
-                'notes': f'Invoice for {member_name} - {description}'
-            }
-            
-            db_manager.save_invoice(invoice_data)
-            logger.info(f"💾 Invoice {invoice_id} saved to database")
-            
-        except Exception as e:
-            logger.warning(f"⚠️ Failed to save invoice to database: {e}")
+        # Note: Invoice tracking now handled directly via Square API instead of database storage
         
         # Return success response
         return {

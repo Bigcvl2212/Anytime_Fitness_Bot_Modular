@@ -20,6 +20,10 @@
                     <p class="text-muted mb-0">Manage and view all club members</p>
                 </div>
                 <div class="d-flex gap-2">
+                    <a href="/invoices" class="btn btn-outline-primary" title="View and manage all invoices">
+                        <i class="fas fa-file-invoice me-1"></i>
+                        Invoice Management
+                    </a>
                     <button class="btn btn-success" onclick="showBatchInvoiceModal()" title="Create batch invoices for past due members">
                         <i class="fas fa-file-invoice-dollar me-1"></i>
                         Batch Invoice
@@ -2181,18 +2185,9 @@ function renderMembersHTML(container, data, category) {
                                     <button class="btn btn-sm btn-warning" onclick="event.stopPropagation(); showQuickInvoiceModal('${member.guid || member.prospect_id || member.id}', '${displayName.replace(/'/g, "\\'")}', '${member.email || ''}')" title="Create Invoice">
                                         <i class="fas fa-file-invoice-dollar"></i>
                                     </button>
-                                    ${member.amount_past_due > 0 ? `
-                                        <button class="btn btn-sm btn-danger" onclick="event.stopPropagation(); showInvoicePreviewForMember('${member.guid || member.prospect_id || member.id}', '${displayName.replace(/'/g, "\\'")}', '${member.email || ''}', ${member.amount_past_due})" title="Send Past Due Invoice">
-                                            <i class="fas fa-exclamation-circle"></i>
-                                        </button>
-                                        <button class="btn btn-sm btn-info" onclick="event.stopPropagation(); showInvoiceTracking('${member.guid || member.prospect_id}', '${displayName.replace(/'/g, "\\'")}')" title="Track Invoices & Lock Status">
-                                            <i class="fas fa-receipt"></i>
-                                        </button>
-                                    ` : `
-                                        <button class="btn btn-sm btn-info" onclick="event.stopPropagation(); showInvoiceTracking('${member.guid || member.prospect_id}', '${displayName.replace(/'/g, "\\'")}')" title="Track Invoices & Lock Status">
-                                            <i class="fas fa-receipt"></i>
-                                        </button>
-                                    `}
+                                    <button class="btn btn-sm btn-info" onclick="event.stopPropagation(); showInvoiceTracking('${member.guid || member.prospect_id}', '${displayName.replace(/'/g, "\\'")}')" title="Track Invoices & Lock Status">
+                                        <i class="fas fa-receipt"></i>
+                                    </button>
                                 </div>
                             </div>
                         </div>
