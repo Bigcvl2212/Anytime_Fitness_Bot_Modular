@@ -33,19 +33,14 @@ jobs:
       run: |
         pyinstaller gym_bot.spec
 
-    - name: Download Inno Setup
+    - name: Install Inno Setup
       run: |
-        curl -L -o innosetup.exe "https://jrsoftware.org/download.php/is.exe"
-        ./innosetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-
-      shell: pwsh
-
-    - name: Wait for Inno Setup installation
-      run: Start-Sleep -Seconds 30
+        choco install innosetup -y
       shell: pwsh
 
     - name: Create Windows Installer
       run: |
-        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer_windows.iss
+        iscc installer_windows.iss
       shell: pwsh
 
     - name: Upload Windows Installer
