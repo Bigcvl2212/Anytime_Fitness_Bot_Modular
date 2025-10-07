@@ -181,14 +181,23 @@ def api_member_past_due_status():
         # Check if database sync is still in progress by checking table count
         try:
             table_count = current_app.db_manager.execute_query(
-                "SELECT COUNT(*) FROM training_clients"
+                "SELECT COUNT(*) as count FROM training_clients"
             )
-            # Handle RealDictRow result from COUNT query
-            if table_count and len(table_count) > 0:
-                count_row = table_count[0]
-                total_clients = count_row['count'] if 'count' in count_row else list(count_row.values())[0]
-            else:
-                total_clients = 0
+            # Handle different return types from execute_query
+            total_clients = 0
+            if table_count:
+                # If table_count is an integer (direct result from some implementations)
+                if isinstance(table_count, int):
+                    total_clients = table_count
+                # If table_count is a list/tuple of rows
+                elif isinstance(table_count, (list, tuple)) and len(table_count) > 0:
+                    count_row = table_count[0]
+                    # Handle dictionary-like row
+                    if hasattr(count_row, '__getitem__'):
+                        total_clients = count_row['count'] if 'count' in count_row else list(count_row.values())[0]
+                    # Handle plain integer/value
+                    else:
+                        total_clients = int(count_row) if count_row else 0
             
             # If table is empty, sync might still be running
             if total_clients == 0:
@@ -216,25 +225,25 @@ def api_member_past_due_status():
             # First try exact match with member_name (from training_clients table)
             logger.debug(f"🔍 Looking for training client: '{participant_name}'")
             training_client_results = current_app.db_manager.execute_query("""
-                SELECT member_name, total_past_due, payment_status, sessions_remaining, 
+                SELECT member_name, total_past_due, payment_status, sessions_remaining,
                        trainer_name, active_packages, last_session
-                FROM training_clients 
-                WHERE LOWER(member_name) = LOWER(%s) 
-                ORDER BY created_at DESC 
+                FROM training_clients
+                WHERE LOWER(member_name) = LOWER(?)
+                ORDER BY created_at DESC
                 LIMIT 1
-            """, (participant_name,))
+            """, (participant_name,), fetch_all=True)
             training_client = training_client_results[0] if training_client_results and len(training_client_results) > 0 else None
             
             if not training_client:
                 # Try partial match for cases like "First Last" vs "First M Last"
                 training_client_results = current_app.db_manager.execute_query("""
-                    SELECT member_name, total_past_due, payment_status, sessions_remaining, 
+                    SELECT member_name, total_past_due, payment_status, sessions_remaining,
                            trainer_name, active_packages, last_session
-                    FROM training_clients 
-                    WHERE LOWER(member_name) LIKE LOWER(%s) OR LOWER(%s) LIKE LOWER(member_name)
-                    ORDER BY created_at DESC 
+                    FROM training_clients
+                    WHERE LOWER(member_name) LIKE LOWER(?) OR LOWER(?) LIKE LOWER(member_name)
+                    ORDER BY created_at DESC
                     LIMIT 1
-                """, (f'%{participant_name}%', f'%{participant_name}%'))
+                """, (f'%{participant_name}%', f'%{participant_name}%'), fetch_all=True)
                 training_client = training_client_results[0] if training_client_results and len(training_client_results) > 0 else None
             
             if training_client:
@@ -791,17 +800,18 @@ def data_status():
             SELECT table_name, last_refresh, record_count, category_breakdown
             FROM data_refresh_log
             ORDER BY last_refresh DESC
-        """)
-        
+        """, fetch_all=True)
+
         refresh_logs = []
         if refresh_log_results:
             for row in refresh_log_results:
-                row_dict = current_app.db_manager._row_to_dict(row)
+                # Convert SQLite Row to dict
+                row_dict = dict(row) if row else {}
                 refresh_logs.append({
-                    'table_name': row_dict['table_name'],
-                    'last_refresh': row_dict['last_refresh'],
-                    'record_count': row_dict['record_count'],
-                    'category_breakdown': json.loads(row_dict['category_breakdown']) if row_dict['category_breakdown'] else {}
+                    'table_name': row_dict.get('table_name'),
+                    'last_refresh': row_dict.get('last_refresh'),
+                    'record_count': row_dict.get('record_count'),
+                    'category_breakdown': json.loads(row_dict['category_breakdown']) if row_dict.get('category_breakdown') else {}
                 })
         
         # Get category counts
@@ -1373,29 +1383,31 @@ def api_create_invoice():
         try:
             # Convert amount to float if it's a string
             amount = float(amount)
-            
+
             # Try to get member data from database to find phone number
             mobile_phone = None
+            # Initialize all_members outside the conditional block
+            all_members = []
+
             if not member_email:  # Only look up if email not provided
                 from src.services.database_manager import DatabaseManager
                 db_manager = DatabaseManager()
-                
+
                 # Get all members by combining all categories
-                all_members = []
                 for category in ['green', 'past_due', 'comp', 'ppv', 'staff', 'inactive']:
                     try:
                         category_members = db_manager.get_members_by_category(category)
                         all_members.extend(category_members)
                     except Exception as e:
                         logger.warning(f"Failed to get {category} members: {e}")
-                
+
                 for member in all_members:
                     if member.get('display_name') == member_name or member.get('full_name') == member_name:
                         mobile_phone = member.get('mobile_phone')
                         if not member_email:
                             member_email = member.get('email')
                         break
-            
+
             # Find the member_id (prospect_id) for database tracking
             member_id = None
             for member in all_members:
@@ -1570,15 +1582,41 @@ def api_get_payment_summary():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @api_bp.route('/invoices/batch', methods=['POST'])
+@api_bp.route('/invoices/batch-create', methods=['POST'])  # Alias for batch invoice creation
 def api_batch_invoices():
     """API endpoint to create batch invoices for multiple members."""
     try:
         data = request.get_json()
+        logger.info(f"🔍 Invoice batch request data: {data}")
+        
         invoice_type = data.get('type', 'members')
         filter_type = data.get('filter', 'past_due')
-        selected_clients = data.get('selected_clients', [])
+        
+        # Frontend sends 'members' array with objects containing member_id, member_name, amount
+        members_data = data.get('members', [])
+        
+        # Extract member IDs from the members array
+        if members_data and isinstance(members_data, list) and len(members_data) > 0:
+            # Check if first item is a dict with member_id
+            if isinstance(members_data[0], dict):
+                selected_clients = [m.get('member_id') for m in members_data if m.get('member_id')]
+            else:
+                # Fallback: assume it's already a list of IDs
+                selected_clients = members_data
+        else:
+            # Try alternative field names for backward compatibility
+            selected_clients = (
+                data.get('selected_clients', []) or 
+                data.get('selected_members', []) or 
+                data.get('selectedMembers', []) or
+                data.get('member_ids', []) or
+                []
+            )
+        
+        logger.info(f"🎯 Found {len(selected_clients)} selected members/clients")
         
         if not selected_clients:
+            logger.warning(f"⚠️ No members selected! Request keys: {list(data.keys())}")
             return jsonify({'success': False, 'error': 'No members selected for invoicing'}), 400
         
         # Import Square client function
@@ -1589,21 +1627,28 @@ def api_batch_invoices():
         # Get member details from database
         from src.services.database_manager import DatabaseManager
         db_manager = DatabaseManager()
-        
+
         # Get member information for selected IDs
-        placeholders = ','.join(['%s' for _ in selected_clients])
+        # Use ? placeholders for SQLite instead of %s
+        # Frontend sends guid values, so match on guid OR prospect_id OR id
+        placeholders = ','.join(['?' for _ in selected_clients])
         query = f"""
-            SELECT prospect_id, id, guid, first_name, last_name, full_name, email, 
+            SELECT prospect_id, id, guid, first_name, last_name, full_name, email,
                    mobile_phone, amount_past_due, base_amount_past_due, missed_payments,
                    late_fees, agreement_recurring_cost, status_message
-            FROM members 
-            WHERE prospect_id IN ({placeholders}) OR id IN ({placeholders})
+            FROM members
+            WHERE guid IN ({placeholders}) OR prospect_id IN ({placeholders}) OR id IN ({placeholders})
         """
         
-        members = db_manager.execute_query(query, selected_clients + selected_clients)
+        logger.info(f"🔍 Searching for members with IDs: {selected_clients[:3]}...")  # Log first 3 IDs
+
+        members = db_manager.execute_query(query, tuple(selected_clients + selected_clients + selected_clients), fetch_all=True)
+        
+        logger.info(f"📊 Found {len(members) if members else 0} members from database")
         
         if not members:
-            return jsonify({'success': False, 'error': 'No valid members found'}), 404
+            logger.error(f"❌ No members found in database for IDs: {selected_clients}")
+            return jsonify({'success': False, 'error': 'No valid members found in database'}), 404
         
         # Process each member
         successful_invoices = []

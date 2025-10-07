@@ -15,7 +15,7 @@ import hashlib
 import traceback
 import requests
 from datetime import datetime
-from src.services.clubos_messaging_client_simple import ClubOSMessagingClient
+from ..services.clubos_messaging_client_simple import ClubOSMessagingClient
 from .auth import require_auth
 
 def extract_name_from_message_content(content):
@@ -375,23 +375,15 @@ def test_clubos_auth():
 
 @messaging_bp.route('/api/messages', methods=['GET'])
 def get_messages():
-    """Get messages from database or cache"""
+    """Get messages from database - ALWAYS FRESH DATA"""
     try:
         owner_id = request.args.get('owner_id', '187032782')
         limit = request.args.get('limit')  # Make limit optional
-        
-        # First try to get from cache if available
-        if hasattr(current_app, 'data_cache') and current_app.data_cache.get('messages'):
-            cached_messages = current_app.data_cache['messages']
-            logger.info(f"✅ Retrieved {len(cached_messages)} messages from cache")
-            
-            if limit:
-                limit = int(limit)
-                return jsonify({'success': True, 'messages': cached_messages[:limit], 'source': 'cache'})
-            else:
-                return jsonify({'success': True, 'messages': cached_messages, 'source': 'cache'})
 
-        # Fallback to database using database manager
+        # ALWAYS fetch fresh data from database (removed stale cache)
+        logger.info(f"📬 Fetching fresh messages from database for owner_id: {owner_id}")
+
+        # Fetch from database using database manager
         if limit:
             # If limit is specified, use it
             limit = int(limit)
@@ -544,9 +536,9 @@ def send_campaign():
                 WHERE category = ?
                 ORDER BY last_campaign_date DESC 
                 LIMIT 1
-            ''', (category,))
+            ''', (category,), fetch_all=True)  # FIXED: Added fetch_all=True
             
-            progress_row = progress_results[0] if progress_results else None
+            progress_row = progress_results[0] if progress_results and len(progress_results) > 0 else None
             start_after_member_id = None
             start_index = 0
             
@@ -567,14 +559,14 @@ def send_campaign():
                         WHERE id > (SELECT id FROM members WHERE prospect_id = ? OR id = ? LIMIT 1)
                         ORDER BY id
                         LIMIT ?
-                    ''', (start_after_member_id, start_after_member_id, max_recipients))
+                    ''', (start_after_member_id, start_after_member_id, max_recipients), fetch_all=True)
                 else:
                     category_members = current_app.db_manager.execute_query('''
                         SELECT id, prospect_id, email, mobile_phone, full_name, status_message
                         FROM members 
                         ORDER BY id
                         LIMIT ?
-                    ''', (max_recipients,))
+                    ''', (max_recipients,), fetch_all=True)
             elif category_to_use == 'prospects':
                 # Special case: get prospects from prospects table (different column names)
                 logger.info("📊 Selecting prospects")
@@ -585,14 +577,14 @@ def send_campaign():
                         WHERE prospect_id > ?
                         ORDER BY prospect_id
                         LIMIT ?
-                    ''', (start_after_member_id, max_recipients))
+                    ''', (start_after_member_id, max_recipients), fetch_all=True)
                 else:
                     category_members = current_app.db_manager.execute_query('''
                         SELECT prospect_id as id, prospect_id, email, phone as mobile_phone, full_name, status as status_message
                         FROM prospects 
                         ORDER BY prospect_id
                         LIMIT ?
-                    ''', (max_recipients,))
+                    ''', (max_recipients,), fetch_all=True)
             elif category_to_use == 'training_past_due':
                 # Special case: get past due training clients from training_clients table
                 logger.info("📊 Selecting past due training clients")
@@ -612,7 +604,7 @@ def send_campaign():
                         AND (COALESCE(tc.phone, m.mobile_phone) IS NOT NULL AND COALESCE(tc.phone, m.mobile_phone) != '')
                         ORDER BY tc.id
                         LIMIT ?
-                    ''', (start_after_member_id, max_recipients))
+                    ''', (start_after_member_id, max_recipients), fetch_all=True)
                 else:
                     category_members = current_app.db_manager.execute_query('''
                         SELECT 
@@ -629,7 +621,7 @@ def send_campaign():
                         AND (COALESCE(tc.phone, m.mobile_phone) IS NOT NULL AND COALESCE(tc.phone, m.mobile_phone) != '')
                         ORDER BY tc.id
                         LIMIT ?
-                    ''', (max_recipients,))
+                    ''', (max_recipients,), fetch_all=True)
             elif category_to_use == 'training_current':
                 # Special case: get current training clients from training_clients table
                 logger.info("📊 Selecting current training clients")
@@ -640,7 +632,7 @@ def send_campaign():
                         WHERE payment_status = 'Current' AND member_id > ?
                         ORDER BY member_id
                         LIMIT ?
-                    ''', (start_after_member_id, max_recipients))
+                    ''', (start_after_member_id, max_recipients), fetch_all=True)
                 else:
                     category_members = current_app.db_manager.execute_query('''
                         SELECT member_id as id, clubos_member_id as prospect_id, email, phone as mobile_phone, member_name as full_name, payment_status as status_message
@@ -648,7 +640,7 @@ def send_campaign():
                         WHERE payment_status = 'Current'
                         ORDER BY member_id
                         LIMIT ?
-                    ''', (max_recipients,))
+                    ''', (max_recipients,), fetch_all=True)
             elif category in ['expiring-soon', 'expiring']:
                 # Special case for expiring members: include multiple status patterns
                 logger.info(f"📊 Selecting expiring members with multiple status patterns")
@@ -661,7 +653,7 @@ def send_campaign():
                         AND id > (SELECT id FROM members WHERE prospect_id = ? OR id = ? LIMIT 1)
                         ORDER BY id
                         LIMIT ?
-                    ''', (start_after_member_id, start_after_member_id, max_recipients))
+                    ''', (start_after_member_id, start_after_member_id, max_recipients), fetch_all=True)
                 else:
                     category_members = current_app.db_manager.execute_query('''
                         SELECT id, prospect_id, email, mobile_phone, full_name, status_message
@@ -669,7 +661,7 @@ def send_campaign():
                         WHERE status_message LIKE '%expire%' OR status_message = 'Expired'
                         ORDER BY id
                         LIMIT ?
-                    ''', (max_recipients,))
+                    ''', (max_recipients,), fetch_all=True)
             else:
                 # Regular category: filter by status_message (members table only)
                 logger.info(f"📊 Selecting members with status_message LIKE '%{category_to_use}%'")
@@ -681,7 +673,7 @@ def send_campaign():
                         WHERE status_message LIKE ? AND id > (SELECT id FROM members WHERE prospect_id = ? OR id = ? LIMIT 1)
                         ORDER BY id
                         LIMIT ?
-                    ''', (f'%{category_to_use}%', start_after_member_id, start_after_member_id, max_recipients))
+                    ''', (f'%{category_to_use}%', start_after_member_id, start_after_member_id, max_recipients), fetch_all=True)
                 else:
                     category_members = current_app.db_manager.execute_query('''
                         SELECT id, prospect_id, email, mobile_phone, full_name, status_message
@@ -689,7 +681,7 @@ def send_campaign():
                         WHERE status_message LIKE ?
                         ORDER BY id
                         LIMIT ?
-                    ''', (f'%{category_to_use}%', max_recipients))
+                    ''', (f'%{category_to_use}%', max_recipients), fetch_all=True)
             
             if not category_members:
                 category_members = []
@@ -1322,7 +1314,7 @@ def send_message_route():
                 }), 404
         
         # Initialize ClubOS messaging client EXACTLY like campaigns do
-        from src.services.clubos_messaging_client_simple import ClubOSMessagingClient
+        from ..services.clubos_messaging_client_simple import ClubOSMessagingClient
         from ..services.authentication.secure_secrets_manager import SecureSecretsManager
         
         secrets_manager = SecureSecretsManager()
@@ -1401,7 +1393,7 @@ def send_bulk_message_route():
             return jsonify({'status': 'error', 'message': 'Member IDs and message are required.'}), 400
 
         try:
-            from src.services.clubos_messaging_client_simple import ClubOSMessagingClient
+            from ..services.clubos_messaging_client_simple import ClubOSMessagingClient
             messaging_client = ClubOSMessagingClient()
             success_count = 0
             failure_count = 0
@@ -1435,7 +1427,7 @@ def send_bulk_message_route():
 # @require_auth  # Temporarily disabled for testing
 def get_message_templates():
     try:
-        from src.services.clubos_messaging_client_simple import ClubOSMessagingClient
+        from ..services.clubos_messaging_client_simple import ClubOSMessagingClient
         messaging_client = ClubOSMessagingClient()
         templates = messaging_client.get_message_templates()
         if templates is not None:

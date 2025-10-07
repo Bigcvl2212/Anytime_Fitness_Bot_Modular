@@ -2168,34 +2168,89 @@
                 return;
             }
             
-            const membersHtml = members.slice(0, 20).map(member => `
+            // ADDED: Select All checkbox header
+            const selectAllHeader = `
+                <div class="border-bottom pb-2 mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="selectAllMembers" onchange="toggleSelectAll(this)">
+                        <label class="form-check-label fw-bold" for="selectAllMembers">
+                            <i class="fas fa-check-square me-1"></i>
+                            Select All (${members.length} members)
+                        </label>
+                    </div>
+                </div>
+            `;
+            
+            // ADDED: Checkbox for each member
+            const membersHtml = members.map((member, index) => `
                 <div class="member-item border-bottom pb-2 mb-2">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div class="flex-grow-1">
+                    <div class="d-flex align-items-start">
+                        <div class="form-check me-2 mt-1">
+                            <input class="form-check-input member-checkbox" type="checkbox" 
+                                   id="member-${index}" 
+                                   data-member-id="${member.prospect_id || member.id}" 
+                                   data-member-name="${member.full_name || `${member.firstName || ''} ${member.lastName || ''}`.trim()}"
+                                   data-member-email="${member.email || ''}"
+                                   data-member-phone="${member.mobile_phone || member.phone || ''}"
+                                   onchange="updateSelectionCount()">
+                        </div>
+                        <label class="flex-grow-1" for="member-${index}" style="cursor: pointer;">
                             <div class="fw-medium">${member.full_name || `${member.firstName || ''} ${member.lastName || ''}`.trim()}</div>
                             <div class="small text-muted">${member.email || member.mobile_phone || 'No contact'}</div>
                             ${member.status_message ? `<div class="small text-info">${member.status_message}</div>` : ''}
                             ${member.past_due_amount && parseFloat(member.past_due_amount) > 0 ? 
                                 `<div class="small text-danger">Past Due: $${parseFloat(member.past_due_amount).toFixed(2)}</div>` : ''}
-                        </div>
-                        <div class="ms-2">
-                            <span class="badge bg-light text-dark">Ready</span>
-                        </div>
+                        </label>
                     </div>
                 </div>
             `).join('');
             
-            memberPreview.innerHTML = membersHtml + 
-                (members.length > 20 ? `
-                    <div class="text-center py-2 border-top">
-                        <small class="text-muted">... and ${members.length - 20} more members</small>
-                    </div>
-                ` : '');
+            // ADDED: Selection counter
+            const selectionCounter = `
+                <div class="alert alert-success mt-3" id="selectionCounterAlert">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong id="selectedCount">0</strong> of <strong>${members.length}</strong> members selected
+                </div>
+            `;
+            
+            memberPreview.innerHTML = selectAllHeader + membersHtml + selectionCounter;
+            
+            // Store members data for campaign launch
+            window.currentCategoryMembers = members;
         }
 
         function updateMemberCounts(total, remaining) {
             document.getElementById('totalMemberCount').textContent = total;
             document.getElementById('remainingMemberCount').textContent = remaining;
+        }
+
+        // ADDED: Toggle Select All functionality
+        function toggleSelectAll(checkbox) {
+            const memberCheckboxes = document.querySelectorAll('.member-checkbox');
+            memberCheckboxes.forEach(cb => {
+                cb.checked = checkbox.checked;
+            });
+            updateSelectionCount();
+            debugLog(`🔘 Select All ${checkbox.checked ? 'checked' : 'unchecked'}: ${memberCheckboxes.length} members`);
+        }
+
+        // ADDED: Update selection count display
+        function updateSelectionCount() {
+            const checkedBoxes = document.querySelectorAll('.member-checkbox:checked');
+            const selectedCountElement = document.getElementById('selectedCount');
+            if (selectedCountElement) {
+                selectedCountElement.textContent = checkedBoxes.length;
+            }
+            
+            // Update Select All checkbox state
+            const selectAllCheckbox = document.getElementById('selectAllMembers');
+            const allCheckboxes = document.querySelectorAll('.member-checkbox');
+            if (selectAllCheckbox && allCheckboxes.length > 0) {
+                selectAllCheckbox.checked = checkedBoxes.length === allCheckboxes.length;
+                selectAllCheckbox.indeterminate = checkedBoxes.length > 0 && checkedBoxes.length < allCheckboxes.length;
+            }
+            
+            debugLog(`✅ Selection updated: ${checkedBoxes.length} members selected`);
         }
 
         // Campaign Control Functions
@@ -2752,9 +2807,43 @@ Note: Variables like {first_name} will be automatically replaced with actual mem
             progressContainer.innerHTML = progressHtml;
         }
 
-        function syncMessages() {
-            debugLog('🔄 Syncing messages...');
-            showAlert('info', 'Message sync functionality will be implemented soon.');
+        async function syncMessages() {
+            debugLog('🔄 Syncing messages from ClubOS...');
+
+            // Show loading state
+            showAlert('info', 'Syncing messages from ClubOS...');
+
+            try {
+                const response = await fetch('/api/messages/sync', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        owner_id: window.currentOwnerId || 'default'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success || response.ok) {
+                    const messageCount = data.stored_count || data.message_count || 'messages';
+                    showAlert('success', `Successfully synced ${messageCount} messages from ClubOS!`);
+
+                    // Refresh the messaging inbox to show new messages
+                    if (typeof loadMessagingInbox === 'function') {
+                        setTimeout(() => loadMessagingInbox(), 1000);
+                    } else {
+                        // Reload page if function not available
+                        setTimeout(() => location.reload(), 1500);
+                    }
+                } else {
+                    showAlert('danger', `Sync failed: ${data.error || 'Unknown error'}`);
+                }
+            } catch (error) {
+                console.error('Error syncing messages:', error);
+                showAlert('danger', `Error syncing messages: ${error.message}`);
+            }
         }
 
         function searchMessages() {

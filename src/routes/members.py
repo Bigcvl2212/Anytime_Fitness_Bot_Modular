@@ -86,15 +86,18 @@ def members_page():
 
 @members_bp.route('/api/members/all')
 def get_all_members():
-    """Get all members from database or cache"""
+    """Get all members from database or cache - ENHANCED DEBUG LOGGING"""
     try:
         # First try to get from cache if available
         if hasattr(current_app, 'data_cache') and current_app.data_cache.get('members'):
             cached_members = current_app.data_cache['members']
             logger.info(f"✅ Retrieved {len(cached_members)} members from cache")
+            # Log sample status messages
+            sample_statuses = [m.get('status_message') for m in cached_members[:5] if m.get('status_message')]
+            logger.info(f"📊 Sample status messages from cache: {sample_statuses}")
             return jsonify({'success': True, 'members': cached_members, 'source': 'cache'})
 
-        # Fallback to database
+        # Fallback to database - INCLUDE status_message for categorization
         query = """
             SELECT
                 prospect_id,
@@ -105,7 +108,8 @@ def get_all_members():
                 email,
                 mobile_phone,
                 status,
-                amount_past_due
+                amount_past_due,
+                status_message
             FROM members
             ORDER BY full_name
         """
@@ -113,7 +117,15 @@ def get_all_members():
         result = current_app.db_manager.execute_query(query, fetch_all=True)
         members = [dict(row) for row in result] if result else []
         
+        # Log categorization debug info
+        status_counts = {}
+        for member in members:
+            status_msg = member.get('status_message', 'None')
+            status_counts[status_msg] = status_counts.get(status_msg, 0) + 1
+        
         logger.info(f"✅ Retrieved {len(members)} members from database")
+        logger.info(f"📊 Status message distribution: {dict(list(status_counts.items())[:10])}")
+        
         return jsonify({'success': True, 'members': members, 'source': 'database'})
         
     except Exception as e:
@@ -170,40 +182,42 @@ def get_member_profile(member_id):
 def get_past_due_members():
     """Get members with past due payments."""
     try:
-        conn = current_app.db_manager.get_connection()
-        cursor = current_app.db_manager.get_cursor(conn)
-        
-        # Get members with past due amounts or past due status message
-        cursor.execute("""
-            SELECT 
-                prospect_id,
-                id,
-                guid,
-                first_name,
-                last_name,
-                full_name,
-                email,
-                mobile_phone,
-                status,
-                status_message,
-                amount_past_due,
-                base_amount_past_due,
-                missed_payments,
-                late_fees,
-                date_of_next_payment
-            FROM members 
-            WHERE status_message LIKE '%Past Due 6-30 days%' 
-               OR status_message LIKE '%Past Due more than 30 days%'
-            ORDER BY amount_past_due DESC
-        """)
-        
-        past_due_data = cursor.fetchall()
-        past_due_members = [dict(row) for row in past_due_data] if past_due_data else []
-        conn.close()
-        
+        with current_app.db_manager.get_cursor() as cursor:
+            # Get members with past due amounts or past due status message
+            cursor.execute("""
+                SELECT
+                    prospect_id,
+                    id,
+                    guid,
+                    first_name,
+                    last_name,
+                    full_name,
+                    email,
+                    mobile_phone,
+                    phone,
+                    address,
+                    city,
+                    state,
+                    zip_code,
+                    status,
+                    status_message,
+                    amount_past_due,
+                    base_amount_past_due,
+                    missed_payments,
+                    late_fees,
+                    date_of_next_payment
+                FROM members
+                WHERE status_message LIKE '%Past Due 6-30 days%'
+                   OR status_message LIKE '%Past Due more than 30 days%'
+                ORDER BY amount_past_due DESC
+            """)
+
+            past_due_data = cursor.fetchall()
+            past_due_members = [dict(row) for row in past_due_data] if past_due_data else []
+
         logger.info(f"✅ Retrieved {len(past_due_members)} past due members")
         return jsonify({'success': True, 'members': past_due_members})
-        
+
     except Exception as e:
         logger.error(f"❌ Error getting past due members: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -501,125 +515,65 @@ def api_refresh_data():
 
 @members_bp.route('/api/refresh-billing-data', methods=['POST'])
 def api_refresh_billing_data():
-    """Refresh billing data from ClubHub by pulling membership agreement data for all members."""
+    """Refresh billing data from ClubHub using the WORKING sync method that includes agreement data."""
     try:
-        logger.info("🔄 Starting billing data refresh from ClubHub API...")
+        logger.info("🔄 Starting billing data refresh using multi_club_startup_sync...")
         
-        # Import ClubHub API client
-        from src.services.api.clubhub_api_client import ClubHubAPIClient
-        from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+        # Use the WORKING sync method from multi_club_startup_sync
+        from src.services.multi_club_startup_sync import sync_members_for_club
         
-        # Get credentials from SecureSecretsManager
-        secrets_manager = SecureSecretsManager()
-        clubhub_email = secrets_manager.get_secret('clubhub-email')
-        clubhub_password = secrets_manager.get_secret('clubhub-password')
+        # Run the sync that we KNOW works (includes agreement data AND preserves addresses)
+        members_with_billing = sync_members_for_club(app=current_app)
         
-        if not clubhub_email or not clubhub_password:
+        if not members_with_billing:
             return jsonify({
                 'success': False,
-                'error': 'ClubHub credentials not found in SecureSecretsManager'
+                'error': 'No members returned from sync'
             }), 500
         
-        # Initialize and authenticate
-        client = ClubHubAPIClient()
-        if not client.authenticate(clubhub_email, clubhub_password):
+        # CRITICAL: Save to database (preserves existing addresses via REPLACE INTO)
+        logger.info(f"💾 Saving {len(members_with_billing)} members with billing data to database...")
+        save_success = current_app.db_manager.save_members_to_db(members_with_billing)
+        
+        if not save_success:
+            logger.error("❌ Failed to save members to database")
             return jsonify({
                 'success': False,
-                'error': 'ClubHub authentication failed'
+                'error': 'Failed to save billing data to database'
             }), 500
         
-        # Get all members from database to update their billing info
-        conn = current_app.db_manager.get_connection()
-        cursor = current_app.db_manager.get_cursor(conn)
+        logger.info("✅ Billing data saved to database successfully!")
         
-        cursor.execute("SELECT prospect_id, guid, first_name, last_name FROM members")
-        member_records = cursor.fetchall()
+        # Calculate summary stats
+        past_due_members = [m for m in members_with_billing if m.get('amount_past_due', 0) > 0]
+        total_past_due_amount = sum(m.get('amount_past_due', 0) for m in past_due_members)
+        total_base_amount = sum(m.get('base_amount_past_due', 0) for m in past_due_members)
+        total_late_fees = sum(m.get('late_fees', 0) for m in past_due_members)
+        total_missed_payments = sum(m.get('missed_payments', 0) for m in past_due_members)
         
-        updated_members = []
-        past_due_members = []
-        total_past_due_amount = 0.0
-        total_base_amount = 0.0
-        total_late_fees = 0.0
-        total_missed_payments = 0
-        errors = []
-        
-        logger.info(f"🔄 Processing {len(member_records)} members for billing data...")
-        
-        for i, member_row in enumerate(member_records, 1):
-            member_id = member_row['prospect_id'] or member_row['guid']
-            if not member_id:
-                continue
-                
-            try:
-                # Get member agreement data from ClubHub
-                agreement_data = client.get_member_agreement(member_id)
-                
-                if agreement_data and isinstance(agreement_data, dict):
-                    # Extract billing information from agreement
-                    amount_past_due = float(agreement_data.get('amount_past_due', 0))
-                    base_amount_past_due = float(agreement_data.get('base_amount_past_due', 0))
-                    late_fees = float(agreement_data.get('late_fees', 0))
-                    missed_payments = int(agreement_data.get('missed_payments', 0))
-                    date_of_next_payment = agreement_data.get('date_of_next_payment')
-                    status = agreement_data.get('status', '')
-                    status_message = agreement_data.get('status_message', '')
-                    
-                    # Update member billing info in database
-                    billing_data = {
-                        'amount_past_due': amount_past_due,
-                        'base_amount_past_due': base_amount_past_due,
-                        'late_fees': late_fees,
-                        'missed_payments': missed_payments,
-                        'date_of_next_payment': date_of_next_payment,
-                        'status': status,
-                        'status_message': status_message
-                    }
-                    
-                    current_app.db_manager.update_member_billing_info(member_id, billing_data)
-                    updated_members.append(member_id)
-                    
-                    # Track past due totals
-                    if amount_past_due > 0:
-                        past_due_members.append({
-                            'member_id': member_id,
-                            'name': f"{member_row['first_name']} {member_row['last_name']}",
-                            'amount_past_due': amount_past_due,
-                            'base_amount': base_amount_past_due,
-                            'late_fees': late_fees,
-                            'missed_payments': missed_payments
-                        })
-                        total_past_due_amount += amount_past_due
-                        total_base_amount += base_amount_past_due
-                        total_late_fees += late_fees
-                        total_missed_payments += missed_payments
-                
-                # Progress logging every 50 members
-                if i % 50 == 0:
-                    logger.info(f"🔄 Processed {i}/{len(member_records)} members...")
-                        
-            except Exception as member_error:
-                error_msg = f"Failed to update billing for member {member_id} ({member_row['first_name']} {member_row['last_name']}): {member_error}"
-                logger.warning(f"⚠️ {error_msg}")
-                errors.append(error_msg)
-                continue
-        
-        conn.close()
-        
-        logger.info(f"✅ Billing refresh complete: {len(updated_members)} updated, {len(past_due_members)} past due, ${total_past_due_amount:.2f} total")
+        logger.info(f"✅ Billing refresh complete: {len(members_with_billing)} members synced, {len(past_due_members)} past due, ${total_past_due_amount:.2f} total")
         
         return jsonify({
             'success': True,
-            'message': 'Billing data refreshed successfully from ClubHub membership agreements',
-            'total_processed': len(member_records),
-            'updated_members': len(updated_members),
+            'message': 'Billing data refreshed successfully from ClubHub with agreement data',
+            'total_processed': len(members_with_billing),
+            'updated_members': len(members_with_billing),
             'past_due_members': len(past_due_members),
             'total_past_due_amount': round(total_past_due_amount, 2),
             'total_base_amount': round(total_base_amount, 2),
             'total_late_fees': round(total_late_fees, 2),
             'total_missed_payments': total_missed_payments,
-            'past_due_details': past_due_members[:10],  # First 10 for preview
-            'errors': len(errors),
-            'error_details': errors[:5] if errors else [],  # First 5 errors for debugging
+            'past_due_details': [
+                {
+                    'member_id': m.get('prospect_id'),
+                    'name': m.get('full_name'),
+                    'amoualso nt_past_due': m.get('amount_past_due', 0),
+                    'base_amount': m.get('base_amount_past_due', 0),
+                    'late_fees': m.get('late_fees', 0),
+                    'missed_payments': m.get('missed_payments', 0)
+                }
+                for m in past_due_members[:10]
+            ],
             'timestamp': datetime.now().isoformat()
         })
             
@@ -767,8 +721,15 @@ def get_past_due_collections():
         past_due_members_data = current_app.db_manager.execute_query("""
             SELECT
                 full_name as name,
+                first_name,
+                last_name,
                 email,
                 mobile_phone as phone,
+                phone as home_phone,
+                address,
+                city,
+                state,
+                zip_code,
                 amount_past_due as past_due_amount,
                 status,
                 join_date,
@@ -777,7 +738,9 @@ def get_past_due_collections():
                 agreement_recurring_cost,
                 agreement_id,
                 agreement_guid,
-                agreement_type
+                agreement_type,
+                prospect_id,
+                guid
             FROM members
             WHERE status_message LIKE '%Past Due 6-30 days%'
                OR status_message LIKE '%Past Due more than 30 days%'
@@ -790,21 +753,38 @@ def get_past_due_collections():
         if not past_due_members:
             past_due_members = []
         
-        # Get past due training clients using database manager
+        # Get past due training clients WITH address/contact data from members table
+        # NOTE: Training clients use ClubOS member IDs which don't match ClubHub prospect_ids
+        # We match by name since the IDs are from different systems
         past_due_training_data = current_app.db_manager.execute_query("""
             SELECT
-                member_name as name,
-                email,
-                phone,
-                total_past_due as past_due_amount,
-                payment_status as status,
-                last_updated,
+                tc.member_name as name,
+                COALESCE(m.first_name, tc.first_name) as first_name,
+                COALESCE(m.last_name, tc.last_name) as last_name,
+                COALESCE(m.email, tc.email) as email,
+                COALESCE(m.mobile_phone, m.phone, tc.phone, tc.mobile_phone) as phone,
+                m.phone as home_phone,
+                COALESCE(m.address, tc.address) as address,
+                COALESCE(m.city, tc.city) as city,
+                COALESCE(m.state, tc.state) as state,
+                COALESCE(m.zip_code, tc.zip_code) as zip_code,
+                tc.total_past_due as past_due_amount,
+                tc.payment_status as status,
+                tc.last_updated,
                 'training_client' as type,
-                package_details,
-                active_packages
-            FROM training_clients
-            WHERE total_past_due > 0
-            ORDER BY total_past_due DESC
+                tc.package_details,
+                tc.active_packages,
+                COALESCE(m.prospect_id, tc.prospect_id) as prospect_id,
+                tc.clubos_member_id,
+                tc.agreement_id,
+                m.guid
+            FROM training_clients tc
+            LEFT JOIN members m ON (
+                LOWER(TRIM(tc.member_name)) = LOWER(TRIM(m.full_name))
+                OR LOWER(TRIM(tc.member_name)) = LOWER(TRIM(m.first_name || ' ' || m.last_name))
+            )
+            WHERE tc.total_past_due > 0 OR tc.past_due_amount > 0
+            ORDER BY COALESCE(tc.total_past_due, tc.past_due_amount) DESC
         """, fetch_all=True)
 
         # Convert SQLite Row objects to dictionaries for JSON serialization
@@ -933,9 +913,33 @@ The following accounts have been selected for collections referral:
         amount = account.get('past_due_amount', 0)
         email = account.get('email', 'No email')
         phone = account.get('phone', 'No phone')
+        home_phone = account.get('home_phone', '')
+        address = account.get('address', 'No address')
+        city = account.get('city', '')
+        state = account.get('state', '')
+        zip_code = account.get('zip_code', '')
         account_type = account.get('type', 'Unknown')
         agreement_id = account.get('agreement_id', 'N/A')
         agreement_type = account.get('agreement_type', 'N/A')
+        prospect_id = account.get('prospect_id', 'N/A')
+        guid = account.get('guid', 'N/A')
+        
+        # Format full address (handle None values)
+        full_address = address or 'No address'
+        if city or state or zip_code:
+            if address:  # Only add comma if we have a base address
+                full_address += f", {city}" if city else ""
+                full_address += f", {state}" if state else ""
+                full_address += f" {zip_code}" if zip_code else ""
+            else:
+                # Build address from just city/state/zip
+                parts = [p for p in [city, state, zip_code] if p]
+                full_address = ', '.join(parts) if parts else 'No address'
+
+        # Format phone numbers (handle None values)
+        phone_display = phone or 'No phone'
+        if home_phone and home_phone != phone and home_phone != 'No phone':
+            phone_display += f" / {home_phone}"
         
         total_amount += amount
         
@@ -945,8 +949,15 @@ The following accounts have been selected for collections referral:
    Type: {account_type.title()}
    Agreement ID: {agreement_id}
    Agreement Type: {agreement_type}
+   
+   CONTACT INFORMATION:
    Email: {email}
-   Phone: {phone}
+   Phone: {phone_display}
+   Address: {full_address}
+   
+   ACCOUNT IDENTIFIERS:
+   Prospect ID: {prospect_id}
+   GUID: {guid}
    ---
 """
     
@@ -1083,3 +1094,73 @@ def invoices_page():
     except Exception as e:
         logger.error(f"❌ Error rendering invoices page: {e}")
         return f"Error loading invoices page: {str(e)}", 500
+
+@members_bp.route('/api/prospects/all')
+def get_all_prospects():
+    """Get all prospects from database for messaging page - FIXED: Filter out duplicates"""
+    try:
+        # CRITICAL FIX: Filter out 57,372 rows with NULL prospect_ids
+        # Use DISTINCT on prospect_id to get only unique prospects
+        query = """
+            SELECT
+                prospect_id,
+                id,
+                first_name,
+                last_name,
+                full_name,
+                email,
+                phone as mobile_phone,
+                status
+            FROM prospects
+            WHERE prospect_id IS NOT NULL
+            GROUP BY prospect_id
+            ORDER BY full_name
+        """
+        
+        result = current_app.db_manager.execute_query(query, fetch_all=True)
+        prospects = [dict(row) for row in result] if result else []
+        
+        logger.info(f"✅ Retrieved {len(prospects)} unique prospects from database (filtered out NULL prospect_ids)")
+        logger.info(f"📊 Sample prospect: {prospects[0] if prospects else 'No prospects'}")
+        return jsonify({'success': True, 'prospects': prospects})
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting prospects: {e}")
+        import traceback
+        logger.error(f"🔍 Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@members_bp.route('/api/training/clients')
+def get_all_training_clients():
+    """Get all training clients from database for messaging page - FIXED: use payment_status"""
+    try:
+        query = """
+            SELECT
+                clubos_member_id,
+                member_name as full_name,
+                email,
+                phone as mobile_phone,
+                payment_status,
+                total_past_due as past_due_amount,
+                payment_status as status_message
+            FROM training_clients
+            ORDER BY member_name
+        """
+        
+        result = current_app.db_manager.execute_query(query, fetch_all=True)
+        training_clients = [dict(row) for row in result] if result else []
+        
+        logger.info(f"✅ Retrieved {len(training_clients)} training clients from database")
+        logger.info(f"📊 Sample training client: {training_clients[0] if training_clients else 'No training clients'}")
+        
+        # Log past due count
+        past_due_count = len([tc for tc in training_clients if tc.get('past_due_amount', 0) > 0])
+        logger.info(f"💰 Training clients with past due: {past_due_count}")
+        
+        return jsonify({'success': True, 'training_clients': training_clients})
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting training clients: {e}")
+        import traceback
+        logger.error(f"🔍 Traceback: {traceback.format_exc()}")
+        return jsonify({'success': False, 'error': str(e)}), 500
