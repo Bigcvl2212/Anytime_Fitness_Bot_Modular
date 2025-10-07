@@ -5,6 +5,7 @@ This creates a standalone executable with all dependencies bundled
 """
 
 import sys
+import os
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
@@ -19,11 +20,12 @@ datas += collect_data_files('werkzeug')
 datas += [('templates', 'templates')]
 datas += [('static', 'static')]
 
-# Add empty database schema
-datas += [('gym_bot.db', '.')]
+# Add optional files only if they exist
+if os.path.exists('gym_bot.db'):
+    datas += [('gym_bot.db', '.')]
 
-# Add config example
-datas += [('email_config_example.env', '.')]
+if os.path.exists('email_config_example.env'):
+    datas += [('email_config_example.env', '.')]
 
 # Collect all submodules
 hiddenimports = []
@@ -55,8 +57,6 @@ a = Analysis(
 )
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
-
-import os
 
 # Check if icon files exist
 icon_win = 'static/favicon.ico' if os.path.exists('static/favicon.ico') else None
