@@ -223,18 +223,29 @@ def messaging_page():
 
 @messaging_bp.route('/api/messages/sync', methods=['POST'])
 def sync_clubos_messages():
-    """Sync messages from ClubOS to local database"""
+    """Sync messages from ClubOS to local database - ENHANCED with auto-detect owner_id"""
     try:
         logger.info("🔄 Starting ClubOS message sync...")
         
-        # Get owner_id from request
+        # Get owner_id from request OR auto-detect from messaging client
         if request.is_json:
             owner_id = request.json.get('owner_id')
         else:
             owner_id = request.form.get('owner_id')
         
+        # CRITICAL FIX: Auto-detect owner_id if not provided
         if not owner_id:
-            return jsonify({'error': 'owner_id is required'}), 400
+            if hasattr(current_app, 'messaging_client') and current_app.messaging_client:
+                if hasattr(current_app.messaging_client, 'logged_in_user_id'):
+                    owner_id = current_app.messaging_client.logged_in_user_id
+                    logger.info(f"🔍 Auto-detected owner_id from messaging client: {owner_id}")
+            
+            # Final fallback to default manager
+            if not owner_id:
+                owner_id = '187032782'  # Default to Tyler's ID
+                logger.info(f"⚠️ Using default owner_id: {owner_id}")
+        
+        logger.info(f"📨 Syncing messages for owner_id: {owner_id}")
         
         # Get credentials for the owner
         credentials = get_clubos_credentials(owner_id)
@@ -288,7 +299,8 @@ def sync_clubos_messages():
                         'success': True,
                         'message': f'Synced {stored_count} messages from ClubOS',
                         'total_messages': len(messages),
-                        'stored_count': stored_count
+                        'stored_count': stored_count,
+                        'owner_id': owner_id
                     })
                 else:
                     logger.warning(f"⚠️ Message fetch attempt {attempt + 1} returned None")

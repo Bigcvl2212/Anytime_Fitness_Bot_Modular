@@ -1431,16 +1431,38 @@
             `;
         }
         
-        function refreshMessagingInbox() {
-            debugLog('🔄 Refreshing messaging inbox...');
+        async function refreshMessagingInbox() {
+            debugLog('🔄 Refreshing messaging inbox - syncing from ClubOS first...');
             const container = document.getElementById('messaging-inbox-container');
             container.innerHTML = `
                 <div class="text-center py-4">
                     <i class="fas fa-spinner fa-spin fa-2x text-muted mb-3"></i>
-                    <p class="text-muted">Refreshing conversations...</p>
+                    <p class="text-muted">Syncing messages from ClubOS...</p>
                 </div>
             `;
-            loadMessagingInbox();
+            
+            // CRITICAL FIX: Sync from ClubOS FIRST, then load from database
+            try {
+                const response = await fetch('/api/messages/sync', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        owner_id: window.currentOwnerId || '187032782'
+                    })
+                });
+                
+                const data = await response.json();
+                debugLog('✅ ClubOS sync complete:', data);
+                
+                // Now load the fresh messages from database
+                loadMessagingInbox();
+            } catch (error) {
+                console.error('❌ Error syncing messages:', error);
+                // Still try to load from database even if sync fails
+                loadMessagingInbox();
+            }
         }
 
         function clearMessagingInbox() {
@@ -2884,13 +2906,32 @@ Note: Variables like {first_name} will be automatically replaced with actual mem
         }
 
         // Initialize page data when DOM is ready
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             debugLog('Messaging page loaded - initializing data...');
             
             // Initialize Bootstrap tabs
             initializeBootstrapTabs();
             
-            // Load messaging inbox first
+            // CRITICAL FIX: Auto-sync from ClubOS on page load (Phase 1 requirement)
+            debugLog('🔄 AUTO-SYNC: Fetching latest messages from ClubOS...');
+            try {
+                const syncResponse = await fetch('/api/messages/sync', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        owner_id: window.currentOwnerId || '187032782'
+                    })
+                });
+                const syncData = await syncResponse.json();
+                debugLog('✅ AUTO-SYNC complete:', syncData);
+            } catch (error) {
+                console.error('❌ AUTO-SYNC error:', error);
+                // Continue even if sync fails
+            }
+            
+            // Load messaging inbox (now with fresh data)
             loadMessagingInbox();
             
             // Load all sections (with graceful fallbacks for missing APIs)
@@ -2899,7 +2940,41 @@ Note: Variables like {first_name} will be automatically replaced with actual mem
             loadCampaignProgress();
             loadSavedCampaigns();
             
-            debugLog('All messaging data loaded!');
+            // CRITICAL FIX: Start background polling every 30 seconds (Phase 1 requirement)
+            debugLog('⏰ Starting background message polling (30s interval)...');
+            setInterval(async () => {
+                debugLog('🔄 BACKGROUND POLL: Checking for new ClubOS messages...');
+                try {
+                    const pollResponse = await fetch('/api/messages/sync', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            owner_id: window.currentOwnerId || '187032782'
+                        })
+                    });
+                    const pollData = await pollResponse.json();
+                    
+                    // If new messages found, auto-refresh inbox
+                    if (pollData.stored_count && pollData.stored_count > 0) {
+                        debugLog(`📬 NEW MESSAGES: ${pollData.stored_count} new messages received!`);
+                        loadMessagingInbox(); // Refresh to show new messages
+                        
+                        // Optional: Show notification
+                        if (window.Notification && Notification.permission === "granted") {
+                            new Notification('New Messages', {
+                                body: `You have ${pollData.stored_count} new messages`,
+                                icon: '/static/images/logo.png'
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error('❌ Background poll error:', error);
+                }
+            }, 30000); // Poll every 30 seconds
+            
+            debugLog('All messaging data loaded with auto-sync and background polling active!');
         });
 
         // Campaign Template Functions
