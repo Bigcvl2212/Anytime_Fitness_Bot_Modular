@@ -56,6 +56,12 @@ a = Analysis(
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
+import os
+
+# Check if icon files exist
+icon_win = 'static/favicon.ico' if os.path.exists('static/favicon.ico') else None
+icon_mac = 'static/favicon.icns' if os.path.exists('static/favicon.icns') else None
+
 exe = EXE(
     pyz,
     a.scripts,
@@ -72,7 +78,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='static/favicon.ico' if sys.platform == 'win32' else None,
+    icon=icon_win if sys.platform == 'win32' else None,
 )
 
 coll = COLLECT(
@@ -91,7 +97,7 @@ if sys.platform == 'darwin':
     app = BUNDLE(
         coll,
         name='GymBot.app',
-        icon='static/favicon.icns',
+        icon=icon_mac,
         bundle_identifier='com.anytimefitness.gymbot',
         info_plist={
             'NSPrincipalClass': 'NSApplication',

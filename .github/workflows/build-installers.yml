@@ -92,10 +92,9 @@ jobs:
 
     - name: Create DMG Installer
       run: |
-        # Create DMG from the app bundle
+        # Create DMG from the app bundle (without custom icon)
         create-dmg \
           --volname "Gym Bot Installer" \
-          --volicon "static/favicon.icns" \
           --window-pos 200 120 \
           --window-size 800 400 \
           --icon-size 100 \
