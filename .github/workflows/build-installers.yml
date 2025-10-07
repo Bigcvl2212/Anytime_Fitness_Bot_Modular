@@ -2,7 +2,7 @@ name: Build Gym Bot Installers
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, restore/2025-08-29-15-21 ]
     tags:
       - 'v*'
   pull_request:
