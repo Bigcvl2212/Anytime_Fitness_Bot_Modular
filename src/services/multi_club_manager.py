@@ -112,14 +112,15 @@ class MultiClubManager:
         """Get currently selected club IDs"""
         return self.selected_clubs
     
-    def sync_multi_club_data(self, clubhub_client, sync_functions: Dict[str, callable], app=None) -> Dict[str, Any]:
+    def sync_multi_club_data(self, clubhub_client, sync_functions: Dict[str, callable], app=None, manager_id: str = None) -> Dict[str, Any]:
         """Synchronize data from multiple clubs in parallel
-        
+
         Args:
             clubhub_client: ClubHubAPIClient instance
             sync_functions: Dict mapping data type to sync function
             app: Flask application instance (optional, for shared database access)
-            
+            manager_id: Manager ID for credential retrieval
+
         Returns:
             Dict with combined data from all clubs
         """
@@ -156,8 +157,8 @@ class MultiClubManager:
                 for data_type, sync_func in sync_functions.items():
                     try:
                         logger.info(f"  📊 Syncing {data_type} for {self.get_club_name(club_id)}...")
-                        # Pass both club_id and app parameters to sync functions
-                        data = sync_func(club_id=club_id, app=app)
+                        # Pass club_id, app, and manager_id parameters to sync functions
+                        data = sync_func(club_id=club_id, app=app, manager_id=manager_id)
                         
                         if data:
                             club_data[data_type] = data

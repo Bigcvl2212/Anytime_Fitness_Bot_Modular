@@ -10,8 +10,8 @@ from bs4 import BeautifulSoup
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import json
-from src.services.authentication.secure_secrets_manager import SecureSecretsManager
-from src.services.authentication.unified_auth_service import get_unified_auth_service
+from .authentication.secure_secrets_manager import SecureSecretsManager
+from .authentication.unified_auth_service import get_unified_auth_service
 
 logger = logging.getLogger(__name__)
 

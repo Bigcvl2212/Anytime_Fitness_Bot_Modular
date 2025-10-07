@@ -10,8 +10,8 @@ import threading
 import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
-from src.services.database_manager import DatabaseManager
-from src.services.member_access_control import MemberAccessControl
+from .database_manager import DatabaseManager
+from .member_access_control import MemberAccessControl
 
 logger = logging.getLogger(__name__)
 

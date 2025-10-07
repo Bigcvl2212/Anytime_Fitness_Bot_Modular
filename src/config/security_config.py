@@ -45,12 +45,25 @@ class SecurityConfig:
     def get_secret_key() -> str:
         """
         Get Flask secret key from environment or generate a secure one
-        
+
         Returns:
-            str: Secure secret key
+            str: Secure secret key (minimum 32 characters)
+
+        Raises:
+            ValueError: If secret key is too short
         """
         # Use the centralized environment setup function
-        return get_flask_secret_key()
+        secret_key = get_flask_secret_key()
+
+        # Validate minimum length for security
+        if not secret_key or len(secret_key) < 32:
+            raise ValueError(
+                f"Flask SECRET_KEY must be at least 32 characters. "
+                f"Current length: {len(secret_key) if secret_key else 0}. "
+                f"Set FLASK_SECRET_KEY environment variable or use secrets.token_urlsafe(32)"
+            )
+
+        return secret_key
     
     @staticmethod
     def get_database_path() -> str:

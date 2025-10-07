@@ -6,7 +6,7 @@ import logging
 import uuid
 from datetime import datetime
 from flask import Blueprint, request, jsonify, current_app
-from src.services.campaign_tracker import (
+from ..services.campaign_tracker import (
     get_campaign_tracker, CampaignMetadata, CampaignStatus, CampaignPriority
 )
 

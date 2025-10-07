@@ -8,7 +8,7 @@ import json
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional
-from src.services.authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
+from ..authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
 
 logger = logging.getLogger(__name__)
 

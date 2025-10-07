@@ -10,14 +10,16 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger(__name__)
 
-def enhanced_startup_sync(app, selected_clubs_override: List[str] = None, multi_club_enabled: bool = True) -> Dict[str, Any]:
+def enhanced_startup_sync(app, selected_clubs_override: List[str] = None, multi_club_enabled: bool = True, manager_id: str = None) -> Dict[str, Any]:
     """
     Enhanced startup sync with multi-club support
-    
+
     Args:
         app: Flask application instance
+        selected_clubs_override: List of club IDs to sync
         multi_club_enabled: Whether to use multi-club synchronization
-        
+        manager_id: Manager ID for credential retrieval
+
     Returns:
         Dict with sync results and statistics
     """
@@ -109,7 +111,7 @@ def enhanced_startup_sync(app, selected_clubs_override: List[str] = None, multi_
             
             # Perform multi-club sync
             combined_data = multi_club_manager.sync_multi_club_data(
-                clubhub_client, sync_functions, app=app
+                clubhub_client, sync_functions, app=app, manager_id=manager_id
             )
             
             # Update sync results
@@ -234,30 +236,42 @@ def enhanced_startup_sync(app, selected_clubs_override: List[str] = None, multi_
     
     return sync_results
 
-def sync_members_for_club(club_id: str = None, app=None) -> List[Dict[str, Any]]:
+def sync_members_for_club(club_id: str = None, app=None, manager_id: str = None) -> List[Dict[str, Any]]:
     """
     Sync members for a specific club with comprehensive agreement processing
-    
+
     Args:
         club_id: Club ID to sync (optional for backward compatibility)
         app: Flask application instance (for accessing shared db_manager)
-        
+        manager_id: Manager ID for credential retrieval
+
     Returns:
         List of member data with billing information
     """
     try:
         logger.info(f"📊 Syncing members for club {club_id or 'default'}...")
-        
+
         # Import the ClubHub API client
         from src.services.api.clubhub_api_client import ClubHubAPIClient
         from src.services.authentication.secure_secrets_manager import SecureSecretsManager
         from concurrent.futures import ThreadPoolExecutor, as_completed
-        
-        # Get credentials from SecureSecretsManager
+
+        # Get credentials from SecureSecretsManager using manager_id
         secrets_manager = SecureSecretsManager()
-        clubhub_email = secrets_manager.get_secret('clubhub-email')
-        clubhub_password = secrets_manager.get_secret('clubhub-password')
-        
+
+        # Get credentials using manager_id if provided
+        if manager_id:
+            credentials = secrets_manager.get_credentials(manager_id)
+            if not credentials:
+                logger.error(f"❌ ClubHub credentials not found in database for manager {manager_id}")
+                return []
+            clubhub_email = credentials.get('clubhub_email')
+            clubhub_password = credentials.get('clubhub_password')
+        else:
+            # Fallback to legacy secret retrieval
+            clubhub_email = secrets_manager.get_secret('clubhub-email')
+            clubhub_password = secrets_manager.get_secret('clubhub-password')
+
         if not clubhub_email or not clubhub_password:
             logger.error(f"❌ ClubHub credentials not found in SecureSecretsManager for club {club_id}")
             return []
@@ -277,13 +291,27 @@ def sync_members_for_club(club_id: str = None, app=None) -> List[Dict[str, Any]]
         logger.info(f"📊 Processing {len(members)} members with comprehensive agreement data...")
         
         def get_member_agreement_data(member_data):
-            """Get agreement data for a single member (same logic as main startup sync)"""
+            """Get agreement data for a single member (contact info already in member_data)"""
             try:
                 member_data['full_name'] = f"{member_data.get('firstName', '')} {member_data.get('lastName', '')}".strip()
                 member_data['source_club_id'] = club_id
-                
+
+                # Extract contact information from the base member data
+                # The /api/v1.0/clubs/{id}/members endpoint already includes all personal info!
+                member_data['first_name'] = member_data.get('firstName')
+                member_data['last_name'] = member_data.get('lastName')
+                member_data['address'] = member_data.get('address1') or member_data.get('address') or member_data.get('streetAddress')
+                member_data['city'] = member_data.get('city')
+                member_data['state'] = member_data.get('state')
+                member_data['zip_code'] = member_data.get('zip') or member_data.get('zipCode') or member_data.get('postalCode')
+                member_data['phone'] = member_data.get('homePhone') or member_data.get('phone') or member_data.get('phoneNumber')
+                member_data['mobile_phone'] = member_data.get('mobilePhone') or member_data.get('mobile')
+                member_data['email'] = member_data.get('email')
+                member_data['prospect_id'] = str(member_data.get('id') or member_data.get('prospectId'))
+
                 member_id = member_data.get('id') or member_data.get('prospectId')
                 if member_id:
+                    # Get agreement data for billing information
                     agreement_data = clubhub_client.get_member_agreement(member_id)
                     if agreement_data and isinstance(agreement_data, dict):
                         # Get the TOTAL past due amount from API
@@ -384,29 +412,41 @@ def sync_members_for_club(club_id: str = None, app=None) -> List[Dict[str, Any]]
         logger.error(f"❌ Error syncing members for club {club_id}: {e}")
         return []
 
-def sync_prospects_for_club(club_id: str = None, app=None) -> List[Dict[str, Any]]:
+def sync_prospects_for_club(club_id: str = None, app=None, manager_id: str = None) -> List[Dict[str, Any]]:
     """
     Sync prospects for a specific club
-    
+
     Args:
         club_id: Club ID to sync (optional for backward compatibility)
         app: Flask application instance (for accessing shared db_manager)
-        
+        manager_id: Manager ID for credential retrieval
+
     Returns:
         List of prospect data
     """
     try:
         logger.info(f"📊 Syncing prospects for club {club_id or 'default'}...")
-        
+
         # Import the ClubHub API client
         from src.services.api.clubhub_api_client import ClubHubAPIClient
         from src.services.authentication.secure_secrets_manager import SecureSecretsManager
-        
-        # Get credentials from SecureSecretsManager
+
+        # Get credentials from SecureSecretsManager using manager_id
         secrets_manager = SecureSecretsManager()
-        clubhub_email = secrets_manager.get_secret('clubhub-email')
-        clubhub_password = secrets_manager.get_secret('clubhub-password')
-        
+
+        # Get credentials using manager_id if provided
+        if manager_id:
+            credentials = secrets_manager.get_credentials(manager_id)
+            if not credentials:
+                logger.error(f"❌ ClubHub credentials not found in database for manager {manager_id}")
+                return []
+            clubhub_email = credentials.get('clubhub_email')
+            clubhub_password = credentials.get('clubhub_password')
+        else:
+            # Fallback to legacy secret retrieval
+            clubhub_email = secrets_manager.get_secret('clubhub-email')
+            clubhub_password = secrets_manager.get_secret('clubhub-password')
+
         if not clubhub_email or not clubhub_password:
             logger.error(f"❌ ClubHub credentials not found in SecureSecretsManager for club {club_id}")
             return []
@@ -435,14 +475,15 @@ def sync_prospects_for_club(club_id: str = None, app=None) -> List[Dict[str, Any
         logger.error(f"❌ Error syncing prospects for club {club_id}: {e}")
         return []
 
-def sync_training_clients_for_club(club_id: str = None, app=None) -> List[Dict[str, Any]]:
+def sync_training_clients_for_club(club_id: str = None, app=None, manager_id: str = None) -> List[Dict[str, Any]]:
     """
     Sync training clients for a specific club
-    
+
     Args:
         club_id: Club ID to sync (optional for backward compatibility)
         app: Flask application instance (for accessing shared db_manager)
-        
+        manager_id: Manager ID for credential retrieval
+
     Returns:
         List of training client data
     """
@@ -451,17 +492,58 @@ def sync_training_clients_for_club(club_id: str = None, app=None) -> List[Dict[s
         
         # For training clients, we'll use ClubOS integration since it's specific to training
         # This would need to be adapted based on how training clients are accessed per club
-        
+
         # Import ClubOS integration (this might need club-specific configuration)
         try:
             import sys, os
             sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
             from src.services.clubos_integration import ClubOSIntegration
-            
+            from src.services.api.clubhub_api_client import ClubHubAPIClient
+            from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+
             clubos = ClubOSIntegration()
             training_clients = clubos.get_training_clients()
-            
+
             if training_clients:
+                # Enhance training clients with address data from ClubHub
+                logger.info(f"📍 Enhancing {len(training_clients)} training clients with address data from ClubHub...")
+
+                # Get ClubHub credentials
+                secrets_manager = SecureSecretsManager()
+                if manager_id:
+                    credentials = secrets_manager.get_credentials(manager_id)
+                    clubhub_email = credentials.get('clubhub_email') if credentials else None
+                    clubhub_password = credentials.get('clubhub_password') if credentials else None
+                else:
+                    clubhub_email = secrets_manager.get_secret('clubhub-email')
+                    clubhub_password = secrets_manager.get_secret('clubhub-password')
+
+                if clubhub_email and clubhub_password:
+                    clubhub_client = ClubHubAPIClient()
+                    if clubhub_client.authenticate(clubhub_email, clubhub_password):
+                        # Enhance each training client with address data
+                        for client in training_clients:
+                            try:
+                                member_id = client.get('clubos_member_id') or client.get('member_id') or client.get('prospect_id')
+                                if member_id:
+                                    # Get member details for address info
+                                    member_details = clubhub_client.get_member_details(str(member_id))
+                                    if member_details and isinstance(member_details, dict):
+                                        client['address'] = member_details.get('address') or member_details.get('streetAddress')
+                                        client['city'] = member_details.get('city')
+                                        client['state'] = member_details.get('state')
+                                        client['zip_code'] = member_details.get('zipCode') or member_details.get('postalCode')
+                                        client['mobile_phone'] = member_details.get('mobilePhone') or member_details.get('mobile') or client.get('phone')
+                                        client['email'] = member_details.get('email') or client.get('email')
+
+                                        # Also get prospect_id if not already set
+                                        if not client.get('prospect_id'):
+                                            client['prospect_id'] = member_details.get('prospectId') or member_details.get('id')
+                            except Exception as e:
+                                logger.debug(f"⚠️ Could not enhance training client {client.get('member_name')}: {e}")
+
+                        logger.info(f"✅ Enhanced training clients with address data from ClubHub")
+
                 # Add club context to training clients
                 for client in training_clients:
                     if 'source_club_id' not in client:

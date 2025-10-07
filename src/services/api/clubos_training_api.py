@@ -23,7 +23,7 @@ from typing import Optional
 import requests
 from bs4 import BeautifulSoup
 import threading
-from src.services.authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
+from ..authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
 
 
 logging.basicConfig(level=logging.INFO)

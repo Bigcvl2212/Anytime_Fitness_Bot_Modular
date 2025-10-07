@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -135,3 +136,5 @@ api_keys.json
 *.sqlite
 gym_bot.db
 archive/
+
+nul

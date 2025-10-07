@@ -16,7 +16,7 @@ import json
 import uuid
 import re
 from bs4 import BeautifulSoup
-from src.services.authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
+from .authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
 
 logger = logging.getLogger(__name__)
 
@@ -151,15 +151,42 @@ class ClubOSMessagingClient:
         # For now, return logged_in_user_id as a safe fallback
         return self.logged_in_user_id
     
-    def get_messages(self, owner_id: str = None) -> List[Dict]:
-        """Get messages from ClubOS for specific owner - ClubOS returns all messages in one response"""
+    def get_messages(self, owner_id: str = None, club_location_id: str = None, message_scope: str = "user") -> List[Dict]:
+        """
+        Get messages from ClubOS - supports both user and location-wide messages
+        
+        Args:
+            owner_id: Individual user ID for personal inbox
+            club_location_id: Club location ID for club-wide messages
+            message_scope: "user" for personal inbox, "location" for club-wide messages
+        
+        Returns:
+            List of message dictionaries
+        """
         try:
             if not self.authenticated:
                 if not self.authenticate():
                     logger.error("❌ Authentication failed before getting messages")
                     return []
             
-            logger.info(f"📨 Fetching ALL messages for owner {owner_id}...")
+            # Determine endpoint and payload based on scope
+            if message_scope == "location":
+                if not club_location_id:
+                    club_location_id = self.club_location_id or "3586"  # Default to known location
+                
+                logger.info(f"📨 Fetching ALL location-wide messages for clubLocationId {club_location_id}...")
+                messages_url = f"{self.base_url}/action/Dashboard/location-messages"
+                post_data = {"clubLocationId": club_location_id}
+                log_id = f"location:{club_location_id}"
+            else:  # Default: user scope
+                if not owner_id:
+                    logger.error("❌ owner_id required for user scope messages")
+                    return []
+                
+                logger.info(f"📨 Fetching ALL messages for user {owner_id}...")
+                messages_url = f"{self.base_url}/action/Dashboard/messages"
+                post_data = {"userId": owner_id}
+                log_id = f"user:{owner_id}"
             
             # First get the dashboard view to ensure proper session state
             dashboard_url = f"{self.base_url}/action/Dashboard/view"
@@ -169,23 +196,17 @@ class ClubOSMessagingClient:
             except Exception as e:
                 logger.warning(f"⚠️ Dashboard view failed: {e}")
             
-            # Now post to the messages endpoint
-            messages_url = f"{self.base_url}/action/Dashboard/messages"
+            # Headers for the message request
             headers = {
                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
                 "Accept": "text/html, */*; q=0.01",
                 "X-Requested-With": "XMLHttpRequest",
-                "Referer": f"{self.base_url}/action/Dashboard/view",
+                "Referer": f"{self.base_url}/action/Dashboard",
                 "Origin": self.base_url,
                 "User-Agent": self.session.headers['User-Agent']
             }
             
-            # ClubOS doesn't seem to support pagination, so just get all messages
-            post_data = {
-                "userId": owner_id
-            }
-            
-            logger.info(f"🔄 POST to {messages_url} with userId: {owner_id}")
+            logger.info(f"🔄 POST to {messages_url} with data: {post_data}")
             
             # Add timeout to prevent hanging
             response = self.session.post(
@@ -201,8 +222,8 @@ class ClubOSMessagingClient:
             logger.info(f"📏 Response length: {len(response.text) if response.text else 0}")
             
             if response.status_code == 200:
-                messages = self._parse_messages_from_html(response.text, owner_id)
-                logger.info(f"✅ Successfully parsed {len(messages)} messages from ClubOS")
+                messages = self._parse_messages_from_html(response.text, log_id)
+                logger.info(f"✅ Successfully parsed {len(messages)} {message_scope} messages from ClubOS")
                 return messages
             else:
                 logger.error(f"❌ Failed to fetch messages: {response.status_code}")
@@ -827,12 +848,24 @@ class ClubOSMessagingClient:
             logger.error(f"❌ Session recovery failed: {e}")
             return False
     
-    def sync_messages(self, owner_id: str = None) -> List[Dict]:
-        """Public method used by app to fetch and return messages for caching.
+    def sync_messages(self, owner_id: str = None, message_scope: str = "user") -> List[Dict]:
+        """
+        Public method used by app to fetch and return messages for caching.
         Wraps get_messages to keep a stable API surface for callers.
+        
+        Args:
+            owner_id: User ID to fetch messages for (default: staff user 187032782)
+            message_scope: "user" for personal inbox (default), "location" for club-wide
+        
+        Returns:
+            List of message dictionaries
         """
         try:
-            return self.get_messages(owner_id=owner_id) or []
+            # Default to staff user if no owner_id provided
+            if not owner_id:
+                owner_id = self.logged_in_user_id or "187032782"
+            
+            return self.get_messages(owner_id=owner_id, message_scope=message_scope) or []
         except Exception as e:
             logger.error(f"❌ sync_messages failed: {e}")
             return []

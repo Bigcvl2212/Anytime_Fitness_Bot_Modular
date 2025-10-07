@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any
 from dataclasses import dataclass
-from src.services.authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
+from ..authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

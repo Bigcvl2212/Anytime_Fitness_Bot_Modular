@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Anytime Fitness Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --af-purple-primary: #8B5CF6;
+            --af-purple-dark: #7C3AED;
+            --af-purple-light: #A78BFA;
+            --af-black-primary: #0F0F0F;
+            --af-black-secondary: #1A1A1A;
+            --af-black-tertiary: #2D2D2D;
+        }
+
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+            background: var(--af-black-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, var(--af-black-primary) 0%, var(--af-black-secondary) 50%, var(--af-purple-dark) 100%);
+            opacity: 0.9;
+            z-index: 0;
+        }
+
+        .register-card {
+            background: var(--af-black-secondary);
+            border: 1px solid var(--af-black-tertiary);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(139, 92, 246, 0.2);
+            max-width: 700px;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+            overflow: hidden;
+        }
+
+        .register-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--af-purple-primary), var(--af-purple-light), var(--af-purple-primary));
+            background-size: 200% 100%;
+            animation: shimmer 3s infinite linear;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        .register-header {
+            background: transparent;
+            color: white;
+            padding: 40px 30px 30px;
+            text-align: center;
+        }
+
+        .register-logo {
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, var(--af-purple-primary), var(--af-purple-dark));
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            font-size: 32px;
+            color: white;
+            box-shadow: 0 10px 30px rgba(139, 92, 246, 0.4);
+        }
+
+        .register-header h2 {
+            margin: 0 0 8px 0;
+            font-size: 26px;
+            font-weight: 700;
+            background: linear-gradient(135deg, white, var(--af-purple-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .register-header p {
+            color: #9CA3AF;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .register-body {
+            padding: 30px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .register-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .register-body::-webkit-scrollbar-track {
+            background: var(--af-black-primary);
+        }
+
+        .register-body::-webkit-scrollbar-thumb {
+            background: var(--af-purple-primary);
+            border-radius: 4px;
+        }
+
+        .form-section {
+            background: var(--af-black-primary);
+            border: 1px solid var(--af-black-tertiary);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            transition: all 0.2s ease;
+        }
+
+        .form-section:hover {
+            border-color: var(--af-purple-primary);
+        }
+
+        .form-section h5 {
+            color: var(--af-purple-primary);
+            margin-bottom: 20px;
+            font-weight: 600;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+        }
+
+        .form-section h5 i {
+            margin-right: 10px;
+            font-size: 18px;
+        }
+
+        .form-label {
+            color: #D1D5DB;
+            font-weight: 500;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+
+        .form-control {
+            background: var(--af-black-secondary);
+            border: 1px solid var(--af-black-tertiary);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: white;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .form-control:focus {
+            background: var(--af-black-secondary);
+            border-color: var(--af-purple-primary);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+            color: white;
+        }
+
+        .form-control::placeholder {
+            color: #6B7280;
+        }
+
+        .password-toggle {
+            cursor: pointer;
+            position: absolute;
+            right: 14px;
+            top: 38px;
+            color: #6B7280;
+            transition: color 0.2s ease;
+        }
+
+        .password-toggle:hover {
+            color: var(--af-purple-primary);
+        }
+
+        small.text-muted {
+            color: #6B7280 !important;
+            font-size: 12px;
+        }
+
+        .alert {
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+        }
+
+        .alert-danger {
+            background: rgba(220, 53, 69, 0.1);
+            color: #FCA5A5;
+            border: 1px solid rgba(220, 53, 69, 0.3);
+        }
+
+        .alert-info {
+            background: rgba(59, 130, 246, 0.1);
+            color: #93C5FD;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .alert-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: #FCD34D;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--af-purple-primary), var(--af-purple-dark));
+            border: none;
+            padding: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+            background: linear-gradient(135deg, var(--af-purple-dark), var(--af-purple-primary));
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+
+        .text-center {
+            color: #D1D5DB;
+        }
+
+        .text-center a {
+            color: var(--af-purple-primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .text-center a:hover {
+            color: var(--af-purple-light);
+            text-decoration: underline;
+        }
+
+        .modal-content {
+            background: var(--af-black-secondary);
+            border: 1px solid var(--af-black-tertiary);
+            color: white;
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, var(--af-purple-primary), var(--af-purple-dark));
+            border-bottom: 1px solid var(--af-black-tertiary);
+        }
+
+        .modal-body {
+            color: #D1D5DB;
+        }
+
+        .modal-body h6 {
+            color: white;
+            margin-top: 20px;
+        }
+
+        .modal-body ol, .modal-body ul {
+            color: #D1D5DB;
+        }
+
+        .btn-close {
+            filter: invert(1);
+        }
+
+        .btn-outline-primary {
+            border: 2px solid var(--af-purple-primary);
+            color: var(--af-purple-primary);
+            background: transparent;
+        }
+
+        .btn-outline-primary:hover {
+            background: var(--af-purple-primary);
+            color: white;
+        }
+
+        .square-help-btn {
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="register-card">
+        <div class="register-header">
+            <div class="register-logo">
+                <i class="fas fa-dumbbell"></i>
+            </div>
+            <h2>Anytime Fitness Manager</h2>
+            <p class="mb-0">Create Your Account</p>
+        </div>
+
+        <div class="register-body">
+            {% if error %}
+            <div class="alert alert-danger alert-dismissible fade show">
+                <i class="fas fa-exclamation-circle"></i> {{ error }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endif %}
+
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> <strong>One-time setup:</strong> Create your account and enter all your API credentials. You'll only need your username/password to login after this.
+            </div>
+
+            <form method="POST" action="{{ url_for('auth.register') }}" id="registerForm">
+                <!-- App Account Section -->
+                <div class="form-section">
+                    <h5><i class="fas fa-user"></i> Your Account</h5>
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control" name="username" required
+                               minlength="3" placeholder="Choose a username">
+                        <small class="text-muted">This is what you'll use to login</small>
+                    </div>
+                    <div class="mb-3 position-relative">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-control" name="password" id="password"
+                               required minlength="8" placeholder="Create a strong password">
+                        <i class="fas fa-eye password-toggle" onclick="togglePassword('password')"></i>
+                        <small class="text-muted">Minimum 8 characters</small>
+                    </div>
+                    <div class="mb-3 position-relative">
+                        <label class="form-label">Confirm Password</label>
+                        <input type="password" class="form-control" name="confirm_password"
+                               id="confirm_password" required minlength="8" placeholder="Re-enter password">
+                        <i class="fas fa-eye password-toggle" onclick="togglePassword('confirm_password')"></i>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" name="email" required
+                               placeholder="your.email@gym.com">
+                        <small class="text-muted">For account recovery</small>
+                    </div>
+                </div>
+
+                <!-- ClubOS Credentials -->
+                <div class="form-section">
+                    <h5><i class="fas fa-building"></i> ClubOS Credentials</h5>
+                    <div class="mb-3">
+                        <label class="form-label">ClubOS Username</label>
+                        <input type="text" class="form-control" name="clubos_username" required>
+                    </div>
+                    <div class="mb-3 position-relative">
+                        <label class="form-label">ClubOS Password</label>
+                        <input type="password" class="form-control" name="clubos_password"
+                               id="clubos_password" required>
+                        <i class="fas fa-eye password-toggle" onclick="togglePassword('clubos_password')"></i>
+                    </div>
+                </div>
+
+                <!-- ClubHub Credentials -->
+                <div class="form-section">
+                    <h5><i class="fas fa-users"></i> ClubHub Credentials</h5>
+                    <div class="mb-3">
+                        <label class="form-label">ClubHub Email</label>
+                        <input type="email" class="form-control" name="clubhub_email" required>
+                    </div>
+                    <div class="mb-3 position-relative">
+                        <label class="form-label">ClubHub Password</label>
+                        <input type="password" class="form-control" name="clubhub_password"
+                               id="clubhub_password" required>
+                        <i class="fas fa-eye password-toggle" onclick="togglePassword('clubhub_password')"></i>
+                    </div>
+                </div>
+
+                <!-- Square Credentials -->
+                <div class="form-section">
+                    <h5><i class="fas fa-credit-card"></i> Square Credentials</h5>
+                    <div class="alert alert-warning square-help-btn">
+                        <strong>Need help?</strong>
+                        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#squareHelpModal">
+                            <i class="fas fa-question-circle"></i> How to get Square token
+                        </button>
+                    </div>
+                    <div class="mb-3 position-relative">
+                        <label class="form-label">Square Access Token</label>
+                        <input type="password" class="form-control" name="square_access_token"
+                               id="square_access_token" required placeholder="Starts with EAA...">
+                        <i class="fas fa-eye password-toggle" onclick="togglePassword('square_access_token')"></i>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Square Location ID</label>
+                        <input type="text" class="form-control" name="square_location_id" required
+                               placeholder="e.g., L1234ABCD5678">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg w-100">
+                    <i class="fas fa-user-plus"></i> Create Account
+                </button>
+            </form>
+
+            <div class="text-center mt-3">
+                Already have an account? <a href="{{ url_for('auth.login') }}">Login here</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Square Help Modal (same as credentials page) -->
+    <div class="modal fade" id="squareHelpModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">How to Get Your Square Access Token</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-success">
+                        <strong>⏱️ This takes 2-3 minutes!</strong> Follow these simple steps.
+                    </div>
+
+                    <h6 class="mt-3"><strong>Step 1: Open Square Developer Portal</strong></h6>
+                    <ol>
+                        <li>Click here: <a href="https://developer.squareup.com/apps" target="_blank" class="btn btn-sm btn-outline-primary">Square Developer Dashboard</a></li>
+                        <li>Log in with your normal Square email/password</li>
+                    </ol>
+
+                    <h6 class="mt-3"><strong>Step 2: Create App</strong></h6>
+                    <ol>
+                        <li>Click <strong>"+ Create App"</strong></li>
+                        <li>Name it "Gym Bot" (or anything)</li>
+                        <li>Click "Save"</li>
+                    </ol>
+
+                    <h6 class="mt-3"><strong>Step 3: Get Access Token</strong></h6>
+                    <ol>
+                        <li>Click <strong>"Credentials"</strong> in left menu</li>
+                        <li>Find <strong>"Production"</strong> section</li>
+                        <li>Click "Show" next to "Access Token"</li>
+                        <li>Copy the token (starts with "EAA...")</li>
+                        <li>Paste it in the form above</li>
+                    </ol>
+
+                    <h6 class="mt-3"><strong>Step 4: Get Location ID</strong></h6>
+                    <ol>
+                        <li>Same page, find "Location ID"</li>
+                        <li>Copy it (looks like "L1234ABCD5678")</li>
+                        <li>Paste it in the form above</li>
+                    </ol>
+
+                    <div class="alert alert-success mt-3">
+                        <strong>✅ Done!</strong> Now complete the registration form.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function togglePassword(fieldId) {
+            const field = document.getElementById(fieldId);
+            const icon = field.parentElement.querySelector('.password-toggle');
+
+            if (field.type === 'password') {
+                field.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                field.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+
+        document.getElementById('registerForm').addEventListener('submit', function(e) {
+            const password = document.getElementById('password').value;
+            const confirm = document.getElementById('confirm_password').value;
+
+            if (password !== confirm) {
+                e.preventDefault();
+                alert('Passwords do not match!');
+                return false;
+            }
+        });
+    </script>
+</body>
+</html>

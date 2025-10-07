@@ -313,9 +313,7 @@ def get_training_clients():
             client['last_session'] = client.get('last_session') or 'Never'
             
             training_clients.append(client)
-        
-        conn.close()
-        
+
         if training_clients:
             logger.info(f"✅ Retrieved {len(training_clients)} training clients from database for messaging interface")
             return jsonify({'success': True, 'training_clients': training_clients})
@@ -358,18 +356,14 @@ def get_training_clients():
 def get_all_training_clients():
 	"""Get all training clients from database (prioritized) or cache."""
 	try:
-		# Prioritize database data since it has the correct names from ClubOS assignees
-		conn = current_app.db_manager.get_connection()
-		cursor = current_app.db_manager.get_cursor(conn)
-		
-		# Get all training clients directly from database
-		cursor.execute("""
-			SELECT * FROM training_clients 
+		# Use execute_query to get training clients from database
+		result = current_app.db_manager.execute_query("""
+			SELECT * FROM training_clients
 			ORDER BY member_name, created_at DESC
-		""")
-		
+		""", fetch_all=True)
+
 		training_clients = []
-		for row in cursor.fetchall():
+		for row in (result or []):
 			c = dict(row)
 			
 			# Parse JSON fields that are stored as strings in the database

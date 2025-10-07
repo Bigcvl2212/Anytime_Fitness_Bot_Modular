@@ -43,12 +43,45 @@ class AdminDatabaseSchema:
             # Create admin settings table
             self._create_admin_settings_table()
 
+            # Run migrations for existing tables
+            self._run_migrations()
+
             logger.info("✅ All admin tables created successfully")
             return True
 
         except Exception as e:
             logger.error(f"❌ Error creating admin tables: {e}")
             return False
+
+    def _run_migrations(self):
+        """Run database migrations to add missing columns"""
+        try:
+            # Check if password_hash column exists, add if missing
+            with self.db_manager.get_cursor() as cursor:
+                # Check if column exists
+                if self.db_manager.db_type == 'postgresql':
+                    cursor.execute("""
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_name='admin_users' AND column_name='password_hash'
+                    """)
+                    result = cursor.fetchone()
+
+                    if not result:
+                        cursor.execute("ALTER TABLE admin_users ADD COLUMN password_hash TEXT")
+                        cursor.connection.commit()
+                        logger.info("✅ Added password_hash column to admin_users table")
+                else:  # SQLite
+                    cursor.execute("PRAGMA table_info(admin_users)")
+                    columns = [row[1] for row in cursor.fetchall()]
+
+                    if 'password_hash' not in columns:
+                        cursor.execute("ALTER TABLE admin_users ADD COLUMN password_hash TEXT")
+                        cursor.connection.commit()
+                        logger.info("✅ Added password_hash column to admin_users table")
+
+        except Exception as e:
+            logger.warning(f"⚠️ Migration warning (may be safe to ignore): {e}")
 
     def _create_admin_users_table(self):
         """Create admin users table"""
@@ -59,6 +92,7 @@ class AdminDatabaseSchema:
                     manager_id TEXT UNIQUE NOT NULL,
                     username TEXT UNIQUE NOT NULL,
                     email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT,
                     is_admin BOOLEAN DEFAULT FALSE,
                     is_super_admin BOOLEAN DEFAULT FALSE,
                     is_active BOOLEAN DEFAULT TRUE,
@@ -78,6 +112,7 @@ class AdminDatabaseSchema:
                     manager_id TEXT UNIQUE NOT NULL,
                     username TEXT UNIQUE NOT NULL,
                     email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT,
                     is_admin INTEGER DEFAULT 0,
                     is_super_admin INTEGER DEFAULT 0,
                     is_active INTEGER DEFAULT 1,
@@ -91,11 +126,9 @@ class AdminDatabaseSchema:
                 )
             """
 
-        conn = self.db_manager.get_connection()
-        cursor = self.db_manager.get_cursor(conn)
-        cursor.execute(create_sql)
-        conn.commit()
-        conn.close()
+        with self.db_manager.get_cursor() as cursor:
+            cursor.execute(create_sql)
+            cursor.connection.commit()
         logger.info("✅ Admin users table created")
 
     def _create_admin_sessions_table(self):
@@ -131,11 +164,9 @@ class AdminDatabaseSchema:
                 )
             """
 
-        conn = self.db_manager.get_connection()
-        cursor = self.db_manager.get_cursor(conn)
-        cursor.execute(create_sql)
-        conn.commit()
-        conn.close()
+        with self.db_manager.get_cursor() as cursor:
+            cursor.execute(create_sql)
+            cursor.connection.commit()
         logger.info("✅ Admin sessions table created")
 
     def _create_audit_log_table(self):
@@ -177,11 +208,9 @@ class AdminDatabaseSchema:
                 )
             """
 
-        conn = self.db_manager.get_connection()
-        cursor = self.db_manager.get_cursor(conn)
-        cursor.execute(create_sql)
-        conn.commit()
-        conn.close()
+        with self.db_manager.get_cursor() as cursor:
+            cursor.execute(create_sql)
+            cursor.connection.commit()
         logger.info("✅ Audit log table created")
 
     def _create_system_monitoring_table(self):
@@ -213,11 +242,9 @@ class AdminDatabaseSchema:
                 )
             """
 
-        conn = self.db_manager.get_connection()
-        cursor = self.db_manager.get_cursor(conn)
-        cursor.execute(create_sql)
-        conn.commit()
-        conn.close()
+        with self.db_manager.get_cursor() as cursor:
+            cursor.execute(create_sql)
+            cursor.connection.commit()
         logger.info("✅ System monitoring table created")
 
     def _create_admin_settings_table(self):
@@ -255,11 +282,9 @@ class AdminDatabaseSchema:
                 )
             """
 
-        conn = self.db_manager.get_connection()
-        cursor = self.db_manager.get_cursor(conn)
-        cursor.execute(create_sql)
-        conn.commit()
-        conn.close()
+        with self.db_manager.get_cursor() as cursor:
+            cursor.execute(create_sql)
+            cursor.connection.commit()
         logger.info("✅ Admin settings table created")
 
     def add_admin_user(self, manager_id: str, username: str, email: str, is_super_admin: bool = False) -> bool:
@@ -276,28 +301,25 @@ class AdminDatabaseSchema:
             True if successful, False otherwise
         """
         try:
-            conn = self.db_manager.get_connection()
-            cursor = self.db_manager.get_cursor(conn)
+            with self.db_manager.get_cursor() as cursor:
+                if self.db_manager.db_type == 'postgresql':
+                    cursor.execute("""
+                        INSERT INTO admin_users (manager_id, username, email, is_admin, is_super_admin)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (manager_id) DO UPDATE SET
+                            username = EXCLUDED.username,
+                            email = EXCLUDED.email,
+                            is_admin = TRUE,
+                            is_super_admin = EXCLUDED.is_super_admin,
+                            updated_at = CURRENT_TIMESTAMP
+                    """, (manager_id, username, email, True, is_super_admin))
+                else:  # SQLite
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO admin_users (manager_id, username, email, is_admin, is_super_admin)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (manager_id, username, email, 1, 1 if is_super_admin else 0))
 
-            if self.db_manager.db_type == 'postgresql':
-                cursor.execute("""
-                    INSERT INTO admin_users (manager_id, username, email, is_admin, is_super_admin)
-                    VALUES (%s, %s, %s, %s, %s)
-                    ON CONFLICT (manager_id) DO UPDATE SET
-                        username = EXCLUDED.username,
-                        email = EXCLUDED.email,
-                        is_admin = TRUE,
-                        is_super_admin = EXCLUDED.is_super_admin,
-                        updated_at = CURRENT_TIMESTAMP
-                """, (manager_id, username, email, True, is_super_admin))
-            else:  # SQLite
-                cursor.execute("""
-                    INSERT OR REPLACE INTO admin_users (manager_id, username, email, is_admin, is_super_admin)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (manager_id, username, email, 1, 1 if is_super_admin else 0))
-
-            conn.commit()
-            conn.close()
+                cursor.connection.commit()
 
             logger.info(f"✅ Admin user added/updated: {username} ({email})")
             return True
@@ -327,6 +349,27 @@ class AdminDatabaseSchema:
             logger.error(f"❌ Error getting admin user: {e}")
             return None
 
+    def get_admin_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
+        """
+        Get admin user by username
+
+        Args:
+            username: Username to look up
+
+        Returns:
+            Admin user data or None if not found
+        """
+        try:
+            result = self.db_manager.execute_query("""
+                SELECT * FROM admin_users WHERE username = ?
+            """, (username,), fetch_one=True)
+
+            return dict(result) if result else None
+
+        except Exception as e:
+            logger.error(f"❌ Error getting admin user by username: {e}")
+            return None
+
     def log_admin_action(self, admin_user_id: str, action: str, description: str,
                         target_type: str = None, target_id: str = None,
                         ip_address: str = None, success: bool = True,
@@ -353,36 +396,33 @@ class AdminDatabaseSchema:
         try:
             import json
 
-            conn = self.db_manager.get_connection()
-            cursor = self.db_manager.get_cursor(conn)
-
-            if self.db_manager.db_type == 'postgresql':
-                cursor.execute("""
-                    INSERT INTO audit_log (
+            with self.db_manager.get_cursor() as cursor:
+                if self.db_manager.db_type == 'postgresql':
+                    cursor.execute("""
+                        INSERT INTO audit_log (
+                            admin_user_id, action, target_type, target_id, description,
+                            ip_address, success, error_message, request_data, response_data
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
                         admin_user_id, action, target_type, target_id, description,
-                        ip_address, success, error_message, request_data, response_data
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (
-                    admin_user_id, action, target_type, target_id, description,
-                    ip_address, success, error_message,
-                    json.dumps(request_data) if request_data else None,
-                    json.dumps(response_data) if response_data else None
-                ))
-            else:  # SQLite
-                cursor.execute("""
-                    INSERT INTO audit_log (
+                        ip_address, success, error_message,
+                        json.dumps(request_data) if request_data else None,
+                        json.dumps(response_data) if response_data else None
+                    ))
+                else:  # SQLite
+                    cursor.execute("""
+                        INSERT INTO audit_log (
+                            admin_user_id, action, target_type, target_id, description,
+                            ip_address, success, error_message, request_data, response_data
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
                         admin_user_id, action, target_type, target_id, description,
-                        ip_address, success, error_message, request_data, response_data
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    admin_user_id, action, target_type, target_id, description,
-                    ip_address, 1 if success else 0, error_message,
-                    json.dumps(request_data) if request_data else None,
-                    json.dumps(response_data) if response_data else None
-                ))
+                        ip_address, 1 if success else 0, error_message,
+                        json.dumps(request_data) if request_data else None,
+                        json.dumps(response_data) if response_data else None
+                    ))
+                cursor.connection.commit()
 
-            conn.commit()
-            conn.close()
             return True
 
         except Exception as e:
@@ -409,7 +449,7 @@ class AdminDatabaseSchema:
             values = []
 
             for field, value in updates.items():
-                if field in ['username', 'email', 'is_admin', 'is_super_admin', 'is_active', 'permissions', 'settings']:
+                if field in ['username', 'email', 'password_hash', 'is_admin', 'is_super_admin', 'is_active', 'permissions', 'settings']:
                     set_clauses.append(f"{field} = ?")
 
                     # Handle JSON fields
@@ -431,13 +471,10 @@ class AdminDatabaseSchema:
 
             query = f"UPDATE admin_users SET {', '.join(set_clauses)} WHERE manager_id = ?"
 
-            conn = self.db_manager.get_connection()
-            cursor = self.db_manager.get_cursor(conn)
-            cursor.execute(query, values)
-            conn.commit()
-
-            rows_affected = cursor.rowcount
-            conn.close()
+            with self.db_manager.get_cursor() as cursor:
+                cursor.execute(query, values)
+                cursor.connection.commit()
+                rows_affected = cursor.rowcount
 
             if rows_affected > 0:
                 logger.info(f"✅ Admin user updated: {manager_id}")
@@ -461,20 +498,16 @@ class AdminDatabaseSchema:
             True if successful, False otherwise
         """
         try:
-            conn = self.db_manager.get_connection()
-            cursor = self.db_manager.get_cursor(conn)
-
-            cursor.execute("""
-                UPDATE admin_users
-                SET login_attempts = 0,
-                    account_locked_until = NULL,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE manager_id = ?
-            """, (manager_id,))
-
-            conn.commit()
-            rows_affected = cursor.rowcount
-            conn.close()
+            with self.db_manager.get_cursor() as cursor:
+                cursor.execute("""
+                    UPDATE admin_users
+                    SET login_attempts = 0,
+                        account_locked_until = NULL,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE manager_id = ?
+                """, (manager_id,))
+                cursor.connection.commit()
+                rows_affected = cursor.rowcount
 
             if rows_affected > 0:
                 logger.info(f"✅ User access reset for: {manager_id}")
@@ -538,26 +571,21 @@ class AdminDatabaseSchema:
             True if successful, False otherwise
         """
         try:
-            conn = self.db_manager.get_connection()
-            cursor = self.db_manager.get_cursor(conn)
+            with self.db_manager.get_cursor() as cursor:
+                # First check if user exists
+                cursor.execute("SELECT username FROM admin_users WHERE manager_id = ?", (manager_id,))
+                user = cursor.fetchone()
 
-            # First check if user exists
-            cursor.execute("SELECT username FROM admin_users WHERE manager_id = ?", (manager_id,))
-            user = cursor.fetchone()
+                if not user:
+                    logger.warning(f"⚠️ No admin user found with manager_id: {manager_id}")
+                    return False
 
-            if not user:
-                logger.warning(f"⚠️ No admin user found with manager_id: {manager_id}")
-                conn.close()
-                return False
+                username = user[0]
 
-            username = user[0]
-
-            # Delete the user
-            cursor.execute("DELETE FROM admin_users WHERE manager_id = ?", (manager_id,))
-
-            conn.commit()
-            rows_affected = cursor.rowcount
-            conn.close()
+                # Delete the user
+                cursor.execute("DELETE FROM admin_users WHERE manager_id = ?", (manager_id,))
+                cursor.connection.commit()
+                rows_affected = cursor.rowcount
 
             if rows_affected > 0:
                 logger.info(f"✅ Admin user deleted: {username} ({manager_id})")

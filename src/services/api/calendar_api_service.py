@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 import re
 from urllib.parse import urljoin, quote
 
-from src.services.api.clubos_api_client import ClubOSAPIClient, create_clubos_api_client
+from .clubos_api_client import ClubOSAPIClient, create_clubos_api_client
 from config.constants import CLUBOS_CALENDAR_URL
 
 

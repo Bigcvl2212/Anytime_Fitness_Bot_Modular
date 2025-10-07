@@ -13,7 +13,7 @@ from datetime import datetime
 import re
 from urllib.parse import urljoin, quote
 
-from src.services.api.clubos_api_client import ClubOSAPIClient, create_clubos_api_client
+from .clubos_api_client import ClubOSAPIClient, create_clubos_api_client
 from config.constants import (
     CLUBOS_DASHBOARD_URL, CLUBOS_MESSAGES_URL, TEXT_MESSAGE_CHARACTER_LIMIT,
     NOTE_AUTHOR_NAME, STAFF_NAMES

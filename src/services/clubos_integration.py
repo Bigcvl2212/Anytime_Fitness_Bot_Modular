@@ -89,25 +89,20 @@ class ClubOSIntegration:
             try:
                 from .api.clubos_real_calendar_api import ClubOSRealCalendarAPI
                 from .api.clubos_training_api import ClubOSTrainingPackageAPI
-                from ..gym_bot_clean import ClubOSEventDeletion
             except ImportError:
                 from services.api.clubos_real_calendar_api import ClubOSRealCalendarAPI
                 from services.api.clubos_training_api import ClubOSTrainingPackageAPI
-                from gym_bot_clean import ClubOSEventDeletion
-            
+
             # Initialize APIs with authenticated session
             self.api = ClubOSRealCalendarAPI()
             self.api.auth_session = auth_session
             self.api.authenticated = True
             self.api.session = auth_session.session
-            
+
             self.training_api = ClubOSTrainingPackageAPI()
             self.training_api.auth_session = auth_session
             self.training_api.authenticated = True
             self.training_api.session = auth_session.session
-            
-            self.event_manager = ClubOSEventDeletion()
-            self.event_manager.authenticated = True
             
             self.authenticated = True
             logger.info("✅ ClubOS authentication successful via unified service")
@@ -223,14 +218,14 @@ class ClubOSIntegration:
                 logger.error("❌ Cannot delete event - not authenticated")
                 return False
             
-            # Delete event using event manager
-            success = self.event_manager.delete_event(event_id)
-            
+            # Delete event using the calendar API
+            success = self.api.delete_event_clubos_way(event_id)
+
             if success:
                 logger.info(f"✅ Successfully deleted event {event_id}")
             else:
                 logger.warning(f"⚠️ Failed to delete event {event_id}")
-            
+
             return success
             
         except Exception as e:

@@ -8,8 +8,8 @@ based on payment status and invoice tracking.
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-from src.services.database_manager import DatabaseManager
-from src.services.api.clubhub_api_client import ClubHubAPIClient
+from .database_manager import DatabaseManager
+from .api.clubhub_api_client import ClubHubAPIClient
 
 logger = logging.getLogger(__name__)
 

@@ -9,7 +9,7 @@ import time
 import logging
 from typing import Dict, List, Any, Optional
 from urllib.parse import urlencode
-from src.services.authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
+from ..authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
 
 logger = logging.getLogger(__name__)
 

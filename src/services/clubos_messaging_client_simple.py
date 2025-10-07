@@ -18,7 +18,7 @@ import time
 from urllib.parse import quote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
-from src.services.authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
+from .authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
 
 # Suppress SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

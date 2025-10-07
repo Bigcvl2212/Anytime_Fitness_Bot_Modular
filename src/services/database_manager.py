@@ -11,8 +11,9 @@ import logging
 import json
 import threading
 import time
+from contextlib import contextmanager
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Iterator
 from flask import current_app
 
 logger = logging.getLogger(__name__)
@@ -20,10 +21,10 @@ logger = logging.getLogger(__name__)
 class DatabaseManager:
     """Simple SQLite-only Database Manager for gym data management"""
 
-    def __init__(self, db_path=None):
-        self.last_refresh = None
-        self.refresh_interval = 3600  # 1 hour in seconds
-        self.db_type = 'sqlite'  # Always SQLite
+    def __init__(self, db_path: Optional[str] = None) -> None:
+        self.last_refresh: Optional[datetime] = None
+        self.refresh_interval: int = 3600  # 1 hour in seconds
+        self.db_type: str = 'sqlite'  # Always SQLite
 
         # Use SQLite database
         if db_path:
@@ -38,13 +39,13 @@ class DatabaseManager:
         # Initialize the database schema
         self.init_schema()
 
-    def get_connection(self):
+    def get_connection(self) -> sqlite3.Connection:
         """Get SQLite database connection"""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row  # Enable column access by name
         return conn
 
-    def init_schema(self):
+    def init_schema(self) -> None:
         """Initialize SQLite database schema"""
         logger.info("💾 Initializing SQLite schema...")
 
@@ -53,8 +54,13 @@ class DatabaseManager:
 
             # Check if tables exist
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='members'")
-            if cursor.fetchone():
-                logger.info("✅ SQLite schema already exists, skipping creation")
+            tables_exist = cursor.fetchone() is not None
+
+            if tables_exist:
+                logger.info("✅ SQLite schema already exists, running migrations...")
+                # Run migrations for existing tables
+                self._run_migrations(cursor)
+                conn.commit()
                 return
 
             # Create members table
@@ -150,10 +156,239 @@ class DatabaseManager:
             conn.commit()
             logger.info("✅ SQLite schema created successfully")
 
-    def execute_query(self, query, params=None, fetch_one=False, fetch_all=False):
+    def _run_migrations(self, cursor) -> None:
+        """Run database migrations for existing tables"""
+        logger.info("🔄 Running database migrations...")
+
+        # Migration 1: Ensure prospect_id column exists in training_clients
+        try:
+            cursor.execute("PRAGMA table_info(training_clients)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            if 'prospect_id' not in columns:
+                logger.info("🔄 Adding prospect_id column to training_clients table")
+                cursor.execute("ALTER TABLE training_clients ADD COLUMN prospect_id TEXT")
+                logger.info("✅ Added prospect_id column to training_clients")
+            else:
+                logger.info("✅ prospect_id column already exists in training_clients")
+        except Exception as e:
+            logger.error(f"❌ Migration error for training_clients.prospect_id: {e}")
+
+        # Migration 2: Ensure last_payment_date column exists in members
+        try:
+            cursor.execute("PRAGMA table_info(members)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            if 'last_payment_date' not in columns:
+                logger.info("🔄 Adding last_payment_date column to members table")
+                cursor.execute("ALTER TABLE members ADD COLUMN last_payment_date TEXT")
+                logger.info("✅ Added last_payment_date column to members")
+            else:
+                logger.info("✅ last_payment_date column already exists in members")
+        except Exception as e:
+            logger.error(f"❌ Migration error for members.last_payment_date: {e}")
+
+        # Migration 3: Ensure messages table has all required columns for ClubOS sync
+        try:
+            cursor.execute("PRAGMA table_info(messages)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            missing_columns = []
+            if 'content' not in columns:
+                missing_columns.append(('content', 'TEXT'))
+            if 'from_user' not in columns:
+                missing_columns.append(('from_user', 'TEXT'))
+            if 'channel' not in columns:
+                missing_columns.append(('channel', 'TEXT'))
+            if 'timestamp' not in columns:
+                missing_columns.append(('timestamp', 'TEXT'))
+            if 'owner_id' not in columns:
+                missing_columns.append(('owner_id', 'TEXT'))
+            if 'member_id' not in columns:
+                missing_columns.append(('member_id', 'TEXT'))
+            if 'conversation_id' not in columns:
+                missing_columns.append(('conversation_id', 'TEXT'))
+            if 'delivery_status' not in columns:
+                missing_columns.append(('delivery_status', 'TEXT'))
+            if 'recipient_name' not in columns:
+                missing_columns.append(('recipient_name', 'TEXT'))
+
+            for col_name, col_type in missing_columns:
+                logger.info(f"🔄 Adding {col_name} column to messages table")
+                cursor.execute(f"ALTER TABLE messages ADD COLUMN {col_name} {col_type}")
+                logger.info(f"✅ Added {col_name} column to messages")
+
+            if missing_columns:
+                logger.info(f"✅ Added {len(missing_columns)} columns to messages table")
+            else:
+                logger.info("✅ All required columns exist in messages table")
+        except Exception as e:
+            logger.error(f"❌ Migration error for messages table: {e}")
+
+        # Migration 4: Add address fields to members table for collections reporting
+        try:
+            cursor.execute("PRAGMA table_info(members)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            missing_columns = []
+            if 'phone' not in columns:
+                missing_columns.append(('phone', 'TEXT'))
+            if 'address' not in columns:
+                missing_columns.append(('address', 'TEXT'))
+            if 'city' not in columns:
+                missing_columns.append(('city', 'TEXT'))
+            if 'state' not in columns:
+                missing_columns.append(('state', 'TEXT'))
+            if 'zip_code' not in columns:
+                missing_columns.append(('zip_code', 'TEXT'))
+            if 'guid' not in columns:
+                missing_columns.append(('guid', 'TEXT'))
+
+            for col_name, col_type in missing_columns:
+                logger.info(f"🔄 Adding {col_name} column to members table")
+                cursor.execute(f"ALTER TABLE members ADD COLUMN {col_name} {col_type}")
+                logger.info(f"✅ Added {col_name} column to members")
+
+            if missing_columns:
+                logger.info(f"✅ Added {len(missing_columns)} address columns to members table")
+        except Exception as e:
+            logger.error(f"❌ Migration error for members address fields: {e}")
+
+        # Migration 5: Add address fields to training_clients table for collections reporting
+        try:
+            cursor.execute("PRAGMA table_info(training_clients)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            missing_columns = []
+            if 'mobile_phone' not in columns:
+                missing_columns.append(('mobile_phone', 'TEXT'))
+            if 'address' not in columns:
+                missing_columns.append(('address', 'TEXT'))
+            if 'city' not in columns:
+                missing_columns.append(('city', 'TEXT'))
+            if 'state' not in columns:
+                missing_columns.append(('state', 'TEXT'))
+            if 'zip_code' not in columns:
+                missing_columns.append(('zip_code', 'TEXT'))
+            if 'clubos_member_id' not in columns:
+                missing_columns.append(('clubos_member_id', 'TEXT'))
+            if 'total_past_due' not in columns:
+                missing_columns.append(('total_past_due', 'REAL DEFAULT 0.0'))
+            if 'agreement_id' not in columns:
+                missing_columns.append(('agreement_id', 'TEXT'))
+
+            for col_name, col_type in missing_columns:
+                logger.info(f"🔄 Adding {col_name} column to training_clients table")
+                cursor.execute(f"ALTER TABLE training_clients ADD COLUMN {col_name} {col_type}")
+                logger.info(f"✅ Added {col_name} column to training_clients")
+
+            if missing_columns:
+                logger.info(f"✅ Added {len(missing_columns)} address columns to training_clients table")
+        except Exception as e:
+            logger.error(f"❌ Migration error for training_clients address fields: {e}")
+
+        # Migration 6: Add Phase 1 AI Agent columns to messages table
+        try:
+            cursor.execute("PRAGMA table_info(messages)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            missing_columns = []
+            # AI processing tracking
+            if 'ai_processed' not in columns:
+                missing_columns.append(('ai_processed', 'INTEGER DEFAULT 0'))
+            if 'ai_responded' not in columns:
+                missing_columns.append(('ai_responded', 'INTEGER DEFAULT 0'))
+            if 'ai_confidence_score' not in columns:
+                missing_columns.append(('ai_confidence_score', 'REAL'))
+            if 'ai_action_taken' not in columns:
+                missing_columns.append(('ai_action_taken', 'TEXT'))
+            if 'ai_response_sent_at' not in columns:
+                missing_columns.append(('ai_response_sent_at', 'TIMESTAMP'))
+            
+            # Message threading and status
+            if 'thread_id' not in columns:
+                missing_columns.append(('thread_id', 'TEXT'))
+            if 'requires_response' not in columns:
+                missing_columns.append(('requires_response', 'INTEGER DEFAULT 0'))
+            if 'sent_at' not in columns:
+                missing_columns.append(('sent_at', 'TIMESTAMP'))
+            if 'received_at' not in columns:
+                missing_columns.append(('received_at', 'TIMESTAMP'))
+            if 'read_at' not in columns:
+                missing_columns.append(('read_at', 'TIMESTAMP'))
+            
+            # ClubOS metadata
+            if 'clubos_message_id' not in columns:
+                missing_columns.append(('clubos_message_id', 'TEXT'))
+            if 'clubos_conversation_id' not in columns:
+                missing_columns.append(('clubos_conversation_id', 'TEXT'))
+            if 'from_member_id' not in columns:
+                missing_columns.append(('from_member_id', 'TEXT'))
+            if 'from_member_name' not in columns:
+                missing_columns.append(('from_member_name', 'TEXT'))
+            if 'to_staff_name' not in columns:
+                missing_columns.append(('to_staff_name', 'TEXT'))
+
+            for col_name, col_type in missing_columns:
+                logger.info(f"🔄 Adding {col_name} column to messages table (Phase 1 AI Agent)")
+                cursor.execute(f"ALTER TABLE messages ADD COLUMN {col_name} {col_type}")
+                logger.info(f"✅ Added {col_name} column to messages")
+
+            if missing_columns:
+                logger.info(f"✅ Added {len(missing_columns)} Phase 1 AI Agent columns to messages table")
+            else:
+                logger.info("✅ All Phase 1 AI Agent columns exist in messages table")
+        except Exception as e:
+            logger.error(f"❌ Migration error for Phase 1 AI Agent columns: {e}")
+
+        # Migration 7: Create conversations table for message threading
+        try:
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='conversations'")
+            conversations_exists = cursor.fetchone() is not None
+
+            if not conversations_exists:
+                logger.info("🔄 Creating conversations table for message threading")
+                cursor.execute("""
+                    CREATE TABLE conversations (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        conversation_id TEXT UNIQUE NOT NULL,
+                        member_id TEXT,
+                        member_name TEXT,
+                        last_message_at TIMESTAMP,
+                        last_message_preview TEXT,
+                        unread_count INTEGER DEFAULT 0,
+                        requires_response INTEGER DEFAULT 0,
+                        ai_handling INTEGER DEFAULT 0,
+                        conversation_status TEXT DEFAULT 'active',
+                        tags TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                
+                # Create indexes
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_conversations_member_id ON conversations(member_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_conversations_updated ON conversations(updated_at DESC)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_conversations_status ON conversations(conversation_status)")
+                
+                logger.info("✅ Created conversations table with indexes")
+            else:
+                logger.info("✅ Conversations table already exists")
+        except Exception as e:
+            logger.error(f"❌ Migration error for conversations table: {e}")
+
+        logger.info("✅ Database migrations complete")
+
+    def execute_query(
+        self,
+        query: str,
+        params: Optional[Tuple] = None,
+        fetch_one: bool = False,
+        fetch_all: bool = False
+    ) -> Any:
         """Execute a database query with proper error handling"""
-        logger.info(f"💾 SQLite Query: {query}")
-        logger.info(f"💾 Parameters: {params}")
+        logger.debug(f"💾 SQLite Query: {query}")
+        logger.debug(f"💾 Parameters: {params}")
 
         try:
             with self.get_connection() as conn:
@@ -178,29 +413,30 @@ class DatabaseManager:
             logger.error(f"❌ Parameters: {params}")
             raise
 
-    def save_members_to_db(self, members_data):
+    def save_members_to_db(self, members_data: List[Dict[str, Any]]) -> bool:
         """Save members data to SQLite database"""
         if not members_data:
-            logger.warning("⚠️ No members data to save")
-            return
+            logger.debug("No members data to save")
+            return True
 
-        logger.info(f"💾 Saving {len(members_data)} members to SQLite database...")
+        logger.debug(f"Saving {len(members_data)} members to SQLite database...")
 
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
 
                 for member in members_data:
-                    # Use REPLACE to handle updates - updated to match current schema
+                    # Use REPLACE to handle updates - updated to match current schema with address fields
                     cursor.execute("""
                         REPLACE INTO members (
                             prospect_id, guid, first_name, last_name, full_name, email,
-                            phone, mobile_phone, status, status_message, member_type, user_type,
+                            phone, mobile_phone, address, city, state, zip_code,
+                            status, status_message, member_type, user_type,
                             join_date, amount_past_due, date_of_next_payment,
                             base_amount_past_due, late_fees, missed_payments,
                             agreement_recurring_cost, agreement_id, agreement_guid, agreement_type,
                             club_name, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         member.get('prospect_id') or member.get('id'),
                         member.get('guid'),
@@ -208,8 +444,12 @@ class DatabaseManager:
                         member.get('last_name') or member.get('lastName'),
                         member.get('full_name'),
                         member.get('email'),
-                        member.get('phone'),
-                        member.get('mobile_phone'),
+                        member.get('phone') or member.get('phoneNumber'),
+                        member.get('mobile_phone') or member.get('mobilePhone'),
+                        member.get('address') or member.get('streetAddress'),
+                        member.get('city'),
+                        member.get('state'),
+                        member.get('zip_code') or member.get('zipCode') or member.get('postalCode'),
                         member.get('status', 'Active'),
                         member.get('status_message', ''),
                         member.get('member_type', ''),
@@ -230,19 +470,71 @@ class DatabaseManager:
                     ))
 
                 conn.commit()
-                logger.info(f"✅ Saved {len(members_data)} members to database")
+                logger.info(f"Saved {len(members_data)} members to database")
+                return True
 
         except Exception as e:
-            logger.error(f"❌ Error saving members: {e}")
-            raise
+            logger.error(f"Error saving members: {e}")
+            return False
 
-    def save_prospects_to_db(self, prospects_data):
+    def update_member_billing_info(self, member_id: str, member_data: Dict[str, Any]) -> bool:
+        """Update billing information for a specific member."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Extract billing fields from member data
+                amount_past_due = float(member_data.get('amount_past_due', 0))
+                base_amount_past_due = float(member_data.get('base_amount_past_due', 0))
+                late_fees = float(member_data.get('late_fees', 0))
+                missed_payments = int(member_data.get('missed_payments', 0))
+                date_of_next_payment = member_data.get('date_of_next_payment')
+                status = member_data.get('status', '')
+                status_message = member_data.get('status_message', '')
+                
+                # Update billing fields
+                cursor.execute("""
+                    UPDATE members SET 
+                        amount_past_due = ?,
+                        base_amount_past_due = ?,
+                        late_fees = ?,
+                        missed_payments = ?,
+                        date_of_next_payment = ?,
+                        status = ?,
+                        status_message = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE prospect_id = ? OR guid = ?
+                """, (
+                    amount_past_due,
+                    base_amount_past_due, 
+                    late_fees,
+                    missed_payments,
+                    date_of_next_payment,
+                    status,
+                    status_message,
+                    member_id,
+                    member_id
+                ))
+                
+                if cursor.rowcount > 0:
+                    conn.commit()
+                    logger.debug(f"✅ Updated billing info for member {member_id}")
+                    return True
+                else:
+                    logger.warning(f"⚠️ No member found with ID {member_id}")
+                    return False
+                    
+        except Exception as e:
+            logger.error(f"❌ Error updating billing for member {member_id}: {e}")
+            return False
+
+    def save_prospects_to_db(self, prospects_data: List[Dict[str, Any]]) -> bool:
         """Save prospects data to SQLite database"""
         if not prospects_data:
-            logger.warning("⚠️ No prospects data to save")
-            return
+            logger.debug("No prospects data to save")
+            return True
 
-        logger.info(f"💾 Saving {len(prospects_data)} prospects to SQLite database...")
+        logger.debug(f"Saving {len(prospects_data)} prospects to SQLite database...")
 
         try:
             with self.get_connection() as conn:
@@ -272,19 +564,20 @@ class DatabaseManager:
                     ))
 
                 conn.commit()
-                logger.info(f"✅ Saved {len(prospects_data)} prospects to database")
+                logger.info(f"Saved {len(prospects_data)} prospects to database")
+                return True
 
         except Exception as e:
-            logger.error(f"❌ Error saving prospects: {e}")
-            raise
+            logger.error(f"Error saving prospects: {e}")
+            return False
 
-    def save_training_clients_to_db(self, training_data):
+    def save_training_clients_to_db(self, training_data: List[Dict[str, Any]]) -> bool:
         """Save training clients data to SQLite database"""
         if not training_data:
-            logger.warning("⚠️ No training clients data to save")
-            return
+            logger.debug("No training clients data to save")
+            return True
 
-        logger.info(f"💾 Saving {len(training_data)} training clients to SQLite database...")
+        logger.debug(f"Saving {len(training_data)} training clients to SQLite database...")
 
         try:
             with self.get_connection() as conn:
@@ -293,39 +586,48 @@ class DatabaseManager:
                 for client in training_data:
                     cursor.execute("""
                         REPLACE INTO training_clients (
-                            prospect_id, member_name, email, phone, status, trainer_name,
-                            package_type, sessions_total, sessions_used, sessions_remaining,
-                            package_cost, past_due_amount, next_session_date,
-                            last_session_date, club_name, created_date, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            prospect_id, clubos_member_id, member_name, email, phone, mobile_phone,
+                            address, city, state, zip_code,
+                            status, payment_status, trainer_name, training_package,
+                            active_packages, package_summary, package_details,
+                            past_due_amount, total_past_due, sessions_remaining,
+                            agreement_id, last_updated, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         client.get('prospect_id'),
+                        client.get('clubos_member_id'),
                         client.get('member_name'),
                         client.get('email'),
                         client.get('phone'),
+                        client.get('mobile_phone'),
+                        client.get('address'),
+                        client.get('city'),
+                        client.get('state'),
+                        client.get('zip_code'),
                         client.get('status'),
+                        client.get('payment_status'),
                         client.get('trainer_name'),
-                        client.get('package_type'),
-                        int(client.get('sessions_total', 0)),
-                        int(client.get('sessions_used', 0)),
-                        int(client.get('sessions_remaining', 0)),
-                        float(client.get('package_cost', 0.0)),
+                        client.get('training_package'),
+                        client.get('active_packages'),
+                        client.get('package_summary'),
+                        client.get('package_details'),
                         float(client.get('past_due_amount', 0.0)),
-                        client.get('next_session_date'),
-                        client.get('last_session_date'),
-                        client.get('club_name'),
-                        client.get('created_date'),
+                        float(client.get('total_past_due', 0.0)),
+                        client.get('sessions_remaining'),
+                        client.get('agreement_id'),
+                        client.get('last_updated'),
                         datetime.now().isoformat()
                     ))
 
                 conn.commit()
-                logger.info(f"✅ Saved {len(training_data)} training clients to database")
+                logger.info(f"Saved {len(training_data)} training clients to database")
+                return True
 
         except Exception as e:
-            logger.error(f"❌ Error saving training clients: {e}")
-            raise
+            logger.error(f"Error saving training clients: {e}")
+            return False
 
-    def get_members(self, limit=None):
+    def get_members(self, limit: Optional[int] = None) -> List[sqlite3.Row]:
         """Get members from database"""
         query = "SELECT * FROM members ORDER BY updated_at DESC"
         if limit:
@@ -333,7 +635,7 @@ class DatabaseManager:
 
         return self.execute_query(query, fetch_all=True)
 
-    def get_prospects(self, limit=None):
+    def get_prospects(self, limit: Optional[int] = None) -> List[sqlite3.Row]:
         """Get prospects from database"""
         query = "SELECT * FROM prospects ORDER BY updated_at DESC"
         if limit:
@@ -341,7 +643,7 @@ class DatabaseManager:
 
         return self.execute_query(query, fetch_all=True)
 
-    def get_training_clients(self, limit=None):
+    def get_training_clients(self, limit: Optional[int] = None) -> List[sqlite3.Row]:
         """Get training clients from database"""
         query = "SELECT * FROM training_clients ORDER BY updated_at DESC"
         if limit:
@@ -349,14 +651,14 @@ class DatabaseManager:
 
         return self.execute_query(query, fetch_all=True)
 
-    def get_past_due_members(self, min_amount=0):
+    def get_past_due_members(self, min_amount: float = 0) -> List[sqlite3.Row]:
         """Get members with past due amounts"""
         query = "SELECT * FROM members WHERE amount_past_due > ? ORDER BY amount_past_due DESC"
         return self.execute_query(query, (min_amount,), fetch_all=True)
 
-    def get_database_stats(self):
+    def get_database_stats(self) -> Dict[str, Any]:
         """Get database statistics"""
-        stats = {}
+        stats: Dict[str, Any] = {}
 
         try:
             # Count members
@@ -385,26 +687,44 @@ class DatabaseManager:
 
         return stats
 
-    def get_cursor(self, connection=None):
-        """Get database cursor (for compatibility with existing code)"""
-        if connection:
-            return connection.cursor()
-        conn = self.get_connection()
-        return conn.cursor()
+    @contextmanager
+    def get_cursor(self, connection=None) -> Iterator[sqlite3.Cursor]:
+        """
+        Get database cursor with automatic cleanup (context manager).
 
-    def close_connection(self, connection=None):
+        Args:
+            connection: Optional existing connection. If None, creates new connection.
+
+        Yields:
+            sqlite3.Cursor: Database cursor for executing queries
+
+        Example:
+            >>> with db_manager.get_cursor() as cursor:
+            ...     cursor.execute("SELECT * FROM members")
+            ...     results = cursor.fetchall()
+        """
+        conn = connection if connection else self.get_connection()
+        cursor = conn.cursor()
+        try:
+            yield cursor
+        finally:
+            cursor.close()
+            if not connection:  # Only close if we created the connection
+                conn.close()
+
+    def close_connection(self, connection: Optional[sqlite3.Connection] = None) -> None:
         """Close database connection (no-op for SQLite as connections are context-managed)"""
         if connection:
             connection.close()
         pass
 
-    def save_messages_to_db(self, messages_data):
+    def save_messages_to_db(self, messages_data: List[Dict[str, Any]]) -> None:
         """Save messages data to SQLite database"""
         if not messages_data:
-            logger.warning("⚠️ No messages data to save")
+            logger.debug("No messages data to save")
             return
 
-        logger.info(f"💾 Saving {len(messages_data)} messages to SQLite database...")
+        logger.debug(f"Saving {len(messages_data)} messages to SQLite database...")
 
         try:
             with self.get_connection() as conn:
@@ -435,10 +755,10 @@ class DatabaseManager:
                     ))
 
                 conn.commit()
-                logger.info(f"✅ Saved {len(messages_data)} messages to database")
+                logger.info(f"Saved {len(messages_data)} messages to database")
 
         except Exception as e:
-            logger.error(f"❌ Error saving messages: {e}")
+            logger.error(f"Error saving messages: {e}")
             raise
 
     def get_members_by_category(self, category):
@@ -592,7 +912,18 @@ class DatabaseManager:
             logger.error(f"❌ Error getting member by ID {member_id}: {e}")
             return None
 
-
+    def get_member_invoices(self, member_id):
+        """Get all invoices for a specific member"""
+        try:
+            results = self.execute_query(
+                "SELECT * FROM invoices WHERE member_id = ? ORDER BY created_at DESC",
+                (member_id,),
+                fetch_all=True
+            )
+            return [dict(row) for row in results] if results else []
+        except Exception as e:
+            logger.error(f"❌ Error getting invoices for member {member_id}: {e}")
+            return []
 
 
 
@@ -635,3 +966,84 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ Error getting training client count: {e}")
             return 0
+
+    def log_access_action(self, log_entry: Dict) -> bool:
+        """Log access control actions for audit trail"""
+        try:
+            from typing import Dict
+
+            # Create access_logs table if it doesn't exist
+            if self.db_type == 'postgresql':
+                create_table_query = """
+                    CREATE TABLE IF NOT EXISTS access_logs (
+                        id SERIAL PRIMARY KEY,
+                        timestamp TEXT NOT NULL,
+                        member_id TEXT NOT NULL,
+                        member_name TEXT,
+                        action TEXT NOT NULL,
+                        reason TEXT,
+                        success BOOLEAN NOT NULL,
+                        error TEXT,
+                        automated BOOLEAN DEFAULT FALSE,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """
+            else:  # SQLite
+                create_table_query = """
+                    CREATE TABLE IF NOT EXISTS access_logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp TEXT NOT NULL,
+                        member_id TEXT NOT NULL,
+                        member_name TEXT,
+                        action TEXT NOT NULL,
+                        reason TEXT,
+                        success INTEGER NOT NULL,
+                        error TEXT,
+                        automated INTEGER DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """
+
+            self.execute_query(create_table_query)
+
+            # Insert log entry
+            if self.db_type == 'postgresql':
+                insert_query = """
+                    INSERT INTO access_logs
+                    (timestamp, member_id, member_name, action, reason, success, error, automated)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """
+            else:
+                insert_query = """
+                    INSERT INTO access_logs
+                    (timestamp, member_id, member_name, action, reason, success, error, automated)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """
+
+            # Convert boolean to int for SQLite
+            success_val = log_entry.get('success')
+            if self.db_type != 'postgresql' and isinstance(success_val, bool):
+                success_val = 1 if success_val else 0
+
+            automated_val = log_entry.get('automated', False)
+            if self.db_type != 'postgresql' and isinstance(automated_val, bool):
+                automated_val = 1 if automated_val else 0
+
+            params = (
+                log_entry.get('timestamp'),
+                log_entry.get('member_id'),
+                log_entry.get('member_name'),
+                log_entry.get('action'),
+                log_entry.get('reason'),
+                success_val,
+                log_entry.get('error'),
+                automated_val
+            )
+
+            result = self.execute_query(insert_query, params)
+            logger.info(f"✅ Access action logged: {log_entry.get('action')} for {log_entry.get('member_name')}")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Error logging access action: {e}")
+            return False

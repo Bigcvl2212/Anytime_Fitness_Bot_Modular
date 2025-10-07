@@ -6,7 +6,7 @@ Club Selection Screen - Allow users to choose which clubs to sync data from
 from flask import render_template, request, redirect, url_for, session, jsonify, flash, current_app
 from flask import Blueprint
 import logging
-from src.services.multi_club_manager import multi_club_manager
+from ..services.multi_club_manager import multi_club_manager
 
 logger = logging.getLogger(__name__)
 
@@ -146,11 +146,14 @@ def select_clubs():
             from src.services.multi_club_startup_sync import enhanced_startup_sync
             
             logger.info(f"🔄 Attempting to start data sync for clubs: {club_names}")
-            
-            # Create and start sync thread with selected clubs
+
+            # Get manager_id from session
+            manager_id = session.get('manager_id')
+
+            # Create and start sync thread with selected clubs and manager_id
             sync_thread = threading.Thread(
-                target=enhanced_startup_sync, 
-                args=(current_app._get_current_object(), valid_clubs), 
+                target=enhanced_startup_sync,
+                args=(current_app._get_current_object(), valid_clubs, True, manager_id),
                 daemon=True,
                 name=f"DataSync-{'-'.join(map(str, valid_clubs))}"
             )

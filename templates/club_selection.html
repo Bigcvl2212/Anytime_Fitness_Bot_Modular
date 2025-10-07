@@ -3,223 +3,357 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Select Clubs - Gym Bot Dashboard</title>
+    <title>Select Clubs - Anytime Fitness Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
+        :root {
+            --af-purple-primary: #8B5CF6;
+            --af-purple-dark: #7C3AED;
+            --af-purple-light: #A78BFA;
+            --af-black-primary: #0F0F0F;
+            --af-black-secondary: #1A1A1A;
+            --af-black-tertiary: #2D2D2D;
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+            background: var(--af-black-primary);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
+            position: relative;
+            overflow: hidden;
         }
-        
+
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, var(--af-black-primary) 0%, var(--af-black-secondary) 50%, var(--af-purple-dark) 100%);
+            opacity: 0.9;
+            z-index: 0;
+        }
+
+        body::after {
+            content: '';
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, var(--af-purple-primary) 0%, transparent 70%);
+            border-radius: 50%;
+            top: -250px;
+            right: -250px;
+            opacity: 0.2;
+            animation: float 20s infinite ease-in-out;
+            z-index: 0;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(-100px, 100px) scale(1.1); }
+        }
+
         .club-selection-container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            background: var(--af-black-secondary);
+            border: 1px solid var(--af-black-tertiary);
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(139, 92, 246, 0.2);
             padding: 40px;
-            max-width: 600px;
+            max-width: 700px;
             width: 100%;
             text-align: center;
+            position: relative;
+            z-index: 1;
+            overflow: hidden;
         }
-        
+
+        .club-selection-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--af-purple-primary), var(--af-purple-light), var(--af-purple-primary));
+            background-size: 200% 100%;
+            animation: shimmer 3s infinite linear;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
         .logo {
-            font-size: 3rem;
-            margin-bottom: 10px;
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--af-purple-primary), var(--af-purple-dark));
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 40px;
+            color: white;
+            box-shadow: 0 10px 30px rgba(139, 92, 246, 0.4);
         }
-        
+
         .title {
             font-size: 2rem;
-            color: #333;
+            color: white;
             margin-bottom: 10px;
-            font-weight: 600;
+            font-weight: 700;
+            background: linear-gradient(135deg, white, var(--af-purple-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
-        
+
         .subtitle {
-            color: #666;
+            color: #9CA3AF;
             margin-bottom: 30px;
-            font-size: 1.1rem;
+            font-size: 1rem;
         }
-        
+
         .user-info {
-            background: #f8f9fa;
-            border-radius: 10px;
+            background: var(--af-black-primary);
+            border: 1px solid var(--af-black-tertiary);
+            border-radius: 12px;
             padding: 20px;
             margin-bottom: 30px;
             text-align: left;
         }
-        
+
         .user-info h3 {
-            color: #495057;
-            margin-bottom: 10px;
-        }
-        
-        .user-detail {
-            margin: 5px 0;
-            color: #6c757d;
-        }
-        
-        .clubs-list {
-            text-align: left;
-            margin-bottom: 30px;
-        }
-        
-        .club-option {
-            background: #f8f9fa;
-            border: 2px solid #dee2e6;
-            border-radius: 10px;
-            padding: 20px;
-            margin: 10px 0;
-            cursor: pointer;
-            transition: all 0.3s ease;
+            color: var(--af-purple-primary);
+            margin-bottom: 12px;
+            font-size: 16px;
             display: flex;
             align-items: center;
         }
-        
-        .club-option:hover {
-            background: #e9ecef;
-            border-color: #667eea;
+
+        .user-info h3 i {
+            margin-right: 8px;
         }
-        
-        .club-option.selected {
-            background: #667eea;
+
+        .user-detail {
+            margin: 8px 0;
+            color: #D1D5DB;
+            font-size: 14px;
+        }
+
+        .user-detail strong {
             color: white;
-            border-color: #667eea;
         }
-        
+
+        .clubs-list {
+            text-align: left;
+            margin-bottom: 30px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .clubs-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .clubs-list::-webkit-scrollbar-track {
+            background: var(--af-black-primary);
+        }
+
+        .clubs-list::-webkit-scrollbar-thumb {
+            background: var(--af-purple-primary);
+            border-radius: 4px;
+        }
+
+        .club-option {
+            background: var(--af-black-primary);
+            border: 2px solid var(--af-black-tertiary);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 10px 0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+        }
+
+        .club-option:hover {
+            background: var(--af-black-tertiary);
+            border-color: var(--af-purple-light);
+            transform: translateX(4px);
+        }
+
+        .club-option.selected {
+            background: linear-gradient(135deg, var(--af-purple-primary), var(--af-purple-dark));
+            color: white;
+            border-color: var(--af-purple-primary);
+            box-shadow: 0 4px 16px rgba(139, 92, 246, 0.4);
+        }
+
         .club-option input[type="checkbox"] {
             margin-right: 15px;
-            transform: scale(1.5);
+            width: 20px;
+            height: 20px;
+            accent-color: var(--af-purple-primary);
+            cursor: pointer;
         }
-        
+
         .club-name {
             font-size: 1.1rem;
             font-weight: 500;
+            color: #D1D5DB;
         }
-        
+
+        .club-option.selected .club-name {
+            color: white;
+        }
+
         .club-id {
-            font-size: 0.9rem;
-            opacity: 0.8;
+            font-size: 0.85rem;
+            opacity: 0.7;
             margin-left: auto;
+            color: #9CA3AF;
         }
-        
+
+        .club-option.selected .club-id {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
         .selection-info {
-            background: #d1ecf1;
-            border: 1px solid #bee5eb;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.3);
             border-radius: 8px;
             padding: 15px;
             margin-bottom: 20px;
-            color: #0c5460;
+            color: #93C5FD;
+            font-size: 14px;
         }
-        
+
+        .selection-info strong {
+            color: white;
+        }
+
         .buttons {
             display: flex;
             gap: 15px;
             justify-content: center;
             margin-top: 30px;
         }
-        
+
         .btn {
-            padding: 15px 30px;
+            padding: 14px 30px;
             border: none;
-            border-radius: 10px;
-            font-size: 1rem;
-            font-weight: 500;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
             text-decoration: none;
             display: inline-block;
         }
-        
+
         .btn-primary {
-            background: #667eea;
+            background: linear-gradient(135deg, var(--af-purple-primary), var(--af-purple-dark));
             color: white;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
         }
-        
+
         .btn-primary:hover {
-            background: #5a6fd8;
             transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
         }
-        
+
         .btn-secondary {
-            background: #6c757d;
+            background: var(--af-black-tertiary);
+            color: #D1D5DB;
+            border: 1px solid var(--af-black-tertiary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--af-black-primary);
             color: white;
         }
-        
-        .btn-secondary:hover {
-            background: #5a6268;
-        }
-        
+
         .btn:disabled {
-            opacity: 0.6;
+            opacity: 0.5;
             cursor: not-allowed;
-            transform: none;
+            transform: none !important;
         }
-        
+
         .loading {
             display: none;
             margin-top: 20px;
         }
-        
+
+        .loading p {
+            color: #D1D5DB;
+            margin-top: 10px;
+        }
+
         .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
+            border: 4px solid var(--af-black-tertiary);
+            border-top: 4px solid var(--af-purple-primary);
             border-radius: 50%;
             width: 40px;
             height: 40px;
             animation: spin 1s linear infinite;
             margin: 0 auto;
         }
-        
+
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
+
         .alert {
             padding: 12px 20px;
             margin: 10px 0;
             border-radius: 8px;
             font-weight: 500;
+            font-size: 14px;
         }
-        
+
         .alert-error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+            background: rgba(220, 53, 69, 0.1);
+            color: #FCA5A5;
+            border: 1px solid rgba(220, 53, 69, 0.3);
         }
-        
+
         .alert-info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
+            background: rgba(34, 197, 94, 0.1);
+            color: #86EFAC;
+            border: 1px solid rgba(34, 197, 94, 0.3);
         }
-        
+
         @media (max-width: 768px) {
             .club-selection-container {
                 padding: 30px 20px;
             }
-            
+
             .title {
                 font-size: 1.5rem;
             }
-            
+
             .club-option {
                 padding: 15px;
             }
-            
+
             .buttons {
                 flex-direction: column;
             }
-            
+
             .btn {
                 padding: 12px 20px;
             }
@@ -228,13 +362,13 @@
 </head>
 <body>
     <div class="club-selection-container">
-        <div class="logo">🏋️‍♂️</div>
+        <div class="logo"><i class="fas fa-dumbbell"></i></div>
         <h1 class="title">Select Your Clubs</h1>
         <p class="subtitle">Choose which gym locations you want to manage</p>
         
         {% if user_summary and user_summary.user_info %}
         <div class="user-info">
-            <h3>👤 User Information</h3>
+            <h3><i class="fas fa-user"></i> User Information</h3>
             <div class="user-detail"><strong>Name:</strong> {{ user_summary.user_info.name }}</div>
             <div class="user-detail"><strong>Email:</strong> {{ user_summary.user_info.email }}</div>
             <div class="user-detail"><strong>Role:</strong> {{ user_summary.user_info.role }}</div>
@@ -246,8 +380,8 @@
         
         {% if user_summary.is_multi_club %}
         <div class="selection-info">
-            <strong>🏢 Multi-Club Access Detected</strong><br>
-            You have access to {{ user_summary.total_available }} gym locations. 
+            <strong><i class="fas fa-building"></i> Multi-Club Access Detected</strong><br>
+            You have access to {{ user_summary.total_available }} gym locations.
             Select one or more clubs to sync data from. You can manage all selected clubs from a single dashboard.
         </div>
         {% endif %}

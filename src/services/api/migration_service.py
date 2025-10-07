@@ -12,8 +12,8 @@ from datetime import datetime
 from pathlib import Path
 import logging
 
-from src.services.api.enhanced_clubos_service import ClubOSAPIService
-from src.services.authentication.clubhub_token_capture import get_valid_clubhub_tokens
+from .enhanced_clubos_service import ClubOSAPIService
+from ..authentication.clubhub_token_capture import get_valid_clubhub_tokens
 from config.constants import CLUBOS_USERNAME_SECRET, CLUBOS_PASSWORD_SECRET
 from config.secrets import get_secret
 

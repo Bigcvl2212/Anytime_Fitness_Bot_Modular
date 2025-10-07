@@ -16,7 +16,7 @@ from typing import Dict, List, Optional, Any
 import json
 import requests
 from dataclasses import dataclass
-from src.services.authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
+from ..authentication.unified_auth_service import get_unified_auth_service, AuthenticationSession
 
 # Import the existing ClubOS client
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

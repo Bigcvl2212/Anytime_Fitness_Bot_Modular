@@ -757,3 +757,120 @@ def _get_system_uptime() -> str:
 
     except Exception:
         return "Unknown"
+
+
+# Manager Credentials Routes
+@admin_bp.route('/credentials')
+@require_admin
+def manager_credentials():
+    """Display manager credentials form"""
+    try:
+        manager_id = session.get('manager_id')
+
+        # Get existing credentials from SecureSecretsManager
+        from ..services.authentication.secure_secrets_manager import SecureSecretsManager
+        secrets_manager = SecureSecretsManager()
+
+        credentials = secrets_manager.get_credentials(manager_id) or {}
+
+        return render_template('manager_credentials.html',
+                             credentials=credentials,
+                             success_message=request.args.get('success'),
+                             error_message=request.args.get('error'))
+
+    except Exception as e:
+        logger.error(f"❌ Error loading credentials page: {e}")
+        return render_template('error.html', error='Failed to load credentials page')
+
+
+@admin_bp.route('/credentials/save', methods=['POST'])
+@require_admin
+def save_manager_credentials():
+    """Save manager credentials"""
+    try:
+        manager_id = session.get('manager_id')
+
+        # Get form data
+        clubos_username = request.form.get('clubos_username')
+        clubos_password = request.form.get('clubos_password')
+        clubhub_email = request.form.get('clubhub_email')
+        clubhub_password = request.form.get('clubhub_password')
+        square_access_token = request.form.get('square_access_token')
+        square_location_id = request.form.get('square_location_id')
+
+        # Validate required fields
+        if not all([clubos_username, clubos_password, clubhub_email, clubhub_password,
+                    square_access_token, square_location_id]):
+            return redirect(url_for('admin.manager_credentials',
+                                  error='All fields are required'))
+
+        # Store credentials using SecureSecretsManager
+        from ..services.authentication.secure_secrets_manager import SecureSecretsManager
+        secrets_manager = SecureSecretsManager()
+
+        # Store in the database (encrypted)
+        success = secrets_manager.store_credentials(
+            manager_id=manager_id,
+            clubos_username=clubos_username,
+            clubos_password=clubos_password,
+            clubhub_email=clubhub_email,
+            clubhub_password=clubhub_password
+        )
+
+        if not success:
+            return redirect(url_for('admin.manager_credentials',
+                                  error='Failed to store credentials'))
+
+        # Also store Square credentials separately
+        secrets_manager.set_secret(f'square-access-token-{manager_id}', square_access_token)
+        secrets_manager.set_secret(f'square-location-id-{manager_id}', square_location_id)
+
+        # Log the action
+        admin_service = current_app.admin_service
+        admin_service.log_admin_action(
+            manager_id, 'credentials_update', 'Updated API credentials'
+        )
+
+        logger.info(f"✅ Credentials saved for manager {manager_id}")
+        return redirect(url_for('admin.manager_credentials',
+                              success='Credentials saved successfully'))
+
+    except Exception as e:
+        logger.error(f"❌ Error saving credentials: {e}")
+        return redirect(url_for('admin.manager_credentials',
+                              error=f'Error saving credentials: {str(e)}'))
+
+
+@admin_bp.route('/credentials/test', methods=['POST'])
+@require_admin_api
+def test_credentials():
+    """Test manager credentials"""
+    try:
+        # Get form data
+        clubos_username = request.form.get('clubos_username')
+        clubos_password = request.form.get('clubos_password')
+
+        # Test ClubOS login
+        from ..services.clubos_integration import ClubOSIntegration
+        clubos = ClubOSIntegration()
+
+        # Try to authenticate
+        test_result = clubos.test_authentication(clubos_username, clubos_password)
+
+        if test_result:
+            return jsonify({
+                'success': True,
+                'message': 'ClubOS credentials are valid!'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'ClubOS authentication failed. Please check your credentials.'
+            })
+
+    except Exception as e:
+        logger.error(f"❌ Error testing credentials: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'Error testing credentials: {str(e)}'
+        })

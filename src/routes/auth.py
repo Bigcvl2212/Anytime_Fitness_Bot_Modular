@@ -77,127 +77,155 @@ def require_auth(f):
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
-    """Login route"""
+    """Login route - simple username/password"""
     if request.method == 'GET':
-        return render_template('login.html')
-    
+        success_msg = request.args.get('success')
+        return render_template('login_new.html', success=success_msg)
+
     try:
-        # Import validation functions
-        from src.utils.validation import FormValidator
-        
-        # Validate form data
-        validation_result = FormValidator.validate_login_form(request.form)
-        
-        if not validation_result['is_valid']:
-            for error in validation_result['errors']:
-                flash(error, 'error')
-            return render_template('login.html')
-        
-        # Use sanitized data
-        form_data = validation_result['sanitized_data']
-        clubos_username = form_data['clubos_username']
-        clubos_password = form_data['clubos_password']
-        clubhub_email = form_data['clubhub_email']
-        clubhub_password = form_data['clubhub_password']
-        
-        # Import authentication service
-        from src.services.authentication.secure_auth_service import SecureAuthService
-        auth_service = SecureAuthService()
-        
-        # Authenticate
-        success, manager_id, error_msg = auth_service.authenticate_manager(
-            clubos_username, clubos_password, clubhub_email, clubhub_password
-        )
-        
-        if success:
-            # Create session
-            session_token = auth_service.create_session(manager_id)
-            
-            # Debug: Check session immediately after creation
-            logger.info(f"🔍 Session immediately after creation: authenticated={session.get('authenticated')}, manager_id={session.get('manager_id')}")
-            
-            logger.info(f"✅ Manager {manager_id} logged in successfully from {request.remote_addr}")
+        # Get form data
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
 
-            # Start automated access monitoring after successful authentication
-            try:
-                if hasattr(current_app, 'start_monitoring_after_auth'):
-                    current_app.start_monitoring_after_auth()
-                    logger.info("🔐 Automated access monitoring started after login")
-            except Exception as e:
-                logger.warning(f"⚠️ Could not start automated access monitoring: {e}")
+        if not username or not password:
+            return render_template('login_new.html', error='Username and password are required')
 
-            # Get authentication tokens to check for multi-club access
+        # Get admin service
+        admin_service = current_app.admin_service
+
+        # Find user by username
+        admin_user = admin_service.admin_schema.get_admin_user_by_username(username)
+
+        if not admin_user:
+            logger.warning(f"⚠️ Login attempt with non-existent username: {username}")
+            return render_template('login_new.html', error='Invalid username or password')
+
+        # Verify password
+        from werkzeug.security import check_password_hash
+        stored_password_hash = admin_user.get('password_hash')
+
+        if not stored_password_hash:
+            logger.error(f"❌ No password hash found for user: {username}")
+            return render_template('login_new.html', error='Account not properly configured. Please contact support.')
+
+        if not check_password_hash(stored_password_hash, password):
+            logger.warning(f"⚠️ Failed login attempt for user: {username}")
+            return render_template('login_new.html', error='Invalid username or password')
+
+        # Successfully authenticated!
+        manager_id = admin_user['manager_id']
+
+        # Create session manually (don't use auth_service since we're not using ClubOS/ClubHub to login)
+        session['authenticated'] = True
+        session['manager_id'] = manager_id
+        session['username'] = username
+        session.permanent = True
+
+        logger.info(f"✅ Manager {username} ({manager_id}) logged in successfully from {request.remote_addr}")
+
+        # DISABLED: Automated access monitoring (causing errors)
+        # TODO: Re-enable after fixing ClubHub authentication and adding log_access_action to DatabaseManager
+        # try:
+        #     if hasattr(current_app, 'start_monitoring_after_auth'):
+        #         current_app.start_monitoring_after_auth()
+        #         logger.info("🔐 Automated access monitoring started after login")
+        # except Exception as e:
+        #     logger.warning(f"⚠️ Could not start automated access monitoring: {e}")
+
+        # Get stored ClubHub credentials to check for multi-club access
+        from ..services.authentication.secure_secrets_manager import SecureSecretsManager
+        secrets_manager = SecureSecretsManager()
+
+        credentials = secrets_manager.get_credentials(manager_id)
+
+        if credentials and credentials.get('clubhub_email') and credentials.get('clubhub_password'):
+            # Try to authenticate with ClubHub to get club access
             from src.services.multi_club_manager import multi_club_manager
-            
-            # Try to get JWT token from the auth service
-            clubhub_token = getattr(auth_service, 'clubhub_token', None)
-            
-            if clubhub_token:
-                # Parse JWT token to extract club access
-                club_ids, user_info = multi_club_manager.extract_club_access(clubhub_token)
-                
-                if club_ids:
-                    logger.info(f"🏢 User has access to {len(club_ids)} clubs: {club_ids}")
-                    
-                    # Store in session for persistence
-                    session['user_info'] = user_info
-                    session['available_clubs'] = club_ids
-                    
-                    # Force session to be saved after adding club data
-                    session.modified = True
-                    
-                    # If multi-club user, redirect to club selection
-                    if len(club_ids) > 1:
-                        flash(f'Welcome {user_info.get("name", "Manager")}! Please select your clubs.', 'success')
-                        return redirect(url_for('club_selection.club_selection'))
-                    else:
-                        # Single club - auto-select and go to dashboard
-                        multi_club_manager.set_selected_clubs(club_ids)
-                        session['selected_clubs'] = club_ids
-                        
-                        # Force session to be saved after setting selected clubs
+
+            try:
+                # Import ClubHub auth
+                from ..services.authentication.clubhub_auth import ClubHubAuth
+                clubhub_auth = ClubHubAuth()
+
+                clubhub_token = clubhub_auth.authenticate(
+                    credentials['clubhub_email'],
+                    credentials['clubhub_password']
+                )
+
+                if clubhub_token:
+                    # Parse JWT token to extract club access
+                    club_ids, user_info = multi_club_manager.extract_club_access(clubhub_token)
+
+                    if club_ids:
+                        logger.info(f"🏢 User has access to {len(club_ids)} clubs: {club_ids}")
+
+                        # Store in session for persistence
+                        session['user_info'] = user_info
+                        session['available_clubs'] = club_ids
+
+                        # Force session to be saved after adding club data
                         session.modified = True
-                        
-                        club_name = multi_club_manager.get_club_name(club_ids[0])
-                        
-                        # Trigger startup sync for this club
-                        try:
-                            import threading
-                            from src.services.multi_club_startup_sync import enhanced_startup_sync
-                            
-                            # Ensure the sync has the club context
-                            def run_sync_with_context():
-                                try:
-                                    with current_app.app_context():
-                                        logger.info(f"🔄 Starting data sync for club {club_ids[0]} after single-club authentication")
-                                        result = enhanced_startup_sync(current_app._get_current_object())
-                                        logger.info(f"✅ Sync completed: {result.get('success', False)}")
-                                except Exception as sync_inner_error:
-                                    logger.error(f"❌ Sync execution failed: {sync_inner_error}")
-                            
-                            sync_thread = threading.Thread(target=run_sync_with_context, daemon=True)
-                            sync_thread.start()
-                            logger.info(f"🔄 Started data sync thread for club {club_ids[0]} after authentication")
-                            
-                        except Exception as sync_error:
-                            logger.warning(f"⚠️ Could not start post-auth sync: {sync_error}")
-                            import traceback
-                            logger.warning(f"⚠️ Sync error traceback: {traceback.format_exc()}")
-                        
-                        flash(f'Welcome {user_info.get("name", "Manager")} to {club_name}!', 'success')
-                        return redirect(url_for('dashboard.dashboard'))
+
+                        # If multi-club user, redirect to club selection
+                        if len(club_ids) > 1:
+                            flash(f'Welcome {user_info.get("name", "Manager")}! Please select your clubs.', 'success')
+                            return redirect(url_for('club_selection.club_selection'))
+                        else:
+                            # Single club - auto-select and go to dashboard
+                            multi_club_manager.set_selected_clubs(club_ids)
+                            session['selected_clubs'] = club_ids
+
+                            # Force session to be saved after setting selected clubs
+                            session.modified = True
+
+                            club_name = multi_club_manager.get_club_name(club_ids[0])
+
+                            # Trigger startup sync for this club
+                            try:
+                                import threading
+                                from src.services.multi_club_startup_sync import enhanced_startup_sync
+
+                                # Ensure the sync has the club context
+                                def run_sync_with_context():
+                                    try:
+                                        with current_app.app_context():
+                                            logger.info(f"🔄 Starting data sync for club {club_ids[0]} after single-club authentication")
+                                            result = enhanced_startup_sync(current_app._get_current_object(), manager_id=manager_id)
+                                            logger.info(f"✅ Sync completed: {result.get('success', False)}")
+                                    except Exception as sync_inner_error:
+                                        logger.error(f"❌ Sync execution failed: {sync_inner_error}")
+
+                                sync_thread = threading.Thread(target=run_sync_with_context, daemon=True)
+                                sync_thread.start()
+                                logger.info(f"🔄 Started data sync thread for club {club_ids[0]} after authentication")
+
+                            except Exception as sync_error:
+                                logger.warning(f"⚠️ Could not start post-auth sync: {sync_error}")
+                                import traceback
+                                logger.warning(f"⚠️ Sync error traceback: {traceback.format_exc()}")
+
+                            flash(f'Welcome {user_info.get("name", "Manager")} to {club_name}!', 'success')
+                            return redirect(url_for('dashboard.dashboard'))
+                    else:
+                        logger.warning("❌ No club access found in JWT token")
+                        flash('No club access found. Please contact support.', 'error')
+                        return redirect(url_for('auth.login'))
                 else:
-                    logger.warning("❌ No club access found in JWT token")
-                    flash('No club access found. Please contact support.', 'error')
-                    return redirect(url_for('auth.login'))
-            else:
-                # Fallback for single club (backward compatibility)
-                flash(f'Welcome! Successfully authenticated as manager {manager_id}.', 'success')
+                    # ClubHub auth failed - fallback to single club
+                    logger.info(f"⚠️ ClubHub authentication failed for {username}, using single-club mode")
+                    flash(f'Welcome {username}! Successfully authenticated.', 'success')
+                    return redirect(url_for('dashboard.dashboard'))
+
+            except Exception as clubhub_error:
+                logger.warning(f"⚠️ ClubHub authentication error: {clubhub_error}")
+                # Fallback to single club on error
+                flash(f'Welcome {username}! Successfully authenticated.', 'success')
                 return redirect(url_for('dashboard.dashboard'))
         else:
-            logger.warning(f"❌ Failed login attempt from {request.remote_addr}: {error_msg}")
-            flash(f'Login failed: {error_msg}', 'error')
-            return render_template('login.html', error=error_msg)
+            # No ClubHub credentials - single club mode (backward compatibility)
+            logger.info(f"ℹ️ No ClubHub credentials found for {username}, using single-club mode")
+            flash(f'Welcome {username}! Successfully authenticated.', 'success')
+            return redirect(url_for('dashboard.dashboard'))
             
     except Exception as e:
         logger.error(f"❌ Login error: {e}")
@@ -219,10 +247,100 @@ def logout():
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
-    """Registration route - placeholder for future implementation"""
+    """Registration route - create new manager account"""
     if request.method == 'GET':
-        return render_template('register.html')
-    
-    # For now, redirect to login
-    flash('Registration is not yet implemented. Please contact your administrator.', 'info')
-    return redirect(url_for('auth.login'))
+        return render_template('register_new.html')
+
+    try:
+        # Get form data
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+        email = request.form.get('email', '').strip()
+
+        clubos_username = request.form.get('clubos_username', '').strip()
+        clubos_password = request.form.get('clubos_password', '').strip()
+        clubhub_email = request.form.get('clubhub_email', '').strip()
+        clubhub_password = request.form.get('clubhub_password', '').strip()
+        square_access_token = request.form.get('square_access_token', '').strip()
+        square_location_id = request.form.get('square_location_id', '').strip()
+
+        # Validate all fields are present
+        if not all([username, password, confirm_password, email, clubos_username, clubos_password,
+                    clubhub_email, clubhub_password, square_access_token, square_location_id]):
+            return render_template('register_new.html', error='All fields are required')
+
+        # Validate password match
+        if password != confirm_password:
+            return render_template('register_new.html', error='Passwords do not match')
+
+        # Validate password length
+        if len(password) < 8:
+            return render_template('register_new.html', error='Password must be at least 8 characters')
+
+        # Validate username length
+        if len(username) < 3:
+            return render_template('register_new.html', error='Username must be at least 3 characters')
+
+        # Check if username already exists
+        admin_service = current_app.admin_service
+        existing_user = admin_service.admin_schema.get_admin_user_by_username(username)
+
+        if existing_user:
+            return render_template('register_new.html', error='Username already exists. Please choose another.')
+
+        # Generate manager_id from username
+        import hashlib
+        manager_id = hashlib.sha256(username.lower().encode()).hexdigest()[:16]
+
+        # Create admin user account
+        success = admin_service.admin_schema.add_admin_user(
+            manager_id=manager_id,
+            username=username,
+            email=email,
+            is_super_admin=False
+        )
+
+        if not success:
+            return render_template('register_new.html', error='Failed to create account. Please try again.')
+
+        # Store password hash in admin system
+        from werkzeug.security import generate_password_hash
+        password_hash = generate_password_hash(password)
+        admin_service.admin_schema.update_admin_user(
+            manager_id=manager_id,
+            updates={'password_hash': password_hash}
+        )
+
+        # Store API credentials
+        from ..services.authentication.secure_secrets_manager import SecureSecretsManager
+        secrets_manager = SecureSecretsManager()
+
+        # Store ClubOS and ClubHub credentials
+        creds_success = secrets_manager.store_credentials(
+            manager_id=manager_id,
+            clubos_username=clubos_username,
+            clubos_password=clubos_password,
+            clubhub_email=clubhub_email,
+            clubhub_password=clubhub_password
+        )
+
+        if not creds_success:
+            # Rollback: delete admin user
+            admin_service.admin_schema.delete_admin_user(manager_id)
+            return render_template('register_new.html', error='Failed to store credentials. Please try again.')
+
+        # Store Square credentials
+        secrets_manager.set_secret(f'square-access-token-{manager_id}', square_access_token)
+        secrets_manager.set_secret(f'square-location-id-{manager_id}', square_location_id)
+
+        logger.info(f"✅ New user registered: {username} ({manager_id})")
+
+        # Redirect to login with success message
+        return redirect(url_for('auth.login', success='Account created successfully! Please login.'))
+
+    except Exception as e:
+        logger.error(f"❌ Registration error: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return render_template('register_new.html', error=f'Registration failed: {str(e)}')

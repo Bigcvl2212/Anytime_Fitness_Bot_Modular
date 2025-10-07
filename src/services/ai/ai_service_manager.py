@@ -30,7 +30,8 @@ class AIServiceManager:
         """
         self.api_key = api_key
         self.base_url = "https://api.anthropic.com/v1/messages"
-        self.model = "claude-3-sonnet-20240229"
+        # Using Claude 4 Sonnet (latest 2025 model)
+        self.model = "claude-sonnet-4-5-20250929"  # Claude Sonnet 4.5 (latest, best for coding and agents)
         self.max_tokens = 4000
         self.temperature = 0.7
 

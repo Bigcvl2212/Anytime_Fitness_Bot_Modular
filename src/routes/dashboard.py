@@ -7,7 +7,6 @@ Main dashboard page with working events display
 from flask import Blueprint, render_template, current_app, session, redirect, url_for, flash
 from datetime import datetime, timedelta
 import logging
-import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ def dashboard(day_offset=0):
 
         try:
             # Get events using ClubOS integration
-            from src.services.clubos_integration import ClubOSIntegration
+            from ..services.clubos_integration import ClubOSIntegration
             clubos_integration = ClubOSIntegration()
 
             # Get today's events only
@@ -222,9 +221,64 @@ def dashboard(day_offset=0):
         # Create date formatting
         day_name = target_date.strftime('%A')
         date_formatted = target_date.strftime('%B %d, %Y')
-        
-        # Create bot conversations (empty for now)
+
+        # Get actual bot conversations from database (most recent)
         bot_conversations = []
+        try:
+            # Query latest messages grouped by member
+            recent_messages_query = """
+                SELECT
+                    m.member_id,
+                    m.recipient_name,
+                    m.content,
+                    m.created_at,
+                    m.delivery_status,
+                    m.conversation_id
+                FROM messages m
+                INNER JOIN (
+                    SELECT member_id, MAX(created_at) as latest_time
+                    FROM messages
+                    WHERE owner_id = ?
+                    GROUP BY member_id
+                ) latest ON m.member_id = latest.member_id AND m.created_at = latest.latest_time
+                WHERE m.owner_id = ?
+                ORDER BY m.created_at DESC
+                LIMIT 10
+            """
+            recent_results = db_manager.execute_query(
+                recent_messages_query,
+                (manager_id, manager_id),
+                fetch_all=True
+            )
+
+            if recent_results:
+                for row in recent_results:
+                    # Calculate time ago
+                    try:
+                        msg_time = datetime.fromisoformat(row['created_at'].replace('Z', '+00:00'))
+                        time_diff = datetime.now() - msg_time.replace(tzinfo=None)
+                        if time_diff.days > 0:
+                            time_ago = f"{time_diff.days}d"
+                        elif time_diff.seconds > 3600:
+                            time_ago = f"{time_diff.seconds // 3600}h"
+                        else:
+                            time_ago = f"{time_diff.seconds // 60}m"
+                    except:
+                        time_ago = 'recent'
+
+                    bot_conversations.append({
+                        'id': row['conversation_id'],
+                        'member_id': row['member_id'],
+                        'member_name': row['recipient_name'],
+                        'last_message': row['content'][:50] + '...' if len(row['content']) > 50 else row['content'],
+                        'time_ago': time_ago,
+                        'unread': row['delivery_status'] == 'received'
+                    })
+
+            logger.info(f"📬 Loaded {len(bot_conversations)} recent conversations for dashboard")
+        except Exception as e:
+            logger.error(f"❌ Error loading bot conversations: {e}")
+            bot_conversations = []
         
         # Create stats
         stats = {

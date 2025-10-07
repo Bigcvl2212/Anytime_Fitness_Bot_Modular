@@ -20,8 +20,18 @@ class CampaignService:
     def get_campaign_status(self, category: str) -> Dict[str, Any]:
         """Get campaign status for a category"""
         try:
+            # Check if method exists (campaigns feature may not be fully implemented)
+            if not hasattr(self.db, 'get_campaign_by_category'):
+                return {
+                    'status': 'none',
+                    'progress': 0,
+                    'total_recipients': 0,
+                    'sent_count': 0,
+                    'can_continue': False
+                }
+
             campaign = self.db.get_campaign_by_category(category)
-            
+
             if not campaign:
                 return {
                     'status': 'none',

@@ -1570,19 +1570,84 @@ function showQuickInvoiceModal(memberId, memberName, memberEmail) {
     });
 }
 
+function sendInvoiceDirectly(memberId, memberName, memberEmail, memberPhone, pastDueAmount) {
+    debugLog(`📤 Sending invoice directly for ${memberName} (ID: ${memberId}) - $${pastDueAmount}`);
+
+    // Use the backend-calculated amount (already includes proper late fees)
+    const totalAmount = parseFloat(pastDueAmount);
+
+    // Show loading indicator
+    const button = event.target.closest('button');
+    const originalHTML = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+    button.disabled = true;
+
+    const description = `Total Amount Owed: $${totalAmount.toFixed(2)} (includes late fees)`;
+
+    debugLog(`📋 Creating invoice: ${memberName} - $${totalAmount} - ${description}`);
+
+    fetch('/api/create-invoice', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            member_id: memberId,
+            member_name: memberName,
+            member_email: memberEmail,
+            member_phone: memberPhone,
+            amount: totalAmount,
+            description: description,
+            is_past_due: true
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        button.innerHTML = originalHTML;
+        button.disabled = false;
+
+        if (data.success) {
+            debugLog(`✅ Invoice sent successfully to ${memberName}`);
+            // Show success message with checkmark
+            button.innerHTML = '<i class="fas fa-check"></i> Sent!';
+            button.classList.remove('btn-warning');
+            button.classList.add('btn-success');
+
+            // Reset button after 3 seconds
+            setTimeout(() => {
+                button.innerHTML = originalHTML;
+                button.classList.remove('btn-success');
+                button.classList.add('btn-warning');
+            }, 3000);
+
+            // Optionally refresh the members list
+            // loadMembersByCategory('past_due');
+        } else {
+            debugError(`❌ Error sending invoice to ${memberName}:`, data.error);
+            alert('❌ Error sending invoice: ' + data.error);
+        }
+    })
+    .catch(error => {
+        button.innerHTML = originalHTML;
+        button.disabled = false;
+        debugError('❌ Error sending invoice:', error);
+        alert('❌ Error sending invoice');
+    });
+}
+
 function showInvoicePreviewForMember(memberId, memberName, memberEmail, pastDueAmount) {
     debugLog(`📋 Opening invoice preview for ${memberName} (ID: ${memberId}) - $${pastDueAmount}`);
-    
+
     if (!confirm(`Create past due invoice for ${memberName} - $${parseFloat(pastDueAmount).toFixed(2)}?`)) {
         return;
     }
-    
+
     // Use the backend-calculated amount (already includes proper late fees)
     const totalAmount = parseFloat(pastDueAmount);
     const description = `Total Amount Owed: $${totalAmount.toFixed(2)} (includes late fees)`;
-    
+
     debugLog(`📋 Creating past due invoice: ${memberName} - $${totalAmount} - ${description}`);
-    
+
     fetch('/api/create-invoice', {
         method: 'POST',
         headers: {
@@ -2182,8 +2247,8 @@ function renderMembersHTML(container, data, category) {
                             <!-- Member Action Buttons -->
                             <div class="mt-2 pt-2 border-top">
                                 <div class="btn-group w-100" role="group">
-                                    <button class="btn btn-sm btn-warning" onclick="event.stopPropagation(); showQuickInvoiceModal('${member.guid || member.prospect_id || member.id}', '${displayName.replace(/'/g, "\\'")}', '${member.email || ''}')" title="Create Invoice">
-                                        <i class="fas fa-file-invoice-dollar"></i>
+                                    <button class="btn btn-sm btn-warning" onclick="event.stopPropagation(); sendInvoiceDirectly('${member.guid || member.prospect_id || member.id}', '${displayName.replace(/'/g, "\\'")}', '${member.email || ''}', '${member.mobile_phone || ''}', ${member.amount_past_due || 0})" title="Send Invoice Now">
+                                        <i class="fas fa-file-invoice-dollar"></i> Send Invoice
                                     </button>
                                     <button class="btn btn-sm btn-info" onclick="event.stopPropagation(); showInvoiceTracking('${member.guid || member.prospect_id}', '${displayName.replace(/'/g, "\\'")}')" title="Track Invoices & Lock Status">
                                         <i class="fas fa-receipt"></i>
@@ -3947,7 +4012,9 @@ function displayCollectionsData(pastDueData, alreadySentCount = 0, alreadySentAm
                 <td>
                     <small>
                         ${account.email || 'No email'}<br>
-                        ${account.phone || 'No phone'}
+                        ${account.mobile_phone || account.phone || 'No phone'}<br>
+                        ${account.address || 'No address'}<br>
+                        ${account.city || ''} ${account.state || ''} ${account.zip_code || ''}
                     </small>
                 </td>
                 <td>

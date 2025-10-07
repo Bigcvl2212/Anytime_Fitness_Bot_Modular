@@ -9,6 +9,17 @@
         
             
                 <li class="client assignee">
+                    <img src="https://s3.amazonaws.com/technique-usercontent/photos/192722429/profile/50.jpg?h=79132fb3464c41a592651d8a33b8b694" />
+        
+                    <h4 class="name-email"><a  href="#" onclick="delegate(192722429,'/action/Assignees'); return false;">Aj Owen</a></h4>
+        
+                    <span class="edit-client">
+                        <a href="#" title="Contact Now" class="direct-contact" data-id="192722429" data-name="Aj Owen"><i class="fa fa-envelope-o"></i></a>
+                        <a href="#" id="192722429" class="delete fa"></a>
+                    </span>
+                </li>
+                
+                <li class="client assignee">
                     <img src="https://s3.amazonaws.com/technique-usercontent/photos/191215290/profile/50.jpg?h=cf43edcb0ead46b490360db7fa853f46" />
         
                     <h4 class="name-email"><a  href="#" onclick="delegate(191215290,'/action/Assignees'); return false;">Alejandra Espinoza</a></h4>
