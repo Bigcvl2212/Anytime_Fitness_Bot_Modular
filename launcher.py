@@ -187,8 +187,8 @@ class GymBotLauncher:
             log_dir.mkdir(parents=True, exist_ok=True)
             log_file = log_dir / 'launcher_flask.log'
             
-            # Open log file for writing
-            log_handle = open(log_file, 'w', buffering=1)  # Line buffered
+            # Open log file for writing with UTF-8 encoding (fixes Windows charmap issues)
+            log_handle = open(log_file, 'w', encoding='utf-8', buffering=1)  # Line buffered
 
             # Start server
             if getattr(sys, 'frozen', False):

@@ -41,6 +41,9 @@ hiddenimports += collect_submodules('cryptography')
 hiddenimports += collect_submodules('google.cloud')
 hiddenimports += collect_submodules('anthropic')
 hiddenimports += collect_submodules('aiohttp')
+# CRITICAL: Include pandas and numpy (database_manager uses them)
+hiddenimports += collect_submodules('pandas')
+hiddenimports += collect_submodules('numpy')
 hiddenimports += ['src.main_app', 'src.config', 'src.routes', 'src.services', 'src.utils']
 
 a = Analysis(
@@ -52,7 +55,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['matplotlib', 'numpy', 'scipy', 'pytest', 'IPython'],
+    excludes=['matplotlib', 'scipy', 'pytest', 'IPython'],  # REMOVED numpy and pandas from excludes!
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
