@@ -26,6 +26,8 @@ class SetupWizard:
             'GCP_PROJECT_ID': '',
             'CLUBOS_USERNAME': '',
             'CLUBOS_PASSWORD': '',
+            'CLUBHUB_EMAIL': '',
+            'CLUBHUB_PASSWORD': '',
             'SQUARE_ACCESS_TOKEN': '',
             'SQUARE_LOCATION_ID': '',
             'OPENAI_API_KEY': ''
@@ -37,6 +39,7 @@ class SetupWizard:
         # Create pages
         self.create_welcome_page()
         self.create_clubos_page()
+        self.create_clubhub_page()
         self.create_square_page()
         self.create_ai_page()
         self.create_summary_page()
@@ -109,6 +112,48 @@ and manage your gym operations. Enter your ClubOS login credentials below.
 
         self.clubos_status = ttk.Label(input_frame, text="", foreground='gray')
         self.clubos_status.grid(row=3, column=1, pady=5)
+
+        # Navigation
+        nav_frame = ttk.Frame(frame)
+        nav_frame.pack(side='bottom', fill='x', pady=20)
+
+        ttk.Button(nav_frame, text="Back", command=self.prev_page).pack(side='left')
+        ttk.Button(nav_frame, text="Next", command=self.next_page).pack(side='right')
+
+        self.pages.append(frame)
+
+    def create_clubhub_page(self):
+        """ClubHub credentials page"""
+        frame = ttk.Frame(self.root, padding="20")
+
+        title = ttk.Label(frame, text="ClubHub Integration",
+                         font=('Arial', 16, 'bold'))
+        title.pack(pady=10)
+
+        desc = ttk.Label(frame, text="""
+ClubHub is the new API system for accessing club data.
+Enter your ClubHub email and password below.
+        """, justify='left', wraplength=600)
+        desc.pack(pady=10)
+
+        # Input fields
+        input_frame = ttk.Frame(frame)
+        input_frame.pack(pady=20, fill='x')
+
+        ttk.Label(input_frame, text="ClubHub Email:").grid(row=0, column=0, sticky='w', pady=5)
+        self.clubhub_email = ttk.Entry(input_frame, width=40)
+        self.clubhub_email.grid(row=0, column=1, pady=5, padx=10)
+
+        ttk.Label(input_frame, text="ClubHub Password:").grid(row=1, column=0, sticky='w', pady=5)
+        self.clubhub_password = ttk.Entry(input_frame, width=40, show='*')
+        self.clubhub_password.grid(row=1, column=1, pady=5, padx=10)
+
+        # Test connection button
+        ttk.Button(input_frame, text="Test Connection",
+                  command=self.test_clubhub_connection).grid(row=2, column=1, pady=10)
+
+        self.clubhub_status = ttk.Label(input_frame, text="", foreground='gray')
+        self.clubhub_status.grid(row=3, column=1, pady=5)
 
         # Navigation
         nav_frame = ttk.Frame(frame)
@@ -246,10 +291,13 @@ This is optional - you can skip and add it later.
         if self.current_page == 1:  # ClubOS page
             self.config['CLUBOS_USERNAME'] = self.clubos_username.get()
             self.config['CLUBOS_PASSWORD'] = self.clubos_password.get()
-        elif self.current_page == 2:  # Square page
+        elif self.current_page == 2:  # ClubHub page
+            self.config['CLUBHUB_EMAIL'] = self.clubhub_email.get()
+            self.config['CLUBHUB_PASSWORD'] = self.clubhub_password.get()
+        elif self.current_page == 3:  # Square page
             self.config['SQUARE_ACCESS_TOKEN'] = self.square_token.get()
             self.config['SQUARE_LOCATION_ID'] = self.square_location.get()
-        elif self.current_page == 3:  # AI page
+        elif self.current_page == 4:  # AI page
             self.config['OPENAI_API_KEY'] = self.openai_key.get()
 
         if self.current_page < len(self.pages) - 1:
@@ -261,7 +309,7 @@ This is optional - you can skip and add it later.
             self.show_page(self.current_page - 1)
 
     def test_clubos_connection(self):
-        """Test ClubOS credentials"""
+        """Test ClubOS credentials using the real authentication flow"""
         username = self.clubos_username.get()
         password = self.clubos_password.get()
 
@@ -270,16 +318,96 @@ This is optional - you can skip and add it later.
                                      foreground='red')
             return
 
-        self.clubos_status.config(text="Testing connection...", foreground='blue')
+        self.clubos_status.config(text="Testing ClubOS connection...", foreground='blue')
         self.root.update()
 
         def test_in_thread():
             try:
-                # Test ClubHub authentication (new API)
+                from bs4 import BeautifulSoup
+
+                # Use the REAL ClubOS authentication flow
+                session = requests.Session()
+                session.headers.update({
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                })
+
+                # Step 1: Get login page with CSRF tokens
+                login_url = 'https://anytime.club-os.com/action/Login/view?__fsk=1221801756'
+                login_response = session.get(login_url, verify=False, timeout=15)
+                login_response.raise_for_status()
+
+                soup = BeautifulSoup(login_response.text, 'html.parser')
+                source_page = soup.find('input', {'name': '_sourcePage'})
+                fp_token = soup.find('input', {'name': '__fp'})
+
+                source_page_value = source_page.get('value') if source_page else ''
+                fp_token_value = fp_token.get('value') if fp_token else ''
+
+                # Step 2: Submit login form
+                login_data = {
+                    'login': 'Submit',
+                    'username': username,
+                    'password': password,
+                    '_sourcePage': source_page_value,
+                    '__fp': fp_token_value
+                }
+
+                auth_response = session.post(
+                    'https://anytime.club-os.com/action/Login',
+                    data=login_data,
+                    headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                    allow_redirects=True,
+                    verify=False,
+                    timeout=15
+                )
+
+                # Check for successful login
+                if session.cookies.get('JSESSIONID') and session.cookies.get('loggedInUserId'):
+                    self.clubos_status.config(text="✓ ClubOS connection successful!",
+                                             foreground='green')
+                else:
+                    self.clubos_status.config(text="✗ Invalid ClubOS credentials",
+                                             foreground='red')
+
+            except ImportError:
+                self.clubos_status.config(text="✗ BeautifulSoup4 not installed - install with: pip install beautifulsoup4",
+                                         foreground='red')
+            except requests.exceptions.SSLError:
+                self.clubos_status.config(text="✗ SSL error - check internet connection",
+                                         foreground='red')
+            except requests.exceptions.Timeout:
+                self.clubos_status.config(text="✗ Connection timeout - check internet",
+                                         foreground='red')
+            except requests.exceptions.ConnectionError:
+                self.clubos_status.config(text="✗ Cannot reach ClubOS server",
+                                         foreground='red')
+            except Exception as e:
+                self.clubos_status.config(text=f"✗ Connection failed: {str(e)}",
+                                         foreground='red')
+
+        threading.Thread(target=test_in_thread, daemon=True).start()
+
+    def test_clubhub_connection(self):
+        """Test ClubHub credentials using the real ClubHub API"""
+        email = self.clubhub_email.get()
+        password = self.clubhub_password.get()
+
+        if not email or not password:
+            self.clubhub_status.config(text="Please enter both email and password",
+                                      foreground='red')
+            return
+
+        self.clubhub_status.config(text="Testing ClubHub connection...", foreground='blue')
+        self.root.update()
+
+        def test_in_thread():
+            try:
+                # Use the REAL ClubHub authentication
                 response = requests.post(
                     'https://clubhubapi.com/api/authentication/login',
                     json={
-                        'email': username,
+                        'email': email,
                         'password': password
                     },
                     headers={'Content-Type': 'application/json'},
@@ -289,29 +417,30 @@ This is optional - you can skip and add it later.
                 if response.status_code == 200:
                     data = response.json()
                     if data.get('data', {}).get('token'):
-                        self.clubos_status.config(text="✓ Connection successful!",
-                                                 foreground='green')
+                        self.clubhub_status.config(text="✓ ClubHub connection successful!",
+                                                   foreground='green')
                     else:
-                        self.clubos_status.config(text="✗ Invalid response from server",
-                                                 foreground='red')
+                        self.clubhub_status.config(text="✗ Invalid response from ClubHub",
+                                                   foreground='red')
                 elif response.status_code == 401:
-                    self.clubos_status.config(text="✗ Invalid credentials",
-                                             foreground='red')
+                    self.clubhub_status.config(text="✗ Invalid ClubHub credentials",
+                                              foreground='red')
                 else:
-                    self.clubos_status.config(text=f"✗ Server error: {response.status_code}",
-                                             foreground='red')
-            except requests.exceptions.SSLError as e:
-                self.clubos_status.config(text="✗ SSL certificate error - check your internet connection",
-                                         foreground='red')
+                    self.clubhub_status.config(text=f"✗ ClubHub error: {response.status_code}",
+                                              foreground='red')
+
+            except requests.exceptions.SSLError:
+                self.clubhub_status.config(text="✗ SSL error - check internet connection",
+                                          foreground='red')
             except requests.exceptions.Timeout:
-                self.clubos_status.config(text="✗ Connection timeout - check your internet connection",
-                                         foreground='red')
-            except requests.exceptions.ConnectionError as e:
-                self.clubos_status.config(text="✗ Cannot reach server - check your internet connection",
-                                         foreground='red')
+                self.clubhub_status.config(text="✗ Connection timeout - check internet",
+                                          foreground='red')
+            except requests.exceptions.ConnectionError:
+                self.clubhub_status.config(text="✗ Cannot reach ClubHub server",
+                                          foreground='red')
             except Exception as e:
-                self.clubos_status.config(text=f"✗ Connection failed: {str(e)}",
-                                         foreground='red')
+                self.clubhub_status.config(text=f"✗ Connection failed: {str(e)}",
+                                          foreground='red')
 
         threading.Thread(target=test_in_thread, daemon=True).start()
 
@@ -327,6 +456,11 @@ This is optional - you can skip and add it later.
         summary += f"  Username: {self.config['CLUBOS_USERNAME']}\n"
         summary += f"  Password: {'*' * len(self.config['CLUBOS_PASSWORD'])}\n"
         summary += f"  Status: {'Configured' if self.config['CLUBOS_USERNAME'] else 'Not configured'}\n\n"
+
+        summary += "ClubHub Integration:\n"
+        summary += f"  Email: {self.config['CLUBHUB_EMAIL']}\n"
+        summary += f"  Password: {'*' * len(self.config['CLUBHUB_PASSWORD'])}\n"
+        summary += f"  Status: {'Configured' if self.config['CLUBHUB_EMAIL'] else 'Not configured'}\n\n"
 
         summary += "Square Integration:\n"
         summary += f"  Access Token: {'*' * 20 if self.config['SQUARE_ACCESS_TOKEN'] else 'Not configured'}\n"
@@ -369,6 +503,11 @@ This is optional - you can skip and add it later.
                     f.write("# ClubOS Integration\n")
                     f.write(f"CLUBOS_USERNAME={self.config['CLUBOS_USERNAME']}\n")
                     f.write(f"CLUBOS_PASSWORD={self.config['CLUBOS_PASSWORD']}\n\n")
+
+                if self.config['CLUBHUB_EMAIL']:
+                    f.write("# ClubHub Integration\n")
+                    f.write(f"CLUBHUB_EMAIL={self.config['CLUBHUB_EMAIL']}\n")
+                    f.write(f"CLUBHUB_PASSWORD={self.config['CLUBHUB_PASSWORD']}\n\n")
 
                 if self.config['SQUARE_ACCESS_TOKEN']:
                     f.write("# Square Integration\n")
