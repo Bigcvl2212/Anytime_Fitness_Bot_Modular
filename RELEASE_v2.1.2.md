@@ -1,20 +1,34 @@
-# Release v2.1.1 - WinError 5 Fix + Launcher Improvements
+# Release v2.1.2 - COMPLETE FIX for WinError 5
 
-## 🚨 Critical Fix
+## 🚨 What Was Wrong
 
-**v2.1.0 had a fatal bug** - Compiled executable tried to write logs to `C:\Program Files\GymBot\_internal\logs` which is **read-only**, causing:
+**v2.1.0** - Tried to write to `C:\Program Files` (read-only) ❌
+**v2.1.1** - Fixed launcher.py but missed main_app.py ❌  
+**v2.1.2** - Fixed EVERYTHING ✅
+
+### The Problem Chain
+
+1. **launcher.py** tried to create `logs/` in Program Files
+2. **main_app.py** ALSO tried to create `logs/` in Program Files (missed in v2.1.1!)
+3. **main_app.py** tried to create `templates/` in Program Files
+
+All three caused:
 ```
 WinError 5: Access is denied
 C:\Program Files\GymBot\_internal\logs
 ```
 
-## ✅ What's Fixed in v2.1.1
+## ✅ What's Fixed in v2.1.2
 
-### 1. **WinError 5 Access Denied** (NEW FIX)
+### 1. **WinError 5 Access Denied** (COMPLETE FIX)
 - **Problem**: Compiled .exe tried to write to Program Files (read-only)
-- **Solution**: Now uses writable user directory:
-  - **Logs**: `%LOCALAPPDATA%\GymBot\logs\launcher_flask.log`
+- **v2.1.1 fix**: Fixed launcher.py log directory
+- **v2.1.2 fix**: ALSO fixed main_app.py log directory + templates
+- **Solution**: All writable files now use user directory:
+  - **Logs (launcher)**: `%LOCALAPPDATA%\GymBot\logs\launcher_flask.log`
+  - **Logs (Flask)**: `%LOCALAPPDATA%\GymBot\logs\` (created but not used)
   - **Database**: `%LOCALAPPDATA%\GymBot\data\gym_bot.db`
+  - **Templates**: Bundled in exe (read-only, no creation needed)
 - **Script mode unchanged**: Still uses project directory for development
 
 ### 2. **Launcher Subprocess Hanging** (from v2.1.0)
