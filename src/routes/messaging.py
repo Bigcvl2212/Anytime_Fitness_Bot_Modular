@@ -226,7 +226,7 @@ def messaging_page():
 
 @messaging_bp.route('/api/messages/sync', methods=['POST'])
 def sync_clubos_messages():
-    """Sync messages from ClubOS to local database - ENHANCED with auto-detect owner_id"""
+    """Sync messages from ClubOS to local database - REUSES existing authenticated client"""
     try:
         logger.info("🔄 Starting ClubOS message sync...")
         
@@ -250,41 +250,70 @@ def sync_clubos_messages():
         
         logger.info(f"📨 Syncing messages for owner_id: {owner_id}")
         
-        # Get credentials for the owner
-        credentials = get_clubos_credentials(owner_id)
-        if not credentials:
-            return jsonify({'error': 'ClubOS credentials not found'}), 400
-        
-        logger.info(f"✅ Got credentials for {credentials['username']}...")
-        
-        # Initialize messaging client with retry logic
-        max_retries = 3
-        for attempt in range(max_retries):
+        # CRITICAL FIX: Try to reuse existing authenticated messaging client first
+        messaging_client = None
+        if hasattr(current_app, 'messaging_client') and current_app.messaging_client:
+            messaging_client = current_app.messaging_client
+            logger.info("♻️ Reusing existing authenticated messaging client")
+            
+            # Quick check if session is still valid
             try:
-                messaging_client = ClubOSMessagingClient(
-                    username=credentials['username'],
-                    password=credentials['password']
-                )
-                
-                # Try to authenticate
-                if messaging_client.authenticate():
-                    logger.info("✅ ClubOS authentication successful")
-                    break
+                test_messages = messaging_client.get_messages(owner_id)
+                if test_messages is not None:
+                    logger.info(f"✅ Session still valid! Fetched {len(test_messages)} messages")
+                    stored_count = store_messages_in_database(test_messages, owner_id)
+                    return jsonify({
+                        'success': True,
+                        'message': f'Synced {stored_count} messages from ClubOS (reused session)',
+                        'total_messages': len(test_messages),
+                        'stored_count': stored_count,
+                        'owner_id': owner_id
+                    })
                 else:
-                    logger.warning(f"⚠️ Authentication attempt {attempt + 1} failed")
+                    logger.warning("⚠️ Existing session invalid, will re-authenticate")
+                    messaging_client = None
+            except Exception as e:
+                logger.warning(f"⚠️ Existing session check failed: {e}, will re-authenticate")
+                messaging_client = None
+        
+        # If no valid client, create new one and authenticate
+        if not messaging_client:
+            credentials = get_clubos_credentials(owner_id)
+            if not credentials:
+                return jsonify({'error': 'ClubOS credentials not found'}), 400
+            
+            logger.info(f"🔐 Creating new authenticated session for {credentials['username']}...")
+            
+            # Initialize messaging client with retry logic
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    messaging_client = ClubOSMessagingClient(
+                        username=credentials['username'],
+                        password=credentials['password']
+                    )
+                    
+                    # Try to authenticate
+                    if messaging_client.authenticate():
+                        logger.info("✅ ClubOS authentication successful")
+                        # Store the authenticated client for reuse
+                        current_app.messaging_client = messaging_client
+                        break
+                    else:
+                        logger.warning(f"⚠️ Authentication attempt {attempt + 1} failed")
+                        if attempt < max_retries - 1:
+                            time.sleep(2)  # Wait before retry
+                            continue
+                        else:
+                            return jsonify({'error': 'ClubOS authentication failed after all retries'}), 401
+                            
+                except Exception as e:
+                    logger.error(f"❌ Authentication attempt {attempt + 1} error: {e}")
                     if attempt < max_retries - 1:
-                        time.sleep(2)  # Wait before retry
+                        time.sleep(2)
                         continue
                     else:
-                        return jsonify({'error': 'ClubOS authentication failed after all retries'}), 401
-                        
-            except Exception as e:
-                logger.error(f"❌ Authentication attempt {attempt + 1} error: {e}")
-                if attempt < max_retries - 1:
-                    time.sleep(2)
-                    continue
-                else:
-                    return jsonify({'error': f'ClubOS authentication error: {str(e)}'}), 401
+                        return jsonify({'error': f'ClubOS authentication error: {str(e)}'}), 401
         
         # Now try to get messages with retry logic
         for attempt in range(max_retries):
