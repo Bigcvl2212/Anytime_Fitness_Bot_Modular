@@ -262,8 +262,17 @@ def create_app():
     # Initialize services
     with app.app_context():
         # Initialize SQLite database manager
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        db_path = os.path.join(project_root, 'gym_bot.db')
+        # CRITICAL: Use writable directory for compiled executable (Program Files is read-only)
+        if getattr(sys, 'frozen', False):
+            # Running as compiled executable - use user's AppData
+            from pathlib import Path
+            data_dir = Path.home() / 'AppData' / 'Local' / 'GymBot' / 'data'
+            data_dir.mkdir(parents=True, exist_ok=True)
+            db_path = str(data_dir / 'gym_bot.db')
+        else:
+            # Running as script - use project root
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            db_path = os.path.join(project_root, 'gym_bot.db')
 
         app.db_manager = DatabaseManager(db_path=db_path)
         logger.info(f"📁 SQLite Database path: {db_path}")

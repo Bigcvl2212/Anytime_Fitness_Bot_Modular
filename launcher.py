@@ -168,9 +168,16 @@ class GymBotLauncher:
 
             run_script = Path(app_dir) / 'run_dashboard.py'
 
-            # Create log file for server output
-            log_dir = Path(app_dir) / 'logs'
-            log_dir.mkdir(exist_ok=True)
+            # Create log file for server output in USER's writable directory
+            # CRITICAL: C:\Program Files is read-only, must use user directory
+            if getattr(sys, 'frozen', False):
+                # Running as compiled executable - use user's AppData
+                log_dir = Path.home() / 'AppData' / 'Local' / 'GymBot' / 'logs'
+            else:
+                # Running as script - use project directory
+                log_dir = Path(app_dir) / 'logs'
+            
+            log_dir.mkdir(parents=True, exist_ok=True)
             log_file = log_dir / 'launcher_flask.log'
             
             # Open log file for writing
@@ -304,9 +311,15 @@ class GymBotLauncher:
 
     def view_logs(self):
         """Open log file"""
-        # Check for launcher log first (most recent)
-        launcher_log = Path(__file__).parent / 'logs' / 'launcher_flask.log'
-        dashboard_log = Path(__file__).parent / 'logs' / 'dashboard.log'
+        # CRITICAL: Check user's AppData for compiled exe, project dir for script
+        if getattr(sys, 'frozen', False):
+            # Running as compiled executable - logs in user's AppData
+            launcher_log = Path.home() / 'AppData' / 'Local' / 'GymBot' / 'logs' / 'launcher_flask.log'
+            dashboard_log = Path.home() / 'AppData' / 'Local' / 'GymBot' / 'logs' / 'dashboard.log'
+        else:
+            # Running as script - logs in project directory
+            launcher_log = Path(__file__).parent / 'logs' / 'launcher_flask.log'
+            dashboard_log = Path(__file__).parent / 'logs' / 'dashboard.log'
         
         log_file = launcher_log if launcher_log.exists() else dashboard_log
 
