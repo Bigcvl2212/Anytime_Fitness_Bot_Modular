@@ -30,8 +30,8 @@ SolidCompression=yes
 
 ; UI configuration
 WizardStyle=modern
-SetupIconFile=static\favicon.ico
-UninstallDisplayIcon={app}\{#MyAppExeName}
+; SetupIconFile=static\favicon.ico (commented out - no icon file available)
+; UninstallDisplayIcon={app}\{#MyAppExeName}
 
 ; Privileges
 PrivilegesRequired=admin
