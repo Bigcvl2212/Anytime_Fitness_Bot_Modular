@@ -212,10 +212,19 @@ except Exception:
     pass
 
 # File logging for debugging - disabled to avoid Windows file locking issues
+# CRITICAL: Use writable directory when frozen (Program Files is read-only)
 try:
-    log_dir = 'logs'
-    os.makedirs(log_dir, exist_ok=True)
-    logger.info('Log directory created, but file logging disabled to avoid Windows lock issues')
+    if getattr(sys, 'frozen', False):
+        # Running as compiled executable - use user's AppData
+        from pathlib import Path
+        log_dir = Path.home() / 'AppData' / 'Local' / 'GymBot' / 'logs'
+        log_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f'Log directory created in AppData: {log_dir}')
+    else:
+        # Running as script - use project directory
+        log_dir = 'logs'
+        os.makedirs(log_dir, exist_ok=True)
+        logger.info('Log directory created in project root')
 except Exception as e:
     logger.warning(f'Could not create log directory: {e}')
 
@@ -255,9 +264,16 @@ def create_app():
     register_monitoring(app)
     
     # Create templates directory if it doesn't exist
+    # CRITICAL: When frozen, templates are bundled - don't try to create in Program Files
     templates_dir = os.path.join(os.path.dirname(__file__), '..', 'templates')
-    if not os.path.exists(templates_dir):
-        os.makedirs(templates_dir)
+    if not getattr(sys, 'frozen', False):
+        # Only create directory when running as script (not frozen executable)
+        if not os.path.exists(templates_dir):
+            os.makedirs(templates_dir)
+    else:
+        # When frozen, templates should already be bundled by PyInstaller
+        if not os.path.exists(templates_dir):
+            logger.warning(f"Templates directory not found in bundle: {templates_dir}")
     
     # Initialize services
     with app.app_context():
