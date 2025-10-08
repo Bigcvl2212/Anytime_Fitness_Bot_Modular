@@ -68,10 +68,9 @@ def get_clubos_credentials(owner_id: str) -> Dict[str, str]:
 def store_messages_in_database(messages: List[Dict], owner_id: str) -> int:
     """Store ClubOS messages in the database with enhanced metadata"""
     try:
-        # Use database manager for cross-platform compatibility
-        current_app.db_manager.execute_query('DROP TABLE IF EXISTS messages')
+        # CRITICAL FIX: Create table only if it doesn't exist (don't drop!)
         current_app.db_manager.execute_query('''
-            CREATE TABLE messages (
+            CREATE TABLE IF NOT EXISTS messages (
                 id TEXT PRIMARY KEY,
                 message_type TEXT,
                 content TEXT,
@@ -81,24 +80,25 @@ def store_messages_in_database(messages: List[Dict], owner_id: str) -> int:
                 status TEXT,
                 owner_id TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                -- Enhanced metadata fields for ClubOS
                 delivery_status TEXT DEFAULT 'received',
                 campaign_id TEXT,
                 channel TEXT DEFAULT 'clubos',
                 member_id TEXT,
-                message_actions TEXT, -- JSON for confirmations, emojis, opt-in/out
+                message_actions TEXT,
                 is_confirmation BOOLEAN DEFAULT FALSE,
                 is_opt_in BOOLEAN DEFAULT FALSE,
                 is_opt_out BOOLEAN DEFAULT FALSE,
                 has_emoji BOOLEAN DEFAULT FALSE,
-                emoji_reactions TEXT, -- JSON array of emojis
-                conversation_id TEXT, -- For grouping messages by conversation
-                thread_id TEXT -- For message threading
+                emoji_reactions TEXT,
+                conversation_id TEXT,
+                thread_id TEXT
             )
         ''')
+        logger.info("✅ Messages table ready (created or already exists)")
         
         # Insert ClubOS messages with enhanced parsing
         stored_count = 0
+        failed_count = 0
         for message in messages:
             try:
                 # Parse message content for actions and metadata
@@ -139,9 +139,12 @@ def store_messages_in_database(messages: List[Dict], owner_id: str) -> int:
                 ))
                 stored_count += 1
             except Exception as e:
-                logger.warning(f"⚠️ Error inserting ClubOS message {message.get('id')}: {e}")
+                failed_count += 1
+                logger.error(f"❌ Error inserting ClubOS message {message.get('id')}: {e}")
         
-        logger.info(f"✅ Stored {stored_count} ClubOS messages in database with enhanced metadata")
+        if failed_count > 0:
+            logger.warning(f"⚠️ Failed to store {failed_count} messages")
+        logger.info(f"✅ Stored {stored_count}/{len(messages)} ClubOS messages in database with enhanced metadata")
         return stored_count
         
     except Exception as e:
