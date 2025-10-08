@@ -30,6 +30,7 @@ class GymBotLauncher:
 
         # Server process
         self.server_process = None
+        self.log_handle = None  # Add log handle tracking
         self.is_running = False
         self.server_url = "http://localhost:5000"
 
@@ -167,27 +168,41 @@ class GymBotLauncher:
 
             run_script = Path(app_dir) / 'run_dashboard.py'
 
+            # Create log file for server output
+            log_dir = Path(app_dir) / 'logs'
+            log_dir.mkdir(exist_ok=True)
+            log_file = log_dir / 'launcher_flask.log'
+            
+            # Open log file for writing
+            log_handle = open(log_file, 'w', buffering=1)  # Line buffered
+
             # Start server in subprocess
             if sys.platform == 'win32':
-                # Windows: hide console window
+                # Windows: hide console window but write to log file
                 startupinfo = subprocess.STARTUPINFO()
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
                 self.server_process = subprocess.Popen(
                     [sys.executable, str(run_script)],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    stdout=log_handle,
+                    stderr=subprocess.STDOUT,  # Combine stderr with stdout
                     startupinfo=startupinfo,
-                    cwd=str(app_dir)
+                    cwd=str(app_dir),
+                    creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
                 )
             else:
                 # Unix/Mac
                 self.server_process = subprocess.Popen(
                     [sys.executable, str(run_script)],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
+                    stdout=log_handle,
+                    stderr=subprocess.STDOUT,  # Combine stderr with stdout
                     cwd=str(app_dir)
                 )
+            
+            # Store log handle so we can close it later
+            self.log_handle = log_handle
+            
+            logger.info(f"Flask server starting... Logs at: {log_file}")
 
             # Wait for server to start
             self.wait_for_server()
@@ -234,6 +249,13 @@ class GymBotLauncher:
                 if self.server_process:
                     self.server_process.terminate()
                     self.server_process.wait(timeout=5)
+                
+                # Close log file handle if it exists
+                if hasattr(self, 'log_handle') and self.log_handle:
+                    try:
+                        self.log_handle.close()
+                    except:
+                        pass
 
                 self.is_running = False
                 self.update_ui_state(False)
@@ -282,7 +304,11 @@ class GymBotLauncher:
 
     def view_logs(self):
         """Open log file"""
-        log_file = Path(__file__).parent / 'logs' / 'dashboard.log'
+        # Check for launcher log first (most recent)
+        launcher_log = Path(__file__).parent / 'logs' / 'launcher_flask.log'
+        dashboard_log = Path(__file__).parent / 'logs' / 'dashboard.log'
+        
+        log_file = launcher_log if launcher_log.exists() else dashboard_log
 
         if not log_file.exists():
             messagebox.showinfo("No Logs",
@@ -337,6 +363,12 @@ For more help, visit the documentation or contact support.
                 try:
                     if self.server_process:
                         self.server_process.terminate()
+                    # Close log file handle
+                    if self.log_handle:
+                        try:
+                            self.log_handle.close()
+                        except:
+                            pass
                 except:
                     pass
                 self.root.destroy()

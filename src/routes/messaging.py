@@ -1490,16 +1490,18 @@ def get_recent_inbox():
         limit = request.args.get('limit', 50, type=int)  # Show more messages by default
 
         # Get ALL recent messages from ClubOS (don't filter out as much)
+        # CRITICAL FIX: ClubOS returns messages newest-first, so lowest ROWID = newest message
+        # Sort by ROWID ASC (ascending) to get newest messages at the top
         messages = current_app.db_manager.execute_query('''
             SELECT
                 id, content, from_user, owner_id, created_at, channel,
                 timestamp, status, message_type
             FROM messages
-            WHERE channel = 'ClubOS'
+            WHERE channel = 'clubos'
             AND from_user IS NOT NULL
             AND from_user != ''
             AND LENGTH(TRIM(content)) > 5
-            ORDER BY created_at DESC
+            ORDER BY ROWID ASC
             LIMIT ?
         ''', (limit,), fetch_all=True)
 
@@ -1511,7 +1513,7 @@ def get_recent_inbox():
         if messages and hasattr(messages[0], 'keys'):
             messages = [dict(row) for row in messages]
 
-        # Convert messages to individual message items (not grouped by sender)
+        # Convert messages to individual message items (FAST - no HTTP lookups)
         message_items = []
         for message in messages:
             sender_name = message.get('from_user', 'Unknown')
@@ -1522,85 +1524,9 @@ def get_recent_inbox():
 
             sender_name = sender_name.strip()
 
-            # Try to find member by name lookup for proper member ID
+            # Use owner_id directly - much faster than HTTP lookups
             owner_id = message.get('owner_id', '')
-            member_id = owner_id
-
-            try:
-                # Try multiple lookup strategies to find the member
-                member_lookup = None
-
-                # Use the working search APIs instead of custom database logic
-                # Try member search API first
-                try:
-                    from urllib.parse import urlencode
-                    import requests
-
-                    # Call the working member search API
-                    params = urlencode({'name': sender_name})
-                    response = requests.get(f'http://localhost:5000/api/members/search?{params}', timeout=5)
-
-                    if response.status_code == 200:
-                        data = response.json()
-                        if data.get('success') and data.get('members') and len(data['members']) > 0:
-                            member = data['members'][0]
-                            member_id = member.get('prospect_id') or member.get('guid') or member.get('id')
-                            logger.info(f"✅ Found member via API: {member_id} for '{sender_name}'")
-                        else:
-                            logger.info(f"🔍 Member API found no results for '{sender_name}'")
-                    else:
-                        logger.warning(f"Member search API failed with status {response.status_code}")
-
-                except Exception as e:
-                    logger.warning(f"Member search API call failed: {e}")
-                    # Fallback to direct database lookup for owner_id if API fails
-                    if owner_id:
-                        member_lookup = current_app.db_manager.execute_query('''
-                            SELECT id, guid, prospect_id FROM members
-                            WHERE id = ? OR guid = ? OR prospect_id = ?
-                            LIMIT 1
-                        ''', (owner_id, owner_id, owner_id))
-
-                        if member_lookup and len(member_lookup) > 0:
-                            if isinstance(member_lookup[0], dict):
-                                member_id = member_lookup[0].get('id') or member_lookup[0].get('guid') or member_lookup[0].get('prospect_id')
-                            else:
-                                member_id = member_lookup[0][0] or member_lookup[0][1] or member_lookup[0][2]
-
-                # If still no member found, try prospect search API as fallback
-                if not member_id or member_id == owner_id:
-                    try:
-                        # Call the working prospect search API
-                        params = urlencode({'name': sender_name})
-                        response = requests.get(f'http://localhost:5000/api/prospects/search?{params}', timeout=5)
-
-                        if response.status_code == 200:
-                            data = response.json()
-                            if data.get('success') and data.get('prospects') and len(data['prospects']) > 0:
-                                prospect = data['prospects'][0]
-                                prospect_id = prospect.get('prospect_id') or prospect.get('id')
-                                member_id = f"prospect:{prospect_id}"
-                                logger.info(f"✅ Found prospect via API: {member_id} for '{sender_name}'")
-                            else:
-                                logger.info(f"🔍 Prospect API found no results for '{sender_name}'")
-                        else:
-                            logger.warning(f"Prospect search API failed with status {response.status_code}")
-
-                    except Exception as e:
-                        logger.warning(f"Prospect search API call failed: {e}")
-
-                    # If still no match found, use search fallback
-                    if not member_id or member_id == owner_id:
-                        member_id = f"search:{sender_name.replace(' ', '_')}"
-                        logger.info(f"❌ No member or prospect found for '{sender_name}', using search fallback: {member_id}")
-
-            except Exception as e:
-                logger.debug(f"Member lookup failed for {sender_name}: {e}")
-                member_id = f"search:{sender_name.replace(' ', '_')}" if sender_name else "unknown"
-
-            # Ensure we have a valid member_id
-            if not member_id:
-                member_id = f"search:{sender_name.replace(' ', '_')}" if sender_name else "unknown"
+            member_id = owner_id if owner_id else f"search:{sender_name.replace(' ', '_')}"
 
             # Create individual message item
             message_item = {

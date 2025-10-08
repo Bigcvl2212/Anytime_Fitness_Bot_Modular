@@ -794,18 +794,42 @@ class ClubOSMessagingClient:
             messages = []
             
             # Look for message elements in the HTML
-            # This is a basic parser - might need adjustment based on actual ClubOS response format
-            message_elements = soup.find_all(['div', 'tr', 'li'], class_=re.compile(r'message|msg|conversation'))
+            # ClubOS structure: <div class="message"> followed by <div class="message-options"> with timestamp
+            message_elements = soup.find_all('div', class_='message')
             
             for element in message_elements:
                 try:
+                    content_text = element.get_text(strip=True)
+                    
+                    # Extract sender name from <h3><a> tag inside message div
+                    from_user = 'Unknown'
+                    h3_tag = element.find('h3')
+                    if h3_tag:
+                        a_tag = h3_tag.find('a')
+                        if a_tag:
+                            from_user = a_tag.get_text(strip=True)
+                    
+                    # CRITICAL: Extract timestamp from next sibling <div class="message-options"><span>
+                    timestamp_value = None
+                    next_sibling = element.find_next_sibling('div', class_='message-options')
+                    if next_sibling:
+                        span_tag = next_sibling.find('span')
+                        if span_tag:
+                            timestamp_text = span_tag.get_text(strip=True)
+                            # timestamp_text will be like "9:30 AM" or "Sep 4"
+                            timestamp_value = timestamp_text
+                    
+                    # If no timestamp found, use current time
+                    if not timestamp_value:
+                        timestamp_value = datetime.now().isoformat()
+                    
                     # Extract message data from HTML element
                     message_data = {
                         'id': element.get('id', f'msg_{len(messages)}'),
                         'owner_id': owner_id,
-                        'content': element.get_text(strip=True),
-                        'timestamp': datetime.now().isoformat(),
-                        'from_user': 'Unknown',
+                        'content': content_text,
+                        'timestamp': timestamp_value,
+                        'from_user': from_user,
                         'status': 'received',
                         'channel': 'clubos'
                     }
