@@ -161,12 +161,19 @@ class GymBotLauncher:
             # Get the path to run_dashboard.py
             if getattr(sys, 'frozen', False):
                 # Running as compiled executable
+                # CRITICAL: run_dashboard.py is bundled in _MEIPASS
                 app_dir = sys._MEIPASS
+                run_script = Path(app_dir) / 'run_dashboard.py'
+                
+                # CRITICAL: When frozen, we CANNOT use subprocess to run Python scripts
+                # PyInstaller doesn't expose python.exe - we must use the bundled exe with -m flag
+                # OR import the module directly. We'll use direct import approach.
+                python_exe = None  # Will use import instead
             else:
                 # Running as script
                 app_dir = Path(__file__).parent
-
-            run_script = Path(app_dir) / 'run_dashboard.py'
+                run_script = Path(app_dir) / 'run_dashboard.py'
+                python_exe = sys.executable  # Normal Python interpreter
 
             # Create log file for server output in USER's writable directory
             # CRITICAL: C:\Program Files is read-only, must use user directory
@@ -183,33 +190,82 @@ class GymBotLauncher:
             # Open log file for writing
             log_handle = open(log_file, 'w', buffering=1)  # Line buffered
 
-            # Start server in subprocess
-            if sys.platform == 'win32':
-                # Windows: hide console window but write to log file
-                startupinfo = subprocess.STARTUPINFO()
-                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-
-                self.server_process = subprocess.Popen(
-                    [sys.executable, str(run_script)],
-                    stdout=log_handle,
-                    stderr=subprocess.STDOUT,  # Combine stderr with stdout
-                    startupinfo=startupinfo,
-                    cwd=str(app_dir),
-                    creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
-                )
+            # Start server
+            if getattr(sys, 'frozen', False):
+                # FROZEN MODE: Can't use subprocess with python.exe (doesn't exist)
+                # Must import and run Flask directly in a background thread
+                logger.info(f"Starting Flask server in-process (frozen mode)... Logs at: {log_file}")
+                
+                # Store log handle
+                self.log_handle = log_handle
+                
+                # Import and run Flask in background thread
+                def run_flask():
+                    try:
+                        # Redirect only this thread's output to log file
+                        import io
+                        old_stdout = sys.stdout
+                        old_stderr = sys.stderr
+                        
+                        sys.stdout = log_handle
+                        sys.stderr = log_handle
+                        
+                        # Change to app directory so relative imports work
+                        original_cwd = os.getcwd()
+                        os.chdir(app_dir)
+                        
+                        try:
+                            # Import the Flask app from bundled run_dashboard.py
+                            import importlib.util
+                            spec = importlib.util.spec_from_file_location("run_dashboard", run_script)
+                            run_dashboard = importlib.util.module_from_spec(spec)
+                            spec.loader.exec_module(run_dashboard)
+                            
+                            # Flask app should now be running
+                            print("Flask app started successfully in frozen mode", flush=True)
+                        finally:
+                            # Restore stdout/stderr for this thread
+                            sys.stdout = old_stdout
+                            sys.stderr = old_stderr
+                            os.chdir(original_cwd)
+                            
+                    except Exception as e:
+                        print(f"Failed to start Flask in frozen mode: {e}", file=log_handle, flush=True)
+                        import traceback
+                        traceback.print_exc(file=log_handle)
+                
+                # Start Flask in daemon thread
+                flask_thread = threading.Thread(target=run_flask, daemon=True)
+                flask_thread.start()
+                self.server_process = flask_thread  # Store thread reference
+                
             else:
-                # Unix/Mac
-                self.server_process = subprocess.Popen(
-                    [sys.executable, str(run_script)],
-                    stdout=log_handle,
-                    stderr=subprocess.STDOUT,  # Combine stderr with stdout
-                    cwd=str(app_dir)
-                )
-            
-            # Store log handle so we can close it later
-            self.log_handle = log_handle
-            
-            logger.info(f"Flask server starting... Logs at: {log_file}")
+                # SCRIPT MODE: Use subprocess with python.exe
+                if sys.platform == 'win32':
+                    # Windows: hide console window but write to log file
+                    startupinfo = subprocess.STARTUPINFO()
+                    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+
+                    self.server_process = subprocess.Popen(
+                        [python_exe, str(run_script)],
+                        stdout=log_handle,
+                        stderr=subprocess.STDOUT,
+                        startupinfo=startupinfo,
+                        cwd=str(app_dir),
+                        creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+                    )
+                else:
+                    # Unix/Mac
+                    self.server_process = subprocess.Popen(
+                        [python_exe, str(run_script)],
+                        stdout=log_handle,
+                        stderr=subprocess.STDOUT,
+                        cwd=str(app_dir)
+                    )
+                
+                # Store log handle
+                self.log_handle = log_handle
+                logger.info(f"Flask server starting via subprocess... Logs at: {log_file}")
 
             # Wait for server to start
             self.wait_for_server()
@@ -254,8 +310,15 @@ class GymBotLauncher:
                               "Are you sure you want to stop the server?"):
             try:
                 if self.server_process:
-                    self.server_process.terminate()
-                    self.server_process.wait(timeout=5)
+                    # Check if it's a thread (frozen mode) or process (script mode)
+                    if isinstance(self.server_process, threading.Thread):
+                        # Frozen mode: Can't stop daemon thread, just mark as stopped
+                        # Flask will keep running in background until launcher exits
+                        logger.warning("Cannot stop Flask thread - will exit when launcher closes")
+                    else:
+                        # Script mode: Terminate subprocess
+                        self.server_process.terminate()
+                        self.server_process.wait(timeout=5)
                 
                 # Close log file handle if it exists
                 if hasattr(self, 'log_handle') and self.log_handle:

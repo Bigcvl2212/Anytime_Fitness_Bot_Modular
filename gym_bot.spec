@@ -20,6 +20,9 @@ datas += collect_data_files('werkzeug')
 datas += [('templates', 'templates')]
 datas += [('static', 'static')]
 
+# CRITICAL: Add run_dashboard.py so launcher can start Flask server
+datas += [('run_dashboard.py', '.')]
+
 # Add optional files only if they exist
 if os.path.exists('gym_bot.db'):
     datas += [('gym_bot.db', '.')]
