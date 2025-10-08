@@ -9,6 +9,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch:  # Allow manual triggering
 
+permissions:
+  contents: write  # Required for creating releases
+
 jobs:
   build-windows:
     name: Build Windows Installer
