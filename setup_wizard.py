@@ -275,24 +275,40 @@ This is optional - you can skip and add it later.
 
         def test_in_thread():
             try:
-                # Simple test to ClubOS login
+                # Test ClubHub authentication (new API)
                 response = requests.post(
-                    'https://app.clubos.com/index.php',
-                    data={
-                        'action': 'Login',
-                        'username': username,
+                    'https://clubhubapi.com/api/authentication/login',
+                    json={
+                        'email': username,
                         'password': password
                     },
-                    timeout=10,
-                    verify=False
+                    headers={'Content-Type': 'application/json'},
+                    timeout=15
                 )
 
-                if 'logout' in response.text.lower() or 'dashboard' in response.text.lower():
-                    self.clubos_status.config(text="✓ Connection successful!",
-                                             foreground='green')
-                else:
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get('data', {}).get('token'):
+                        self.clubos_status.config(text="✓ Connection successful!",
+                                                 foreground='green')
+                    else:
+                        self.clubos_status.config(text="✗ Invalid response from server",
+                                                 foreground='red')
+                elif response.status_code == 401:
                     self.clubos_status.config(text="✗ Invalid credentials",
                                              foreground='red')
+                else:
+                    self.clubos_status.config(text=f"✗ Server error: {response.status_code}",
+                                             foreground='red')
+            except requests.exceptions.SSLError as e:
+                self.clubos_status.config(text="✗ SSL certificate error - check your internet connection",
+                                         foreground='red')
+            except requests.exceptions.Timeout:
+                self.clubos_status.config(text="✗ Connection timeout - check your internet connection",
+                                         foreground='red')
+            except requests.exceptions.ConnectionError as e:
+                self.clubos_status.config(text="✗ Cannot reach server - check your internet connection",
+                                         foreground='red')
             except Exception as e:
                 self.clubos_status.config(text=f"✗ Connection failed: {str(e)}",
                                          foreground='red')
