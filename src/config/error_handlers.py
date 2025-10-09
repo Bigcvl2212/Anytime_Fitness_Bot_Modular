@@ -28,24 +28,20 @@ def configure_error_handlers(app: Flask) -> None:
         import logging.handlers
         import sys
         
-        # CRITICAL: Use writable directory when frozen (Program Files is read-only)
+        # CRITICAL: Use AppData when frozen (Program Files is read-only)
         if getattr(sys, 'frozen', False):
-            # Running as compiled executable - use user's AppData
             from pathlib import Path
             log_dir = Path.home() / 'AppData' / 'Local' / 'GymBot' / 'logs'
             log_dir.mkdir(parents=True, exist_ok=True)
-            log_path = str(log_dir / 'errors.log')
+            log_dir = str(log_dir)
         else:
-            # Running as script - use project directory
             log_dir = 'logs'
             os.makedirs(log_dir, exist_ok=True)
-            log_path = os.path.join(log_dir, 'errors.log')
         
         file_handler = logging.handlers.RotatingFileHandler(
-            log_path,
+            os.path.join(log_dir, 'errors.log'),
             maxBytes=2_000_000,
-            backupCount=5,
-            encoding='utf-8'  # Add UTF-8 encoding
+            backupCount=5
         )
         file_handler.setFormatter(logging.Formatter(
             '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
