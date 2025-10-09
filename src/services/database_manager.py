@@ -5,6 +5,7 @@ Handles all database operations using SQLite only
 """
 
 import os
+import sys
 import sqlite3
 import pandas as pd
 import logging
@@ -15,6 +16,7 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple, Iterator
 from flask import current_app
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +32,18 @@ class DatabaseManager:
         if db_path:
             self.db_path = db_path
         else:
-            # Default to gym_bot.db in project root
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            self.db_path = os.path.join(project_root, 'gym_bot.db')
+            # CRITICAL: When frozen, use writable AppData directory instead of Program Files
+            if getattr(sys, 'frozen', False):
+                # Running as compiled executable - use user's AppData
+                db_dir = Path.home() / 'AppData' / 'Local' / 'GymBot' / 'data'
+                db_dir.mkdir(parents=True, exist_ok=True)
+                self.db_path = str(db_dir / 'gym_bot.db')
+            else:
+                # Running as script - use project root
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                self.db_path = os.path.join(project_root, 'gym_bot.db')
 
+        self.db_name = os.path.basename(self.db_path)  # Add db_name attribute
         logger.info(f"💾 Using SQLite database: {self.db_path}")
 
         # Initialize the database schema
