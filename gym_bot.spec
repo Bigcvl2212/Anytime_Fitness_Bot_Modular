@@ -44,10 +44,16 @@ hiddenimports += collect_submodules('aiohttp')
 # CRITICAL: Include pandas and numpy (database_manager uses them)
 hiddenimports += collect_submodules('pandas')
 hiddenimports += collect_submodules('numpy')
-# CRITICAL: Include flask extensions
-hiddenimports += collect_submodules('flask_limiter')
-hiddenimports += collect_submodules('flask_compress')
-hiddenimports += ['src.main_app', 'src.config', 'src.routes', 'src.services', 'src.utils']
+# CRITICAL: Include socketio dependencies (used for real-time messaging)
+hiddenimports += collect_submodules('flask_socketio')
+hiddenimports += collect_submodules('socketio')
+hiddenimports += collect_submodules('python_socketio')
+hiddenimports += collect_submodules('eventlet')
+# CRITICAL: Include dotenv for environment loading
+hiddenimports += ['dotenv']
+# CRITICAL: Include all src submodules explicitly
+hiddenimports += collect_submodules('src')
+hiddenimports += ['src.main_app', 'src.config', 'src.routes', 'src.services', 'src.utils', 'src.monitoring']
 
 a = Analysis(
     ['launcher.py'],
@@ -81,7 +87,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,  # No console window
+    console=True,  # CRITICAL: Enable console for debugging - set to False after testing
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
@@ -113,3 +119,12 @@ if sys.platform == 'darwin':
             'NSHighResolutionCapable': 'True',
         },
     )
+
+# Build batch file for Windows
+if sys.platform == 'win32':
+    with open('commit_and_build.bat', 'w') as bat_file:
+        bat_file.write(f'@echo off\n')
+        bat_file.write(f'echo Building Gym Bot Dashboard...\n')
+        bat_file.write(f'pyinstaller --onefile --windowed --icon={icon_win} launcher.py\n')
+        bat_file.write(f'echo Build completed. Find the executable in the dist folder.\n')
+        bat_file.write(f'pause\n')

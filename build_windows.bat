@@ -16,11 +16,27 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo Step 0: Running pre-flight checks...
+python test_build.py
+if errorlevel 1 (
+    echo ERROR: Pre-flight checks failed
+    echo Fix the errors above before building
+    pause
+    exit /b 1
+)
+
+echo.
 echo Step 1: Installing dependencies...
 pip install -r requirements.txt
-pip install pyinstaller
 if errorlevel 1 (
     echo ERROR: Failed to install dependencies
+    pause
+    exit /b 1
+)
+
+pip install pyinstaller
+if errorlevel 1 (
+    echo ERROR: Failed to install PyInstaller
     pause
     exit /b 1
 )
@@ -29,19 +45,32 @@ echo.
 echo Step 2: Cleaning previous builds...
 if exist "build" rmdir /s /q build
 if exist "dist" rmdir /s /q dist
-if exist "GymBot.spec" del /q GymBot.spec
 
 echo.
 echo Step 3: Building executable with PyInstaller...
-pyinstaller gym_bot.spec
+echo This may take 5-10 minutes...
+echo.
+python -m PyInstaller gym_bot.spec --clean --noconfirm
 if errorlevel 1 (
     echo ERROR: PyInstaller build failed
+    echo Check the error messages above
     pause
     exit /b 1
 )
 
 echo.
-echo Step 4: Creating installer with Inno Setup...
+echo Step 4: Verifying build output...
+if not exist "dist\GymBot\GymBot.exe" (
+    echo ERROR: GymBot.exe was not created
+    echo Check build logs above
+    pause
+    exit /b 1
+)
+
+echo ✅ Build verification passed!
+echo.
+
+echo Step 5: Creating installer with Inno Setup...
 echo Looking for Inno Setup...
 
 REM Check common Inno Setup installation paths
@@ -60,6 +89,11 @@ if "%INNO_PATH%"=="" (
     echo.
     echo Build completed successfully!
     echo Executable available at: dist\GymBot\GymBot.exe
+    echo.
+    echo To test the build:
+    echo   cd dist\GymBot
+    echo   GymBot.exe
+    echo.
     pause
     exit /b 0
 )
@@ -78,5 +112,12 @@ echo ========================================
 echo.
 echo Executable: dist\GymBot\GymBot.exe
 echo Installer: Output\GymBotInstaller.exe
+echo.
+echo To test the build:
+echo   1. Run: dist\GymBot\GymBot.exe
+echo   2. Check logs in: %%LOCALAPPDATA%%\GymBot\logs
+echo.
+echo To distribute:
+echo   Share: Output\GymBotInstaller.exe
 echo.
 pause

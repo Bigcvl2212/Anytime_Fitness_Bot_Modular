@@ -192,8 +192,8 @@ class GymBotLauncher:
 
             # Start server
             if getattr(sys, 'frozen', False):
-                # FROZEN MODE: Can't use subprocess with python.exe (doesn't exist)
-                # Must import and run Flask directly in a background thread
+                # FROZEN MODE: Import and run Flask directly in background thread
+                # CANNOT use subprocess because PyInstaller doesn't bundle python.exe
                 logger.info(f"Starting Flask server in-process (frozen mode)... Logs at: {log_file}")
                 
                 # Store log handle
@@ -202,7 +202,7 @@ class GymBotLauncher:
                 # Import and run Flask in background thread
                 def run_flask():
                     try:
-                        # Redirect only this thread's output to log file
+                        # Redirect stdout/stderr to log file
                         import io
                         old_stdout = sys.stdout
                         old_stderr = sys.stderr
@@ -210,29 +210,51 @@ class GymBotLauncher:
                         sys.stdout = log_handle
                         sys.stderr = log_handle
                         
-                        # Change to app directory so relative imports work
+                        # Change to app directory
                         original_cwd = os.getcwd()
+                        
+                        # CRITICAL: Add both sys._MEIPASS and project root to path
+                        if app_dir not in sys.path:
+                            sys.path.insert(0, str(app_dir))
+                        
+                        project_root = Path(app_dir).parent if not getattr(sys, 'frozen', False) else app_dir
+                        if str(project_root) not in sys.path:
+                            sys.path.insert(0, str(project_root))
+                        
                         os.chdir(app_dir)
                         
                         try:
-                            # Import the Flask app from bundled run_dashboard.py
-                            import importlib.util
-                            spec = importlib.util.spec_from_file_location("run_dashboard", run_script)
-                            run_dashboard = importlib.util.module_from_spec(spec)
-                            spec.loader.exec_module(run_dashboard)
+                            # Import Flask app directly
+                            print("Importing Flask app from src.main_app...", flush=True)
+                            from src.main_app import create_app
                             
-                            # Flask app should now be running
-                            print("Flask app started successfully in frozen mode", flush=True)
+                            print("Creating Flask app instance...", flush=True)
+                            app = create_app()
+                            
+                            print("Starting Flask server on http://localhost:5000...", flush=True)
+                            
+                            # Run Flask with socketio if available
+                            if hasattr(app, 'socketio') and app.socketio:
+                                print("Starting Flask with SocketIO support...", flush=True)
+                                app.socketio.run(app, host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+                            else:
+                                print("Starting Flask without SocketIO...", flush=True)
+                                app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+                            
+                        except Exception as e:
+                            print(f"❌ FATAL: Flask app failed to start: {e}", file=sys.stderr, flush=True)
+                            import traceback
+                            traceback.print_exc(file=sys.stderr)
                         finally:
-                            # Restore stdout/stderr for this thread
+                            # Restore stdout/stderr
                             sys.stdout = old_stdout
                             sys.stderr = old_stderr
                             os.chdir(original_cwd)
                             
                     except Exception as e:
-                        print(f"Failed to start Flask in frozen mode: {e}", file=log_handle, flush=True)
+                        print(f"❌ FATAL: Flask thread crashed: {e}", flush=True)
                         import traceback
-                        traceback.print_exc(file=log_handle)
+                        traceback.print_exc()
                 
                 # Start Flask in daemon thread
                 flask_thread = threading.Thread(target=run_flask, daemon=True)
@@ -312,9 +334,11 @@ class GymBotLauncher:
                 if self.server_process:
                     # Check if it's a thread (frozen mode) or process (script mode)
                     if isinstance(self.server_process, threading.Thread):
-                        # Frozen mode: Can't stop daemon thread, just mark as stopped
-                        # Flask will keep running in background until launcher exits
-                        logger.warning("Cannot stop Flask thread - will exit when launcher closes")
+                        # Frozen mode: Cannot gracefully stop daemon thread
+                        # Best we can do is close the log and mark as stopped
+                        # The thread will exit when the launcher exits
+                        logger.warning("⚠️ Cannot stop Flask thread - will terminate when launcher exits")
+                        logger.info("💡 To fully stop the server, close the launcher application")
                     else:
                         # Script mode: Terminate subprocess
                         self.server_process.terminate()
@@ -324,13 +348,20 @@ class GymBotLauncher:
                 if hasattr(self, 'log_handle') and self.log_handle:
                     try:
                         self.log_handle.close()
+                        self.log_handle = None
                     except:
                         pass
 
                 self.is_running = False
                 self.update_ui_state(False)
 
-                messagebox.showinfo("Success", "Server stopped successfully")
+                if isinstance(self.server_process, threading.Thread):
+                    messagebox.showinfo("Info", 
+                                      "Server marked as stopped.\n\n"
+                                      "Note: In frozen mode, the server thread will\n"
+                                      "continue running until you close the launcher.")
+                else:
+                    messagebox.showinfo("Success", "Server stopped successfully")
 
             except Exception as e:
                 messagebox.showerror("Error",

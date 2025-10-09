@@ -438,6 +438,17 @@
                 </li>
                 
                 <li class="client assignee">
+                    <img src="https://s3.amazonaws.com/technique-usercontent/photos/192830850/profile/50.jpg?h=2b846cd25dd842bf9dca6af6c11e269a" />
+        
+                    <h4 class="name-email"><a  href="#" onclick="delegate(192830850,'/action/Assignees'); return false;">Nathaniel Rose</a></h4>
+        
+                    <span class="edit-client">
+                        <a href="#" title="Contact Now" class="direct-contact" data-id="192830850" data-name="Nathaniel Rose"><i class="fa fa-envelope-o"></i></a>
+                        <a href="#" id="192830850" class="delete fa"></a>
+                    </span>
+                </li>
+                
+                <li class="client assignee">
                     <img src="https://s3.amazonaws.com/technique-usercontent/photos/189444753/profile/50.jpg?h=756bde1bd2904cd2acf886183a35586c" />
         
                     <h4 class="name-email"><a  href="#" onclick="delegate(189444753,'/action/Assignees'); return false;">Owen Krubl</a></h4>

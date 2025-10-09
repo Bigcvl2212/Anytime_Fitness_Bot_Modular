@@ -32,9 +32,26 @@ jobs:
         pip install -r requirements.txt
         pip install pyinstaller
 
+    - name: Run pre-flight checks
+      run: |
+        python test_build.py
+      continue-on-error: false
+
     - name: Build with PyInstaller
       run: |
-        pyinstaller gym_bot.spec
+        python -m PyInstaller gym_bot.spec --clean --noconfirm
+
+    - name: Verify build output
+      run: |
+        if (Test-Path "dist\GymBot\GymBot.exe") {
+          Write-Host "✅ Build successful: GymBot.exe created"
+          $size = (Get-Item "dist\GymBot\GymBot.exe").Length / 1MB
+          Write-Host "📦 Size: $([math]::Round($size, 2)) MB"
+        } else {
+          Write-Error "❌ Build failed: GymBot.exe not found"
+          exit 1
+        }
+      shell: pwsh
 
     - name: Install Inno Setup
       run: |
@@ -52,6 +69,17 @@ jobs:
         name: GymBot-Windows-Installer
         path: Output/GymBotInstaller.exe
         retention-days: 30
+
+    - name: Upload build logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Windows-Build-Logs
+        path: |
+          build/GymBot/warn-GymBot.txt
+          build/GymBot/*.log
+        retention-days: 7
+        if-no-files-found: ignore
 
     - name: Create Release (if tag)
       if: startsWith(github.ref, 'refs/tags/')
@@ -80,13 +108,28 @@ jobs:
         pip3 install -r requirements.txt
         pip3 install pyinstaller
 
+    - name: Run pre-flight checks
+      run: |
+        python3 test_build.py
+      continue-on-error: false
+
     - name: Install create-dmg
       run: |
         brew install create-dmg
 
     - name: Build with PyInstaller
       run: |
-        pyinstaller gym_bot.spec
+        python3 -m PyInstaller gym_bot.spec --clean --noconfirm
+
+    - name: Verify build output
+      run: |
+        if [ -f "dist/GymBot.app/Contents/MacOS/GymBot" ]; then
+          echo "✅ Build successful: GymBot.app created"
+          du -sh "dist/GymBot.app"
+        else
+          echo "❌ Build failed: GymBot.app not found"
+          exit 1
+        fi
 
     - name: Create DMG Installer
       run: |
@@ -118,6 +161,17 @@ jobs:
         name: GymBot-macOS-Installer
         path: dist/GymBotInstaller.dmg
         retention-days: 30
+
+    - name: Upload build logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: macOS-Build-Logs
+        path: |
+          build/GymBot/warn-GymBot.txt
+          build/GymBot/*.log
+        retention-days: 7
+        if-no-files-found: ignore
 
     - name: Create Release (if tag)
       if: startsWith(github.ref, 'refs/tags/')
