@@ -487,6 +487,9 @@ def send_campaign():
         if not message_text:
             return jsonify({'success': False, 'error': 'Message text is required'}), 400
         
+        # Check if specific members were selected (takes priority over category selection)
+        selected_member_ids = data.get('selected_member_ids', []) or data.get('member_ids', [])
+        
         categories_raw = data.get('categories', [])
         single_category = data.get('category', '')
         
@@ -497,31 +500,70 @@ def send_campaign():
         else:
             member_categories = []
             
-        if not member_categories:
-            return jsonify({'success': False, 'error': 'At least one member category must be selected'}), 400
+        # Either specific members OR categories must be provided
+        if not selected_member_ids and not member_categories:
+            return jsonify({'success': False, 'error': 'Either specific members or at least one category must be selected'}), 400
         
         # Extract remaining campaign parameters
         message_type = data.get('type', 'sms')  # 'sms' or 'email'
         subject = data.get('subject', '')
         max_recipients = data.get('max_recipients', 100)
         campaign_notes = data.get('notes', '')
+        campaign_mode = data.get('mode', 'resume')  # 'fresh' or 'resume' (default)
         
-        logger.info(f"📋 Campaign params - Message: '{message_text[:50]}...', Type: {message_type}, Categories: {member_categories}, Max: {max_recipients}")
+        logger.info(f"📋 Campaign params - Message: '{message_text[:50]}...', Type: {message_type}, Categories: {member_categories}, Selected IDs: {len(selected_member_ids) if selected_member_ids else 0}, Max: {max_recipients}, Mode: {campaign_mode}")
         logger.info(f"📝 Campaign notes: '{campaign_notes[:100]}...'")  # Log notes for debugging
         
-        # Get members from selected categories with validation
+        # Get members - either from selected IDs or from categories
         member_ids = []
         validated_members = []
-        for category in member_categories:
-            logger.info(f"🔍 Processing category: '{category}'")
+        
+        if selected_member_ids:
+            # User manually selected specific members - use those IDs directly
+            logger.info(f"👥 Using {len(selected_member_ids)} manually selected member IDs")
             
-            # Map frontend category names to actual database status_message values
-            category_mapping = {
+            # Fetch member details for the selected IDs
+            for member_id in selected_member_ids:
+                try:
+                    member = current_app.db_manager.execute_query('''
+                        SELECT id, prospect_id, email, mobile_phone, full_name, status_message
+                        FROM members 
+                        WHERE prospect_id = ? OR id = ?
+                        LIMIT 1
+                    ''', (member_id, member_id), fetch_one=True)
+                    
+                    if member:
+                        validated_members.append(dict(member))
+                        logger.debug(f"  ✅ Found member: {member['full_name']} ({member_id})")
+                    else:
+                        logger.warning(f"  ⚠️ Member ID {member_id} not found in database")
+                except Exception as e:
+                    logger.error(f"  ❌ Error fetching member {member_id}: {e}")
+            
+            logger.info(f"📋 Validated {len(validated_members)} of {len(selected_member_ids)} selected members")
+            
+        else:
+            # No specific members selected - query by category
+            logger.info(f"📂 Querying members by categories: {member_categories}")
+            
+            for category in member_categories:
+                logger.info(f"🔍 Processing category: '{category}'")
+                
+                # Map frontend category names to actual database status_message values
+                category_mapping = {
+                # Hyphen variants
                 'past-due-6-30': 'Past Due 6-30 days',
                 'past-due-30': 'Past Due more than 30 days.',  # Added missing mapping!
                 'past-due-30-plus': 'Past Due more than 30 days.',  # Note the period!
                 'past-due-6-30-days': 'Past Due 6-30 days',
                 'past-due-more-than-30-days': 'Past Due more than 30 days.',
+                # Underscore variants (API/backend format)
+                'past_due_6_30': 'Past Due 6-30 days',
+                'past_due_30': 'Past Due more than 30 days.',
+                'past_due_30_plus': 'Past Due more than 30 days.',
+                'past_due_more_than_30_days': 'Past Due more than 30 days.',
+                'good_standing': 'Member is in good standing',
+                # General status mappings
                 'good-standing': 'Member is in good standing',
                 'in-good-standing': 'In good standing',  # Fixed to handle both cases
                 'green': 'Member is in good standing',  # Alternative for good standing
@@ -572,6 +614,13 @@ def send_campaign():
                     notes TEXT
                 )
             ''')
+            
+            # If 'fresh' mode, clear any existing campaign progress for this category
+            if campaign_mode == 'fresh':
+                logger.info(f"🔄 Fresh mode enabled - clearing previous campaign progress for '{category}'")
+                current_app.db_manager.execute_query('''
+                    DELETE FROM campaign_progress WHERE category = ?
+                ''', (category,))
             
             # Check campaign progress to see where we left off
             progress_results = current_app.db_manager.execute_query('''
@@ -1765,11 +1814,19 @@ def debug_campaign_validation():
             
             # Map frontend category names to database status_message values
             category_mapping = {
+                # Hyphen variants
                 'past-due-6-30': 'Past Due 6-30 days',
                 'past-due-30': 'Past Due more than 30 days.',  # Added missing mapping!
                 'past-due-30-plus': 'Past Due more than 30 days.',  # Note the period!
                 'past-due-6-30-days': 'Past Due 6-30 days',
                 'past-due-more-than-30-days': 'Past Due more than 30 days.',
+                # Underscore variants (API/backend format)
+                'past_due_6_30': 'Past Due 6-30 days',
+                'past_due_30': 'Past Due more than 30 days.',
+                'past_due_30_plus': 'Past Due more than 30 days.',
+                'past_due_more_than_30_days': 'Past Due more than 30 days.',
+                'good_standing': 'Member is in good standing',
+                # General status mappings
                 'good-standing': 'Member is in good standing',
                 'in-good-standing': 'In good standing',  # Fixed to handle both cases
                 'green': 'Member is in good standing',  # Alternative for good standing

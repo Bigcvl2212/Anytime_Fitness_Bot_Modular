@@ -584,6 +584,26 @@ class DatabaseManager:
                 cursor = conn.cursor()
 
                 for client in training_data:
+                    # Helper function to serialize complex types to strings
+                    def safe_value(value):
+                        """Convert lists/dicts to JSON strings, None/empty to empty string"""
+                        if value is None:
+                            return None
+                        if isinstance(value, (list, dict)):
+                            return json.dumps(value)
+                        return value
+                    
+                    # Serialize all potentially complex fields
+                    active_packages = safe_value(client.get('active_packages'))
+                    package_details = safe_value(client.get('package_details'))
+                    address = safe_value(client.get('address'))
+                    city = safe_value(client.get('city'))
+                    state = safe_value(client.get('state'))
+                    zip_code = safe_value(client.get('zip_code'))
+                    email = safe_value(client.get('email'))
+                    phone = safe_value(client.get('phone'))
+                    mobile_phone = safe_value(client.get('mobile_phone'))
+                    
                     cursor.execute("""
                         REPLACE INTO training_clients (
                             prospect_id, clubos_member_id, member_name, email, phone, mobile_phone,
@@ -596,21 +616,21 @@ class DatabaseManager:
                     """, (
                         client.get('prospect_id'),
                         client.get('clubos_member_id'),
-                        client.get('member_name'),
-                        client.get('email'),
-                        client.get('phone'),
-                        client.get('mobile_phone'),
-                        client.get('address'),
-                        client.get('city'),
-                        client.get('state'),
-                        client.get('zip_code'),
-                        client.get('status'),
-                        client.get('payment_status'),
-                        client.get('trainer_name'),
-                        client.get('training_package'),
-                        client.get('active_packages'),
-                        client.get('package_summary'),
-                        client.get('package_details'),
+                        safe_value(client.get('member_name')),
+                        email,
+                        phone,
+                        mobile_phone,
+                        address,
+                        city,
+                        state,
+                        zip_code,
+                        safe_value(client.get('status')),
+                        safe_value(client.get('payment_status')),
+                        safe_value(client.get('trainer_name')),
+                        safe_value(client.get('training_package')),
+                        active_packages,
+                        safe_value(client.get('package_summary')),
+                        package_details,
                         float(client.get('past_due_amount', 0.0)),
                         float(client.get('total_past_due', 0.0)),
                         client.get('sessions_remaining'),
@@ -625,6 +645,7 @@ class DatabaseManager:
 
         except Exception as e:
             logger.error(f"Error saving training clients: {e}")
+            logger.debug(f"Failed client data sample: {training_data[0] if training_data else 'None'}")
             return False
 
     def get_members(self, limit: Optional[int] = None) -> List[sqlite3.Row]:

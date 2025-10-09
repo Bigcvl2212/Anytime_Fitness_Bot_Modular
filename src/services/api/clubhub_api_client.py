@@ -48,26 +48,26 @@ class ClubHubAPIClient:
             self.auth_session = self.auth_service.authenticate_clubhub(email, password)
             
             if not self.auth_session or not self.auth_session.authenticated:
-                print("❌ ClubHub authentication failed")
+                logger.info("ClubHub authentication failed")
                 return False
-            
+
             # Update legacy attributes for backward compatibility
             self.auth_token = self.auth_session.clubhub_bearer_token
             self.headers["Authorization"] = f"Bearer {self.auth_token}"
-            
-            print("✅ ClubHub authentication successful")
-            print(f"🔑 Bearer token: {self.auth_token[:50]}...")
+
+            logger.info("ClubHub authentication successful")
+            logger.debug(f"Bearer token: {self.auth_token[:50]}...")
             return True
-                
+
         except Exception as e:
-            print(f"❌ Authentication error: {e}")
+            logger.error(f"Authentication error: {e}")
             return False
     
     def set_auth_token(self, token: str):
         """Set authentication token manually"""
         self.auth_token = token
         self.headers["Authorization"] = f"Bearer {token}"
-        print("✅ ClubHub auth token set")
+        logger.info("ClubHub auth token set")
     
     def get_club_features(self) -> Optional[Dict[str, Any]]:
         """Get club features"""

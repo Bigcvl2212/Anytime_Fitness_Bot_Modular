@@ -7,6 +7,7 @@ Training client management, package details, and related functionality
 from flask import Blueprint, render_template, jsonify, current_app
 import logging
 import datetime as dt
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -291,6 +292,16 @@ def get_training_clients():
         training_clients = []
         for row in (result or []):
             client = dict(row)
+            
+            # Deserialize JSON fields back to lists/dicts
+            for field in ['active_packages', 'package_details']:
+                if field in client and client[field]:
+                    if isinstance(client[field], str):
+                        try:
+                            client[field] = json.loads(client[field])
+                        except (json.JSONDecodeError, TypeError):
+                            logger.warning(f"Failed to parse {field} for client {client.get('member_name')}")
+                            client[field] = []
             
             # Ensure member_name is properly set
             client['member_name'] = (client.get('member_name') or 

@@ -2209,7 +2209,8 @@
                     <div class="d-flex align-items-start">
                         <div class="form-check me-2 mt-1">
                             <input class="form-check-input member-checkbox" type="checkbox" 
-                                   id="member-${index}" 
+                                   id="member-${index}"
+                                   value="${member.prospect_id || member.id}"
                                    data-member-id="${member.prospect_id || member.id}" 
                                    data-member-name="${member.full_name || `${member.firstName || ''} ${member.lastName || ''}`.trim()}"
                                    data-member-email="${member.email || ''}"
@@ -2273,6 +2274,14 @@
             }
             
             debugLog(`✅ Selection updated: ${checkedBoxes.length} members selected`);
+        }
+
+        function getSelectedMembers() {
+            const checkboxes = document.querySelectorAll('.member-checkbox:checked');
+            return Array.from(checkboxes).map(checkbox => ({
+                id: checkbox.value,
+                name: checkbox.getAttribute('data-member-name')
+            }));
         }
 
         // Campaign Control Functions
@@ -2419,6 +2428,14 @@
                 return;
             }
             
+            // Get selected members
+            const selectedMembers = getSelectedMembers();
+            
+            if (selectedMembers.length === 0) {
+                showAlert('warning', 'Please select at least one member to send the campaign to.');
+                return;
+            }
+            
             // Get form data
             const formData = {
                 category: currentCategory,
@@ -2429,7 +2446,9 @@
                 max_recipients: parseInt(document.getElementById('maxRecipients').value),
                 notes: document.getElementById('campaignNotes').value || '',
                 save_as_template: document.getElementById('saveAsTemplate').checked,
-                mode: document.getElementById('editorMode').value
+                mode: document.getElementById('editorMode').value,
+                selected_member_ids: selectedMembers.map(member => member.id),
+                selected_count: selectedMembers.length
             };
             
             // Update button state
