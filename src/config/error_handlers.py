@@ -26,13 +26,26 @@ def configure_error_handlers(app: Flask) -> None:
     if not app.debug:
         # Set up file logging for errors in production
         import logging.handlers
-        log_dir = 'logs'
-        os.makedirs(log_dir, exist_ok=True)
+        import sys
+        
+        # CRITICAL: Use writable directory when frozen (Program Files is read-only)
+        if getattr(sys, 'frozen', False):
+            # Running as compiled executable - use user's AppData
+            from pathlib import Path
+            log_dir = Path.home() / 'AppData' / 'Local' / 'GymBot' / 'logs'
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_path = str(log_dir / 'errors.log')
+        else:
+            # Running as script - use project directory
+            log_dir = 'logs'
+            os.makedirs(log_dir, exist_ok=True)
+            log_path = os.path.join(log_dir, 'errors.log')
         
         file_handler = logging.handlers.RotatingFileHandler(
-            os.path.join(log_dir, 'errors.log'),
+            log_path,
             maxBytes=2_000_000,
-            backupCount=5
+            backupCount=5,
+            encoding='utf-8'  # Add UTF-8 encoding
         )
         file_handler.setFormatter(logging.Formatter(
             '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'

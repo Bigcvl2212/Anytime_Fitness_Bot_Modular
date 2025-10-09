@@ -44,6 +44,9 @@ hiddenimports += collect_submodules('aiohttp')
 # CRITICAL: Include pandas and numpy (database_manager uses them)
 hiddenimports += collect_submodules('pandas')
 hiddenimports += collect_submodules('numpy')
+# CRITICAL: Include flask extensions
+hiddenimports += collect_submodules('flask_limiter')
+hiddenimports += collect_submodules('flask_compress')
 hiddenimports += ['src.main_app', 'src.config', 'src.routes', 'src.services', 'src.utils']
 
 a = Analysis(
