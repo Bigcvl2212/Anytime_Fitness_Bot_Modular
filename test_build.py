@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Build Testing Script
 Tests that all imports work correctly before building
@@ -6,6 +7,14 @@ Tests that all imports work correctly before building
 
 import sys
 import os
+
+# Force UTF-8 output on Windows
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except:
+        pass
 
 print("="*60)
 print("GYM BOT BUILD PRE-FLIGHT CHECK")
@@ -21,14 +30,14 @@ warnings = []
 success = []
 
 # Test 1: Check Python version
-print("✓ Python Version Check...")
+print("[CHECK] Python Version Check...")
 if sys.version_info >= (3, 8):
     success.append(f"Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
 else:
     errors.append(f"Python version too old: {sys.version}. Need 3.8+")
 
 # Test 2: Check required files exist
-print("✓ Required Files Check...")
+print("[CHECK] Required Files Check...")
 required_files = [
     'run_dashboard.py',
     'launcher.py',
@@ -48,7 +57,7 @@ for file in required_files:
         errors.append(f"Missing required file: {file}")
 
 # Test 3: Check directories
-print("✓ Required Directories Check...")
+print("[CHECK] Required Directories Check...")
 required_dirs = ['templates', 'static', 'src', 'src/config', 'src/routes', 'src/services']
 for dir_name in required_dirs:
     if os.path.exists(os.path.join(project_root, dir_name)):
@@ -57,7 +66,7 @@ for dir_name in required_dirs:
         errors.append(f"Missing required directory: {dir_name}/")
 
 # Test 4: Test imports
-print("✓ Import Test...")
+print("[CHECK] Import Test...")
 try:
     print("  - Testing Flask import...")
     import flask
@@ -108,7 +117,7 @@ except ImportError as e:
     errors.append(f"src.config import failed: {e}")
 
 # Test 5: Check PyInstaller
-print("✓ PyInstaller Check...")
+print("[CHECK] PyInstaller Check...")
 try:
     import PyInstaller
     success.append("PyInstaller installed")
@@ -116,7 +125,7 @@ except ImportError:
     errors.append("PyInstaller not installed - run: pip install pyinstaller")
 
 # Test 6: Check for common issues
-print("✓ Configuration Check...")
+print("[CHECK] Configuration Check...")
 if os.path.exists('.env'):
     success.append(".env file found")
 else:
@@ -130,28 +139,28 @@ print("="*60)
 print()
 
 if success:
-    print(f"✅ SUCCESS ({len(success)}):")
+    print(f"[SUCCESS] ({len(success)} checks passed):")
     for item in success[:10]:  # Show first 10
-        print(f"   • {item}")
+        print(f"   * {item}")
     if len(success) > 10:
         print(f"   ... and {len(success) - 10} more")
     print()
 
 if warnings:
-    print(f"⚠️  WARNINGS ({len(warnings)}):")
+    print(f"[WARNING] ({len(warnings)} warnings):")
     for item in warnings:
-        print(f"   • {item}")
+        print(f"   * {item}")
     print()
 
 if errors:
-    print(f"❌ ERRORS ({len(errors)}):")
+    print(f"[ERROR] ({len(errors)} errors):")
     for item in errors:
-        print(f"   • {item}")
+        print(f"   * {item}")
     print()
-    print("🛑 BUILD WILL FAIL - Fix errors above before building")
+    print("[FAIL] BUILD WILL FAIL - Fix errors above before building")
     sys.exit(1)
 else:
-    print("✅ ALL CHECKS PASSED - Safe to build!")
+    print("[PASS] ALL CHECKS PASSED - Safe to build!")
     print()
     print("Next steps:")
     print("  1. Run: python -m PyInstaller gym_bot.spec")
