@@ -23,6 +23,10 @@ datas += [('static', 'static')]
 # CRITICAL: Add run_dashboard.py so launcher can start Flask server
 datas += [('run_dashboard.py', '.')]
 
+# Add VERSION file
+if os.path.exists('VERSION'):
+    datas += [('VERSION', '.')]
+
 # Add optional files only if they exist
 if os.path.exists('gym_bot.db'):
     datas += [('gym_bot.db', '.')]
@@ -119,12 +123,3 @@ if sys.platform == 'darwin':
             'NSHighResolutionCapable': 'True',
         },
     )
-
-# Build batch file for Windows
-if sys.platform == 'win32':
-    with open('commit_and_build.bat', 'w') as bat_file:
-        bat_file.write(f'@echo off\n')
-        bat_file.write(f'echo Building Gym Bot Dashboard...\n')
-        bat_file.write(f'pyinstaller --onefile --windowed --icon={icon_win} launcher.py\n')
-        bat_file.write(f'echo Build completed. Find the executable in the dist folder.\n')
-        bat_file.write(f'pause\n')

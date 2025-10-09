@@ -23,8 +23,11 @@ logger = logging.getLogger(__name__)
 
 class GymBotLauncher:
     def __init__(self):
+        # Load version
+        self.version = self.get_version()
+        
         self.root = tk.Tk()
-        self.root.title("Gym Bot Launcher")
+        self.root.title(f"Gym Bot Launcher v{self.version}")
         self.root.geometry("500x400")
         self.root.resizable(False, False)
 
@@ -42,6 +45,16 @@ class GymBotLauncher:
 
         # Check if server is already running
         self.check_server_status()
+
+    def get_version(self):
+        """Get version from VERSION file"""
+        try:
+            version_file = Path(__file__).parent / 'VERSION'
+            if version_file.exists():
+                return version_file.read_text().strip()
+        except:
+            pass
+        return "2.1.6"
 
     def setup_ui(self):
         """Setup the user interface"""
