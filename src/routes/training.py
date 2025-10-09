@@ -422,11 +422,9 @@ def get_all_training_clients():
 			
 			# Ensure these fields are available for frontend display
 			c['amount_past_due'] = c['past_due_amount']  # For compatibility with frontend
-			
+
 			training_clients.append(c)
-		
-		conn.close()
-		
+
 		if training_clients:
 			logger.info(f"✅ Retrieved {len(training_clients)} training clients from database")
 			return jsonify({'success': True, 'training_clients': training_clients, 'source': 'database'})
@@ -515,7 +513,7 @@ def get_all_training_clients():
 
 		# Fallback to database
 		conn = current_app.db_manager.get_connection()
-		cursor = current_app.db_manager.get_cursor(conn)
+		cursor = conn.cursor()
 		
 		# Get all training clients with member info joined
 		cursor.execute(
@@ -618,21 +616,18 @@ def get_member_package_agreements(member_id):
                 return jsonify({'success': True, 'agreements': agreements, 'source': 'cache'})
         
         # Fallback to database
-        conn = current_app.db_manager.get_connection()
         # Use database manager's cross-database compatible method
         client_record = current_app.db_manager.execute_query("""
             SELECT package_details, total_past_due, payment_status, sessions_remaining
-            FROM training_clients 
+            FROM training_clients
             WHERE member_id = ? OR clubos_member_id = ? OR id = ?
         """, (member_id, member_id, member_id), fetch_one=True)
-        
+
         if client_record:
             package_details = client_record['package_details']  # Use dictionary access
             total_past_due = client_record[1]  # total_past_due column
             payment_status = client_record[2]  # payment_status column
             sessions_remaining = client_record[3]  # sessions_remaining column
-            
-            conn.close()
             
             # Parse package details and create agreements
             agreements = []
@@ -673,9 +668,7 @@ def get_member_package_agreements(member_id):
             
             logger.info(f"✅ Retrieved {len(agreements)} agreements from database for member {member_id}")
             return jsonify({'success': True, 'agreements': agreements, 'source': 'database'})
-        
-        conn.close()
-        
+
         # If no data found, return empty list
         logger.info(f"ℹ️ No agreements found for member {member_id}")
         return jsonify({'success': True, 'agreements': [], 'source': 'none'})
