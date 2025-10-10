@@ -268,9 +268,9 @@ def configure_rate_limiting(app: Flask) -> None:
             
             # Add current request
             request_counts[client_ip].append(current_time)
-            
-            # Check if limit exceeded (50 requests per hour)
-            if len(request_counts[client_ip]) > 50:
+
+            # Check if limit exceeded (1000 requests per hour for normal dashboard usage)
+            if len(request_counts[client_ip]) > 1000:
                 logger.warning(f"Rate limit exceeded for IP: {client_ip}")
                 abort(429)  # Too Many Requests
         
