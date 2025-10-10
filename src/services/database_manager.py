@@ -1078,3 +1078,85 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ Error logging access action: {e}")
             return False
+
+    def get_monthly_revenue_calculation(self) -> Dict[str, Any]:
+        """Calculate monthly revenue from memberships and training clients (deduplicated)."""
+        try:
+            # Get membership revenue
+            members_query = """
+                SELECT
+                    COUNT(DISTINCT prospect_id) as active_members,
+                    SUM(CAST(agreement_recurring_cost AS REAL)) as total_membership_revenue
+                FROM members
+                WHERE status = 'Active'
+                    AND agreement_recurring_cost IS NOT NULL
+                    AND agreement_recurring_cost > 0
+            """
+            members_result = self.execute_query(members_query, fetch_one=True)
+
+            membership_revenue = float(members_result['total_membership_revenue'] or 0) if members_result else 0
+            active_members = int(members_result['active_members'] or 0) if members_result else 0
+
+            # Get training revenue (deduplicated by most recent entry per member/agreement)
+            training_query = """
+                SELECT
+                    COUNT(DISTINCT member_key) as training_clients_count,
+                    SUM(CAST(monthly_amount AS REAL)) as total_training_revenue
+                FROM (
+                    SELECT
+                        tc.*,
+                        COALESCE(tc.clubos_member_id, tc.prospect_id, tc.member_name) as member_key,
+                        COALESCE(tc.agreement_id, 'default') as agreement_key,
+                        CASE
+                            WHEN tc.package_details IS NOT NULL AND tc.package_details != '' THEN
+                                -- Extract monthly amount from package details JSON
+                                CAST(
+                                    COALESCE(
+                                        json_extract(tc.package_details, '$[0].monthly_cost'),
+                                        json_extract(tc.package_details, '$[0].amount'),
+                                        0
+                                    ) AS REAL
+                                )
+                            ELSE 0
+                        END as monthly_amount
+                    FROM training_clients tc
+                    INNER JOIN (
+                        SELECT
+                            COALESCE(clubos_member_id, prospect_id, member_name) as mk,
+                            COALESCE(agreement_id, 'default') as ak,
+                            MAX(updated_at) as max_updated
+                        FROM training_clients
+                        GROUP BY mk, ak
+                    ) latest
+                    ON COALESCE(tc.clubos_member_id, tc.prospect_id, tc.member_name) = latest.mk
+                    AND COALESCE(tc.agreement_id, 'default') = latest.ak
+                    AND tc.updated_at = latest.max_updated
+                    WHERE tc.payment_status != 'Cancelled'
+                )
+            """
+            training_result = self.execute_query(training_query, fetch_one=True)
+
+            training_revenue = float(training_result['total_training_revenue'] or 0) if training_result else 0
+            training_clients_count = int(training_result['training_clients_count'] or 0) if training_result else 0
+
+            total_revenue = membership_revenue + training_revenue
+
+            logger.info(f"📊 Revenue calculation - Membership: ${membership_revenue:.2f}, Training: ${training_revenue:.2f}, Total: ${total_revenue:.2f}")
+
+            return {
+                'total_monthly_revenue': membership_revenue,
+                'training_revenue': training_revenue,
+                'combined_revenue': total_revenue,
+                'active_members': active_members,
+                'training_clients_count': training_clients_count
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Error calculating monthly revenue: {e}")
+            return {
+                'total_monthly_revenue': 0,
+                'training_revenue': 0,
+                'combined_revenue': 0,
+                'active_members': 0,
+                'training_clients_count': 0
+            }

@@ -368,9 +368,22 @@ def get_all_training_clients():
 	"""Get all training clients from database (prioritized) or cache."""
 	try:
 		# Use execute_query to get training clients from database
+		# Deduplicate by selecting most recent entry per member/agreement combination
 		result = current_app.db_manager.execute_query("""
-			SELECT * FROM training_clients
-			ORDER BY member_name, created_at DESC
+			SELECT tc.*
+			FROM training_clients tc
+			INNER JOIN (
+				SELECT
+					COALESCE(clubos_member_id, prospect_id, member_name) as member_key,
+					COALESCE(agreement_id, 'default') as agreement_key,
+					MAX(updated_at) as max_updated
+				FROM training_clients
+				GROUP BY member_key, agreement_key
+			) latest
+			ON COALESCE(tc.clubos_member_id, tc.prospect_id, tc.member_name) = latest.member_key
+			AND COALESCE(tc.agreement_id, 'default') = latest.agreement_key
+			AND tc.updated_at = latest.max_updated
+			ORDER BY tc.member_name, tc.created_at DESC
 		""", fetch_all=True)
 
 		training_clients = []
