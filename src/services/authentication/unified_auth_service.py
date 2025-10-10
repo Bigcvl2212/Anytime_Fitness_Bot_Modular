@@ -32,10 +32,36 @@ import time
 import json
 import base64
 import hashlib
+import sys
+import os
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, Tuple
 from bs4 import BeautifulSoup
 import urllib3
+
+# Add workspace root to path for config imports
+workspace_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
+if workspace_root not in sys.path:
+    sys.path.insert(0, workspace_root)
+
+# Import config credentials (simpler approach)
+HAS_CONFIG_CREDENTIALS = False
+CLUBHUB_EMAIL = None
+CLUBHUB_PASSWORD = None
+CLUBOS_USERNAME = None
+CLUBOS_PASSWORD = None
+
+try:
+    # Import directly from config module at workspace root
+    import config.clubhub_credentials as cred_config
+    CLUBHUB_EMAIL = cred_config.CLUBHUB_EMAIL
+    CLUBHUB_PASSWORD = cred_config.CLUBHUB_PASSWORD
+    CLUBOS_USERNAME = cred_config.CLUBOS_USERNAME
+    CLUBOS_PASSWORD = cred_config.CLUBOS_PASSWORD
+    HAS_CONFIG_CREDENTIALS = True
+except Exception as e:
+    # Silently fail - will try secrets manager first anyway
+    pass
 
 # Import SecureSecretsManager
 try:
@@ -147,15 +173,34 @@ class UnifiedAuthService:
         logger.info("🔐 Unified Authentication Service initialized")
     
     def get_credentials(self, service: str) -> Tuple[Optional[str], Optional[str]]:
-        """Get credentials for a specific service from SecureSecretsManager"""
+        """Get credentials for a specific service from SecureSecretsManager or config files"""
         try:
             if service.lower() == 'clubos':
                 username = self.secrets_manager.get_secret('clubos-username')
                 password = self.secrets_manager.get_secret('clubos-password')
+                
+                # Fallback to config file if secrets not available
+                if not username and HAS_CONFIG_CREDENTIALS:
+                    username = CLUBOS_USERNAME
+                    logger.info("📁 Using ClubOS username from config file")
+                if not password and HAS_CONFIG_CREDENTIALS:
+                    password = CLUBOS_PASSWORD
+                    logger.info("📁 Using ClubOS password from config file")
+                        
                 return username, password
+                
             elif service.lower() == 'clubhub':
                 email = self.secrets_manager.get_secret('clubhub-email')
                 password = self.secrets_manager.get_secret('clubhub-password')
+                
+                # Fallback to config file if secrets not available
+                if not email and HAS_CONFIG_CREDENTIALS:
+                    email = CLUBHUB_EMAIL
+                    logger.info("📁 Using ClubHub email from config file")
+                if not password and HAS_CONFIG_CREDENTIALS:
+                    password = CLUBHUB_PASSWORD
+                    logger.info("📁 Using ClubHub password from config file")
+                        
                 return email, password
             else:
                 logger.error(f"❌ Unknown service: {service}")
@@ -335,9 +380,10 @@ class UnifiedAuthService:
         # Get credentials if not provided
         if not email or not password:
             email, password = self.get_credentials('clubhub')
+            logger.debug(f"Retrieved from get_credentials: email={email}, password={'***' if password else 'NONE'}")
             
         if not email or not password:
-            logger.error("❌ ClubHub credentials not available")
+            logger.error(f"❌ ClubHub credentials not available (email={email}, password={'***' if password else 'NONE'})")
             return None
             
         session_key = self._get_session_key('clubhub', email)
