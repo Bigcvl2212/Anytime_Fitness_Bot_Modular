@@ -387,6 +387,67 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ Migration error for conversations table: {e}")
 
+        # Phase 3: AI Conversations table for workflow messaging
+        try:
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ai_conversations'")
+            ai_conversations_exists = cursor.fetchone() is not None
+
+            if not ai_conversations_exists:
+                logger.info("🔄 Creating ai_conversations table for Phase 3 workflow messaging")
+                cursor.execute("""
+                    CREATE TABLE ai_conversations (
+                        id TEXT PRIMARY KEY,
+                        type TEXT NOT NULL,
+                        workflow_id TEXT,
+                        timestamp TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        metadata TEXT
+                    )
+                """)
+                
+                # Create indexes
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_conversations_timestamp ON ai_conversations(timestamp DESC)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_conversations_workflow ON ai_conversations(workflow_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_conversations_type ON ai_conversations(type)")
+                
+                logger.info("✅ Created ai_conversations table with indexes")
+            else:
+                logger.info("✅ ai_conversations table already exists")
+        except Exception as e:
+            logger.error(f"❌ Migration error for ai_conversations table: {e}")
+
+        # Phase 3: Approval Requests table for workflow approvals
+        try:
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='approval_requests'")
+            approval_requests_exists = cursor.fetchone() is not None
+
+            if not approval_requests_exists:
+                logger.info("🔄 Creating approval_requests table for Phase 3 workflow approvals")
+                cursor.execute("""
+                    CREATE TABLE approval_requests (
+                        id TEXT PRIMARY KEY,
+                        workflow_id TEXT NOT NULL,
+                        action TEXT NOT NULL,
+                        details TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        expires_at TEXT NOT NULL,
+                        status TEXT DEFAULT 'pending',
+                        decided_by TEXT,
+                        decided_at TEXT
+                    )
+                """)
+                
+                # Create indexes
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_approval_requests_status ON approval_requests(status)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_approval_requests_workflow ON approval_requests(workflow_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_approval_requests_created ON approval_requests(created_at DESC)")
+                
+                logger.info("✅ Created approval_requests table with indexes")
+            else:
+                logger.info("✅ approval_requests table already exists")
+        except Exception as e:
+            logger.error(f"❌ Migration error for approval_requests table: {e}")
+
         logger.info("✅ Database migrations complete")
 
     def execute_query(

@@ -128,6 +128,10 @@ class WorkflowScheduler:
     def start(self):
         """Start the scheduler"""
         try:
+            # Setup all workflow schedules before starting
+            self.setup_all_schedules()
+            
+            # Start the scheduler
             self.scheduler.start()
             logger.info("🚀 Workflow Scheduler STARTED")
             logger.info(f"   Scheduled jobs: {len(self.scheduler.get_jobs())}")

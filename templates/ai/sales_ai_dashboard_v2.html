@@ -1,0 +1,1232 @@
+{% extends "base.html" %}
+
+{% block title %}Sales AI Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ============================================
+       PHASE 3 SALES AI DASHBOARD - MODERN DESIGN
+       ============================================ */
+    
+    :root {
+        --primary-color: #4f46e5;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --danger-color: #ef4444;
+        --bg-primary: #ffffff;
+        --bg-secondary: #f9fafb;
+        --border-color: #e5e7eb;
+        --text-primary: #111827;
+        --text-secondary: #6b7280;
+        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+        --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+    }
+    
+    body {
+        background: var(--bg-secondary);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+    
+    /* ============================================
+       LAYOUT - 3 COLUMN GRID
+       ============================================ */
+    
+    .dashboard-container {
+        display: grid;
+        grid-template-columns: 280px 1fr 320px;
+        gap: 20px;
+        padding: 20px;
+        max-width: 1920px;
+        margin: 0 auto;
+        height: calc(100vh - 100px);
+    }
+    
+    .dashboard-column {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        overflow-y: auto;
+    }
+    
+    /* ============================================
+       WORKFLOW SIDEBAR (LEFT)
+       ============================================ */
+    
+    .workflows-panel {
+        background: var(--bg-primary);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: var(--shadow-md);
+        border: 1px solid var(--border-color);
+    }
+    
+    .workflows-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    
+    .workflows-header h5 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    
+    .workflow-card {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 12px;
+        border: 1px solid var(--border-color);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .workflow-card:hover {
+        box-shadow: var(--shadow-md);
+        border-color: var(--primary-color);
+    }
+    
+    .workflow-card.active {
+        background: #eef2ff;
+        border-color: var(--primary-color);
+    }
+    
+    .workflow-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 12px;
+    }
+    
+    .workflow-name {
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--text-primary);
+        margin: 0;
+    }
+    
+    .workflow-status {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+    
+    .workflow-status.running {
+        background: var(--success-color);
+        box-shadow: 0 0 8px var(--success-color);
+    }
+    
+    .workflow-status.paused {
+        background: var(--warning-color);
+    }
+    
+    .workflow-status.error {
+        background: var(--danger-color);
+    }
+    
+    .workflow-schedule {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+    }
+    
+    .workflow-stats {
+        display: flex;
+        gap: 8px;
+        font-size: 11px;
+    }
+    
+    .workflow-stat {
+        background: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        color: var(--text-secondary);
+    }
+    
+    .workflow-actions {
+        display: flex;
+        gap: 6px;
+        margin-top: 12px;
+    }
+    
+    .workflow-action-btn {
+        flex: 1;
+        padding: 6px;
+        border: 1px solid var(--border-color);
+        background: white;
+        border-radius: 6px;
+        font-size: 11px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .workflow-action-btn:hover {
+        background: var(--bg-secondary);
+        border-color: var(--primary-color);
+    }
+    
+    .manual-task-btn {
+        width: 100%;
+        padding: 12px;
+        background: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .manual-task-btn:hover {
+        background: #4338ca;
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-md);
+    }
+    
+    /* ============================================
+       CONVERSATION FEED (CENTER)
+       ============================================ */
+    
+    .conversation-panel {
+        background: var(--bg-primary);
+        border-radius: 12px;
+        box-shadow: var(--shadow-md);
+        border: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+    
+    .conversation-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .conversation-header h4 {
+        margin: 0 0 8px 0;
+        font-size: 18px;
+        font-weight: 600;
+    }
+    
+    .conversation-feed {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    /* AI Message Styles */
+    .ai-message {
+        border-radius: 12px;
+        padding: 16px;
+        border: 1px solid var(--border-color);
+        background: white;
+        box-shadow: var(--shadow-sm);
+    }
+    
+    .ai-message.workflow-notification {
+        border-left: 4px solid var(--primary-color);
+        background: #f0f9ff;
+    }
+    
+    .ai-message.approval-request {
+        border-left: 4px solid var(--warning-color);
+        background: #fffbeb;
+    }
+    
+    .ai-message.tool-result {
+        border-left: 4px solid var(--success-color);
+        background: #f0fdf4;
+    }
+    
+    .ai-message.error {
+        border-left: 4px solid var(--danger-color);
+        background: #fef2f2;
+    }
+    
+    .message-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+    
+    .message-badge {
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    
+    .message-badge.primary {
+        background: var(--primary-color);
+        color: white;
+    }
+    
+    .message-badge.warning {
+        background: var(--warning-color);
+        color: white;
+    }
+    
+    .message-badge.success {
+        background: var(--success-color);
+        color: white;
+    }
+    
+    .message-timestamp {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+    
+    .message-body {
+        color: var(--text-primary);
+        line-height: 1.6;
+    }
+    
+    .message-body strong {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+    }
+    
+    .approval-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+    }
+    
+    .approval-btn {
+        padding: 8px 16px;
+        border-radius: 6px;
+        border: none;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .approval-btn.approve {
+        background: var(--success-color);
+        color: white;
+    }
+    
+    .approval-btn.deny {
+        background: var(--danger-color);
+        color: white;
+    }
+    
+    .approval-btn.review {
+        background: white;
+        color: var(--primary-color);
+        border: 1px solid var(--primary-color);
+    }
+    
+    /* Conversation Input */
+    .conversation-input {
+        padding: 20px;
+        border-top: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+    }
+    
+    .input-wrapper {
+        display: flex;
+        gap: 12px;
+    }
+    
+    .command-input {
+        flex: 1;
+        padding: 12px 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 14px;
+        outline: none;
+        transition: all 0.2s;
+    }
+    
+    .command-input:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+    
+    .send-btn {
+        padding: 12px 24px;
+        background: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    
+    .send-btn:hover {
+        background: #4338ca;
+    }
+    
+    .send-btn:disabled {
+        background: #9ca3af;
+        cursor: not-allowed;
+    }
+    
+    /* ============================================
+       WORKFLOW DETAILS (RIGHT)
+       ============================================ */
+    
+    .details-panel {
+        background: var(--bg-primary);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: var(--shadow-md);
+        border: 1px solid var(--border-color);
+    }
+    
+    .details-header {
+        margin-bottom: 20px;
+    }
+    
+    .details-header h5 {
+        margin: 0 0 4px 0;
+        font-size: 16px;
+        font-weight: 600;
+    }
+    
+    .details-subtitle {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+    
+    .details-section {
+        margin-bottom: 24px;
+    }
+    
+    .section-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 12px;
+    }
+    
+    .stat-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+    
+    .stat-card {
+        background: var(--bg-secondary);
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+    }
+    
+    .stat-label {
+        font-size: 11px;
+        color: var(--text-secondary);
+        margin-bottom: 4px;
+    }
+    
+    .stat-value {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    
+    .execution-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px;
+        background: var(--bg-secondary);
+        border-radius: 6px;
+        margin-bottom: 6px;
+        font-size: 12px;
+    }
+    
+    .execution-time {
+        color: var(--text-secondary);
+    }
+    
+    .execution-result {
+        font-weight: 600;
+    }
+    
+    .execution-result.success {
+        color: var(--success-color);
+    }
+    
+    .execution-result.error {
+        color: var(--danger-color);
+    }
+    
+    .tool-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    
+    .tool-item {
+        padding: 8px;
+        background: var(--bg-secondary);
+        border-radius: 6px;
+        margin-bottom: 6px;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .tool-icon {
+        color: var(--success-color);
+    }
+    
+    .config-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        font-size: 13px;
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .config-label {
+        color: var(--text-secondary);
+    }
+    
+    .config-value {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    
+    .edit-config-btn {
+        width: 100%;
+        padding: 10px;
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-top: 12px;
+    }
+    
+    .edit-config-btn:hover {
+        background: var(--bg-secondary);
+        border-color: var(--primary-color);
+    }
+    
+    /* ============================================
+       LOADING STATES
+       ============================================ */
+    
+    .loading-spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid var(--border-color);
+        border-top-color: var(--primary-color);
+        border-radius: 50%;
+        animation: spin 0.6s linear infinite;
+    }
+    
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    
+    .skeleton {
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: loading 1.5s infinite;
+        border-radius: 4px;
+    }
+    
+    @keyframes loading {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+    
+    /* ============================================
+       RESPONSIVE DESIGN
+       ============================================ */
+    
+    @media (max-width: 1200px) {
+        .dashboard-container {
+            grid-template-columns: 240px 1fr;
+        }
+        .details-panel {
+            position: fixed;
+            right: -340px;
+            top: 80px;
+            height: calc(100vh - 100px);
+            z-index: 1000;
+            transition: right 0.3s;
+        }
+        .details-panel.open {
+            right: 20px;
+        }
+    }
+    
+    @media (max-width: 768px) {
+        .dashboard-container {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+        .workflows-panel {
+            order: 2;
+        }
+        .conversation-panel {
+            order: 1;
+            min-height: 500px;
+        }
+    }
+    
+    /* ============================================
+       UTILITIES
+       ============================================ */
+    
+    .text-success { color: var(--success-color); }
+    .text-warning { color: var(--warning-color); }
+    .text-danger { color: var(--danger-color); }
+    .text-primary { color: var(--primary-color); }
+    
+    .badge {
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+    
+    .badge-success {
+        background: #d1fae5;
+        color: #065f46;
+    }
+    
+    .badge-warning {
+        background: #fef3c7;
+        color: #92400e;
+    }
+    
+    .badge-danger {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h3 class="mb-1">🤖 Sales AI Dashboard</h3>
+            <p class="text-muted mb-0">Autonomous workflow management and AI conversation</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <span id="schedulerStatus" class="badge badge-success">
+                <i class="fas fa-circle me-1"></i>Scheduler Active
+            </span>
+            <span id="aiStatus" class="badge badge-success">
+                <i class="fas fa-robot me-1"></i>AI Ready
+            </span>
+        </div>
+    </div>
+    
+    <!-- 3-Column Dashboard Layout -->
+    <div class="dashboard-container">
+        <!-- LEFT: Workflows Sidebar -->
+        <div class="dashboard-column">
+            <div class="workflows-panel">
+                <div class="workflows-header">
+                    <h5><i class="fas fa-cog me-2"></i>Workflows</h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="refreshWorkflows()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                
+                <div id="workflowsList">
+                    <!-- Workflow cards will be loaded here -->
+                    <div class="text-center p-3">
+                        <div class="loading-spinner"></div>
+                        <p class="mt-2 mb-0 text-muted small">Loading workflows...</p>
+                    </div>
+                </div>
+                
+                <button class="manual-task-btn" onclick="showManualTaskModal()">
+                    <i class="fas fa-plus-circle me-2"></i>Manual Task
+                </button>
+            </div>
+        </div>
+        
+        <!-- CENTER: AI Conversation Feed -->
+        <div class="dashboard-column">
+            <div class="conversation-panel">
+                <div class="conversation-header">
+                    <h4><i class="fas fa-comments me-2"></i>AI Conversation</h4>
+                    <p class="text-muted mb-0 small">Real-time workflow updates and agent decisions</p>
+                </div>
+                
+                <div class="conversation-feed" id="conversationFeed">
+                    <!-- Welcome message -->
+                    <div class="ai-message workflow-notification">
+                        <div class="message-header">
+                            <span class="message-badge primary">System</span>
+                            <span class="message-timestamp">Just now</span>
+                        </div>
+                        <div class="message-body">
+                            <strong>Welcome to Sales AI Dashboard</strong>
+                            <p class="mb-0">All autonomous workflows are active and monitoring your gym's operations. You'll see real-time updates here as the AI makes decisions and executes tasks.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="conversation-input">
+                    <div class="input-wrapper">
+                        <input 
+                            type="text" 
+                            class="command-input" 
+                            id="commandInput"
+                            placeholder="Ask AI to analyze data, create campaigns, or manage collections..."
+                            onkeypress="handleCommandKeyPress(event)"
+                        />
+                        <button class="send-btn" id="sendBtn" onclick="sendManualCommand()">
+                            <i class="fas fa-paper-plane me-1"></i>Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- RIGHT: Workflow Details -->
+        <div class="dashboard-column">
+            <div class="details-panel" id="workflowDetails">
+                <div class="details-header">
+                    <h5 id="detailsWorkflowName">Select a workflow</h5>
+                    <p class="details-subtitle" id="detailsWorkflowSchedule">Click a workflow to view details</p>
+                </div>
+                
+                <div id="detailsContent" class="text-center text-muted">
+                    <i class="fas fa-hand-pointer fa-3x mb-3"></i>
+                    <p>Select a workflow from the left panel to see execution history, performance metrics, and configuration.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manual Task Modal -->
+<div class="modal fade" id="manualTaskModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Execute Manual Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Task Description</label>
+                    <textarea 
+                        class="form-control" 
+                        id="manualTaskInput"
+                        rows="4"
+                        placeholder="Example: Analyze all past due members over $100 and send payment reminders to the top 10..."></textarea>
+                </div>
+                <div class="alert alert-info mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    The AI agent will break down your task into steps and execute the necessary tools automatically.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="executeManualTask()">
+                    <i class="fas fa-play me-1"></i>Execute Task
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Global state
+let selectedWorkflow = null;
+let workflows = [];
+let socket = null;
+
+// Initialize dashboard on load
+document.addEventListener('DOMContentLoaded', function() {
+    loadWorkflows();
+    loadConversationHistory();
+    initializeWebSocket();
+    
+    // Poll for updates every 30 seconds
+    setInterval(refreshWorkflows, 30000);
+});
+
+// ============================================
+// WORKFLOW MANAGEMENT
+// ============================================
+
+async function loadWorkflows() {
+    try {
+        const response = await fetch('/api/ai/workflows/status');
+        const data = await response.json();
+        
+        if (data.success) {
+            workflows = data.workflows || [];
+            renderWorkflows();
+            
+            // Update status indicators
+            document.getElementById('schedulerStatus').innerHTML = 
+                data.scheduler_running 
+                    ? '<i class="fas fa-circle me-1"></i>Scheduler Active'
+                    : '<i class="fas fa-circle me-1"></i>Scheduler Stopped';
+            document.getElementById('schedulerStatus').className = 
+                data.scheduler_running ? 'badge badge-success' : 'badge badge-danger';
+        }
+    } catch (error) {
+        console.error('Error loading workflows:', error);
+        document.getElementById('workflowsList').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Failed to load workflows. Make sure the backend is running.
+            </div>
+        `;
+    }
+}
+
+function renderWorkflows() {
+    const container = document.getElementById('workflowsList');
+    
+    if (workflows.length === 0) {
+        container.innerHTML = `
+            <div class="text-center p-3 text-muted">
+                <i class="fas fa-inbox fa-2x mb-2"></i>
+                <p class="mb-0">No workflows configured</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = workflows.map(wf => `
+        <div class="workflow-card ${selectedWorkflow === wf.id ? 'active' : ''}" onclick="selectWorkflow('${wf.id}')">
+            <div class="workflow-card-header">
+                <h6 class="workflow-name">${wf.name}</h6>
+                <div class="workflow-status ${wf.enabled ? 'running' : 'paused'}"></div>
+            </div>
+            <div class="workflow-schedule">
+                Next: ${wf.next_run ? formatNextRun(wf.next_run) : 'Not scheduled'}
+            </div>
+            ${wf.last_run ? `
+                <div class="workflow-stats">
+                    <span class="workflow-stat">
+                        ${wf.last_run.success ? '✓' : '✗'} ${formatDuration(wf.last_run.duration)}
+                    </span>
+                    <span class="workflow-stat">
+                        ${wf.stats && wf.stats.success_rate ? Math.round(wf.stats.success_rate * 100) + '%' : 'N/A'}
+                    </span>
+                </div>
+            ` : ''}
+            <div class="workflow-actions" onclick="event.stopPropagation()">
+                <button class="workflow-action-btn" onclick="runWorkflow('${wf.id}')">
+                    <i class="fas fa-play"></i> Run
+                </button>
+                <button class="workflow-action-btn" onclick="pauseWorkflow('${wf.id}')">
+                    <i class="fas fa-pause"></i> Pause
+                </button>
+                <button class="workflow-action-btn" onclick="viewHistory('${wf.id}')">
+                    <i class="fas fa-history"></i> History
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function selectWorkflow(workflowId) {
+    selectedWorkflow = workflowId;
+    const workflow = workflows.find(wf => wf.id === workflowId);
+    
+    if (!workflow) return;
+    
+    // Update UI
+    renderWorkflows();
+    
+    // Load workflow details
+    await loadWorkflowDetails(workflowId);
+}
+
+async function loadWorkflowDetails(workflowId) {
+    try {
+        const [configResponse, historyResponse] = await Promise.all([
+            fetch(`/api/ai/workflows/${workflowId}/config`),
+            fetch(`/api/ai/workflows/${workflowId}/history?limit=5`)
+        ]);
+        
+        const configData = await configResponse.json();
+        const historyData = await historyResponse.json();
+        
+        const workflow = workflows.find(wf => wf.id === workflowId);
+        
+        renderWorkflowDetails(workflow, configData.config, historyData.executions);
+        
+    } catch (error) {
+        console.error('Error loading workflow details:', error);
+    }
+}
+
+function renderWorkflowDetails(workflow, config, history) {
+    document.getElementById('detailsWorkflowName').textContent = workflow.name;
+    document.getElementById('detailsWorkflowSchedule').textContent = config.schedule || 'No schedule';
+    
+    const stats = workflow.stats || {};
+    
+    document.getElementById('detailsContent').innerHTML = `
+        <div class="details-section">
+            <div class="section-title">Performance</div>
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Success Rate</div>
+                    <div class="stat-value text-success">${stats.success_rate ? Math.round(stats.success_rate * 100) + '%' : 'N/A'}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Duration</div>
+                    <div class="stat-value">${stats.avg_duration ? formatDuration(stats.avg_duration) : 'N/A'}</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="details-section">
+            <div class="section-title">Execution History</div>
+            ${history && history.length > 0 ? history.map(exec => `
+                <div class="execution-item">
+                    <span class="execution-time">${formatTimestamp(exec.timestamp)}</span>
+                    <span class="execution-result ${exec.success ? 'success' : 'error'}">
+                        ${exec.success ? '✓' : '✗'} ${formatDuration(exec.duration)}
+                    </span>
+                </div>
+            `).join('') : '<p class="text-muted small">No execution history</p>'}
+        </div>
+        
+        <div class="details-section">
+            <div class="section-title">Configuration</div>
+            <div class="config-item">
+                <span class="config-label">Status</span>
+                <span class="config-value ${config.enabled ? 'text-success' : 'text-warning'}">
+                    ${config.enabled ? 'Enabled' : 'Disabled'}
+                </span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Dry Run</span>
+                <span class="config-value">${config.dry_run ? 'Yes' : 'No'}</span>
+            </div>
+            <div class="config-item">
+                <span class="config-label">Requires Approval</span>
+                <span class="config-value">${config.require_approval ? 'Yes' : 'No'}</span>
+            </div>
+            ${config.max_iterations ? `
+            <div class="config-item">
+                <span class="config-label">Max Iterations</span>
+                <span class="config-value">${config.max_iterations}</span>
+            </div>
+            ` : ''}
+        </div>
+    `;
+}
+
+async function runWorkflow(workflowId) {
+    const workflow = workflows.find(wf => wf.id === workflowId);
+    if (!confirm(`Run workflow: ${workflow.name}?`)) return;
+    
+    try {
+        addMessageToFeed({
+            type: 'workflow-notification',
+            badge: 'System',
+            timestamp: new Date().toISOString(),
+            title: `Starting ${workflow.name}`,
+            body: 'Workflow execution started...'
+        });
+        
+        const response = await fetch(`/api/ai/workflows/${workflowId}/run`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            addMessageToFeed({
+                type: 'workflow-notification',
+                badge: workflow.name,
+                timestamp: new Date().toISOString(),
+                title: 'Workflow Completed',
+                body: data.execution.result || 'Workflow executed successfully'
+            });
+        } else {
+            addMessageToFeed({
+                type: 'error',
+                badge: 'Error',
+                timestamp: new Date().toISOString(),
+                title: `Workflow Failed: ${workflow.name}`,
+                body: data.error || 'Unknown error'
+            });
+        }
+        
+        refreshWorkflows();
+        
+    } catch (error) {
+        console.error('Error running workflow:', error);
+        alert('Failed to run workflow');
+    }
+}
+
+async function pauseWorkflow(workflowId) {
+    const workflow = workflows.find(wf => wf.id === workflowId);
+    if (!confirm(`Pause workflow: ${workflow.name}?`)) return;
+    
+    try {
+        const response = await fetch(`/api/ai/workflows/${workflowId}/pause`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            refreshWorkflows();
+        }
+    } catch (error) {
+        console.error('Error pausing workflow:', error);
+    }
+}
+
+function refreshWorkflows() {
+    loadWorkflows();
+    if (selectedWorkflow) {
+        loadWorkflowDetails(selectedWorkflow);
+    }
+}
+
+// ============================================
+// CONVERSATION MANAGEMENT
+// ============================================
+
+async function loadConversationHistory() {
+    try {
+        const response = await fetch('/api/ai/conversation/history?limit=20');
+        const data = await response.json();
+        
+        if (data.success && data.messages) {
+            data.messages.reverse().forEach(msg => {
+                try {
+                    const content = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content;
+                    addMessageToFeed({
+                        type: msg.type,
+                        badge: content.workflow_name || msg.workflow_id || 'System',
+                        timestamp: msg.timestamp,
+                        title: content.title || 'Update',
+                        body: content.body || JSON.stringify(content)
+                    }, false);
+                } catch (e) {
+                    console.error('Error parsing message:', e);
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error loading conversation history:', error);
+    }
+}
+
+function addMessageToFeed(message, scroll = true) {
+    const feed = document.getElementById('conversationFeed');
+    
+    const messageEl = document.createElement('div');
+    messageEl.className = `ai-message ${message.type}`;
+    messageEl.innerHTML = `
+        <div class="message-header">
+            <span class="message-badge ${message.type === 'error' ? 'warning' : 'primary'}">
+                ${message.badge}
+            </span>
+            <span class="message-timestamp">${formatTimestamp(message.timestamp)}</span>
+        </div>
+        <div class="message-body">
+            <strong>${message.title}</strong>
+            <p class="mb-0">${message.body}</p>
+        </div>
+    `;
+    
+    feed.appendChild(messageEl);
+    
+    if (scroll) {
+        feed.scrollTop = feed.scrollHeight;
+    }
+}
+
+async function sendManualCommand() {
+    const input = document.getElementById('commandInput');
+    const command = input.value.trim();
+    
+    if (!command) return;
+    
+    const sendBtn = document.getElementById('sendBtn');
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<div class="loading-spinner"></div>';
+    
+    // Add user message
+    addMessageToFeed({
+        type: 'user',
+        badge: 'You',
+        timestamp: new Date().toISOString(),
+        title: 'Manual Command',
+        body: command
+    });
+    
+    input.value = '';
+    
+    try {
+        const response = await fetch('/api/ai/conversation/command', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({command})
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            addMessageToFeed({
+                type: 'tool-result',
+                badge: 'AI Agent',
+                timestamp: new Date().toISOString(),
+                title: 'Task Completed',
+                body: data.result
+            });
+        } else {
+            addMessageToFeed({
+                type: 'error',
+                badge: 'Error',
+                timestamp: new Date().toISOString(),
+                title: 'Command Failed',
+                body: data.error || 'Unknown error'
+            });
+        }
+    } catch (error) {
+        console.error('Error sending command:', error);
+        addMessageToFeed({
+            type: 'error',
+            badge: 'Error',
+            timestamp: new Date().toISOString(),
+            title: 'Connection Error',
+            body: 'Failed to communicate with AI agent'
+        });
+    } finally {
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = '<i class="fas fa-paper-plane me-1"></i>Send';
+    }
+}
+
+function handleCommandKeyPress(event) {
+    if (event.key === 'Enter') {
+        sendManualCommand();
+    }
+}
+
+// ============================================
+// WEBSOCKET (Real-time updates)
+// ============================================
+
+function initializeWebSocket() {
+    try {
+        if (typeof io !== 'undefined') {
+            socket = io('/ai');
+            
+            socket.on('connect', () => {
+                console.log('Connected to AI WebSocket');
+            });
+            
+            socket.on('workflow_update', (update) => {
+                addMessageToFeed({
+                    type: 'workflow-notification',
+                    badge: update.workflow_name,
+                    timestamp: update.timestamp,
+                    title: update.title,
+                    body: update.message
+                });
+            });
+            
+            socket.on('approval_required', (approval) => {
+                // Handle approval request UI
+                console.log('Approval required:', approval);
+            });
+        }
+    } catch (error) {
+        console.log('WebSocket not available, using polling');
+    }
+}
+
+// ============================================
+// MODAL FUNCTIONS
+// ============================================
+
+function showManualTaskModal() {
+    const modal = new bootstrap.Modal(document.getElementById('manualTaskModal'));
+    modal.show();
+}
+
+async function executeManualTask() {
+    const input = document.getElementById('manualTaskInput');
+    const task = input.value.trim();
+    
+    if (!task) {
+        alert('Please enter a task description');
+        return;
+    }
+    
+    // Close modal
+    bootstrap.Modal.getInstance(document.getElementById('manualTaskModal')).hide();
+    
+    // Execute as manual command
+    document.getElementById('commandInput').value = task;
+    await sendManualCommand();
+    
+    input.value = '';
+}
+
+function viewHistory(workflowId) {
+    selectWorkflow(workflowId);
+}
+
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+
+function formatTimestamp(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+    
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return Math.floor(diff / 60000) + 'm ago';
+    if (diff < 86400000) return Math.floor(diff / 3600000) + 'h ago';
+    return date.toLocaleDateString();
+}
+
+function formatNextRun(timestamp) {
+    if (!timestamp) return 'Not scheduled';
+    
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = date - now;
+    
+    if (diff < 0) return 'Overdue';
+    if (diff < 3600000) return 'in ' + Math.floor(diff / 60000) + 'm';
+    if (diff < 86400000) return 'in ' + Math.floor(diff / 3600000) + 'h';
+    return date.toLocaleDateString();
+}
+
+function formatDuration(seconds) {
+    if (!seconds) return 'N/A';
+    if (seconds < 60) return Math.round(seconds) + 's';
+    if (seconds < 3600) return Math.round(seconds / 60) + 'm';
+    return Math.round(seconds / 3600) + 'h';
+}
+</script>
+{% endblock %}
