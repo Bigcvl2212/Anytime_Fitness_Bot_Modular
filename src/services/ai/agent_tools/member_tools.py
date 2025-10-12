@@ -30,33 +30,48 @@ def get_member_profile(member_id: str) -> Dict[str, Any]:
         }
     """
     try:
+        # Validate input - member_id must be a string
+        if not isinstance(member_id, str):
+            member_id = str(member_id)
+        
         db = DatabaseManager()
         
         # Try members table first
         query = "SELECT * FROM members WHERE prospect_id = ? OR guid = ?"
-        result = db.execute_query(query, (member_id, member_id))
+        result = db.execute_query(query, (member_id, member_id), fetch_all=True)
         
         if result and len(result) > 0:
             # Convert sqlite3.Row to dict
             profile_row = dict(result[0]) if hasattr(result[0], 'keys') else result[0]
             
-            # Get collection attempts
-            attempts_query = """
-                SELECT COUNT(*) as attempt_count FROM collection_attempts
-                WHERE member_id = ?
-            """
-            attempts_result = db.execute_query(attempts_query, (member_id,))
-            attempt_count = attempts_result[0].get('attempt_count', 0) if attempts_result else 0
+            # Get collection attempts (check if table exists)
+            attempt_count = 0
+            try:
+                attempts_query = """
+                    SELECT COUNT(*) as attempt_count FROM collection_attempts
+                    WHERE member_id = ?
+                """
+                attempts_result = db.execute_query(attempts_query, (member_id,), fetch_all=True)
+                if attempts_result and len(attempts_result) > 0:
+                    attempts_dict = dict(attempts_result[0]) if hasattr(attempts_result[0], 'keys') else attempts_result[0]
+                    attempt_count = attempts_dict.get('attempt_count', 0)
+            except Exception as e:
+                logger.warning(f"⚠️ Could not get collection attempts (table may not exist): {e}")
             
-            # Get access status
-            access_query = """
-                SELECT action, reason, timestamp FROM access_control_log
-                WHERE member_id = ?
-                ORDER BY timestamp DESC
-                LIMIT 1
-            """
-            access_result = db.execute_query(access_query, (member_id,))
-            access_status = access_result[0] if access_result and len(access_result) > 0 else {}
+            # Get access status (check if table exists)
+            access_status = {}
+            try:
+                access_query = """
+                    SELECT action, reason, timestamp FROM access_control_log
+                    WHERE member_id = ?
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                """
+                access_result = db.execute_query(access_query, (member_id,), fetch_all=True)
+                if access_result and len(access_result) > 0:
+                    access_status = dict(access_result[0]) if hasattr(access_result[0], 'keys') else access_result[0]
+            except Exception as e:
+                logger.warning(f"⚠️ Could not get access status (table may not exist): {e}")
             
             # Format profile
             formatted_profile = {

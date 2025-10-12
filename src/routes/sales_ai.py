@@ -20,36 +20,21 @@ sales_ai_bp = Blueprint('sales_ai', __name__, url_prefix='/sales-ai')
 @sales_ai_bp.route('/dashboard')
 @require_auth
 def sales_ai_dashboard():
-    """Sales AI control center"""
+    """Sales AI control center - Phase 3 Version"""
     try:
         # Get user info
         user_email = session.get('user_email', 'Unknown')
         manager_id = session.get('manager_id', 'unknown')
 
         # Get AI service availability
-        ai_service = getattr(current_app, 'ai_service', None)
-        ai_available = ai_service.is_available() if ai_service else False
+        ai_available = hasattr(current_app, 'ai_agent') and current_app.ai_agent is not None
+        scheduler_running = hasattr(current_app, 'workflow_scheduler') and current_app.workflow_scheduler is not None
 
-        # Get sales context data
-        sales_context = {}
-        if hasattr(current_app, 'sales_ai_agent'):
-            try:
-                sales_agent = current_app.sales_ai_agent
-                import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    sales_context = loop.run_until_complete(sales_agent._get_sales_context())
-                finally:
-                    loop.close()
-            except:
-                sales_context = {}
-
-        return render_template('ai/sales_ai_dashboard.html',
+        return render_template('ai/sales_ai_dashboard_new.html',
                              user_email=user_email,
                              manager_id=manager_id,
                              ai_available=ai_available,
-                             sales_context=sales_context)
+                             scheduler_running=scheduler_running)
 
     except Exception as e:
         logger.error(f"❌ Error loading sales AI dashboard: {e}")

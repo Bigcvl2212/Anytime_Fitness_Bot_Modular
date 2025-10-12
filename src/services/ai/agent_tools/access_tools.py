@@ -126,6 +126,18 @@ def check_member_access_status(member_id: str) -> Dict[str, Any]:
     try:
         db = DatabaseManager()
         
+        # Ensure table exists
+        db.execute_query("""
+            CREATE TABLE IF NOT EXISTS access_control_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_id TEXT NOT NULL,
+                action TEXT NOT NULL,
+                reason TEXT,
+                timestamp TEXT NOT NULL,
+                performed_by TEXT
+            )
+        """, fetch_all=False)
+        
         # Get latest access action from log
         query = """
             SELECT * FROM access_control_log
@@ -174,8 +186,8 @@ def auto_manage_access_by_payment_status(
     Locks access for past due members, unlocks for paid members
     
     Args:
-        min_past_due_amount: Minimum amount to trigger lock (default $0.01)
-        grace_period_days: Grace period before locking (default 3 days)
+        min_past_due_amount: Minimum amount to trigger lock (default $0.01) [UNUSED - preserved for API compatibility]
+        grace_period_days: Grace period before locking (default 3 days) [UNUSED - preserved for API compatibility]
     
     Returns:
         {
@@ -188,19 +200,23 @@ def auto_manage_access_by_payment_status(
     try:
         access_control = MemberAccessControl()
         
-        # Run the automated check
-        result = access_control.check_and_lock_past_due_members(
-            min_amount=min_past_due_amount
-        )
+        # Run the automated check (no parameters - uses internal logic)
+        result = access_control.check_and_lock_past_due_members()
         
-        logger.info(f"✅ Auto-managed door access: {result.get('locked', 0)} locked, {result.get('unlocked', 0)} unlocked")
+        # Map the result keys to match expected format
+        locked_count = result.get('locked_count', 0)
+        already_locked = result.get('already_locked_count', 0)
+        total_processed = result.get('total_processed', 0)
+        errors = result.get('errors', [])
+        
+        logger.info(f"✅ Auto-managed door access: {locked_count} locked, {already_locked} already locked")
         
         return {
             "success": True,
-            "locked": result.get('locked', 0),
-            "unlocked": result.get('unlocked', 0),
-            "checked": result.get('checked', 0),
-            "errors": result.get('errors', [])
+            "locked": locked_count,
+            "unlocked": 0,  # This function only locks; separate function for unlocking
+            "checked": total_processed,
+            "errors": errors
         }
         
     except Exception as e:

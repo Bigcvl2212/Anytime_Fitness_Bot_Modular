@@ -18,6 +18,13 @@ from .club_selection import club_selection_bp
 from .debug_session import debug_bp
 from ..services.progressive_loading import progressive_bp
 
+# Import Phase 3 AI routes
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+from routes.ai_workflows import blueprint as ai_workflows_bp
+from routes.ai_conversation import blueprint as ai_conversation_bp
+
 def register_blueprints(app):
     """Register all route blueprints with the Flask app"""
     from flask import redirect, url_for, session, render_template
@@ -68,6 +75,11 @@ def register_blueprints(app):
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(progressive_bp, url_prefix='/api')  # Progressive loading API
     app.register_blueprint(messaging_bp)
+    
+    # Register Phase 3 AI routes
+    app.register_blueprint(ai_workflows_bp)  # /api/ai/workflows/*
+    app.register_blueprint(ai_conversation_bp)  # /api/ai/conversation/*
+    app.logger.info("✅ Phase 3 AI routes registered")
     
     # Root route is handled directly by dashboard blueprint - no redirect needed
     

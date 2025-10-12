@@ -15,13 +15,13 @@ clubhub_password = "SruLEqp464_GLrF"
 # Initialize and authenticate
 client = ClubHubAPIClient()
 if client.authenticate(clubhub_email, clubhub_password):
-    print("✅ Authenticated with ClubHub\n")
-    
+    print("[OK] Authenticated with ClubHub\n")
+
     # Get first 3 members
     members = client.get_all_members()
-    
+
     if members:
-        print(f"✅ Got {len(members)} members\n")
+        print(f"[OK] Got {len(members)} members\n")
         print("=" * 80)
         print("CHECKING ADDRESS FIELDS IN API RESPONSE")
         print("=" * 80)
@@ -48,13 +48,13 @@ if client.authenticate(clubhub_email, clubhub_password):
             has_address = False
             for field, value in address_fields.items():
                 if value:
-                    print(f"   ✅ {field:20s} = {value}")
+                    print(f"   [+] {field:20s} = {value}")
                     has_address = True
                 else:
-                    print(f"   ❌ {field:20s} = None")
-            
+                    print(f"   [-] {field:20s} = None")
+
             if not has_address:
-                print("\n   ⚠️  NO ADDRESS FIELDS FOUND IN API RESPONSE!")
+                print("\n   [!] NO ADDRESS FIELDS FOUND IN API RESPONSE!")
                 
                 # Show ALL fields returned for this member
                 print("\n   ALL FIELDS RETURNED BY API:")
@@ -64,6 +64,6 @@ if client.authenticate(clubhub_email, clubhub_password):
                         value = value[:50] + "..."
                     print(f"      {key}: {value}")
     else:
-        print("❌ No members returned")
+        print("[ERROR] No members returned")
 else:
-    print("❌ Authentication failed")
+    print("[ERROR] Authentication failed")

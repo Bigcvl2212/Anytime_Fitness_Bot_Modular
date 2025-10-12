@@ -39,14 +39,15 @@ def get_past_due_members(min_amount: float = 0.01, days_past_due: int = None) ->
         # Get past due members
         past_due = db.get_past_due_members(min_amount=min_amount)
         
+        # Convert ALL rows to dicts FIRST before processing
+        past_due_dicts = [dict(member) if hasattr(member, 'keys') else member for member in past_due]
+        
         # Calculate totals
-        total_amount = sum(float(m.get('amount_past_due', 0) or 0) for m in past_due)
+        total_amount = sum(float(m.get('amount_past_due', 0) or 0) for m in past_due_dicts)
         
         # Format for collections use
         collections_list = []
-        for member in past_due:
-            # Convert sqlite3.Row to dict
-            m = dict(member) if hasattr(member, 'keys') else member
+        for m in past_due_dicts:
             collections_list.append({
                 "id": m.get('prospect_id') or m.get('guid'),
                 "name": m.get('display_name') or m.get('full_name'),
@@ -94,24 +95,44 @@ def get_past_due_training_clients(min_amount: float = 0.01) -> Dict[str, Any]:
     try:
         db = DatabaseManager()
         
-        # Get training clients - note: training_clients table doesn't have amount_past_due
-        # Let's just get all training clients for now
+        # Get training clients with past due amounts
+        # Column is 'past_due_amount' NOT 'amount_past_due'
         query = """
             SELECT * FROM training_clients
-            ORDER BY updated_at DESC
+            WHERE past_due_amount > ?
+            ORDER BY past_due_amount DESC
         """
-        clients = db.execute_query(query)
+        clients_raw = db.execute_query(query, (min_amount,), fetch_all=True)
         
-        # Note: Training clients don't have amount_past_due in database
-        # We'll return empty list for now until we add that column
-        logger.warning("⚠️ training_clients table doesn't have amount_past_due column")
+        # Convert to dicts and format
+        clients_list = []
+        total_amount = 0
+        
+        for client in clients_raw:
+            c = dict(client) if hasattr(client, 'keys') else client
+            past_due = float(c.get('past_due_amount', 0) or 0)
+            
+            if past_due >= min_amount:
+                clients_list.append({
+                    "id": c.get('member_id') or c.get('clubos_member_id'),
+                    "name": c.get('full_name') or c.get('member_name'),
+                    "email": c.get('email'),
+                    "phone": c.get('phone') or c.get('mobile_phone'),
+                    "past_due_amount": past_due,
+                    "total_past_due": float(c.get('total_past_due', 0) or 0),
+                    "training_package": c.get('training_package'),
+                    "payment_status": c.get('payment_status'),
+                    "sessions_remaining": c.get('sessions_remaining')
+                })
+                total_amount += past_due
+        
+        logger.info(f"✅ Retrieved {len(clients_list)} past due training clients (total: ${total_amount:.2f})")
         
         return {
             "success": True,
-            "clients": [],
-            "count": 0,
-            "total_amount": 0,
-            "note": "Training clients past due tracking not yet implemented - amount_past_due column doesn't exist"
+            "clients": clients_list,
+            "count": len(clients_list),
+            "total_amount": round(total_amount, 2)
         }
         
     except Exception as e:
@@ -299,6 +320,19 @@ def get_collection_attempts(member_id: str, days_back: int = 30) -> Dict[str, An
     try:
         db = DatabaseManager()
         
+        # Ensure table exists
+        db.execute_query("""
+            CREATE TABLE IF NOT EXISTS collection_attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_id TEXT NOT NULL,
+                attempt_date TEXT NOT NULL,
+                method TEXT,
+                outcome TEXT,
+                notes TEXT,
+                performed_by TEXT
+            )
+        """, fetch_all=False)
+        
         cutoff_date = (datetime.now() - timedelta(days=days_back)).isoformat()
         
         attempts = db.execute_query("""
@@ -346,6 +380,20 @@ def generate_collections_referral_list(
     """
     try:
         db = DatabaseManager()
+        
+        # Ensure collection_attempts table exists first
+        db.execute_query("""
+            CREATE TABLE IF NOT EXISTS collection_attempts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_id TEXT NOT NULL,
+                attempt_date TEXT NOT NULL,
+                attempt_type TEXT,
+                amount_past_due REAL,
+                channel TEXT,
+                notes TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """, fetch_all=False)
         
         # Get members with sufficient attempts
         cutoff_date = (datetime.now() - timedelta(days=min_days_past_due)).isoformat()

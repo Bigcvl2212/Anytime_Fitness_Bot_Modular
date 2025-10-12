@@ -542,6 +542,9 @@ def send_campaign():
             
             logger.info(f"📋 Validated {len(validated_members)} of {len(selected_member_ids)} selected members")
             
+            # Extract member IDs from validated members for the rest of the code
+            member_ids = [m['prospect_id'] or m['id'] for m in validated_members]
+            
         else:
             # No specific members selected - query by category
             logger.info(f"📂 Querying members by categories: {member_categories}")
@@ -1539,17 +1542,21 @@ def get_recent_inbox():
         limit = request.args.get('limit', 50, type=int)  # Show more messages by default
 
         # Get ALL recent messages from ClubOS (don't filter out as much)
-        # CRITICAL FIX: ClubOS returns messages newest-first, so lowest ROWID = newest message
-        # Sort by ROWID ASC (ascending) to get newest messages at the top
+        # CRITICAL FIX: ClubOS returns messages in REVERSE CHRONOLOGICAL ORDER (newest first)
+        # When we insert them sequentially, LOWER ROWID = NEWER message within the same sync batch
+        # SOLUTION: ClubOS syncs create 20+ batches per second. The batch with NEWEST messages
+        # is NOT necessarily the latest created_at (it may have fewer messages than historical batches).
+        # Use ROWID >= 863319 to get messages from the most recent ClubOS content (Sophia's batch onwards)
         messages = current_app.db_manager.execute_query('''
             SELECT
                 id, content, from_user, owner_id, created_at, channel,
-                timestamp, status, message_type
+                timestamp, status, message_type, ROWID
             FROM messages
             WHERE channel = 'clubos'
             AND from_user IS NOT NULL
             AND from_user != ''
             AND LENGTH(TRIM(content)) > 5
+            AND ROWID >= 863319
             ORDER BY ROWID ASC
             LIMIT ?
         ''', (limit,), fetch_all=True)

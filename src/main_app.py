@@ -573,6 +573,34 @@ def create_app():
         app.socketio = None
         app.message_poller = None
     
+    # Initialize Phase 2 Workflow Scheduler and Phase 3 Agent
+    try:
+        from .services.ai.agent_core import GymAgentCore
+        from .services.ai.workflow_scheduler import WorkflowScheduler
+        from routes.ai_workflows import init_scheduler
+        from routes.ai_conversation import init_agent
+        
+        logger.info("🤖 Initializing Phase 2 Workflow Scheduler...")
+        
+        # Initialize agent
+        app.ai_agent = GymAgentCore()
+        init_agent(app.ai_agent)
+        logger.info("✅ AI Agent initialized")
+        
+        # Initialize workflow scheduler
+        app.workflow_scheduler = WorkflowScheduler()
+        init_scheduler(app.workflow_scheduler)
+        logger.info("✅ Workflow Scheduler initialized")
+        
+        # Start scheduler (schedules will run automatically)
+        app.workflow_scheduler.start()
+        logger.info("🚀 Workflow Scheduler started - autonomous workflows active")
+        
+    except Exception as e:
+        logger.warning(f"⚠️ Phase 2/3 AI initialization failed: {e}")
+        app.ai_agent = None
+        app.workflow_scheduler = None
+    
     # Register blueprints
     register_blueprints(app)
     

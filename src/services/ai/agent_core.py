@@ -17,6 +17,7 @@ except ImportError:
 
 from .tools_registry import ToolsRegistry
 from .agent_tools import campaign_tools, collections_tools, access_tools, member_tools
+from .rate_limiter import get_rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +28,13 @@ class GymAgentCore:
         """Initialize the agent
         
         Args:
-            api_key: Anthropic API key (or set ANTHROPIC_API_KEY env var)
+            api_key: Anthropic API key (or set CLAUDE_API_KEY / ANTHROPIC_API_KEY env var)
         """
-        self.api_key = api_key or os.getenv('ANTHROPIC_API_KEY')
+        # Try CLAUDE_API_KEY first (existing app uses this), then ANTHROPIC_API_KEY
+        self.api_key = api_key or os.getenv('CLAUDE_API_KEY') or os.getenv('ANTHROPIC_API_KEY')
         
         if not self.api_key:
-            logger.warning("⚠️ ANTHROPIC_API_KEY not found - agent will not be able to make decisions")
+            logger.warning("⚠️ CLAUDE_API_KEY or ANTHROPIC_API_KEY not found - agent will not be able to make decisions")
         
         # Initialize Anthropic client
         if Anthropic:
@@ -435,10 +437,12 @@ class GymAgentCore:
         if not self.client:
             return {
                 "success": False,
-                "error": "Anthropic client not initialized - set ANTHROPIC_API_KEY"
+                "error": "Anthropic client not initialized - set CLAUDE_API_KEY or ANTHROPIC_API_KEY in .env"
             }
         
         logger.info(f"🤖 Starting autonomous task: {task_description[:100]}...")
+        
+        rate_limiter = get_rate_limiter()
         
         messages = [
             {
@@ -453,6 +457,9 @@ class GymAgentCore:
             try:
                 logger.info(f"   Iteration {iteration + 1}/{max_iterations}")
                 
+                # Check rate limit before calling Claude (estimate 5K tokens per call)
+                rate_limiter.wait_if_needed(estimated_tokens=5000)
+                
                 # Call Claude with tools
                 response = self.client.messages.create(
                     model="claude-3-7-sonnet-20250219",
@@ -460,6 +467,14 @@ class GymAgentCore:
                     tools=self.registry.get_tool_schemas(),
                     messages=messages
                 )
+                
+                # Record actual token usage
+                rate_limiter.add_request(
+                    input_tokens=response.usage.input_tokens,
+                    output_tokens=response.usage.output_tokens
+                )
+                
+                logger.info(f"   📊 Tokens: {response.usage.input_tokens} in, {response.usage.output_tokens} out")
                 
                 # Check if Claude wants to use tools
                 if response.stop_reason == "tool_use":

@@ -1,0 +1,739 @@
+{% extends "base.html" %}
+
+{% block title %}AI Sales Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary-blue: #007bff;
+        --success-green: #28a745;
+        --warning-yellow: #ffc107;
+        --danger-red: #dc3545;
+        --sidebar-bg: #f8f9fa;
+        --card-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    body {
+        overflow-x: hidden;
+    }
+
+    /* 3-Column Grid Layout */
+    .dashboard-container {
+        display: grid;
+        grid-template-columns: 280px 1fr 320px;
+        gap: 0;
+        height: calc(100vh - 56px);
+        overflow: hidden;
+    }
+
+    /* Left Sidebar - Workflows */
+    .workflows-panel {
+        background: var(--sidebar-bg);
+        border-right: 1px solid #dee2e6;
+        overflow-y: auto;
+        padding: 20px;
+    }
+
+    .workflow-card {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: var(--card-shadow);
+        cursor: pointer;
+        transition: all 0.2s;
+        border-left: 4px solid transparent;
+    }
+
+    .workflow-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .workflow-card.active {
+        border-left-color: var(--primary-blue);
+        box-shadow: 0 4px 12px rgba(0,123,255,0.2);
+    }
+
+    .workflow-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .workflow-name {
+        font-weight: 600;
+        font-size: 14px;
+        margin: 0;
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .status-dot.running { background: var(--success-green); }
+    .status-dot.paused { background: var(--warning-yellow); }
+    .status-dot.error { background: var(--danger-red); }
+
+    .workflow-meta {
+        font-size: 11px;
+        color: #6c757d;
+        margin-bottom: 4px;
+    }
+
+    .workflow-actions {
+        display: flex;
+        gap: 4px;
+        margin-top: 12px;
+    }
+
+    .workflow-actions button {
+        flex: 1;
+        font-size: 11px;
+        padding: 4px 8px;
+    }
+
+    /* Center - Conversation Feed */
+    .conversation-panel {
+        display: flex;
+        flex-direction: column;
+        background: white;
+        overflow: hidden;
+    }
+
+    .conversation-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid #dee2e6;
+        background: white;
+        z-index: 10;
+    }
+
+    .conversation-feed {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background: #f8f9fa;
+    }
+
+    .conversation-input {
+        padding: 16px 20px;
+        border-top: 1px solid #dee2e6;
+        background: white;
+    }
+
+    /* Message Styles */
+    .ai-message {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: var(--card-shadow);
+    }
+
+    .ai-message.workflow-notification {
+        border-left: 4px solid var(--primary-blue);
+    }
+
+    .ai-message.approval-request {
+        border-left: 4px solid var(--warning-yellow);
+        background: #fffbf0;
+    }
+
+    .ai-message.tool-result {
+        border-left: 4px solid var(--success-green);
+    }
+
+    .ai-message.error {
+        border-left: 4px solid var(--danger-red);
+        background: #fff5f5;
+    }
+
+    .message-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .message-timestamp {
+        font-size: 12px;
+        color: #6c757d;
+    }
+
+    .message-body {
+        font-size: 14px;
+        line-height: 1.6;
+    }
+
+    .approval-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    /* Right Sidebar - Workflow Details */
+    .details-panel {
+        background: var(--sidebar-bg);
+        border-left: 1px solid #dee2e6;
+        overflow-y: auto;
+        padding: 20px;
+    }
+
+    .details-card {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: var(--card-shadow);
+    }
+
+    .details-card h6 {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: #6c757d;
+        margin-bottom: 12px;
+    }
+
+    .metric-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .metric-row:last-child {
+        border-bottom: none;
+    }
+
+    .metric-label {
+        font-size: 13px;
+        color: #6c757d;
+    }
+
+    .metric-value {
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .execution-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px;
+        background: #f8f9fa;
+        border-radius: 4px;
+        margin-bottom: 6px;
+        font-size: 12px;
+    }
+
+    .execution-item.success {
+        border-left: 3px solid var(--success-green);
+    }
+
+    .execution-item.error {
+        border-left: 3px solid var(--danger-red);
+    }
+
+    /* Loading States */
+    .loading-skeleton {
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: loading 1.5s ease-in-out infinite;
+        border-radius: 4px;
+        height: 20px;
+        margin-bottom: 8px;
+    }
+
+    @keyframes loading {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 1199px) {
+        .dashboard-container {
+            grid-template-columns: 240px 1fr;
+        }
+        .details-panel {
+            display: none;
+        }
+    }
+
+    @media (max-width: 767px) {
+        .dashboard-container {
+            grid-template-columns: 1fr;
+        }
+        .workflows-panel {
+            display: none;
+        }
+        .mobile-tabs {
+            display: flex !important;
+        }
+    }
+
+    .mobile-tabs {
+        display: none;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        border-top: 1px solid #dee2e6;
+        padding: 8px;
+        z-index: 1000;
+    }
+
+    .mobile-tab {
+        flex: 1;
+        text-align: center;
+        padding: 8px;
+        font-size: 12px;
+        border: none;
+        background: none;
+        cursor: pointer;
+    }
+
+    .mobile-tab.active {
+        color: var(--primary-blue);
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Left Panel: Workflows -->
+    <div class="workflows-panel" id="workflowsPanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Workflows</h5>
+            <button class="btn btn-sm btn-primary" onclick="refreshWorkflows()">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+
+        <div id="workflowsList">
+            <!-- Loading skeleton -->
+            <div class="loading-skeleton"></div>
+            <div class="loading-skeleton"></div>
+            <div class="loading-skeleton"></div>
+        </div>
+
+        <button class="btn btn-outline-primary btn-sm w-100 mt-3" onclick="showManualCommand()">
+            <i class="fas fa-plus me-1"></i> Manual Task
+        </button>
+    </div>
+
+    <!-- Center Panel: Conversation -->
+    <div class="conversation-panel">
+        <div class="conversation-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-1">AI Sales Dashboard</h4>
+                    <small class="text-muted">Autonomous workflow management & insights</small>
+                </div>
+                <div>
+                    <span class="badge bg-success">
+                        <i class="fas fa-robot me-1"></i>AI Active
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="conversation-feed" id="conversationFeed">
+            <div class="ai-message workflow-notification">
+                <div class="message-header">
+                    <span class="badge bg-primary">System</span>
+                    <span class="message-timestamp">Just now</span>
+                </div>
+                <div class="message-body">
+                    <strong>Welcome to the AI Sales Dashboard</strong>
+                    <p class="mb-0 mt-2">Your autonomous workflows are ready. 6 workflows configured to help with campaigns, collections, and member management.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="conversation-input">
+            <div class="input-group">
+                <input type="text" class="form-control" id="commandInput" 
+                       placeholder="Ask the AI anything or give it a task..."
+                       onkeypress="handleCommandKeyPress(event)">
+                <button class="btn btn-primary" onclick="sendCommand()" id="sendButton">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            <div class="mt-2">
+                <small class="text-muted">Quick commands:</small>
+                <button class="btn btn-sm btn-outline-secondary ms-2" onclick="sendQuickCommand('Show past due summary')">
+                    Past Due Summary
+                </button>
+                <button class="btn btn-sm btn-outline-secondary ms-2" onclick="sendQuickCommand('Run daily campaigns')">
+                    Run Campaigns
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel: Workflow Details -->
+    <div class="details-panel" id="detailsPanel">
+        <h5 class="mb-3">Workflow Details</h5>
+        
+        <div id="workflowDetails">
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-mouse-pointer fa-3x mb-3"></i>
+                <p>Select a workflow to view details</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mobile Tabs -->
+<div class="mobile-tabs">
+    <button class="mobile-tab active" onclick="showMobilePanel('workflows')">
+        <i class="fas fa-list d-block"></i>
+        Workflows
+    </button>
+    <button class="mobile-tab" onclick="showMobilePanel('conversation')">
+        <i class="fas fa-comments d-block"></i>
+        Chat
+    </button>
+    <button class="mobile-tab" onclick="showMobilePanel('details')">
+        <i class="fas fa-info-circle d-block"></i>
+        Details
+    </button>
+</div>
+
+<script>
+let selectedWorkflowId = null;
+
+// Initialize dashboard
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Initializing AI Sales Dashboard...');
+    loadWorkflows();
+    loadConversationHistory();
+    
+    // Auto-refresh every 30 seconds
+    setInterval(loadWorkflows, 30000);
+});
+
+// Load workflows from API
+async function loadWorkflows() {
+    try {
+        const response = await fetch('/api/ai/workflows/status');
+        const data = await response.json();
+        
+        if (data.success) {
+            renderWorkflows(data.workflows);
+        } else {
+            console.error('Failed to load workflows:', data.error);
+        }
+    } catch (error) {
+        console.error('Error loading workflows:', error);
+    }
+}
+
+// Render workflow cards
+function renderWorkflows(workflows) {
+    const container = document.getElementById('workflowsList');
+    
+    if (!workflows || workflows.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center">No workflows available</p>';
+        return;
+    }
+    
+    container.innerHTML = workflows.map(wf => `
+        <div class="workflow-card ${selectedWorkflowId === wf.id ? 'active' : ''}" 
+             onclick="selectWorkflow('${wf.id}')">
+            <div class="workflow-header">
+                <h6 class="workflow-name">${wf.name}</h6>
+                <span class="status-dot ${getWorkflowStatus(wf)}"></span>
+            </div>
+            <div class="workflow-meta">
+                <i class="fas fa-clock"></i> Next: ${formatNextRun(wf.next_run)}
+            </div>
+            <div class="workflow-meta">
+                <i class="fas fa-check-circle"></i> Last: ${formatLastRun(wf.last_run)}
+            </div>
+            <div class="workflow-actions">
+                <button class="btn btn-sm btn-success" onclick="runWorkflowNow('${wf.id}'); event.stopPropagation();">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="viewWorkflowHistory('${wf.id}'); event.stopPropagation();">
+                    <i class="fas fa-history"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Select workflow
+function selectWorkflow(workflowId) {
+    selectedWorkflowId = workflowId;
+    loadWorkflows(); // Refresh to show active state
+    loadWorkflowDetails(workflowId);
+}
+
+// Load workflow details
+async function loadWorkflowDetails(workflowId) {
+    try {
+        const [configRes, historyRes] = await Promise.all([
+            fetch(`/api/ai/workflows/${workflowId}/config`),
+            fetch(`/api/ai/workflows/${workflowId}/history?limit=10`)
+        ]);
+        
+        const config = await configRes.json();
+        const history = await historyRes.json();
+        
+        renderWorkflowDetails(workflowId, config, history);
+    } catch (error) {
+        console.error('Error loading workflow details:', error);
+    }
+}
+
+// Render workflow details
+function renderWorkflowDetails(workflowId, config, history) {
+    const container = document.getElementById('workflowDetails');
+    
+    const cfg = config.config || {};
+    const executions = history.executions || [];
+    
+    container.innerHTML = `
+        <div class="details-card">
+            <h6>Configuration</h6>
+            <div class="metric-row">
+                <span class="metric-label">Schedule</span>
+                <span class="metric-value">${cfg.schedule || 'N/A'}</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Status</span>
+                <span class="metric-value">${cfg.enabled ? '✅ Enabled' : '❌ Disabled'}</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Dry Run</span>
+                <span class="metric-value">${cfg.dry_run ? 'Yes' : 'No'}</span>
+            </div>
+        </div>
+        
+        <div class="details-card">
+            <h6>Recent Executions</h6>
+            ${executions.length > 0 ? executions.map(exec => `
+                <div class="execution-item ${exec.success ? 'success' : 'error'}">
+                    <span>${formatTimestamp(exec.timestamp)}</span>
+                    <span>${exec.success ? '✓' : '✗'} ${exec.duration ? exec.duration.toFixed(1) + 's' : ''}</span>
+                </div>
+            `).join('') : '<p class="text-muted text-center mb-0">No executions yet</p>'}
+        </div>
+    `;
+}
+
+// Load conversation history
+async function loadConversationHistory() {
+    try {
+        const response = await fetch('/api/ai/conversation/history?limit=20');
+        const data = await response.json();
+        
+        if (data.success && data.messages) {
+            data.messages.reverse().forEach(msg => {
+                addMessageToFeed(msg);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading conversation history:', error);
+    }
+}
+
+// Add message to conversation feed
+function addMessageToFeed(message) {
+    const feed = document.getElementById('conversationFeed');
+    const messageEl = document.createElement('div');
+    messageEl.className = `ai-message ${message.type || 'generic'}`;
+    
+    const content = typeof message.content === 'string' ? 
+        JSON.parse(message.content) : message.content;
+    
+    messageEl.innerHTML = `
+        <div class="message-header">
+            <span class="badge bg-secondary">${message.type || 'System'}</span>
+            <span class="message-timestamp">${formatTimestamp(message.timestamp)}</span>
+        </div>
+        <div class="message-body">
+            ${formatMessageContent(content)}
+        </div>
+    `;
+    
+    feed.appendChild(messageEl);
+    feed.scrollTop = feed.scrollHeight;
+}
+
+// Format message content
+function formatMessageContent(content) {
+    if (typeof content === 'string') return content;
+    if (content.result) return `<pre>${JSON.stringify(content.result, null, 2)}</pre>`;
+    return JSON.stringify(content);
+}
+
+// Send command
+async function sendCommand() {
+    const input = document.getElementById('commandInput');
+    const command = input.value.trim();
+    
+    if (!command) return;
+    
+    // Add user message
+    addUserMessage(command);
+    input.value = '';
+    
+    // Show loading
+    const sendButton = document.getElementById('sendButton');
+    sendButton.disabled = true;
+    sendButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    
+    try {
+        const response = await fetch('/api/ai/conversation/command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            addMessageToFeed({
+                type: 'tool-result',
+                timestamp: new Date().toISOString(),
+                content: data.result
+            });
+        } else {
+            addMessageToFeed({
+                type: 'error',
+                timestamp: new Date().toISOString(),
+                content: `Error: ${data.error}`
+            });
+        }
+    } catch (error) {
+        console.error('Error sending command:', error);
+        addMessageToFeed({
+            type: 'error',
+            timestamp: new Date().toISOString(),
+            content: `Error: ${error.message}`
+        });
+    } finally {
+        sendButton.disabled = false;
+        sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
+    }
+}
+
+// Add user message to feed
+function addUserMessage(text) {
+    const feed = document.getElementById('conversationFeed');
+    const messageEl = document.createElement('div');
+    messageEl.className = 'ai-message';
+    messageEl.style.background = '#e3f2fd';
+    messageEl.innerHTML = `
+        <div class="message-header">
+            <span class="badge bg-info">You</span>
+            <span class="message-timestamp">Just now</span>
+        </div>
+        <div class="message-body">${text}</div>
+    `;
+    feed.appendChild(messageEl);
+    feed.scrollTop = feed.scrollHeight;
+}
+
+// Quick command
+function sendQuickCommand(command) {
+    document.getElementById('commandInput').value = command;
+    sendCommand();
+}
+
+// Run workflow now
+async function runWorkflowNow(workflowId) {
+    if (!confirm('Run this workflow now?')) return;
+    
+    try {
+        const response = await fetch(`/api/ai/workflows/${workflowId}/run`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            addMessageToFeed({
+                type: 'workflow-notification',
+                timestamp: new Date().toISOString(),
+                content: `Workflow started: ${workflowId}`
+            });
+        }
+    } catch (error) {
+        console.error('Error running workflow:', error);
+    }
+}
+
+// Helper functions
+function getWorkflowStatus(wf) {
+    if (wf.last_run && !wf.last_run.success) return 'error';
+    return wf.enabled ? 'running' : 'paused';
+}
+
+function formatNextRun(nextRun) {
+    if (!nextRun) return 'Not scheduled';
+    const date = new Date(nextRun);
+    const now = new Date();
+    const diff = date - now;
+    
+    if (diff < 0) return 'Pending...';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
+    return date.toLocaleDateString();
+}
+
+function formatLastRun(lastRun) {
+    if (!lastRun || !lastRun.timestamp) return 'Never';
+    const date = new Date(lastRun.timestamp);
+    const now = new Date();
+    const diff = now - date;
+    
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    return date.toLocaleDateString();
+}
+
+function formatTimestamp(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function handleCommandKeyPress(event) {
+    if (event.key === 'Enter') {
+        sendCommand();
+    }
+}
+
+function refreshWorkflows() {
+    loadWorkflows();
+    if (selectedWorkflowId) {
+        loadWorkflowDetails(selectedWorkflowId);
+    }
+}
+
+function showManualCommand() {
+    document.getElementById('commandInput').focus();
+}
+
+function showMobilePanel(panel) {
+    // Mobile tab switching logic
+    document.querySelectorAll('.mobile-tab').forEach(tab => tab.classList.remove('active'));
+    event.target.closest('.mobile-tab').classList.add('active');
+}
+
+function viewWorkflowHistory(workflowId) {
+    selectWorkflow(workflowId);
+}
+</script>
+{% endblock %}

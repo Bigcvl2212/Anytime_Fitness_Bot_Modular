@@ -30,8 +30,9 @@ def get_campaign_prospects(filters: Dict[str, Any] = None) -> Dict[str, Any]:
     Returns:
         {
             "success": True,
-            "prospects": [...],
-            "count": ~3800
+            "count": ~3800,
+            "sample": [...first 10 prospects...],
+            "summary": "human readable summary"
         }
     """
     try:
@@ -48,7 +49,6 @@ def get_campaign_prospects(filters: Dict[str, Any] = None) -> Dict[str, Any]:
             return {
                 "success": False,
                 "error": "ClubHub authentication failed - check credentials in environment",
-                "prospects": [],
                 "count": 0
             }
         
@@ -62,7 +62,6 @@ def get_campaign_prospects(filters: Dict[str, Any] = None) -> Dict[str, Any]:
             return {
                 "success": False,
                 "error": "No prospects returned from ClubHub",
-                "prospects": [],
                 "count": 0
             }
         
@@ -77,13 +76,16 @@ def get_campaign_prospects(filters: Dict[str, Any] = None) -> Dict[str, Any]:
                 "status": prospect.get('status') or prospect.get('statusMessage')
             })
         
-        logger.info(f"Retrieved {len(campaign_prospects)} ACTIVE prospects from ClubHub API")
+        count = len(campaign_prospects)
+        logger.info(f"Retrieved {count} ACTIVE prospects from ClubHub API")
         
+        # Return summary to avoid token limit issues
         return {
             "success": True,
-            "prospects": campaign_prospects,
-            "count": len(campaign_prospects),
-            "source": "ClubHub API (current active prospects only)"
+            "count": count,
+            "sample": campaign_prospects[:10],  # First 10 as examples
+            "summary": f"Found {count} active prospects ready for campaigns. Sample includes names, emails, phones, and status.",
+            "note": "Full prospect list available internally. Use send_bulk_campaign to target all prospects."
         }
         
     except Exception as e:
@@ -91,9 +93,9 @@ def get_campaign_prospects(filters: Dict[str, Any] = None) -> Dict[str, Any]:
         return {
             "success": False,
             "error": str(e),
-            "prospects": [],
             "count": 0
         }
+
 
 def get_green_members(days_since_signup: int = 30) -> Dict[str, Any]:
     """Get recently signed up members (green members)
@@ -145,10 +147,13 @@ def get_green_members(days_since_signup: int = 30) -> Dict[str, Any]:
             "count": 0
         }
 
-def get_ppv_members() -> Dict[str, Any]:
+def get_ppv_members(filters: Dict[str, Any] = None) -> Dict[str, Any]:
     """Get pre-paid visitor (PPV) members for conversion campaigns
     
     PPV members have status_message = 'Pay Per Visit Member'
+    
+    Args:
+        filters: Optional filters (not currently used)
     
     Returns:
         {
