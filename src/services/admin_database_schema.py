@@ -534,7 +534,11 @@ class AdminDatabaseSchema:
                        account_locked_until, permissions, settings
                 FROM admin_users
                 ORDER BY created_at DESC
-            """)
+            """, fetch_all=True)
+
+            # Handle None or empty results
+            if not results:
+                return []
 
             users = []
             for row in results:

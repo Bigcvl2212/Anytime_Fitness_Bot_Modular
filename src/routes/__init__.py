@@ -24,6 +24,7 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 from routes.ai_workflows import blueprint as ai_workflows_bp
 from routes.ai_conversation import blueprint as ai_conversation_bp
+from routes.settings import blueprint as settings_bp
 
 def register_blueprints(app):
     """Register all route blueprints with the Flask app"""
@@ -79,7 +80,9 @@ def register_blueprints(app):
     # Register Phase 3 AI routes
     app.register_blueprint(ai_workflows_bp)  # /api/ai/workflows/*
     app.register_blueprint(ai_conversation_bp)  # /api/ai/conversation/*
+    app.register_blueprint(settings_bp)  # /api/settings/*
     app.logger.info("✅ Phase 3 AI routes registered")
+    app.logger.info("✅ Settings API registered")
     
     # Root route is handled directly by dashboard blueprint - no redirect needed
     

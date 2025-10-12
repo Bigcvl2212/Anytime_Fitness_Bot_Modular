@@ -228,24 +228,12 @@ def send_bulk_campaign(
         logger.info(f"Starting bulk campaign: {campaign_name}")
         logger.info(f"   Recipients: {len(recipient_list)}, Channel: {channel}")
         
-        # Get ClubOS credentials
-        secrets_manager = SecureSecretsManager()
-        clubos_user = secrets_manager.get_secret("clubos-email")
-        clubos_pass = secrets_manager.get_secret("clubos-password")
-        
-        if not clubos_user or not clubos_pass:
-            return {
-                "success": False,
-                "error": "ClubOS credentials not found",
-                "sent": 0,
-                "failed": len(recipient_list)
-            }
-        
-        # Initialize messaging client
+        # Initialize messaging client with unified auth service
+        # The client will automatically get credentials from env or database
         client = ClubOSMessagingClient()
         
-        # Authenticate
-        auth_success = client.authenticate(clubos_user, clubos_pass)
+        # Authenticate using unified auth service
+        auth_success = client.authenticate()
         if not auth_success:
             return {
                 "success": False,
@@ -254,50 +242,29 @@ def send_bulk_campaign(
                 "failed": len(recipient_list)
             }
         
-        # Send campaign
-        sent_count = 0
-        failed_count = 0
-        errors = []
-        
-        for recipient in recipient_list:
-            try:
-                member_id = recipient.get('id')
-                if not member_id:
-                    failed_count += 1
-                    continue
-                
-                # Send message
-                success = client.send_message(
-                    member_id=str(member_id),
-                    message_text=message_text,
-                    channel=channel
-                )
-                
-                if success:
-                    sent_count += 1
-                else:
-                    failed_count += 1
-                    errors.append(f"Failed to send to {recipient.get('name')}")
-                
-            except Exception as e:
-                failed_count += 1
-                errors.append(f"Error sending to {recipient.get('name')}: {str(e)}")
+        # Use the ClubOS client's optimized bulk campaign method
+        # This properly handles member data and fallback to email
+        results = client.send_bulk_campaign(
+            member_data_list=recipient_list,
+            message=message_text,
+            message_type=channel
+        )
         
         # Store campaign in database
         db = DatabaseManager()
         # TODO: Add campaign tracking to database
         
-        logger.info(f"Campaign completed: {sent_count}/{len(recipient_list)} sent successfully")
+        logger.info(f"Campaign completed: {results['successful']}/{results['total']} sent successfully")
         
         return {
-            "success": True,
+            "success": results['successful'] > 0,
             "campaign_id": f"campaign_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
             "campaign_name": campaign_name,
-            "sent": sent_count,
-            "failed": failed_count,
-            "total": len(recipient_list),
+            "sent": results['successful'],
+            "failed": results['failed'],
+            "total": results['total'],
             "status": "completed",
-            "errors": errors[:10] if errors else []  # Return first 10 errors
+            "errors": results.get('errors', [])[:10]  # Return first 10 errors
         }
         
     except Exception as e:

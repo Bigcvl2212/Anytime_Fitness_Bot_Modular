@@ -313,3 +313,15 @@ def dashboard(day_offset=0):
     except Exception as e:
         logger.error(f"❌ Error in dashboard route: {e}")
         return render_template('error.html', error=str(e))
+
+
+@dashboard_bp.route('/settings')
+@require_auth
+def settings():
+    """Settings page route"""
+    try:
+        logger.info("Settings page accessed")
+        return render_template('settings.html')
+    except Exception as e:
+        logger.error(f"❌ Error in settings route: {e}")
+        return render_template('error.html', error=str(e))

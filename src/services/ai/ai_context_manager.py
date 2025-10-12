@@ -12,6 +12,12 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
+# Import SettingsManager for loading custom AI instructions
+try:
+    from src.services.settings_manager import SettingsManager
+except ImportError:
+    from services.settings_manager import SettingsManager
+
 @dataclass
 class ConversationContext:
     """Represents a conversation context with an AI agent"""
@@ -40,7 +46,14 @@ class AIContextManager:
         self._active_contexts = {}  # In-memory cache for active conversations
         self._context_timeout = timedelta(hours=2)  # Conversations expire after 2 hours
 
-        # Role-specific system prompts
+        # Initialize settings manager for custom instructions
+        try:
+            self._settings_manager = SettingsManager()
+        except Exception as e:
+            logger.warning(f"Failed to initialize SettingsManager: {e}")
+            self._settings_manager = None
+
+        # Role-specific system prompts (will be enhanced with custom instructions)
         self._system_prompts = {
             'admin': self._get_admin_system_prompt(),
             'sales': self._get_sales_system_prompt()
@@ -103,6 +116,87 @@ Available data includes:
 - Training client information
 
 Focus on building relationships while achieving revenue goals. Always explain your reasoning and provide actionable recommendations."""
+
+    def _get_custom_instructions(self) -> Dict[str, str]:
+        """
+        Load custom AI instructions from settings
+
+        Returns:
+            Dictionary of instruction fields with their values
+        """
+        if not self._settings_manager:
+            return {}
+
+        try:
+            # Load all AI agent settings
+            ai_settings = self._settings_manager.get_category('ai_agent')
+            
+            # Extract instruction fields
+            instructions = {
+                'custom_system_prompt': ai_settings.get('custom_system_prompt', ''),
+                'collections_rules': ai_settings.get('collections_rules', ''),
+                'campaign_guidelines': ai_settings.get('campaign_guidelines', ''),
+                'tone_and_voice': ai_settings.get('tone_and_voice', ''),
+                'forbidden_actions': ai_settings.get('forbidden_actions', ''),
+                'business_context': ai_settings.get('business_context', ''),
+                'escalation_triggers': ai_settings.get('escalation_triggers', '')
+            }
+            
+            # Filter out empty instructions
+            return {k: v for k, v in instructions.items() if v and v.strip()}
+            
+        except Exception as e:
+            logger.error(f"Failed to load custom instructions: {e}")
+            return {}
+
+    def _inject_custom_instructions(self, base_prompt: str, task_type: Optional[str] = None) -> str:
+        """
+        Inject custom instructions into system prompt
+
+        Args:
+            base_prompt: Base system prompt
+            task_type: Optional task type ('collections', 'campaigns', etc.) to include relevant instructions
+
+        Returns:
+            Enhanced prompt with custom instructions
+        """
+        custom = self._get_custom_instructions()
+        
+        if not custom:
+            return base_prompt
+
+        # Start with base prompt
+        enhanced_prompt = base_prompt
+
+        # Add custom system instructions if present
+        if 'custom_system_prompt' in custom:
+            enhanced_prompt += f"\n\n### CUSTOM INSTRUCTIONS ###\n{custom['custom_system_prompt']}"
+
+        # Add business context (always relevant)
+        if 'business_context' in custom:
+            enhanced_prompt += f"\n\n### BUSINESS CONTEXT ###\n{custom['business_context']}"
+
+        # Add tone and voice guidelines (always relevant)
+        if 'tone_and_voice' in custom:
+            enhanced_prompt += f"\n\n### COMMUNICATION STYLE ###\n{custom['tone_and_voice']}"
+
+        # Add task-specific instructions
+        if task_type:
+            if task_type == 'collections' and 'collections_rules' in custom:
+                enhanced_prompt += f"\n\n### COLLECTIONS RULES ###\n{custom['collections_rules']}"
+            
+            elif task_type == 'campaigns' and 'campaign_guidelines' in custom:
+                enhanced_prompt += f"\n\n### CAMPAIGN GUIDELINES ###\n{custom['campaign_guidelines']}"
+
+        # Add forbidden actions (always relevant - safety)
+        if 'forbidden_actions' in custom:
+            enhanced_prompt += f"\n\n### FORBIDDEN ACTIONS (NEVER DO THESE) ###\n{custom['forbidden_actions']}"
+
+        # Add escalation triggers (always relevant - safety)
+        if 'escalation_triggers' in custom:
+            enhanced_prompt += f"\n\n### ESCALATION TRIGGERS (ALERT HUMAN STAFF) ###\n{custom['escalation_triggers']}"
+
+        return enhanced_prompt
 
     def get_or_create_context(self, session_id: str, user_id: str,
                             agent_type: str, initial_data: Dict[str, Any] = None) -> ConversationContext:
@@ -193,17 +287,26 @@ Focus on building relationships while achieving revenue goals. Always explain yo
 
     def get_system_prompt(self, agent_type: str, context_data: Dict[str, Any] = None) -> str:
         """
-        Get system prompt for agent type with optional context
+        Get system prompt for agent type with optional context and custom instructions
 
         Args:
             agent_type: Type of agent ('admin' or 'sales')
-            context_data: Additional context to include
+            context_data: Additional context to include (can include 'task_type' for task-specific instructions)
 
         Returns:
-            Complete system prompt
+            Complete system prompt with custom instructions
         """
         try:
+            # Get base prompt and inject custom instructions
             base_prompt = self._system_prompts.get(agent_type, "You are a helpful AI assistant.")
+            
+            # Determine task type from context_data if present
+            task_type = None
+            if context_data and 'task_type' in context_data:
+                task_type = context_data['task_type']
+            
+            # Inject custom instructions based on task type
+            enhanced_prompt = self._inject_custom_instructions(base_prompt, task_type)
 
             if context_data:
                 # Add relevant context information
@@ -228,9 +331,9 @@ Focus on building relationships while achieving revenue goals. Always explain yo
                         context_additions.append(f"Active campaigns: {sales['active_campaigns']}")
 
                 if context_additions:
-                    base_prompt += f"\n\nCurrent context:\n" + "\n".join(f"- {item}" for item in context_additions)
+                    enhanced_prompt += f"\n\nCurrent context:\n" + "\n".join(f"- {item}" for item in context_additions)
 
-            return base_prompt
+            return enhanced_prompt
 
         except Exception as e:
             logger.error(f"❌ Error building system prompt: {e}")

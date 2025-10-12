@@ -163,20 +163,21 @@ def audit_logs():
 @admin_bp.route('/settings')
 @require_super_admin
 def admin_settings():
-    """Admin settings (super admin only)"""
+    """Admin system settings page"""
     try:
         manager_id = session.get('manager_id')
         admin_service = current_app.admin_service
 
-        # Get system settings
-        settings = _get_system_settings()
+        # Get admin user info
+        admin_user = admin_service.admin_schema.get_admin_user(manager_id)
 
         # Log access
         admin_service.log_admin_action(
-            manager_id, 'admin_settings_access', 'Accessed admin settings'
+            manager_id, 'admin_settings_access', 'Accessed admin settings page'
         )
 
-        return render_template('admin/settings.html', settings=settings)
+        return render_template('admin/settings.html',
+                             admin_user=admin_user)
 
     except Exception as e:
         logger.error(f"❌ Error loading admin settings: {e}")

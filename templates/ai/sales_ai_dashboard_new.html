@@ -175,6 +175,102 @@
         margin-top: 12px;
     }
 
+    /* Enhanced Message Styles */
+    .ai-summary {
+        font-size: 14px;
+        line-height: 1.7;
+        color: #212529;
+        padding: 8px 12px;
+        background: linear-gradient(to right, #f8f9fa, transparent);
+        border-radius: 4px;
+    }
+
+    .tool-calls-section {
+        border-top: 1px dashed #dee2e6;
+        padding-top: 12px;
+    }
+
+    .tool-call-card {
+        transition: all 0.2s ease;
+    }
+
+    .tool-call-card:hover {
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        transform: translateX(2px);
+    }
+
+    .command-result {
+        position: relative;
+    }
+
+    .command-result strong {
+        color: var(--primary-blue);
+    }
+
+    /* Badge animations */
+    @keyframes pulse-badge {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+
+    .badge.bg-info {
+        animation: pulse-badge 2s ease-in-out infinite;
+    }
+
+    /* Tool details table styling */
+    .tool-details table {
+        margin-bottom: 0;
+    }
+
+    .tool-details table thead {
+        background: #e9ecef;
+    }
+
+    .tool-details table thead th {
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* Smooth transitions */
+    .tool-details {
+        transition: all 0.3s ease;
+    }
+
+    /* Copy button for code blocks */
+    pre {
+        position: relative;
+    }
+
+    /* Status indicators */
+    .text-success {
+        color: #28a745 !important;
+        font-weight: 500;
+    }
+
+    .text-danger {
+        color: #dc3545 !important;
+        font-weight: 500;
+    }
+
+    /* Improved scrollbar */
+    .conversation-feed::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .conversation-feed::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+
+    .conversation-feed::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 4px;
+    }
+
+    .conversation-feed::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+
     /* Right Sidebar - Workflow Details */
     .details-panel {
         background: var(--sidebar-bg);
@@ -551,29 +647,312 @@ function addMessageToFeed(message) {
     const feed = document.getElementById('conversationFeed');
     const messageEl = document.createElement('div');
     messageEl.className = `ai-message ${message.type || 'generic'}`;
-    
-    const content = typeof message.content === 'string' ? 
-        JSON.parse(message.content) : message.content;
-    
+
+    let content = message.content;
+
+    // Parse content if it's a string
+    if (typeof content === 'string') {
+        try {
+            content = JSON.parse(content);
+        } catch (e) {
+            // If parsing fails, content is plain text
+        }
+    }
+
     messageEl.innerHTML = `
         <div class="message-header">
-            <span class="badge bg-secondary">${message.type || 'System'}</span>
+            <span class="badge bg-secondary">${formatMessageType(message.type)}</span>
             <span class="message-timestamp">${formatTimestamp(message.timestamp)}</span>
         </div>
         <div class="message-body">
-            ${formatMessageContent(content)}
+            ${formatMessageContent(content, message.type)}
         </div>
     `;
-    
+
     feed.appendChild(messageEl);
     feed.scrollTop = feed.scrollHeight;
 }
 
-// Format message content
-function formatMessageContent(content) {
-    if (typeof content === 'string') return content;
-    if (content.result) return `<pre>${JSON.stringify(content.result, null, 2)}</pre>`;
-    return JSON.stringify(content);
+// Format message type for display
+function formatMessageType(type) {
+    const typeMap = {
+        'manual_command': 'Manual Command',
+        'workflow_notification': 'Workflow',
+        'approval_request': 'Needs Approval',
+        'tool-result': 'AI Response',
+        'error': 'Error',
+        'system': 'System'
+    };
+    return typeMap[type] || type || 'System';
+}
+
+// Format message content based on type and structure
+function formatMessageContent(content, messageType) {
+    // Handle plain text
+    if (typeof content === 'string') {
+        return `<p class="mb-0">${escapeHtml(content)}</p>`;
+    }
+
+    // Handle manual command results
+    if (content.command && content.result) {
+        return formatCommandResult(content);
+    }
+
+    // Handle direct AI responses
+    if (content.success !== undefined && content.result) {
+        return formatAIResponse(content);
+    }
+
+    // Handle workflow notifications
+    if (messageType === 'workflow_notification' && typeof content === 'object') {
+        return formatWorkflowNotification(content);
+    }
+
+    // Fallback: format as readable JSON
+    return `<pre class="mb-0" style="font-size: 12px; background: #f8f9fa; padding: 12px; border-radius: 4px; overflow-x: auto;">${JSON.stringify(content, null, 2)}</pre>`;
+}
+
+// Format manual command result
+function formatCommandResult(data) {
+    const { command, result } = data;
+
+    let html = `<div class="command-result">`;
+    html += `<p class="mb-2"><strong>Command:</strong> ${escapeHtml(command)}</p>`;
+
+    if (result.success !== undefined && result.result) {
+        html += formatAIResponse(result);
+    } else if (typeof result === 'string') {
+        html += `<p class="mb-0">${escapeHtml(result)}</p>`;
+    } else {
+        html += `<pre style="font-size: 12px; background: #f8f9fa; padding: 12px; border-radius: 4px;">${JSON.stringify(result, null, 2)}</pre>`;
+    }
+
+    html += `</div>`;
+    return html;
+}
+
+// Format AI response with tool calls
+function formatAIResponse(data) {
+    let html = '';
+
+    // Show the AI's summary/result text prominently
+    if (typeof data.result === 'string') {
+        html += `<div class="ai-summary mb-3">${escapeHtml(data.result).replace(/\n/g, '<br>')}</div>`;
+    }
+
+    // Show tool execution details if present
+    if (data.tool_calls && data.tool_calls.length > 0) {
+        html += `<div class="tool-calls-section mt-3">`;
+        html += `<div class="d-flex align-items-center gap-2 mb-2">`;
+        html += `<span class="badge bg-info">Used ${data.tool_calls.length} tool${data.tool_calls.length > 1 ? 's' : ''}</span>`;
+        if (data.iterations) {
+            html += `<span class="badge bg-secondary">${data.iterations} iteration${data.iterations > 1 ? 's' : ''}</span>`;
+        }
+        html += `</div>`;
+
+        // Format each tool call
+        data.tool_calls.forEach((toolCall, idx) => {
+            html += formatToolCall(toolCall, idx);
+        });
+
+        html += `</div>`;
+    }
+
+    // Show error if present
+    if (data.error) {
+        html += `<div class="alert alert-danger mb-0 mt-2"><i class="fas fa-exclamation-triangle me-2"></i>${escapeHtml(data.error)}</div>`;
+    }
+
+    return html || '<p class="mb-0">Task completed</p>';
+}
+
+// Format individual tool call
+function formatToolCall(toolCall, index) {
+    const toolName = toolCall.tool || 'unknown';
+    const toolResult = toolCall.result || {};
+    const success = toolCall.success !== false;
+
+    let html = `<div class="tool-call-card mb-2" style="border-left: 3px solid ${success ? '#28a745' : '#dc3545'}; background: #f8f9fa; padding: 12px; border-radius: 4px;">`;
+
+    // Tool header with expand/collapse
+    html += `<div class="d-flex justify-content-between align-items-center mb-2">`;
+    html += `<strong style="font-size: 13px;"><i class="fas fa-wrench me-2"></i>${formatToolName(toolName)}</strong>`;
+    html += `<button class="btn btn-sm btn-link p-0" onclick="toggleToolDetails(${index})" style="font-size: 11px;">`;
+    html += `<i class="fas fa-chevron-down" id="tool-toggle-${index}"></i> Details</button>`;
+    html += `</div>`;
+
+    // Tool summary (always visible)
+    html += `<div class="tool-summary" style="font-size: 12px; color: #6c757d;">`;
+    html += formatToolSummary(toolName, toolResult);
+    html += `</div>`;
+
+    // Tool details (collapsible)
+    html += `<div class="tool-details" id="tool-details-${index}" style="display: none; margin-top: 8px; font-size: 12px;">`;
+    html += formatToolDetails(toolName, toolResult);
+    html += `</div>`;
+
+    html += `</div>`;
+    return html;
+}
+
+// Format tool name for display
+function formatToolName(toolName) {
+    const nameMap = {
+        'get_past_due_members': 'Get Past Due Members',
+        'get_past_due_training_clients': 'Get Past Due Training Clients',
+        'send_bulk_campaign': 'Send Bulk Campaign',
+        'send_message_to_member': 'Send Message',
+        'get_campaign_prospects': 'Get Campaign Prospects',
+        'get_green_members': 'Get New Members',
+        'get_ppv_members': 'Get PPV Members',
+        'get_member_profile': 'Get Member Profile',
+        'get_collection_attempts': 'Get Collection Attempts',
+        'get_campaign_templates': 'Get Campaign Templates',
+        'lock_door_access': 'Lock Door Access',
+        'unlock_door_access': 'Unlock Door Access'
+    };
+    return nameMap[toolName] || toolName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+// Format tool summary (brief overview)
+function formatToolSummary(toolName, result) {
+    if (result.error) {
+        return `<span class="text-danger"><i class="fas fa-times-circle me-1"></i>${escapeHtml(result.error)}</span>`;
+    }
+
+    // Tool-specific summaries
+    if (toolName === 'get_past_due_members' && result.members) {
+        return `Found <strong>${result.count || result.members.length}</strong> past due members | Total: <strong>$${(result.total_amount || 0).toFixed(2)}</strong>`;
+    }
+
+    if (toolName === 'get_past_due_training_clients' && result.clients) {
+        return `Found <strong>${result.count || result.clients.length}</strong> past due training clients | Total: <strong>$${(result.total_amount || 0).toFixed(2)}</strong>`;
+    }
+
+    if (toolName === 'send_bulk_campaign' && result.sent !== undefined) {
+        return `Sent: <strong>${result.sent}</strong> | Failed: <strong>${result.failed || 0}</strong>`;
+    }
+
+    if (toolName === 'get_campaign_prospects' || toolName === 'get_green_members' || toolName === 'get_ppv_members') {
+        return `Found <strong>${result.count || (result.members ? result.members.length : 0)}</strong> members`;
+    }
+
+    if (toolName === 'get_member_profile' && result.profile) {
+        const p = result.profile;
+        return `${p.name} | Status: ${p.status} | Past Due: $${(p.amount_past_due || 0).toFixed(2)}`;
+    }
+
+    if (toolName === 'get_campaign_templates' && result.templates) {
+        return `Found <strong>${result.count || result.templates.length}</strong> campaign templates`;
+    }
+
+    if (result.success) {
+        return `<span class="text-success"><i class="fas fa-check-circle me-1"></i>Success</span>`;
+    }
+
+    return 'Completed';
+}
+
+// Format tool details (expandable)
+function formatToolDetails(toolName, result) {
+    if (result.error) {
+        return `<div class="alert alert-danger mb-0 p-2" style="font-size: 11px;">${escapeHtml(result.error)}</div>`;
+    }
+
+    let html = '';
+
+    // Show member/client lists in a table
+    if ((toolName === 'get_past_due_members' && result.members) ||
+        (toolName === 'get_past_due_training_clients' && result.clients)) {
+
+        const items = result.members || result.clients;
+        const displayItems = items.slice(0, 10); // Show first 10
+
+        html += `<div style="max-height: 200px; overflow-y: auto;">`;
+        html += `<table class="table table-sm table-striped mb-0" style="font-size: 11px;">`;
+        html += `<thead><tr><th>Name</th><th>Email</th><th>Amount</th></tr></thead><tbody>`;
+
+        displayItems.forEach(item => {
+            html += `<tr>`;
+            html += `<td>${escapeHtml(item.name || 'N/A')}</td>`;
+            html += `<td>${escapeHtml(item.email || 'No email')}</td>`;
+            html += `<td>$${(item.amount_past_due || item.past_due_amount || 0).toFixed(2)}</td>`;
+            html += `</tr>`;
+        });
+
+        html += `</tbody></table>`;
+        if (items.length > 10) {
+            html += `<p class="mb-0 mt-1 text-muted" style="font-size: 10px;">... and ${items.length - 10} more</p>`;
+        }
+        html += `</div>`;
+    }
+    // Show campaign templates
+    else if (toolName === 'get_campaign_templates' && result.templates) {
+        html += `<div style="max-height: 200px; overflow-y: auto;">`;
+        result.templates.forEach(tmpl => {
+            html += `<div class="mb-2 p-2" style="background: white; border-radius: 4px;">`;
+            html += `<strong>${escapeHtml(tmpl.title || tmpl.name)}</strong>`;
+            html += `<p class="mb-0 mt-1" style="font-size: 10px; color: #6c757d;">${escapeHtml(tmpl.message).substring(0, 100)}...</p>`;
+            html += `</div>`;
+        });
+        html += `</div>`;
+    }
+    // Show member profile
+    else if (toolName === 'get_member_profile' && result.profile) {
+        const p = result.profile;
+        html += `<div style="background: white; padding: 8px; border-radius: 4px;">`;
+        html += `<div class="row g-1">`;
+        html += `<div class="col-6"><small class="text-muted">ID:</small> ${p.member_id}</div>`;
+        html += `<div class="col-6"><small class="text-muted">Status:</small> ${p.status}</div>`;
+        html += `<div class="col-6"><small class="text-muted">Email:</small> ${p.email || 'N/A'}</div>`;
+        html += `<div class="col-6"><small class="text-muted">Past Due:</small> $${(p.amount_past_due || 0).toFixed(2)}</div>`;
+        html += `</div></div>`;
+    }
+    // Default: show JSON
+    else {
+        html += `<pre class="mb-0 p-2" style="font-size: 10px; background: white; border-radius: 4px; max-height: 150px; overflow: auto;">${JSON.stringify(result, null, 2)}</pre>`;
+    }
+
+    return html;
+}
+
+// Format workflow notification
+function formatWorkflowNotification(content) {
+    if (typeof content === 'string') {
+        return `<p class="mb-0">${escapeHtml(content)}</p>`;
+    }
+
+    let html = '';
+    if (content.workflow_name) {
+        html += `<p class="mb-2"><strong>${escapeHtml(content.workflow_name)}</strong></p>`;
+    }
+    if (content.message) {
+        html += `<p class="mb-0">${escapeHtml(content.message)}</p>`;
+    }
+
+    return html || `<pre>${JSON.stringify(content, null, 2)}</pre>`;
+}
+
+// Toggle tool details visibility
+function toggleToolDetails(index) {
+    const details = document.getElementById(`tool-details-${index}`);
+    const toggle = document.getElementById(`tool-toggle-${index}`);
+
+    if (details.style.display === 'none') {
+        details.style.display = 'block';
+        toggle.className = 'fas fa-chevron-up';
+    } else {
+        details.style.display = 'none';
+        toggle.className = 'fas fa-chevron-down';
+    }
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+    if (typeof text !== 'string') return text;
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // Send command
