@@ -1,0 +1,673 @@
+"""
+Secure Authentication Service
+
+This service handles manager authentication, session management, and secure credential validation.
+"""
+
+import os
+import hashlib
+import secrets
+import bcrypt
+import logging
+from datetime import datetime, timedelta
+from typing import Dict, Optional, Tuple
+from flask import session, request, current_app
+
+# Import SecureSecretsManager with absolute path handling
+try:
+    from .secure_secrets_manager import SecureSecretsManager
+except ImportError:
+    try:
+        from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+    except ImportError:
+        import sys
+        import os
+        sys.path.append(os.path.dirname(__file__))
+        from secure_secrets_manager import SecureSecretsManager
+
+# Import unified authentication service
+try:
+    from .unified_auth_service import get_unified_auth_service
+except ImportError:
+    from unified_auth_service import get_unified_auth_service
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class SecureAuthService:
+    """
+    Secure authentication service for dashboard managers
+    """
+    
+    def __init__(self, project_id: str = None):
+        """
+        Initialize the authentication service
+        
+        Args:
+            project_id: GCP project ID for secrets manager
+        """
+        self.secrets_manager = SecureSecretsManager(project_id)
+        self.session_timeout = timedelta(hours=8)  # 8-hour session timeout
+        self.clubhub_token = None  # Store ClubHub JWT token
+        
+        # Get unified authentication service
+        self.auth_service = get_unified_auth_service()
+        
+    def authenticate_clubhub(self, email: str, password: str) -> Optional[str]:
+        """
+        Authenticate with ClubHub using unified authentication service
+        
+        Args:
+            email: ClubHub email
+            password: ClubHub password
+            
+        Returns:
+            JWT token if successful, None otherwise
+        """
+        try:
+            logger.info("Authenticating with ClubHub via unified service")
+            
+            # Use unified authentication service
+            session = self.auth_service.authenticate_clubhub(email, password)
+            
+            if session and session.authenticated:
+                logger.info("✅ ClubHub authentication successful via unified service")
+                return session.clubhub_bearer_token
+            else:
+                logger.warning("❌ ClubHub authentication failed via unified service")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ ClubHub authentication error: {e}")
+            return None
+        
+    def generate_manager_id(self, username: str, email: str) -> str:
+        """
+        Generate a unique manager ID based on username and email
+        
+        Args:
+            username: ClubOS username
+            email: ClubHub email
+            
+        Returns:
+            Unique manager ID
+        """
+        # Create a deterministic hash of username and email
+        combined = f"{username.lower()}:{email.lower()}"
+        hash_object = hashlib.sha256(combined.encode())
+        return hash_object.hexdigest()[:16]  # Use first 16 characters
+    
+    def validate_credentials_format(self, clubos_username: str, clubos_password: str,
+                                   clubhub_email: str, clubhub_password: str) -> Tuple[bool, str]:
+        """
+        Validate credential format before storing
+        
+        Args:
+            clubos_username: ClubOS username
+            clubos_password: ClubOS password
+            clubhub_email: ClubHub email
+            clubhub_password: ClubHub password
+            
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        if not clubos_username or len(clubos_username) < 3:
+            return False, "ClubOS username must be at least 3 characters"
+        
+        if not clubos_password or len(clubos_password) < 8:
+            return False, "ClubOS password must be at least 8 characters"
+        
+        if not clubhub_email or '@' not in clubhub_email:
+            return False, "ClubHub email must be a valid email address"
+        
+        if not clubhub_password or len(clubhub_password) < 8:
+            return False, "ClubHub password must be at least 8 characters"
+        
+        return True, ""
+    
+    def store_manager_credentials(self, clubos_username: str, clubos_password: str,
+                                clubhub_email: str, clubhub_password: str) -> Tuple[bool, str, str]:
+        """
+        Store manager credentials securely
+        
+        Args:
+            clubos_username: ClubOS username
+            clubos_password: ClubOS password
+            clubhub_email: ClubHub email
+            clubhub_password: ClubHub password
+            
+        Returns:
+            Tuple of (success, manager_id, error_message)
+        """
+        # Validate format
+        is_valid, error_msg = self.validate_credentials_format(
+            clubos_username, clubos_password, clubhub_email, clubhub_password
+        )
+        
+        if not is_valid:
+            logger.error(f"❌ Invalid credential format: {error_msg}")
+            return False, "", error_msg
+        
+        # Generate manager ID
+        manager_id = self.generate_manager_id(clubos_username, clubhub_email)
+        
+        # Store credentials
+        success = self.secrets_manager.store_credentials(
+            manager_id=manager_id,
+            clubos_username=clubos_username,
+            clubos_password=clubos_password,
+            clubhub_email=clubhub_email,
+            clubhub_password=clubhub_password
+        )
+        
+        if success:
+            logger.info(f"✅ Successfully stored credentials for manager {manager_id}")
+            return True, manager_id, ""
+        else:
+            logger.error(f"❌ Failed to store credentials for manager {manager_id}")
+            return False, "", "Failed to store credentials securely"
+    
+    def authenticate_manager(self, clubos_username: str, clubos_password: str,
+                           clubhub_email: str, clubhub_password: str) -> Tuple[bool, str, str]:
+        """
+        Authenticate a manager with their credentials
+        
+        Args:
+            clubos_username: ClubOS username
+            clubos_password: ClubOS password
+            clubhub_email: ClubHub email
+            clubhub_password: ClubHub password
+            
+        Returns:
+            Tuple of (success, manager_id, error_message)
+        """
+        # Generate manager ID
+        manager_id = self.generate_manager_id(clubos_username, clubhub_email)
+        
+        # Check if credentials exist in Google Secret Manager
+        try:
+            # Get the expected credentials from Google Secret Manager
+            expected_clubos_username = self.secrets_manager.get_secret('clubos-username')
+            expected_clubos_password = self.secrets_manager.get_secret('clubos-password')
+            expected_clubhub_email = self.secrets_manager.get_secret('clubhub-email')
+            expected_clubhub_password = self.secrets_manager.get_secret('clubhub-password')
+            
+            # If no credentials exist in Secret Manager, this is first-time setup
+            if not all([expected_clubos_username, expected_clubos_password, expected_clubhub_email, expected_clubhub_password]):
+                logger.info(f"🆕 No credentials found in Secret Manager - attempting first-time setup for manager {manager_id}")
+                
+                # Test the provided credentials by actually authenticating with ClubHub
+                clubhub_token = self.authenticate_clubhub(clubhub_email, clubhub_password)
+                if not clubhub_token:
+                    logger.warning(f"❌ ClubHub authentication failed during first-time setup for manager {manager_id}")
+                    return False, "", "ClubHub authentication failed. Please verify your credentials are correct."
+                
+                # Store the validated credentials in Secret Manager for future use
+                try:
+                    self._store_credentials_in_secret_manager(clubos_username, clubos_password, clubhub_email, clubhub_password)
+                    logger.info(f"✅ First-time setup complete - credentials stored for manager {manager_id}")
+                except Exception as store_error:
+                    logger.warning(f"⚠️ Could not store credentials in Secret Manager: {store_error}")
+                    # Continue anyway since authentication succeeded
+                
+                self.clubhub_token = clubhub_token  # Store token for multi-club processing
+                return True, manager_id, ""
+            
+            # Credentials exist in Secret Manager - validate against them
+            if (clubos_username == expected_clubos_username and 
+                clubos_password == expected_clubos_password and
+                clubhub_email == expected_clubhub_email and 
+                clubhub_password == expected_clubhub_password):
+                
+                logger.info(f"✅ Credentials match Google Secret Manager for manager {manager_id}")
+                
+                # Perform actual ClubHub authentication to get JWT token
+                clubhub_token = self.authenticate_clubhub(clubhub_email, clubhub_password)
+                if clubhub_token:
+                    self.clubhub_token = clubhub_token  # Store token for multi-club processing
+                    logger.info(f"✅ Manager {manager_id} authenticated successfully with ClubHub")
+                    return True, manager_id, ""
+                else:
+                    logger.warning(f"❌ ClubHub authentication failed for manager {manager_id}")
+                    return False, "", "ClubHub authentication failed"
+            else:
+                logger.warning(f"❌ Provided credentials do not match Google Secret Manager")
+                return False, "", "Invalid credentials. Please check your username and password."
+            
+        except Exception as e:
+            logger.error(f"⚠️ Could not retrieve credentials from Google Secret Manager: {e}")
+            return False, "", "Authentication service error. Please try again."
+        
+        # Note: Removed fallback to local stored credentials since we want everything in the cloud
+        
+        # Verify credentials match
+        if (stored_creds['clubos_username'] == clubos_username and
+            stored_creds['clubos_password'] == clubos_password and
+            stored_creds['clubhub_email'] == clubhub_email and
+            stored_creds['clubhub_password'] == clubhub_password):
+            
+            # Perform actual ClubHub authentication to get JWT token
+            clubhub_token = self.authenticate_clubhub(clubhub_email, clubhub_password)
+            if clubhub_token:
+                self.clubhub_token = clubhub_token  # Store token for multi-club processing
+                logger.info(f"✅ Manager {manager_id} authenticated successfully with ClubHub")
+                return True, manager_id, ""
+            else:
+                logger.warning(f"❌ ClubHub authentication failed for manager {manager_id}")
+                return False, "", "ClubHub authentication failed"
+        else:
+            logger.warning(f"❌ Invalid credentials for manager {manager_id}")
+            return False, "", "Invalid credentials"
+    
+    def create_session(self, manager_id: str) -> str:
+        """
+        Create a secure session for authenticated manager with comprehensive debugging
+        
+        Args:
+            manager_id: Manager ID
+            
+        Returns:
+            Session token
+        """
+        logger.info(f"🔍 ====== SESSION CREATION DEBUG START ======")
+        logger.info(f"🔍 Creating session for manager: {manager_id}")
+        
+        session_token = secrets.token_urlsafe(32)
+        logger.info(f"🔍 Generated session token: {session_token[:10]}...")
+        
+        # Check session state before clearing
+        logger.info(f"🔍 Session before clear: {dict(session) if session else 'No session'}")
+        
+        # Clear existing session data first
+        session.clear()
+        logger.info(f"🔍 Session after clear: {dict(session) if session else 'No session'}")
+        
+        # Store session data in Flask session
+        try:
+            session['authenticated'] = True
+            logger.info(f"✅ Set authenticated = True")
+            
+            session['manager_id'] = manager_id
+            logger.info(f"✅ Set manager_id = {manager_id}")
+            
+            session['session_token'] = session_token
+            logger.info(f"✅ Set session_token = {session_token[:10]}...")
+            
+            current_time = datetime.now().isoformat()
+            session['login_time'] = current_time
+            logger.info(f"✅ Set login_time = {current_time}")
+            
+            session['last_activity'] = current_time
+            logger.info(f"✅ Set last_activity = {current_time}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error setting session data: {e}")
+            import traceback
+            logger.error(f"❌ Session creation traceback: {traceback.format_exc()}")
+        
+        # Set session to expire and ensure persistence
+        try:
+            session.permanent = True
+            logger.info(f"✅ Set session.permanent = True")
+            
+            if hasattr(current_app, 'permanent_session_lifetime'):
+                current_app.permanent_session_lifetime = self.session_timeout
+                logger.info(f"✅ Set permanent_session_lifetime = {self.session_timeout}")
+            else:
+                logger.warning(f"⚠️ current_app has no permanent_session_lifetime attribute")
+            
+        except Exception as e:
+            logger.error(f"❌ Error setting session persistence: {e}")
+        
+        # Force session to be saved immediately
+        try:
+            session.modified = True
+            logger.info(f"✅ Set session.modified = True")
+        except Exception as e:
+            logger.error(f"❌ Error setting session.modified: {e}")
+        
+        # Debug final session state
+        try:
+            final_session_data = dict(session)
+            logger.info(f"✅ Final session data: {final_session_data}")
+            logger.info(f"✅ Session keys: {list(session.keys())}")
+            logger.info(f"✅ Session permanent: {session.permanent}")
+            logger.info(f"✅ Session modified: {session.modified}")
+        except Exception as e:
+            logger.error(f"❌ Error getting final session state: {e}")
+        
+        # PERMANENT FIX: Store session data in secure storage
+        session_data = {
+            'manager_id': manager_id,
+            'login_time': session['login_time'],
+            'last_activity': session['last_activity'],
+            'user_info': session.get('user_info', {}),
+            'selected_clubs': []
+        }
+
+        success = self.secrets_manager.store_session_data(session_token, session_data)
+        if success:
+            logger.info(f"✅ Session data stored in secure storage for manager {manager_id}")
+        else:
+            logger.warning(f"⚠️ Failed to store session data in secure storage for {manager_id}")
+
+        logger.info(f"✅ Created session for manager {manager_id}")
+        logger.info(f"🔍 ====== SESSION CREATION DEBUG END ======")
+
+        return session_token
+    
+    def validate_session(self) -> Tuple[bool, str]:
+        """
+        Validate current session (simplified for performance)
+        
+        Returns:
+            Tuple of (is_valid, manager_id)
+        """
+        try:
+            # Quick session existence check
+            if not session:
+                return False, ""
+            
+            # Check required session data
+            authenticated = session.get('authenticated')
+            manager_id = session.get('manager_id')
+            
+            if not authenticated or not manager_id:
+                return False, ""
+            
+            # Check session timeout (simplified)
+            if 'login_time' in session:
+                try:
+                    login_time = datetime.fromisoformat(session['login_time'])
+                    session_age = datetime.now() - login_time
+                    
+                    if session_age > self.session_timeout:
+                        self.logout()
+                        return False, ""
+                except (ValueError, TypeError):
+                    # Invalid time format - reset it but don't fail
+                    session['login_time'] = datetime.now().isoformat()
+                    session.modified = True
+            else:
+                # Add login_time if missing
+                session['login_time'] = datetime.now().isoformat()
+                session.modified = True
+            
+            # Update last activity (minimal)
+            session['last_activity'] = datetime.now().isoformat()
+            session.modified = True
+            
+            return True, manager_id
+            
+        except Exception as e:
+            logger.error(f"❌ Session validation exception: {e}")
+            return False, ""
+
+    def logout(self) -> None:
+        """
+        Clear the current session
+        """
+        manager_id = session.get('manager_id', 'unknown')
+        
+        # Clear all session data
+        session.clear()
+        
+        logger.info(f"✅ Manager {manager_id} logged out")
+    
+    def get_manager_credentials(self, manager_id: str) -> Optional[Dict[str, str]]:
+        """
+        Get manager credentials for API calls (only if authenticated)
+        
+        Args:
+            manager_id: Manager ID
+            
+        Returns:
+            Dict with credentials or None
+        """
+        # Verify session is valid
+        is_valid, session_manager_id = self.validate_session()
+        
+        if not is_valid or session_manager_id != manager_id:
+            logger.error(f"❌ Unauthorized attempt to access credentials for {manager_id}")
+            return None
+        
+        return self.secrets_manager.get_credentials(manager_id)
+    
+    def require_authentication(self):
+        """
+        Decorator function to require authentication for routes
+        
+        Returns:
+            Decorator function
+        """
+        def decorator(f):
+            def decorated_function(*args, **kwargs):
+                is_valid, manager_id = self.validate_session()
+                if not is_valid:
+                    from flask import redirect, url_for
+                    logger.warning(f"❌ Unauthenticated access attempt to {request.endpoint}")
+                    return redirect(url_for('login'))
+                return f(*args, **kwargs)
+            decorated_function.__name__ = f.__name__
+            return decorated_function
+        return decorator
+    
+    def get_session_info(self) -> Dict[str, any]:
+        """
+        Get current session information
+        
+        Returns:
+            Dict with session info
+        """
+        is_valid, manager_id = self.validate_session()
+        
+        if not is_valid:
+            return {
+                'authenticated': False,
+                'manager_id': None,
+                'login_time': None,
+                'last_activity': None
+            }
+        
+        return {
+            'authenticated': True,
+            'manager_id': manager_id,
+            'login_time': session.get('login_time'),
+            'last_activity': session.get('last_activity')
+        }
+    
+    def update_manager_credentials(self, manager_id: str, clubos_username: str = None,
+                                 clubos_password: str = None, clubhub_email: str = None,
+                                 clubhub_password: str = None) -> Tuple[bool, str]:
+        """
+        Update specific manager credentials
+        
+        Args:
+            manager_id: Manager ID
+            clubos_username: New ClubOS username (optional)
+            clubos_password: New ClubOS password (optional)
+            clubhub_email: New ClubHub email (optional)
+            clubhub_password: New ClubHub password (optional)
+            
+        Returns:
+            Tuple of (success, error_message)
+        """
+        # Verify session
+        is_valid, session_manager_id = self.validate_session()
+        if not is_valid or session_manager_id != manager_id:
+            return False, "Unauthorized"
+        
+        # Get current credentials
+        current_creds = self.secrets_manager.get_credentials(manager_id)
+        if not current_creds:
+            return False, "Manager credentials not found"
+        
+        # Update only provided fields
+        updated_creds = current_creds.copy()
+        if clubos_username is not None:
+            updated_creds['clubos_username'] = clubos_username
+        if clubos_password is not None:
+            updated_creds['clubos_password'] = clubos_password
+        if clubhub_email is not None:
+            updated_creds['clubhub_email'] = clubhub_email
+        if clubhub_password is not None:
+            updated_creds['clubhub_password'] = clubhub_password
+        
+        # Validate updated credentials
+        is_valid, error_msg = self.validate_credentials_format(
+            updated_creds['clubos_username'],
+            updated_creds['clubos_password'],
+            updated_creds['clubhub_email'],
+            updated_creds['clubhub_password']
+        )
+        
+        if not is_valid:
+            return False, error_msg
+        
+        # Store updated credentials
+        success = self.secrets_manager.store_credentials(
+            manager_id=manager_id,
+            clubos_username=updated_creds['clubos_username'],
+            clubos_password=updated_creds['clubos_password'],
+            clubhub_email=updated_creds['clubhub_email'],
+            clubhub_password=updated_creds['clubhub_password']
+        )
+        
+        if success:
+            logger.info(f"✅ Updated credentials for manager {manager_id}")
+            return True, ""
+        else:
+            return False, "Failed to update credentials"
+    
+    def _store_credentials_in_secret_manager(self, clubos_username: str, clubos_password: str,
+                                           clubhub_email: str, clubhub_password: str):
+        """Helper method to store individual credentials in Secret Manager"""
+        secrets_to_store = {
+            'clubos-username': clubos_username,
+            'clubos-password': clubos_password,
+            'clubhub-email': clubhub_email,
+            'clubhub-password': clubhub_password
+        }
+        
+        for secret_name, secret_value in secrets_to_store.items():
+            try:
+                # Create or update the secret
+                parent = f'projects/{self.secrets_manager.project_id}'
+                
+                # Try to create the secret first
+                try:
+                    secret = self.secrets_manager.client.create_secret(
+                        request={
+                            'parent': parent,
+                            'secret_id': secret_name,
+                            'secret': {'replication': {'automatic': {}}},
+                        }
+                    )
+                    logger.info(f"✅ Created new secret: {secret_name}")
+                except Exception as e:
+                    if 'already exists' in str(e).lower():
+                        logger.info(f"ℹ️ Secret {secret_name} already exists, will update")
+                    else:
+                        raise e
+                
+                # Add the secret version
+                secret_path = f'projects/{self.secrets_manager.project_id}/secrets/{secret_name}'
+                response = self.secrets_manager.client.add_secret_version(
+                    request={
+                        'parent': secret_path,
+                        'payload': {'data': secret_value.encode('UTF-8')},
+                    }
+                )
+                
+                logger.info(f"✅ Stored secret: {secret_name}")
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to store secret {secret_name}: {e}")
+                raise e
+
+    def validate_session_token(self, session_token: str) -> dict:
+        """
+        Validate a session token and return session data
+
+        Args:
+            session_token: The session token to validate
+
+        Returns:
+            Dict with validation result and session data
+        """
+        try:
+            # Get session data from secure storage
+            session_data = self.secrets_manager.get_session_data(session_token)
+
+            if not session_data:
+                logger.warning(f"❌ Session token not found: {session_token[:10]}...")
+                return {'is_valid': False}
+
+            # Check if session has expired
+            from datetime import datetime, timedelta
+            login_time = datetime.fromisoformat(session_data.get('login_time', ''))
+            current_time = datetime.now()
+
+            # Session expires after 8 hours
+            if current_time - login_time > timedelta(hours=8):
+                logger.warning(f"❌ Session expired for token: {session_token[:10]}...")
+                # Clean up expired session
+                self.secrets_manager.delete_session_data(session_token)
+                return {'is_valid': False}
+
+            # Session is valid, return the data
+            return {
+                'is_valid': True,
+                'manager_id': session_data.get('manager_id'),
+                'login_time': session_data.get('login_time'),
+                'last_activity': session_data.get('last_activity'),
+                'selected_clubs': session_data.get('selected_clubs', []),
+                'user_info': session_data.get('user_info', {})
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Error validating session token: {e}")
+            return {'is_valid': False}
+
+    def update_session_activity(self, session_token: str) -> bool:
+        """
+        Update the last activity time for a session
+
+        Args:
+            session_token: The session token to update
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            session_data = self.secrets_manager.get_session_data(session_token)
+            if session_data:
+                from datetime import datetime
+                session_data['last_activity'] = datetime.now().isoformat()
+                return self.secrets_manager.store_session_data(session_token, session_data)
+            return False
+        except Exception as e:
+            logger.error(f"❌ Error updating session activity: {e}")
+            return False
+
+    def store_selected_clubs(self, session_token: str, selected_clubs: list) -> bool:
+        """
+        Store selected clubs in session data
+
+        Args:
+            session_token: The session token
+            selected_clubs: List of selected club IDs
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            session_data = self.secrets_manager.get_session_data(session_token)
+            if session_data:
+                session_data['selected_clubs'] = selected_clubs
+                return self.secrets_manager.store_session_data(session_token, session_data)
+            return False
+        except Exception as e:
+            logger.error(f"❌ Error storing selected clubs: {e}")
+            return False
