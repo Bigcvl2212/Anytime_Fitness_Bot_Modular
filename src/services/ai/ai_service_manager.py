@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 AI Service Manager
-Core AI service for handling Claude API integration and request management
+Core AI service for handling Groq API integration and request management
 """
 
 import logging
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 class AIServiceManager:
     """
-    Core AI service manager for handling Claude API requests
+    Core AI service manager for handling Groq API requests
     Provides secure, rate-limited access to AI capabilities
     """
 
@@ -26,20 +26,20 @@ class AIServiceManager:
         Initialize AI Service Manager
 
         Args:
-            api_key: Claude API key (if None, will try to get from secrets manager)
+            api_key: Groq API key (if None, will try to get from secrets manager)
         """
         self.api_key = api_key
-        self.base_url = "https://api.anthropic.com/v1/messages"
-        # Using Claude 4 Sonnet (latest 2025 model)
-        self.model = "claude-sonnet-4-5-20250929"  # Claude Sonnet 4.5 (latest, best for coding and agents)
+        self.base_url = "https://api.groq.com/openai/v1/chat/completions"
+        # Using Llama 3.1 70B (fast and powerful)
+        self.model = "llama-3.1-70b-versatile"
         self.max_tokens = 4000
         self.temperature = 0.7
 
         # Rate limiting
         self._last_request_time = 0
-        self._min_request_interval = 1.0  # Minimum 1 second between requests
+        self._min_request_interval = 0.5  # Groq is faster, 0.5 second between requests
         self._request_count = 0
-        self._daily_limit = 1000  # Adjust based on your API limits
+        self._daily_limit = 10000  # Groq has higher free tier limits
 
         # Request tracking for monitoring
         self._request_history = []
@@ -48,24 +48,24 @@ class AIServiceManager:
             self._load_api_key()
 
     def _load_api_key(self):
-        """Load Claude API key from secrets manager"""
+        """Load Groq API key from secrets manager or environment"""
         try:
             from ..authentication.secure_secrets_manager import SecureSecretsManager
             secrets_manager = SecureSecretsManager()
-            self.api_key = secrets_manager.get_secret("claude-api-key")
+            self.api_key = secrets_manager.get_secret("groq-api-key")
 
             if not self.api_key:
                 # Try environment variable as fallback
-                self.api_key = os.getenv("CLAUDE_API_KEY")
+                self.api_key = os.getenv("GROQ_API_KEY")
 
             if not self.api_key:
-                logger.error("❌ Claude API key not found in secrets manager or environment")
-                raise ValueError("Claude API key not configured")
+                logger.error("❌ Groq API key not found in secrets manager or environment")
+                raise ValueError("Groq API key not configured")
 
-            logger.info("✅ Claude API key loaded successfully")
+            logger.info("✅ Groq API key loaded successfully")
 
         except Exception as e:
-            logger.error(f"❌ Error loading Claude API key: {e}")
+            logger.error(f"❌ Error loading Groq API key: {e}")
             raise
 
     async def _rate_limit_check(self):
@@ -90,7 +90,7 @@ class AIServiceManager:
                           max_tokens: int = None,
                           temperature: float = None) -> Dict[str, Any]:
         """
-        Send message to Claude API
+        Send message to Groq API
 
         Args:
             messages: List of message dictionaries with 'role' and 'content'
@@ -104,22 +104,24 @@ class AIServiceManager:
         try:
             await self._rate_limit_check()
 
-            # Prepare request payload
+            # Prepare messages with system prompt if provided
+            api_messages = []
+            if system_prompt:
+                api_messages.append({"role": "system", "content": system_prompt})
+            api_messages.extend(messages)
+
+            # Prepare request payload (OpenAI-compatible format)
             payload = {
                 "model": self.model,
                 "max_tokens": max_tokens or self.max_tokens,
                 "temperature": temperature or self.temperature,
-                "messages": messages
+                "messages": api_messages
             }
 
-            if system_prompt:
-                payload["system"] = system_prompt
-
-            # Headers
+            # Headers for Groq API
             headers = {
                 "Content-Type": "application/json",
-                "x-api-key": self.api_key,
-                "anthropic-version": "2023-06-01"
+                "Authorization": f"Bearer {self.api_key}"
             }
 
             # Make request
@@ -134,16 +136,21 @@ class AIServiceManager:
                         # Track successful request
                         self._track_request(True, len(str(payload)), len(str(result)))
 
+                        # Extract response content from OpenAI-compatible format
+                        response_content = ""
+                        if result.get('choices') and len(result['choices']) > 0:
+                            response_content = result['choices'][0].get('message', {}).get('content', '')
+
                         return {
                             'success': True,
-                            'response': result['content'][0]['text'] if result.get('content') else '',
+                            'response': response_content,
                             'usage': result.get('usage', {}),
                             'model': result.get('model', self.model),
                             'timestamp': datetime.now().isoformat()
                         }
                     else:
                         error_text = await response.text()
-                        logger.error(f"❌ Claude API error {response.status}: {error_text}")
+                        logger.error(f"❌ Groq API error {response.status}: {error_text}")
 
                         # Track failed request
                         self._track_request(False, len(str(payload)), 0, error_text)
@@ -155,7 +162,7 @@ class AIServiceManager:
                         }
 
         except Exception as e:
-            logger.error(f"❌ Error sending message to Claude: {e}")
+            logger.error(f"❌ Error sending message to Groq: {e}")
             self._track_request(False, 0, 0, str(e))
 
             return {
