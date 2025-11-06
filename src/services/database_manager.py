@@ -517,10 +517,10 @@ class DatabaseManager:
                         member.get('email'),
                         member.get('phone') or member.get('phoneNumber'),
                         member.get('mobile_phone') or member.get('mobilePhone'),
-                        member.get('address') or member.get('streetAddress'),
+                        member.get('address') or member.get('address1') or member.get('streetAddress'),
                         member.get('city'),
                         member.get('state'),
-                        member.get('zip_code') or member.get('zipCode') or member.get('postalCode'),
+                        member.get('zip_code') or member.get('zip') or member.get('zipCode') or member.get('postalCode'),
                         member.get('status', 'Active'),
                         member.get('status_message', ''),
                         member.get('member_type', ''),
@@ -614,23 +614,25 @@ class DatabaseManager:
                 for prospect in prospects_data:
                     cursor.execute("""
                         REPLACE INTO prospects (
-                            prospect_id, first_name, last_name, email, mobile_phone,
-                            status, source, interest_level, club_name, created_date,
-                            last_contact_date, notes, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            prospect_id, first_name, last_name, full_name, email, phone, mobile_phone,
+                            address, city, state, zip_code,
+                            status, prospect_type, source, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
-                        prospect.get('prospect_id'),
-                        prospect.get('first_name'),
-                        prospect.get('last_name'),
+                        prospect.get('prospect_id') or prospect.get('id'),
+                        prospect.get('first_name') or prospect.get('firstName'),
+                        prospect.get('last_name') or prospect.get('lastName'),
+                        prospect.get('full_name') or f"{prospect.get('firstName', '')} {prospect.get('lastName', '')}".strip(),
                         prospect.get('email'),
-                        prospect.get('mobile_phone'),
+                        prospect.get('phone') or prospect.get('phoneNumber') or prospect.get('homePhone'),
+                        prospect.get('mobile_phone') or prospect.get('mobilePhone'),
+                        prospect.get('address') or prospect.get('address1') or prospect.get('streetAddress'),
+                        prospect.get('city'),
+                        prospect.get('state'),
+                        prospect.get('zip_code') or prospect.get('zipCode') or prospect.get('postalCode') or prospect.get('zip'),
                         prospect.get('status'),
+                        prospect.get('prospect_type') or prospect.get('membershipType'),
                         prospect.get('source'),
-                        prospect.get('interest_level'),
-                        prospect.get('club_name'),
-                        prospect.get('created_date'),
-                        prospect.get('last_contact_date'),
-                        prospect.get('notes'),
                         datetime.now().isoformat()
                     ))
 

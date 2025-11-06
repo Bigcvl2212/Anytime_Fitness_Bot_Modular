@@ -50,9 +50,11 @@ def club_selection():
         # Get available clubs from multi_club_manager
         available_clubs = multi_club_manager.get_available_clubs_for_selection()
         user_summary = multi_club_manager.get_user_summary()
-        
+
         if not available_clubs:
-            flash('No clubs available. Please contact support.', 'error')
+            # No clubs available - ClubHub authentication must have failed
+            logger.error("❌ No clubs available - ClubHub authentication failed or returned no clubs")
+            flash('Could not load your clubs. Please contact support or check your ClubHub credentials.', 'error')
             return redirect(url_for('auth.login'))
         
         # If user only has one club, skip selection and redirect to dashboard

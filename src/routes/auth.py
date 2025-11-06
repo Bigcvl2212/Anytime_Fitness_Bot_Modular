@@ -32,7 +32,27 @@ def require_auth(f):
                 logger.warning(f"❌ authenticated: {session.get('authenticated')}")
                 logger.warning(f"❌ manager_id: {session.get('manager_id')}")
                 logger.warning(f"❌ REDIRECTING TO LOGIN")
+
+                # IMPORTANT: Preserve club selection data before clearing
+                # This prevents losing selected clubs if there's a temporary auth hiccup
+                preserved_data = {
+                    'selected_clubs': session.get('selected_clubs'),
+                    'available_clubs': session.get('available_clubs'),
+                    'user_info': session.get('user_info')
+                }
+
                 session.clear()
+
+                # Restore preserved data if it existed
+                if preserved_data.get('selected_clubs'):
+                    session['selected_clubs'] = preserved_data['selected_clubs']
+                    logger.info(f"🔄 Preserved selected_clubs: {preserved_data['selected_clubs']}")
+                if preserved_data.get('available_clubs'):
+                    session['available_clubs'] = preserved_data['available_clubs']
+                if preserved_data.get('user_info'):
+                    session['user_info'] = preserved_data['user_info']
+
+                session.modified = True
                 return redirect(url_for('auth.login'))
 
             # Check session timeout
@@ -45,7 +65,26 @@ def require_auth(f):
                     # 8 hour timeout
                     if session_age > timedelta(hours=8):
                         logger.warning(f"⚠️ Session expired for {route_name}: age={session_age}")
+
+                        # Preserve club selection data before clearing
+                        preserved_data = {
+                            'selected_clubs': session.get('selected_clubs'),
+                            'available_clubs': session.get('available_clubs'),
+                            'user_info': session.get('user_info')
+                        }
+
                         session.clear()
+
+                        # Restore preserved data
+                        if preserved_data.get('selected_clubs'):
+                            session['selected_clubs'] = preserved_data['selected_clubs']
+                        if preserved_data.get('available_clubs'):
+                            session['available_clubs'] = preserved_data['available_clubs']
+                        if preserved_data.get('user_info'):
+                            session['user_info'] = preserved_data['user_info']
+
+                        session.modified = True
+                        flash('Your session has expired. Please log in again.', 'info')
                         return redirect(url_for('auth.login'))
                 except (ValueError, TypeError):
                     # Invalid time format, but don't fail - just update it
@@ -136,7 +175,12 @@ def login():
         from ..services.authentication.secure_secrets_manager import SecureSecretsManager
         secrets_manager = SecureSecretsManager()
 
+        logger.info(f"🔍 Attempting to retrieve credentials for manager_id: {manager_id}")
         credentials = secrets_manager.get_credentials(manager_id)
+        logger.info(f"🔍 Credentials retrieved: {credentials is not None}")
+        if credentials:
+            logger.info(f"🔍 Has clubhub_email: {credentials.get('clubhub_email') is not None}")
+            logger.info(f"🔍 Has clubhub_password: {credentials.get('clubhub_password') is not None}")
 
         if credentials and credentials.get('clubhub_email') and credentials.get('clubhub_password'):
             # Try to authenticate with ClubHub to get club access
@@ -211,21 +255,21 @@ def login():
                         flash('No club access found. Please contact support.', 'error')
                         return redirect(url_for('auth.login'))
                 else:
-                    # ClubHub auth failed - fallback to single club
-                    logger.info(f"⚠️ ClubHub authentication failed for {username}, using single-club mode")
-                    flash(f'Welcome {username}! Successfully authenticated.', 'success')
-                    return redirect(url_for('dashboard.dashboard'))
+                    # ClubHub auth failed - redirect to club selection
+                    logger.info(f"⚠️ ClubHub authentication failed for {username}, redirecting to club selection")
+                    flash(f'Welcome {username}! Please select your clubs.', 'success')
+                    return redirect(url_for('club_selection.club_selection'))
 
             except Exception as clubhub_error:
                 logger.warning(f"⚠️ ClubHub authentication error: {clubhub_error}")
-                # Fallback to single club on error
-                flash(f'Welcome {username}! Successfully authenticated.', 'success')
-                return redirect(url_for('dashboard.dashboard'))
+                # Redirect to club selection
+                flash(f'Welcome {username}! Please select your clubs.', 'success')
+                return redirect(url_for('club_selection.club_selection'))
         else:
-            # No ClubHub credentials - single club mode (backward compatibility)
-            logger.info(f"ℹ️ No ClubHub credentials found for {username}, using single-club mode")
-            flash(f'Welcome {username}! Successfully authenticated.', 'success')
-            return redirect(url_for('dashboard.dashboard'))
+            # No ClubHub credentials - redirect to club selection
+            logger.info(f"ℹ️ No ClubHub credentials found for {username}, redirecting to club selection")
+            flash(f'Welcome {username}! Please select your clubs.', 'success')
+            return redirect(url_for('club_selection.club_selection'))
             
     except Exception as e:
         logger.error(f"❌ Login error: {e}")

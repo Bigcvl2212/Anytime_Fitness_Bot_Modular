@@ -52,11 +52,16 @@ def get_past_due_members(min_amount: float = 0.01, days_past_due: int = None) ->
                 "id": m.get('prospect_id') or m.get('guid'),
                 "name": m.get('display_name') or m.get('full_name'),
                 "email": m.get('email'),
-                "phone": m.get('phone_number') or m.get('primary_phone'),
+                "phone": m.get('phone_number') or m.get('primary_phone') or m.get('phone') or m.get('mobile_phone'),
                 "amount_past_due": float(m.get('amount_past_due', 0) or 0),
                 "base_amount_past_due": float(m.get('base_amount_past_due', 0) or 0),
                 "status": m.get('status_message'),
-                "agreement_status": m.get('agreement_status')
+                "agreement_status": m.get('agreement_status'),
+                "agreement_id": m.get('agreement_id'),
+                "address": m.get('address'),
+                "city": m.get('city'),
+                "state": m.get('state'),
+                "zip_code": m.get('zip_code')
             })
         
         logger.info(f"✅ Retrieved {len(collections_list)} past due members (total: ${total_amount:.2f})")
@@ -122,7 +127,12 @@ def get_past_due_training_clients(min_amount: float = 0.01) -> Dict[str, Any]:
                     "total_past_due": float(c.get('total_past_due', 0) or 0),
                     "training_package": c.get('training_package'),
                     "payment_status": c.get('payment_status'),
-                    "sessions_remaining": c.get('sessions_remaining')
+                    "sessions_remaining": c.get('sessions_remaining'),
+                    "agreement_id": c.get('agreement_id'),
+                    "address": c.get('address'),
+                    "city": c.get('city'),
+                    "state": c.get('state'),
+                    "zip_code": c.get('zip_code')
                 })
                 total_amount += past_due
         
@@ -422,11 +432,16 @@ def generate_collections_referral_list(
                 "member_id": member.get('prospect_id') or member.get('guid'),
                 "name": member.get('display_name') or member.get('full_name'),
                 "email": member.get('email'),
-                "phone": member.get('phone_number') or member.get('primary_phone'),
+                "phone": member.get('phone_number') or member.get('primary_phone') or member.get('phone') or member.get('mobile_phone'),
                 "amount_past_due": amount,
                 "attempt_count": member.get('attempt_count', 0),
                 "status": member.get('status_message'),
-                "referral_date": datetime.now().isoformat()
+                "agreement_id": member.get('agreement_id'),
+                "referral_date": datetime.now().isoformat(),
+                "address": member.get('address'),
+                "city": member.get('city'),
+                "state": member.get('state'),
+                "zip_code": member.get('zip_code')
             })
         
         logger.info(f"✅ Generated collections referral list: {len(referral_list)} members (total: ${total_amount:.2f})")

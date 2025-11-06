@@ -1,7 +1,7 @@
 """
 Gym AI Agent Core
 
-Main agent orchestration using Groq function calling
+Main agent orchestration using Claude function calling
 """
 
 import logging
@@ -11,9 +11,9 @@ from datetime import datetime
 import json
 
 try:
-    from groq import Groq
+    from anthropic import Anthropic
 except ImportError:
-    Groq = None
+    Anthropic = None
 
 from .tools_registry import ToolsRegistry
 from .agent_tools import campaign_tools, collections_tools, access_tools, member_tools
@@ -22,31 +22,31 @@ from .rate_limiter import get_rate_limiter
 logger = logging.getLogger(__name__)
 
 class GymAgentCore:
-    """Core AI agent using Groq function calling"""
-
+    """Core AI agent using Claude function calling"""
+    
     def __init__(self, api_key: str = None):
         """Initialize the agent
-
+        
         Args:
-            api_key: Groq API key (or set GROQ_API_KEY env var)
+            api_key: Anthropic API key (or set CLAUDE_API_KEY / ANTHROPIC_API_KEY env var)
         """
-        # Get Groq API key
-        self.api_key = api_key or os.getenv('GROQ_API_KEY')
-
+        # Try CLAUDE_API_KEY first (existing app uses this), then ANTHROPIC_API_KEY
+        self.api_key = api_key or os.getenv('CLAUDE_API_KEY') or os.getenv('ANTHROPIC_API_KEY')
+        
         if not self.api_key:
-            logger.warning("⚠️ GROQ_API_KEY not found - agent will not be able to make decisions")
-
-        # Initialize Groq client
-        if Groq:
-            self.client = Groq(api_key=self.api_key) if self.api_key else None
+            logger.warning("⚠️ CLAUDE_API_KEY or ANTHROPIC_API_KEY not found - agent will not be able to make decisions")
+        
+        # Initialize Anthropic client
+        if Anthropic:
+            self.client = Anthropic(api_key=self.api_key) if self.api_key else None
         else:
             self.client = None
-            logger.warning("⚠️ Groq package not installed - run: pip install groq")
-
+            logger.warning("⚠️ Anthropic package not installed - run: pip install anthropic")
+        
         # Initialize tools registry
         self.registry = ToolsRegistry()
         self._register_all_tools()
-
+        
         logger.info(f"✅ Gym AI Agent initialized with {len(self.registry.list_tools())} tools")
     
     def _register_all_tools(self):

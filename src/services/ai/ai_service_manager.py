@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 AI Service Manager
-Core AI service for handling Groq API integration and request management
+Core AI service for handling Claude API integration and request management
 """
 
 import logging
@@ -30,16 +30,16 @@ class AIServiceManager:
         """
         self.api_key = api_key
         self.base_url = "https://api.groq.com/openai/v1/chat/completions"
-        # Using Llama 3.1 70B (fast and powerful)
-        self.model = "llama-3.1-70b-versatile"
+        # Using Groq's Llama model
+        self.model = "llama-3.1-70b-versatile"  # Groq Llama 3.1 70B
         self.max_tokens = 4000
         self.temperature = 0.7
 
         # Rate limiting
         self._last_request_time = 0
-        self._min_request_interval = 0.5  # Groq is faster, 0.5 second between requests
+        self._min_request_interval = 1.0  # Minimum 1 second between requests
         self._request_count = 0
-        self._daily_limit = 10000  # Groq has higher free tier limits
+        self._daily_limit = 1000  # Adjust based on your API limits
 
         # Request tracking for monitoring
         self._request_history = []
@@ -48,7 +48,7 @@ class AIServiceManager:
             self._load_api_key()
 
     def _load_api_key(self):
-        """Load Groq API key from secrets manager or environment"""
+        """Load Groq API key from secrets manager"""
         try:
             from ..authentication.secure_secrets_manager import SecureSecretsManager
             secrets_manager = SecureSecretsManager()
@@ -104,21 +104,21 @@ class AIServiceManager:
         try:
             await self._rate_limit_check()
 
-            # Prepare messages with system prompt if provided
-            api_messages = []
+            # Add system message to beginning if provided
+            formatted_messages = []
             if system_prompt:
-                api_messages.append({"role": "system", "content": system_prompt})
-            api_messages.extend(messages)
+                formatted_messages.append({"role": "system", "content": system_prompt})
+            formatted_messages.extend(messages)
 
             # Prepare request payload (OpenAI-compatible format)
             payload = {
                 "model": self.model,
                 "max_tokens": max_tokens or self.max_tokens,
                 "temperature": temperature or self.temperature,
-                "messages": api_messages
+                "messages": formatted_messages
             }
 
-            # Headers for Groq API
+            # Headers for Groq
             headers = {
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.api_key}"
@@ -136,14 +136,14 @@ class AIServiceManager:
                         # Track successful request
                         self._track_request(True, len(str(payload)), len(str(result)))
 
-                        # Extract response content from OpenAI-compatible format
-                        response_content = ""
+                        # Parse Groq's OpenAI-compatible response format
+                        response_text = ''
                         if result.get('choices') and len(result['choices']) > 0:
-                            response_content = result['choices'][0].get('message', {}).get('content', '')
+                            response_text = result['choices'][0].get('message', {}).get('content', '')
 
                         return {
                             'success': True,
-                            'response': response_content,
+                            'response': response_text,
                             'usage': result.get('usage', {}),
                             'model': result.get('model', self.model),
                             'timestamp': datetime.now().isoformat()

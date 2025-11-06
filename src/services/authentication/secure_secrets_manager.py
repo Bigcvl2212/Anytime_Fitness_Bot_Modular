@@ -205,8 +205,12 @@ class SecureSecretsManager:
 
                     logger.info(f"✅ Retrieved credentials from database for manager {manager_id}")
                     return credentials
+                else:
+                    logger.warning(f"⚠️ No credentials found in database for manager {manager_id}")
         except Exception as db_error:
-            logger.debug(f"Database credentials retrieval failed: {db_error}")
+            logger.error(f"❌ Database credentials retrieval failed: {db_error}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
 
         # Fallback to Google Secret Manager (but only if database failed)
         if not self.client:

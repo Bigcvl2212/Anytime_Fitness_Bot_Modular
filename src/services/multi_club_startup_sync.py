@@ -287,7 +287,28 @@ def sync_members_for_club(club_id: str = None, app=None, manager_id: str = None)
         if not members:
             logger.warning(f"⚠️ No members found for club {club_id}")
             return []
-        
+
+        # Get prospects to get address data (prospects endpoint has full contact info)
+        logger.info(f"📍 Fetching prospects to get address data...")
+        prospects = clubhub_client.get_all_prospects_paginated(club_id=club_id)
+
+        # Create address lookup by prospect ID
+        address_lookup = {}
+        if prospects:
+            for prospect in prospects:
+                prospect_id = str(prospect.get('id') or prospect.get('prospectId'))
+                if prospect_id:
+                    address_lookup[prospect_id] = {
+                        'address': prospect.get('address') or prospect.get('address1') or prospect.get('streetAddress'),
+                        'city': prospect.get('city'),
+                        'state': prospect.get('state'),
+                        'zip_code': prospect.get('zip') or prospect.get('zipCode') or prospect.get('postalCode'),
+                        'phone': prospect.get('homePhone') or prospect.get('phone') or prospect.get('phoneNumber'),
+                        'mobile_phone': prospect.get('mobilePhone') or prospect.get('mobile'),
+                        'email': prospect.get('email')
+                    }
+            logger.info(f"📊 Built address lookup from {len(address_lookup)} prospects")
+
         logger.info(f"📊 Processing {len(members)} members with comprehensive agreement data...")
         
         def get_member_agreement_data(member_data):
@@ -296,8 +317,11 @@ def sync_members_for_club(club_id: str = None, app=None, manager_id: str = None)
                 member_data['full_name'] = f"{member_data.get('firstName', '')} {member_data.get('lastName', '')}".strip()
                 member_data['source_club_id'] = club_id
 
-                # Extract contact information from the base member data
-                # The /api/v1.0/clubs/{id}/members endpoint already includes all personal info!
+                # Get prospect ID first
+                member_data['prospect_id'] = str(member_data.get('id') or member_data.get('prospectId'))
+                prospect_id = member_data['prospect_id']
+
+                # Extract contact information from member data first
                 member_data['first_name'] = member_data.get('firstName')
                 member_data['last_name'] = member_data.get('lastName')
                 member_data['address'] = member_data.get('address1') or member_data.get('address') or member_data.get('streetAddress')
@@ -307,7 +331,25 @@ def sync_members_for_club(club_id: str = None, app=None, manager_id: str = None)
                 member_data['phone'] = member_data.get('homePhone') or member_data.get('phone') or member_data.get('phoneNumber')
                 member_data['mobile_phone'] = member_data.get('mobilePhone') or member_data.get('mobile')
                 member_data['email'] = member_data.get('email')
-                member_data['prospect_id'] = str(member_data.get('id') or member_data.get('prospectId'))
+
+                # Enhance with prospect data if available (prospects have full address info)
+                if prospect_id in address_lookup:
+                    prospect_data = address_lookup[prospect_id]
+                    # Only override if member data doesn't have it
+                    if not member_data.get('address'):
+                        member_data['address'] = prospect_data.get('address')
+                    if not member_data.get('city'):
+                        member_data['city'] = prospect_data.get('city')
+                    if not member_data.get('state'):
+                        member_data['state'] = prospect_data.get('state')
+                    if not member_data.get('zip_code'):
+                        member_data['zip_code'] = prospect_data.get('zip_code')
+                    if not member_data.get('phone'):
+                        member_data['phone'] = prospect_data.get('phone')
+                    if not member_data.get('mobile_phone'):
+                        member_data['mobile_phone'] = prospect_data.get('mobile_phone')
+                    if not member_data.get('email'):
+                        member_data['email'] = prospect_data.get('email')
 
                 member_id = member_data.get('id') or member_data.get('prospectId')
                 if member_id:
@@ -505,44 +547,61 @@ def sync_training_clients_for_club(club_id: str = None, app=None, manager_id: st
             training_clients = clubos.get_training_clients()
 
             if training_clients:
-                # Enhance training clients with address data from ClubHub
-                logger.info(f"📍 Enhancing {len(training_clients)} training clients with address data from ClubHub...")
+                # Enhance training clients with address data from members database
+                logger.info(f"📍 Enhancing {len(training_clients)} training clients with address data from members database...")
 
-                # Get ClubHub credentials
-                secrets_manager = SecureSecretsManager()
-                if manager_id:
-                    credentials = secrets_manager.get_credentials(manager_id)
-                    clubhub_email = credentials.get('clubhub_email') if credentials else None
-                    clubhub_password = credentials.get('clubhub_password') if credentials else None
-                else:
-                    clubhub_email = secrets_manager.get_secret('clubhub-email')
-                    clubhub_password = secrets_manager.get_secret('clubhub-password')
+                # Get database manager
+                from src.services.database_manager import DatabaseManager
+                db_manager = DatabaseManager()
 
-                if clubhub_email and clubhub_password:
-                    clubhub_client = ClubHubAPIClient()
-                    if clubhub_client.authenticate(clubhub_email, clubhub_password):
-                        # Enhance each training client with address data
-                        for client in training_clients:
-                            try:
-                                member_id = client.get('clubos_member_id') or client.get('member_id') or client.get('prospect_id')
-                                if member_id:
-                                    # Get member details for address info
-                                    member_details = clubhub_client.get_member_details(str(member_id))
-                                    if member_details and isinstance(member_details, dict):
-                                        client['address'] = member_details.get('address') or member_details.get('streetAddress')
-                                        client['city'] = member_details.get('city')
-                                        client['state'] = member_details.get('state')
-                                        client['zip_code'] = member_details.get('zipCode') or member_details.get('postalCode')
-                                        client['mobile_phone'] = member_details.get('mobilePhone') or member_details.get('mobile') or client.get('phone')
-                                        client['email'] = member_details.get('email') or client.get('email')
+                # Get all members with addresses from database
+                members_query = """
+                    SELECT prospect_id, address, city, state, zip_code, mobile_phone, email, phone
+                    FROM members
+                    WHERE prospect_id IS NOT NULL
+                """
+                members_rows = db_manager.execute_query(members_query, fetch_all=True)
 
-                                        # Also get prospect_id if not already set
-                                        if not client.get('prospect_id'):
-                                            client['prospect_id'] = member_details.get('prospectId') or member_details.get('id')
-                            except Exception as e:
-                                logger.debug(f"⚠️ Could not enhance training client {client.get('member_name')}: {e}")
+                # Create lookup dictionary by prospect_id
+                members_lookup = {}
+                for row in members_rows:
+                    member_dict = dict(row) if hasattr(row, 'keys') else row
+                    prospect_id = str(member_dict.get('prospect_id', ''))
+                    if prospect_id:
+                        members_lookup[prospect_id] = member_dict
 
-                        logger.info(f"✅ Enhanced training clients with address data from ClubHub")
+                logger.info(f"📊 Found {len(members_lookup)} members with IDs for matching")
+
+                # Match training clients to members and copy address data
+                matched_count = 0
+                for client in training_clients:
+                    try:
+                        # Try multiple ID fields to match
+                        member_id = client.get('clubos_member_id') or client.get('member_id') or client.get('prospect_id')
+                        if member_id:
+                            member_id = str(member_id)
+
+                            # Look up member in our database
+                            if member_id in members_lookup:
+                                member_data = members_lookup[member_id]
+
+                                # Copy address data from member to training client
+                                client['address'] = member_data.get('address')
+                                client['city'] = member_data.get('city')
+                                client['state'] = member_data.get('state')
+                                client['zip_code'] = member_data.get('zip_code')
+                                client['mobile_phone'] = client.get('mobile_phone') or member_data.get('mobile_phone') or member_data.get('phone')
+                                client['email'] = client.get('email') or member_data.get('email')
+
+                                # Set prospect_id if not already set
+                                if not client.get('prospect_id'):
+                                    client['prospect_id'] = member_id
+
+                                matched_count += 1
+                    except Exception as e:
+                        logger.debug(f"⚠️ Could not match training client {client.get('member_name')}: {e}")
+
+                logger.info(f"✅ Enhanced {matched_count}/{len(training_clients)} training clients with address data from database")
 
                 # Add club context to training clients
                 for client in training_clients:
