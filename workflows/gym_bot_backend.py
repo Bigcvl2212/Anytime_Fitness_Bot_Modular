@@ -72,7 +72,7 @@ class GymBotServices:
         """Get Gemini AI client."""
         try:
             if 'gemini' not in self._services:
-                from services.ai.gemini import get_gemini_client
+                from src.services.ai.gemini import get_gemini_client
                 self._services['gemini'] = get_gemini_client()
             return self._services['gemini']
         except Exception as e:
@@ -83,7 +83,7 @@ class GymBotServices:
         """Get Square payment client."""
         try:
             if 'square' not in self._services:
-                from services.payments.square_client_fixed import get_square_client
+                from src.services.payments.square_client_fixed import get_square_client
                 client = get_square_client()
                 if client is not None:
                     self._services['square'] = client
@@ -99,7 +99,7 @@ class GymBotServices:
         """Get ClubOS messaging service."""
         try:
             if 'messaging' not in self._services:
-                from services.clubos.messaging import get_messaging_service
+                from src.services.clubos.messaging import get_messaging_service
                 self._services['messaging'] = get_messaging_service(driver)
             return self._services['messaging']
         except Exception as e:
@@ -109,7 +109,7 @@ class GymBotServices:
     def test_square_connection(self) -> bool:
         """Test Square API connection."""
         try:
-            from services.payments.square_client_fixed import test_square_connection
+            from src.services.payments.square_client_fixed import test_square_connection
             return test_square_connection()
         except Exception as e:
             logger.error(f"Square connection test failed: {e}")
@@ -200,8 +200,8 @@ class GymBotBackend:
             
             # Test services (without creating instances)
             try:
-                import services.ai.gemini
-                import services.payments.square_client_fixed
+                import src.services.ai.gemini
+                import src.services.payments.square_client_fixed
                 logger.info("✅ Services modules loaded")
             except Exception as e:
                 logger.error(f"❌ Services modules failed: {e}")

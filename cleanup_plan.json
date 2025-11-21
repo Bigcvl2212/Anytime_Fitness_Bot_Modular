@@ -1,0 +1,128 @@
+{
+  "safe_to_remove": [
+    {
+      "file": "gym_bot_clean.py",
+      "reason": "Backup file with obvious suffix"
+    },
+    {
+      "file": "gym_bot_dashboard_fixed.py",
+      "reason": "Backup file with obvious suffix"
+    },
+    {
+      "file": "config\\clubhub_credentials_clean.py",
+      "reason": "Backup file with obvious suffix"
+    },
+    {
+      "file": "config\\clubos_credentials_clean.py",
+      "reason": "Backup file with obvious suffix"
+    },
+    {
+      "file": "routes\\messaging_fixed.py",
+      "reason": "Backup file with obvious suffix"
+    },
+    {
+      "file": "routes\\training_backup.py",
+      "reason": "Backup file with obvious suffix"
+    },
+    {
+      "file": "routes\\training_clean.py",
+      "reason": "Backup file with obvious suffix"
+    },
+    {
+      "file": "services\\clubos_messaging_client_backup.py",
+      "reason": "Backup file with obvious suffix"
+    },
+    {
+      "file": "services\\clubos_messaging_client_clean.py",
+      "reason": "Backup file with obvious suffix"
+    }
+  ],
+  "needs_review": [
+    {
+      "files": [
+        "clubos_fresh_data_api.py",
+        "clubos_real_calendar_api.py",
+        "clubos_training_api.py",
+        "clubos_training_clients_api.py",
+        "gym_bot_clean.py",
+        "services\\clubos_integration.py",
+        "services\\clubos_messaging_client.py",
+        "services\\clubos_messaging_client_simple.py",
+        "services\\api\\clubhub_api_client.py",
+        "services\\api\\clubos_calendar_client.py"
+      ],
+      "reason": "Potential duplicate function: authenticate"
+    },
+    {
+      "files": [
+        "clubos_fresh_data_api.py",
+        "clubos_training_api.py"
+      ],
+      "reason": "Potential duplicate function: get_member_payment_status"
+    },
+    {
+      "files": [
+        "clubos_real_calendar_api.py",
+        "clubos_real_calendar_api.py",
+        "services\\api\\enhanced_clubos_client.py"
+      ],
+      "reason": "Potential duplicate function: get_source_page_token"
+    },
+    {
+      "files": [
+        "clubos_real_calendar_api.py",
+        "services\\api\\enhanced_clubos_client.py"
+      ],
+      "reason": "Potential duplicate function: get_fingerprint_token"
+    },
+    {
+      "files": [
+        "clubos_real_calendar_api.py",
+        "services\\api\\clubos_calendar_manager.py"
+      ],
+      "reason": "Potential duplicate function: add_attendee_to_event"
+    },
+    {
+      "files": [
+        "clubos_real_calendar_api.py",
+        "services\\api\\clubos_calendar_manager.py"
+      ],
+      "reason": "Potential duplicate function: remove_attendee_from_event"
+    },
+    {
+      "files": [
+        "clubos_training_api.py",
+        "services\\clubos_messaging_client_simple.py"
+      ],
+      "reason": "Potential duplicate function: delegate_to_member"
+    },
+    {
+      "files": [
+        "clubos_training_api.py",
+        "routes\\training.py",
+        "routes\\training_backup.py"
+      ],
+      "reason": "Potential duplicate function: get_member_package_agreements"
+    },
+    {
+      "files": [
+        "clubos_training_clients_api.py",
+        "services\\clubos_integration.py"
+      ],
+      "reason": "Potential duplicate function: get_training_clients"
+    },
+    {
+      "files": [
+        "main_app.py",
+        "services\\multi_club_startup_sync.py"
+      ],
+      "reason": "Potential duplicate function: enhanced_startup_sync"
+    }
+  ],
+  "keep_files": [],
+  "recommendations": [
+    "Consider removing backup files to reduce codebase size",
+    "Review duplicate functions for consolidation opportunities",
+    "Large codebase - consider organizing into more focused modules"
+  ]
+}

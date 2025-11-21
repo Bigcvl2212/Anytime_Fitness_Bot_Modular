@@ -276,7 +276,7 @@ class RealTimeMessageSync:
                 'messages': formatted_messages,
                 'count': len(formatted_messages),
                 'timestamp': datetime.now().isoformat()
-            }, broadcast=True)
+            })
             
             logger.info(f"📡 Broadcast {len(formatted_messages)} messages to connected clients")
             

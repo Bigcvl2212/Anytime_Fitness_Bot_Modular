@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
-from services.api.clubos_api_client import ClubOSAPIClient, ClubOSAPIAuthentication
+from src.services.api.clubos_api_client import ClubOSAPIClient, ClubOSAPIAuthentication
 from config.secrets_local import get_secret
 import re
 from bs4 import BeautifulSoup

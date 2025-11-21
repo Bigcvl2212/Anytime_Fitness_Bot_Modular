@@ -15,7 +15,7 @@ def get_clubhub_email():
 
 def get_clubhub_password():
     """Get ClubHub password from environment or default"""
-    password = os.getenv('CLUBHUB_PASSWORD', "SruLEqp464_GLrF")
+    password = os.getenv('CLUBHUB_PASSWORD', "fygxy9-sybses-suvtYc")
     return password
 
 def get_clubos_username():
@@ -25,7 +25,7 @@ def get_clubos_username():
 
 def get_clubos_password():
     """Get ClubOS password from environment or default"""
-    password = os.getenv('CLUBOS_PASSWORD', "j@SD4fjhANK5WNA")
+    password = os.getenv('CLUBOS_PASSWORD', "Ls$gpZ98L!hht.G")
     return password
 
 # Backwards compatibility - provide the old variable names

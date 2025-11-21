@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 sys.path.insert(0, project_root)
 
-from services.api.clubos_api_client import ClubOSAPIClient, ClubOSAPIAuthentication
+from src.services.api.clubos_api_client import ClubOSAPIClient, ClubOSAPIAuthentication
 from config.secrets_local import get_secret
 
 def analyze_calendar_html():

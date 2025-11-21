@@ -448,6 +448,55 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ Migration error for approval_requests table: {e}")
 
+        # Migration 8: Add billing breakdown fields to members table for past due cards
+        try:
+            cursor.execute("PRAGMA table_info(members)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            missing_columns = []
+            if 'base_amount_past_due' not in columns:
+                missing_columns.append(('base_amount_past_due', 'REAL DEFAULT 0.0'))
+            if 'late_fees' not in columns:
+                missing_columns.append(('late_fees', 'REAL DEFAULT 0.0'))
+            if 'missed_payments' not in columns:
+                missing_columns.append(('missed_payments', 'INTEGER DEFAULT 0'))
+
+            for col_name, col_type in missing_columns:
+                logger.info(f"🔄 Adding {col_name} column to members table for past due calculations")
+                cursor.execute(f"ALTER TABLE members ADD COLUMN {col_name} {col_type}")
+                logger.info(f"✅ Added {col_name} column to members")
+
+            if missing_columns:
+                logger.info(f"✅ Added {len(missing_columns)} billing breakdown columns to members table")
+            else:
+                logger.info("✅ All billing breakdown columns already exist in members table")
+        except Exception as e:
+            logger.error(f"❌ Migration error for members billing breakdown fields: {e}")
+
+        # Migration 9: Add processed_members column to bulk_checkin_runs table if missing
+        try:
+            # Check if bulk_checkin_runs table exists
+            cursor.execute("""
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='bulk_checkin_runs'
+            """)
+            table_exists = cursor.fetchone()
+
+            if table_exists:
+                cursor.execute("PRAGMA table_info(bulk_checkin_runs)")
+                columns = [row[1] for row in cursor.fetchall()]
+
+                if 'processed_members' not in columns:
+                    logger.info("🔄 Adding processed_members column to bulk_checkin_runs table")
+                    cursor.execute("ALTER TABLE bulk_checkin_runs ADD COLUMN processed_members INTEGER DEFAULT 0")
+                    logger.info("✅ Added processed_members column to bulk_checkin_runs")
+                else:
+                    logger.info("✅ processed_members column already exists in bulk_checkin_runs")
+            else:
+                logger.info("ℹ️ bulk_checkin_runs table doesn't exist yet - will be created on first use")
+        except Exception as e:
+            logger.error(f"❌ Migration error for bulk_checkin_runs processed_members field: {e}")
+
         logger.info("✅ Database migrations complete")
 
     def execute_query(
@@ -874,14 +923,20 @@ class DatabaseManager:
                              OR status_message = 'Member is pending cancel'
                           ORDER BY full_name"""
             elif category == 'comp':
-                # Comp members
-                query = "SELECT * FROM members WHERE status_message = 'Comp Member' ORDER BY full_name"
+                # Comp members - FIXED: ClubHub returns lowercase "member"
+                query = """SELECT * FROM members
+                          WHERE status_message IN ('Comp member', 'Comp Member')
+                          ORDER BY full_name"""
             elif category == 'ppv':
-                # PPV members
-                query = "SELECT * FROM members WHERE status_message = 'Pay Per Visit Member' ORDER BY full_name"
+                # PPV members - FIXED: ClubHub returns lowercase "pay per visit member"
+                query = """SELECT * FROM members
+                          WHERE status_message IN ('Pay per visit member', 'Pay Per Visit Member')
+                          ORDER BY full_name"""
             elif category == 'staff':
-                # Staff members
-                query = "SELECT * FROM members WHERE status_message = 'Staff Member' ORDER BY full_name"
+                # Staff members - FIXED: ClubHub returns lowercase "member"
+                query = """SELECT * FROM members
+                          WHERE status_message IN ('Staff member', 'Staff Member')
+                          ORDER BY full_name"""
             elif category == 'inactive':
                 # Inactive/cancelled/expired members
                 query = """SELECT * FROM members

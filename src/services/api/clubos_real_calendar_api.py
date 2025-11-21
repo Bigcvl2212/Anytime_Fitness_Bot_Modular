@@ -891,7 +891,7 @@ class ClubOSRealCalendarAPI:
             params = {
                 'startDate': start_date.strftime('%Y-%m-%d'),
                 'endDate': end_date.strftime('%Y-%m-%d'),
-                'trainerId': self.logged_in_user_id,
+                # trainerId removed to get all club events, not just one user's events
                 'fields': 'id,title,startTime,endTime,serviceType,trainer,location,attendees,fundingStatus',
                 'limit': limit,
                 '_': str(int(datetime.now().timestamp() * 1000))

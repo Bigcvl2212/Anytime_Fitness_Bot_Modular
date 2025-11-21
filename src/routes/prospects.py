@@ -262,41 +262,51 @@ def search_prospects():
                 'error': 'Name parameter is required'
             }), 400
 
-        # More aggressive search - try multiple variations
-        search_variations = [
-            name,  # Exact search
-            name.replace(' ', ''),  # No spaces
-            name.replace('_', ' '),  # Replace underscores with spaces
-            name.split()[0] if ' ' in name else name,  # First name only
-            name.split()[-1] if ' ' in name else name,  # Last name only
-        ]
+        # FIXED: Prioritize EXACT matches over partial matches
+        # First, try exact full name match
+        prospects = current_app.db_manager.execute_query("""
+            SELECT prospect_id, id, full_name, first_name, last_name, email, phone, status
+            FROM prospects
+            WHERE LOWER(full_name) = LOWER(?)
+               OR LOWER(first_name || ' ' || last_name) = LOWER(?)
+            LIMIT 10
+        """, (name, name), fetch_all=True)
 
-        prospects = None
-        for search_name in search_variations:
-            if not search_name:
-                continue
+        if prospects and len(prospects) > 0:
+            logger.info(f"✅ Found EXACT match for '{name}': {len(prospects)} prospects")
+        else:
+            # If no exact match, try more aggressive search with variations
+            search_variations = [
+                name,  # Full search with LIKE
+                name.replace(' ', ''),  # No spaces
+                name.replace('_', ' '),  # Replace underscores with spaces
+                name.split()[0] if ' ' in name else name,  # First name only
+                name.split()[-1] if ' ' in name else name,  # Last name only
+            ]
 
-            prospects = current_app.db_manager.execute_query("""
-                SELECT prospect_id, id, full_name, first_name, last_name, email, phone, status
-                FROM prospects
-                WHERE LOWER(full_name) LIKE LOWER(?)
-                   OR LOWER(first_name || ' ' || last_name) LIKE LOWER(?)
-                   OR LOWER(first_name) LIKE LOWER(?)
-                   OR LOWER(last_name) LIKE LOWER(?)
-                   OR LOWER(full_name) = LOWER(?)
-                   OR LOWER(first_name || ' ' || last_name) = LOWER(?)
-                ORDER BY
-                    CASE WHEN LOWER(full_name) = LOWER(?) THEN 1
-                         WHEN LOWER(first_name || ' ' || last_name) = LOWER(?) THEN 2
-                         ELSE 3 END,
-                    full_name
-                LIMIT 10
-            """, (f'%{search_name}%', f'%{search_name}%', f'%{search_name}%', f'%{search_name}%',
-                  search_name, search_name, search_name, search_name), fetch_all=True)
+            for search_name in search_variations:
+                if not search_name:
+                    continue
 
-            if prospects and len(prospects) > 0:
-                logger.info(f"🎯 Found prospects with variation '{search_name}': {len(prospects)}")
-                break
+                prospects = current_app.db_manager.execute_query("""
+                    SELECT prospect_id, id, full_name, first_name, last_name, email, phone, status
+                    FROM prospects
+                    WHERE LOWER(full_name) LIKE LOWER(?)
+                       OR LOWER(first_name || ' ' || last_name) LIKE LOWER(?)
+                       OR LOWER(first_name) LIKE LOWER(?)
+                       OR LOWER(last_name) LIKE LOWER(?)
+                    ORDER BY
+                        CASE WHEN LOWER(full_name) = LOWER(?) THEN 1
+                             WHEN LOWER(first_name || ' ' || last_name) = LOWER(?) THEN 2
+                             ELSE 3 END,
+                        full_name
+                    LIMIT 10
+                """, (f'%{search_name}%', f'%{search_name}%', f'%{search_name}%', f'%{search_name}%',
+                      search_name, search_name), fetch_all=True)
+
+                if prospects and len(prospects) > 0:
+                    logger.info(f"🎯 Found prospects with variation '{search_name}': {len(prospects)}")
+                    break
 
         if prospects is None:
             prospects = []

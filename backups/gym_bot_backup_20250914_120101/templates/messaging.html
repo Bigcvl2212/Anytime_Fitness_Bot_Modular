@@ -1,0 +1,985 @@
+{% extends "base.html" %}
+
+{% block title %}ClubOS Messaging Center - Anytime Fitness Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    .message-item {
+        transition: all 0.2s ease;
+        border-left: 4px solid transparent;
+        background: white;
+        border-radius: var(--border-radius-medium);
+        margin-bottom: 0.5rem;
+        box-shadow: var(--shadow-2);
+    }
+    .message-item:hover {
+        background-color: var(--af-gray-50);
+        border-left-color: var(--af-purple-primary);
+        cursor: pointer;
+        box-shadow: var(--shadow-4);
+    }
+    .message-item.unread {
+        background-color: #e3f2fd;
+        border-left-color: var(--af-purple-primary);
+    }
+    .message-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: var(--border-radius-small);
+    }
+    .campaign-card {
+        transition: all 0.2s ease;
+        border-radius: var(--border-radius-medium);
+        box-shadow: var(--shadow-2);
+    }
+    .campaign-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-8);
+    }
+    .loading-spinner {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid var(--af-purple-primary);
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    .message-content {
+        max-height: 100px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+    }
+    .message-actions {
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+    .message-item:hover .message-actions {
+        opacity: 1;
+    }
+    .fluent-card {
+        background: white;
+        border-radius: var(--border-radius-large);
+        box-shadow: var(--shadow-4);
+        border: none;
+    }
+    .fluent-header {
+        background: linear-gradient(135deg, var(--af-purple-primary), var(--af-purple-dark));
+        color: white;
+        border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;
+        padding: 1rem 1.5rem;
+    }
+    .btn-fluent-primary {
+        background: var(--af-purple-primary);
+        border: none;
+        color: white;
+        border-radius: var(--border-radius-medium);
+        padding: 0.5rem 1rem;
+        transition: all 0.2s ease;
+    }
+    .btn-fluent-primary:hover {
+        background: var(--af-purple-dark);
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-4);
+    }
+    .btn-fluent-outline {
+        border: 1px solid var(--af-purple-primary);
+        color: var(--af-purple-primary);
+        background: transparent;
+        border-radius: var(--border-radius-medium);
+        padding: 0.5rem 1rem;
+        transition: all 0.2s ease;
+    }
+    .btn-fluent-outline:hover {
+        background: var(--af-purple-primary);
+        color: white;
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-4);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header Section -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h2 mb-1 fw-bold" style="color: var(--af-black-primary);">
+            <i class="fas fa-comments me-2" style="color: var(--af-purple-primary);"></i>
+            ClubOS Messaging Center
+        </h1>
+        <p class="text-muted mb-0">Marketing campaigns and message management</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-fluent-outline" onclick="syncMessages()">
+            <i class="fas fa-sync-alt me-1"></i>
+            Sync Messages
+        </button>
+        <button class="btn btn-fluent-primary" onclick="loadStatusCampaigns()">
+            <i class="fas fa-refresh me-1"></i>
+            Refresh Categories
+        </button>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="row g-4">
+    <!-- Status-Based Campaign Cards -->
+    <div class="col-12">
+        <div class="fluent-card">
+            <div class="fluent-header">
+                <h5 class="mb-0 fw-semibold">
+                    <i class="fas fa-bullhorn me-2"></i>
+                    Campaign Management by Status Category
+                </h5>
+                <p class="mb-0 small opacity-75">Create and run targeted campaigns for each member status group</p>
+            </div>
+            <div class="card-body p-3">
+                <div id="statusCampaignsContainer">
+                    <div class="text-center py-4">
+                        <div class="loading-spinner"></div>
+                        <p class="text-muted mt-2">Loading status categories...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Secondary Row for Message Inbox and Progress -->
+<div class="row g-4 mt-2">
+    <!-- Message Inbox -->
+    <div class="col-md-6">
+        <div class="fluent-card">
+            <div class="fluent-header">
+                <h5 class="mb-0 fw-semibold">
+                    <i class="fas fa-inbox me-2"></i>
+                    Message Inbox
+                </h5>
+            </div>
+            <div class="card-body p-3">
+                <div class="mb-3">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="messageSearch" placeholder="Search messages..." style="border-radius: var(--border-radius-medium);">
+                        <button class="btn btn-fluent-outline" type="button" onclick="searchMessages()">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="messagesContainer">
+                    <div class="text-center py-4">
+                        <div class="loading-spinner"></div>
+                        <p class="text-muted mt-2">Loading messages...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+        
+    <!-- Campaign Progress Tracking -->
+    <div class="col-md-6">
+        <div class="fluent-card">
+            <div class="fluent-header">
+                <h5 class="mb-0 fw-semibold">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Campaign Progress
+                </h5>
+                <button class="btn btn-sm btn-fluent-outline" onclick="loadCampaignProgress()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+            <div class="card-body p-3">
+                <div id="progressContainer">
+                    <div class="text-center py-4">
+                        <div class="loading-spinner"></div>
+                        <p class="text-muted mt-2">Loading progress...</p>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button class="btn btn-sm btn-outline-warning" onclick="resetAllProgress()">
+                        <i class="fas fa-redo"></i> Reset All Progress
+                    </button>
+                    <small class="text-muted ms-2">Use to restart campaigns from beginning</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- Message Inbox -->
+    <div class="col-md-6">
+        <div class="fluent-card">
+            <div class="fluent-header">
+                <h5 class="mb-0 fw-semibold">
+                    <i class="fas fa-inbox me-2"></i>
+                    Message Inbox
+                </h5>
+            </div>
+            <div class="card-body p-3">
+                <div class="mb-3">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="messageSearch" placeholder="Search messages..." style="border-radius: var(--border-radius-medium);">
+                        <button class="btn btn-fluent-outline" type="button" onclick="searchMessages()">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="messagesContainer">
+                    <div class="text-center py-4">
+                        <div class="loading-spinner"></div>
+                        <p class="text-muted mt-2">Loading messages...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Status Category Campaign Modal -->
+<div class="modal fade" id="statusCampaignModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="border-radius: var(--border-radius-large);">
+            <div class="modal-header" style="background: var(--af-purple-primary); color: white; border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;">
+                <h5 class="modal-title">
+                    <i class="fas fa-bullhorn me-2"></i>
+                    <span id="modalCategoryTitle">Campaign Setup</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="statusCampaignForm">
+                    <input type="hidden" id="modalCategoryValue" value="">
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Target Group:</strong> <span id="modalCategoryInfo"></span>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="statusCampaignName" class="form-label fw-semibold">Campaign Name</label>
+                        <input type="text" class="form-control" id="statusCampaignName" required style="border-radius: var(--border-radius-medium);" placeholder="Enter campaign name">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="statusCampaignMessage" class="form-label fw-semibold">Message Content</label>
+                        <textarea class="form-control" id="statusCampaignMessage" rows="4" required style="border-radius: var(--border-radius-medium);" placeholder="Enter your message here..."></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="statusMessageType" class="form-label fw-semibold">Message Type</label>
+                        <select class="form-select" id="statusMessageType" required style="border-radius: var(--border-radius-medium);">
+                            <option value="sms">SMS Text Message</option>
+                            <option value="email">Email Message</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3" id="statusEmailSubjectDiv" style="display: none;">
+                        <label for="statusEmailSubject" class="form-label fw-semibold">Email Subject</label>
+                        <input type="text" class="form-control" id="statusEmailSubject" style="border-radius: var(--border-radius-medium);">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="statusRecipientLimit" class="form-label fw-semibold">Max Recipients</label>
+                        <input type="number" class="form-control" id="statusRecipientLimit" value="100" min="1" max="1000" required style="border-radius: var(--border-radius-medium);">
+                        <div class="form-text">
+                            <small class="text-muted">Maximum number of people to send this campaign to (1-1000)</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="statusCampaignNotes" class="form-label fw-semibold">Campaign Notes</label>
+                        <textarea class="form-control" id="statusCampaignNotes" rows="3" placeholder="Add notes about this campaign (internal use only)" style="border-radius: var(--border-radius-medium);"></textarea>
+                        <div class="form-text">
+                            <small class="text-muted">These notes are for your reference and won't be sent to recipients</small>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-fluent-primary" onclick="saveStatusCampaign()">
+                    <i class="fas fa-paper-plane me-1"></i>
+                    Send Campaign
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+        // Load data when page loads
+document.addEventListener('DOMContentLoaded', function() {
+            loadStatusCampaigns();
+            loadCampaignHistory();
+            loadCampaignProgress();
+        });
+
+        function loadStatusCampaigns() {
+            fetch('/api/members/categories')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayStatusCampaignCards(data.categories);
+                    } else {
+                        console.error('Failed to load categories:', data);
+                        displayStatusCampaignCards([]);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading status categories:', error);
+                    displayStatusCampaignCards([]);
+                });
+        }
+
+        function displayStatusCampaignCards(categories) {
+            const container = document.getElementById('statusCampaignsContainer');
+            
+            if (categories.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No member categories found</h5>
+                        <p class="text-muted">Sync your member data to set up targeted campaigns.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Add prospects card first
+            const prospectsCard = `
+                <div class="col-md-4 col-lg-3 mb-3">
+                    <div class="campaign-status-card h-100" data-category="prospects">
+                        <div class="card h-100" style="border-radius: var(--border-radius-large); border: 2px solid #17a2b8; box-shadow: var(--shadow-4);">
+                            <div class="card-header" style="background: linear-gradient(135deg, #17a2b8, #138496); color: white; border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0 fw-semibold">
+                                        <i class="fas fa-user-plus me-2"></i>
+                                        Prospects
+                                    </h6>
+                                    <span class="badge bg-white text-dark">New</span>
+                                </div>
+                            </div>
+                            <div class="card-body text-center">
+                                <p class="text-muted mb-3">Target potential new members</p>
+                                <button class="btn btn-info btn-sm w-100 mb-2" onclick="openStatusCampaign('prospects', 'Prospects', 'Potential new members and leads')">
+                                    <i class="fas fa-bullhorn me-1"></i>
+                                    Create Campaign
+                                </button>
+                                <button class="btn btn-outline-info btn-sm w-100" onclick="viewProgress('prospects')">
+                                    <i class="fas fa-chart-line me-1"></i>
+                                    View Progress
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Create cards for each status category
+            const statusCards = categories.map(category => {
+                let cardColor = getStatusCardColor(category.name);
+                let statusIcon = getStatusIcon(category.name);
+                let statusBadge = getStatusBadge(category.name);
+                
+                return `
+                    <div class="col-md-4 col-lg-3 mb-3">
+                        <div class="campaign-status-card h-100" data-category="${category.name}">
+                            <div class="card h-100" style="border-radius: var(--border-radius-large); border: 2px solid ${cardColor.border}; box-shadow: var(--shadow-4);">
+                                <div class="card-header" style="background: ${cardColor.gradient}; color: white; border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0 fw-semibold">
+                                            <i class="${statusIcon} me-2"></i>
+                                            ${category.label}
+                                        </h6>
+                                        <span class="badge ${statusBadge.class}">${statusBadge.text}</span>
+                                    </div>
+                                </div>
+                                <div class="card-body text-center">
+                                    <div class="mb-2">
+                                        <span class="fs-4 fw-bold" style="color: ${cardColor.border};">${category.count}</span>
+                                        <p class="text-muted small mb-3">members</p>
+                                    </div>
+                                    <button class="btn btn-sm w-100 mb-2" style="background: ${cardColor.border}; color: white;" onclick="openStatusCampaign('${category.name}', '${category.label}', '${category.count} members in this status')">
+                                        <i class="fas fa-bullhorn me-1"></i>
+                                        Create Campaign
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm w-100" onclick="viewProgress('${category.name}')">
+                                        <i class="fas fa-chart-line me-1"></i>
+                                        View Progress
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = `
+                <div class="row g-3">
+                    ${prospectsCard}
+                    ${statusCards}
+                </div>
+            `;
+        }
+
+        function getStatusCardColor(statusName) {
+            const status = statusName.toLowerCase();
+            
+            if (status.includes('past due') || status.includes('overdue') || status.includes('red')) {
+                return {
+                    border: '#dc3545',
+                    gradient: 'linear-gradient(135deg, #dc3545, #b02a37)'
+                };
+            } else if (status.includes('active') || status.includes('green') || status.includes('current')) {
+                return {
+                    border: '#28a745',
+                    gradient: 'linear-gradient(135deg, #28a745, #1e7e34)'
+                };
+            } else if (status.includes('warning') || status.includes('yellow') || status.includes('expiring')) {
+                return {
+                    border: '#ffc107',
+                    gradient: 'linear-gradient(135deg, #ffc107, #d39e00)'
+                };
+            } else if (status.includes('inactive') || status.includes('paused')) {
+                return {
+                    border: '#6c757d',
+                    gradient: 'linear-gradient(135deg, #6c757d, #545b62)'
+                };
+            } else {
+                return {
+                    border: '#6f42c1',
+                    gradient: 'linear-gradient(135deg, #6f42c1, #59359a)'
+                };
+            }
+        }
+
+        function getStatusIcon(statusName) {
+            const status = statusName.toLowerCase();
+            
+            if (status.includes('past due') || status.includes('overdue')) {
+                return 'fas fa-exclamation-triangle';
+            } else if (status.includes('active') || status.includes('current')) {
+                return 'fas fa-check-circle';
+            } else if (status.includes('warning') || status.includes('expiring')) {
+                return 'fas fa-clock';
+            } else if (status.includes('inactive') || status.includes('paused')) {
+                return 'fas fa-pause-circle';
+            } else {
+                return 'fas fa-users';
+            }
+        }
+
+        function getStatusBadge(statusName) {
+            const status = statusName.toLowerCase();
+            
+            if (status.includes('past due') || status.includes('overdue')) {
+                return { class: 'bg-danger', text: 'Urgent' };
+            } else if (status.includes('active') || status.includes('current')) {
+                return { class: 'bg-success', text: 'Active' };
+            } else if (status.includes('warning') || status.includes('expiring')) {
+                return { class: 'bg-warning', text: 'Review' };
+            } else {
+                return { class: 'bg-secondary', text: 'Status' };
+            }
+        }
+
+        function openStatusCampaign(categoryValue, categoryTitle, categoryInfo) {
+            const modal = new bootstrap.Modal(document.getElementById('statusCampaignModal'));
+            
+            // Set modal content
+            document.getElementById('modalCategoryTitle').textContent = `${categoryTitle} Campaign`;
+            document.getElementById('modalCategoryValue').value = categoryValue;
+            document.getElementById('modalCategoryInfo').textContent = categoryInfo;
+            
+            // Pre-fill campaign name
+            document.getElementById('statusCampaignName').value = `${categoryTitle} Campaign - ${new Date().toLocaleDateString()}`;
+            
+            // Handle message type change
+            document.getElementById('statusMessageType').addEventListener('change', function() {
+                const emailSubjectDiv = document.getElementById('statusEmailSubjectDiv');
+                if (this.value === 'email') {
+                    emailSubjectDiv.style.display = 'block';
+                    document.getElementById('statusEmailSubject').required = true;
+                } else {
+                    emailSubjectDiv.style.display = 'none';
+                    document.getElementById('statusEmailSubject').required = false;
+                }
+            });
+            
+            modal.show();
+        }
+
+        function saveStatusCampaign() {
+            const form = document.getElementById('statusCampaignForm');
+            
+            // Validate form
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+            
+            const messageType = document.getElementById('statusMessageType').value;
+            const targetCategory = document.getElementById('modalCategoryValue').value;
+            
+            const campaignData = {
+                name: document.getElementById('statusCampaignName').value,
+                message: document.getElementById('statusCampaignMessage').value,
+                type: messageType,
+                categories: [targetCategory],
+                max_recipients: parseInt(document.getElementById('statusRecipientLimit').value) || 100,
+                notes: document.getElementById('statusCampaignNotes').value
+            };
+            
+            // Add email subject if it's an email campaign
+            if (messageType === 'email') {
+                campaignData.subject = document.getElementById('statusEmailSubject').value;
+            }
+
+            console.log('📤 Sending status campaign:', campaignData);
+
+            // Show loading state
+            const submitBtn = document.querySelector('#statusCampaignModal .btn-fluent-primary');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Sending...';
+            submitBtn.disabled = true;
+
+            fetch('/api/campaigns/send', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(campaignData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('statusCampaignModal')).hide();
+                    loadCampaignHistory();
+                    loadCampaignProgress();
+                    
+                    const results = data.campaign_results;
+                    showAlert('success', 
+                        `${targetCategory} campaign sent successfully! ` + 
+                        `${results.successful}/${results.total} messages sent. ` +
+                        (results.failed > 0 ? `${results.failed} failed.` : '')
+                    );
+                    
+                    // Clear form
+                    form.reset();
+                } else {
+                    console.error('Campaign error response:', data);
+                    showAlert('danger', `Campaign failed: ${data.error || 'Unknown error'}`);
+                }
+            })
+            .catch(error => {
+                console.error('Error sending campaign:', error);
+                showAlert('danger', `Error sending campaign: ${error.message || 'Network error'}`);
+            })
+            .finally(() => {
+                // Restore button state
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            });
+        }
+
+        function loadCampaignHistory() {
+            fetch('/api/campaigns/history')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayCampaignHistory(data.campaigns);
+                    } else {
+                        displayCampaignHistory([]);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading campaigns:', error);
+                    displayCampaignHistory([]);
+                });
+        }
+
+        function displayCampaignHistory(campaigns) {
+            const container = document.getElementById('campaignsHistoryContainer');
+            
+            if (campaigns.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-history fa-2x text-muted mb-3"></i>
+                        <h6 class="text-muted">No campaigns sent yet</h6>
+                        <p class="text-muted small">Campaign history will appear here after sending.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const campaignsHtml = campaigns.slice(0, 5).map(campaign => `
+                <div class="campaign-history-item p-2 mb-2" style="background: #f8f9fa; border-radius: var(--border-radius-medium); border-left: 4px solid var(--af-purple-primary);">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1 fw-semibold small">${campaign.name || 'Untitled Campaign'}</h6>
+                            <p class="text-muted small mb-1">${(campaign.message_text || '').substring(0, 80)}${(campaign.message_text || '').length > 80 ? '...' : ''}</p>
+                            <div class="d-flex gap-1 flex-wrap">
+                                <span class="badge bg-primary small">${campaign.categories}</span>
+                                <span class="badge bg-success small">${campaign.successful_sends || 0} sent</span>
+                                ${campaign.failed_sends > 0 ? `<span class="badge bg-warning small">${campaign.failed_sends} failed</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <small class="text-muted">${new Date(campaign.created_at).toLocaleDateString()}</small>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = campaignsHtml;
+        }
+
+        function viewProgress(category) {
+            // Scroll to progress section and highlight the category
+            const progressSection = document.querySelector('.fluent-card:has(#progressContainer)');
+            if (progressSection) {
+                progressSection.scrollIntoView({ behavior: 'smooth' });
+                
+                // Reload progress to ensure it's current
+                loadCampaignProgress();
+                
+                // Highlight the category in progress after a brief delay
+                setTimeout(() => {
+                    const progressItems = document.querySelectorAll('.progress-item');
+                    progressItems.forEach(item => {
+                        if (item.textContent.includes(category)) {
+                            item.style.background = '#e3f2fd';
+                            item.style.borderLeftColor = '#2196f3';
+                            setTimeout(() => {
+                                item.style.background = 'white';
+                                item.style.borderLeftColor = 'var(--af-purple-primary)';
+                            }, 3000);
+                        }
+                    });
+                }, 500);
+            }
+        }
+
+        // Helper function to create campaign for quick actions
+        function createQuickCampaign() {
+            showAlert('info', 'Select a status category card above to create a targeted campaign for that group.');
+        }
+
+        function syncMessages() {
+            const button = event.target;
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Syncing...';
+            button.disabled = true;
+
+            fetch('/api/messages/sync', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ owner_id: '187032782' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadMessages();
+                    showAlert('success', `Successfully synced ${data.stored_count} messages from ClubOS`);
+                } else {
+                    showAlert('danger', 'Error syncing messages');
+                }
+            })
+            .catch(error => {
+                console.error('Error syncing messages:', error);
+                showAlert('danger', 'Error syncing messages');
+            })
+            .finally(() => {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            });
+        }
+
+        function syncMessages() {
+            const button = event.target;
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Syncing...';
+            button.disabled = true;
+
+            fetch('/api/messages/sync', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ owner_id: '187032782' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', `Successfully synced ${data.stored_count} messages from ClubOS`);
+                } else {
+                    showAlert('danger', 'Error syncing messages');
+                }
+            })
+            .catch(error => {
+                console.error('Error syncing messages:', error);
+                showAlert('danger', 'Error syncing messages');
+            })
+            .finally(() => {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            });
+        }
+
+        function extractMemberNameFromContent(content) {
+            console.log('🔍 extractMemberNameFromContent called with:', content);
+            if (!content) {
+                console.log('❌ No content provided');
+                return null;
+            }
+            
+            // Handle cases like "Susy MoncadaConfirmarAug 29" - extract just the name part
+            const nameMatch = content.match(/^([A-Z][a-z]+ [A-Z][a-z]+)/);
+            if (nameMatch) {
+                const name = nameMatch[1];
+                // Skip if it's a system word
+                if (!/^(System|ClubOS|Confirm|Cancel|Reminder|Notification|Ok|Thanks|Yes|No)/i.test(name)) {
+                    return name;
+                }
+            }
+            
+            // Fallback: try to find names at the beginning of the content
+    const lines = content.split('\n');
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed && trimmed.length > 3 && trimmed.length < 50) {
+                    const nameMatch = trimmed.match(/^([A-Z][a-z]+ [A-Z][a-z]+)/);
+                    if (nameMatch) {
+                        const name = nameMatch[1];
+                        if (!/^(System|ClubOS|Confirm|Cancel|Reminder|Notification|Ok|Thanks|Yes|No)/i.test(name)) {
+                            return name;
+                        }
+                    }
+                }
+            }
+            
+            // Try to find any name pattern in the content
+    const namePattern = /([A-Z][a-z]+ [A-Z][a-z]+)/g;
+    const matches = content.match(namePattern);
+    if (matches && matches.length > 0) {
+        for (const match of matches) {
+                    if (!/^(System|ClubOS|Confirm|Cancel|Reminder|Notification|Ok|Thanks|Yes|No)/i.test(match)) {
+                return match;
+            }
+        }
+    }
+    
+    return null;
+}
+
+function goToMemberProfile(memberName) {
+            console.log(`🔍 Searching for: ${memberName}`);
+    
+            // Search for the name in members
+    fetch(`/api/members/search?q=${encodeURIComponent(memberName)}`)
+    .then(response => response.json())
+                .then(memberData => {
+                    if (memberData.success && memberData.members && memberData.members.length > 0) {
+                        // Found member - navigate to member page
+                        const member = memberData.members[0];
+                        const memberId = member.guid || member.prospect_id || member.id;
+                        console.log(`✅ Found member: ${member.full_name} (ID: ${memberId})`);
+                        window.location.href = `/member/${memberId}`;
+        return;
+    }
+    
+                    // Not found in members, search prospects
+                    return fetch('/api/prospects/all');
+                })
+                .then(prospectResponse => {
+                    if (!prospectResponse) return; // Already handled member case
+                    
+                    return prospectResponse.json();
+                })
+                .then(prospectData => {
+                    if (prospectData && prospectData.success && prospectData.prospects) {
+                        // Search through prospects for the name
+                        const prospect = prospectData.prospects.find(p => {
+                            const fullName = `${p.firstName || ''} ${p.lastName || ''}`.trim();
+                            return fullName.toLowerCase().includes(memberName.toLowerCase()) ||
+                                   memberName.toLowerCase().includes(fullName.toLowerCase());
+                        });
+                        
+                        if (prospect) {
+                            // Found prospect - navigate to prospect page
+                            const prospectId = prospect.prospect_id || prospect.id;
+                            console.log(`✅ Found prospect: ${prospect.firstName} ${prospect.lastName} (ID: ${prospectId})`);
+                            window.location.href = `/prospect/${prospectId}`;
+        return;
+    }
+                    }
+                    
+                    // Not found anywhere - show error
+                    console.log(`❌ Not found: ${memberName}`);
+                    // Don't show alert since navigation might still work
+    })
+    .catch(error => {
+                    console.error('❌ Error searching:', error);
+                    alert(`Error searching for ${memberName}`);
+                });
+        }
+
+        function showAlert(type, message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+            alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.appendChild(alertDiv);
+            
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 5000);
+        }
+
+        // Campaign Progress Functions
+        function loadCampaignProgress() {
+            fetch('/api/campaigns/progress')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayCampaignProgress(data.progress);
+                    } else {
+                        console.error('Error loading progress:', data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading campaign progress:', error);
+                });
+        }
+
+        function displayCampaignProgress(progress) {
+            const container = document.getElementById('progressContainer');
+            
+            if (progress.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-4">
+                        <i class="fas fa-chart-line fa-2x text-muted mb-3"></i>
+                        <p class="text-muted">No campaign progress yet</p>
+                        <small class="text-muted">Progress will be tracked after sending campaigns</small>
+                    </div>
+                `;
+                return;
+            }
+            
+            const progressHtml = progress.map(item => {
+                const lastDate = new Date(item.last_campaign_date);
+                const dateString = lastDate.toLocaleDateString() + ' ' + lastDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                
+                return `
+                    <div class="progress-item p-3 mb-2" style="background: white; border-radius: var(--border-radius-medium); border-left: 4px solid var(--af-purple-primary);">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1 fw-semibold">${item.category}</h6>
+                                <p class="mb-1 text-muted small">Last processed: Member ${item.last_processed_member_id} (Index ${item.last_processed_index})</p>
+                                <p class="mb-0 text-muted small">Total in category: ${item.total_members_in_category}</p>
+                            </div>
+                            <div class="text-end">
+                                <small class="text-muted">${dateString}</small>
+                                <br>
+                                <button class="btn btn-sm btn-outline-warning mt-1" onclick="resetCategoryProgress('${item.category}')">
+                                    <i class="fas fa-redo"></i> Reset
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">${item.notes || 'No notes'}</small>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            container.innerHTML = progressHtml;
+        }
+
+        function resetCategoryProgress(category) {
+            if (!confirm(`Reset campaign progress for "${category}"? Next campaign will start from the beginning.`)) {
+                return;
+            }
+            
+            fetch('/api/campaigns/reset-progress', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ category: category })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', `Campaign progress reset for ${category}`);
+                    loadCampaignProgress();
+                } else {
+                    showAlert('error', 'Failed to reset progress: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error resetting progress:', error);
+                showAlert('error', 'Failed to reset progress');
+            });
+        }
+
+        function resetAllProgress() {
+            if (!confirm('Reset ALL campaign progress? All campaigns will start from the beginning.')) {
+                return;
+            }
+            
+            fetch('/api/campaigns/reset-progress', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ category: 'all' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', 'All campaign progress reset');
+                    loadCampaignProgress();
+                } else {
+                    showAlert('error', 'Failed to reset progress: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error resetting all progress:', error);
+                showAlert('error', 'Failed to reset progress');
+            });
+        }
+
+        // Status card animations
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add hover effects to campaign status cards
+            document.addEventListener('mouseenter', function(e) {
+                if (e.target.closest('.campaign-status-card')) {
+                    e.target.closest('.campaign-status-card').style.transform = 'translateY(-2px)';
+                }
+            }, true);
+            
+            document.addEventListener('mouseleave', function(e) {
+                if (e.target.closest('.campaign-status-card')) {
+                    e.target.closest('.campaign-status-card').style.transform = 'translateY(0)';
+                }
+            }, true);
+        });
+</script>
+{% endblock %}

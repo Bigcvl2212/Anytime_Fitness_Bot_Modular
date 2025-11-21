@@ -42,7 +42,7 @@ class ClubHubAPIClient:
     def authenticate(self, email: str = None, password: str = None) -> bool:
         """Authenticate using the unified authentication service"""
         try:
-            print("Authenticating ClubHub API Client")
+            logger.info("Authenticating ClubHub API Client")
             
             # Use unified authentication service
             self.auth_session = self.auth_service.authenticate_clubhub(email, password)
@@ -326,11 +326,11 @@ class ClubHubAPIClient:
         start_time = time.time()
         
         # First, determine total number of pages by checking until we find the end
-        print("🔍 Determining total pages for parallel fetching...")
+        logger.info("Determining total pages for parallel fetching...")
         total_pages = 0
         page = 1
         max_pages = 100  # Safety limit to prevent infinite loops
-        
+
         while page <= max_pages:
             response = self.get_all_members(page=page, page_size=100)
             if response:
@@ -338,29 +338,29 @@ class ClubHubAPIClient:
                     members = response
                 else:
                     members = response.get('members', [])
-                
+
                 if members and len(members) > 0:
                     total_pages += 1
-                    print(f"📄 Found page {page} with {len(members)} members")
-                    
+                    logger.info(f"Found page {page} with {len(members)} members")
+
                     # If we got less than 100 members, we've reached the end
                     if len(members) < 100:
-                        print(f"✅ Reached end of members list on page {page}")
+                        logger.info(f"Reached end of members list on page {page}")
                         break
                 else:
-                    print(f"✅ No more members found on page {page}")
+                    logger.info(" No more members found on page {page}")
                     break
             else:
-                print(f"❌ Failed to fetch page {page}")
+                logger.info(" Failed to fetch page {page}")
                 break
             
             page += 1
         
         if total_pages == 0:
-            print("❌ Could not determine total pages")
+            logger.info(" Could not determine total pages")
             return []
         
-        print(f"📊 Estimated {total_pages} pages to fetch, starting parallel processing...")
+        logger.info(" Estimated {total_pages} pages to fetch, starting parallel processing...")
         
         # Fetch all pages in parallel
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -376,11 +376,11 @@ class ClubHubAPIClient:
                         members = response.get('members', [])
                     
                     if members:
-                        print(f"✅ Page {page_num}: {len(members)} members")
+                        logger.info(" Page {page_num}: {len(members)} members")
                         return members
                 return []
             except Exception as e:
-                print(f"❌ Error fetching page {page_num}: {e}")
+                logger.info(" Error fetching page {page_num}: {e}")
                 return []
         
         all_members = []
@@ -403,13 +403,13 @@ class ClubHubAPIClient:
                         # Progress update
                         if completed_pages % 5 == 0:
                             elapsed = time.time() - start_time
-                            print(f"⏱️ Progress: {completed_pages}/{total_pages} pages, {len(all_members)} members after {elapsed:.2f} seconds")
+                            logger.info(" Progress: {completed_pages}/{total_pages} pages, {len(all_members)} members after {elapsed:.2f} seconds")
                             
                 except Exception as e:
-                    print(f"❌ Error processing page {page_num}: {e}")
+                    logger.info(" Error processing page {page_num}: {e}")
         
         elapsed = time.time() - start_time
-        print(f"🎉 FINAL RESULT: {len(all_members)} members fetched from {completed_pages} pages in {elapsed:.2f} seconds")
+        logger.info(" FINAL RESULT: {len(all_members)} members fetched from {completed_pages} pages in {elapsed:.2f} seconds")
         return all_members
     
     def get_all_prospects_paginated(self) -> List[Dict[str, Any]]:
@@ -417,7 +417,7 @@ class ClubHubAPIClient:
         start_time = time.time()
         
         # First, determine total number of pages by checking until we find the end
-        print("🔍 Determining total pages for parallel fetching...")
+        logger.info(" Determining total pages for parallel fetching...")
         total_pages = 0
         page = 1
         max_pages = 200  # Safety limit to prevent infinite loops
@@ -439,26 +439,26 @@ class ClubHubAPIClient:
                 
                 if prospects and len(prospects) > 0:
                     total_pages += 1
-                    print(f"📄 Found page {page} with {len(prospects)} prospects")
+                    logger.info(" Found page {page} with {len(prospects)} prospects")
                     
                     # If we got less than 100 prospects, we've reached the end
                     if len(prospects) < 100:
-                        print(f"✅ Reached end of prospects list on page {page}")
+                        logger.info(" Reached end of prospects list on page {page}")
                         break
                 else:
-                    print(f"✅ No more prospects found on page {page}")
+                    logger.info(" No more prospects found on page {page}")
                     break
             else:
-                print(f"❌ Failed to fetch page {page}")
+                logger.info(" Failed to fetch page {page}")
                 break
             
             page += 1
         
         if total_pages == 0:
-            print("❌ Could not determine total pages")
+            logger.info(" Could not determine total pages")
             return []
         
-        print(f"📊 Estimated {total_pages} pages to fetch, starting parallel processing...")
+        logger.info(" Estimated {total_pages} pages to fetch, starting parallel processing...")
         
         # Fetch all pages in parallel
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -481,11 +481,11 @@ class ClubHubAPIClient:
                         prospects = []
                     
                     if prospects:
-                        print(f"✅ Page {page_num}: {len(prospects)} prospects")
+                        logger.info(" Page {page_num}: {len(prospects)} prospects")
                         return prospects
                 return []
             except Exception as e:
-                print(f"❌ Error fetching page {page_num}: {e}")
+                logger.info(" Error fetching page {page_num}: {e}")
                 return []
         
         all_prospects = []
@@ -508,13 +508,13 @@ class ClubHubAPIClient:
                         # Progress update
                         if completed_pages % 5 == 0:
                             elapsed = time.time() - start_time
-                            print(f"⏱️ Progress: {completed_pages}/{total_pages} pages, {len(all_prospects)} prospects after {elapsed:.2f} seconds")
+                            logger.info(" Progress: {completed_pages}/{total_pages} pages, {len(all_prospects)} prospects after {elapsed:.2f} seconds")
                             
                 except Exception as e:
-                    print(f"❌ Error processing page {page_num}: {e}")
+                    logger.info(" Error processing page {page_num}: {e}")
         
         elapsed = time.time() - start_time
-        print(f"🎉 FINAL RESULT: {len(all_prospects)} prospects fetched from {completed_pages} pages in {elapsed:.2f} seconds")
+        logger.info(" FINAL RESULT: {len(all_prospects)} prospects fetched from {completed_pages} pages in {elapsed:.2f} seconds")
         return all_prospects
 
 if __name__ == "__main__":
@@ -525,6 +525,6 @@ if __name__ == "__main__":
     # success = client.authenticate("your_email@example.com", "your_password")
     # if success:
     #     members = client.get_all_members_paginated()
-    #     print(f"Total members: {len(members)}")
+    #     logger.info("Total members: {len(members)}")
     
-    print("ClubHub API Client ready!") 
+    logger.info("ClubHub API Client ready!") 

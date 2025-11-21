@@ -23,7 +23,7 @@ from gym_bot_clean import ClubOSEventDeletion
 
 # Import enhanced ClubOS client for training package data (deprecated - using working API now)
 try:
-    from services.api.enhanced_clubos_client import EnhancedClubOSAPIClient
+    from src.services.api.enhanced_clubos_client import EnhancedClubOSAPIClient
     ENHANCED_CLIENT_AVAILABLE = True
 except ImportError as e:
     print(f"⚠️ Enhanced ClubOS client not available: {e}")

@@ -298,7 +298,20 @@ def create_app():
         
         # Initialize ClubOS Integration
         app.clubos = ClubOSIntegration()
-        
+
+        # CRITICAL FIX: Authenticate ClubOS ONCE during app initialization
+        # This prevents multiple concurrent authentication attempts that trigger ClubOS rate limiting
+        clubos_authenticated = False
+        try:
+            logger.info("🔐 Authenticating ClubOS during app initialization...")
+            if app.clubos.authenticate():
+                clubos_authenticated = True
+                logger.info("✅ ClubOS authenticated successfully - session will be shared across all components")
+            else:
+                logger.error("❌ ClubOS authentication failed during app initialization")
+        except Exception as auth_error:
+            logger.error(f"❌ ClubOS authentication error during app initialization: {auth_error}")
+
         # Initialize ClubHub API Client for multi-club support
         try:
             try:
@@ -310,7 +323,7 @@ def create_app():
         except Exception as e:
             logger.warning(f"⚠️ ClubHub client initialization failed: {e}")
             app.clubhub_client = None
-        
+
         # Initialize ClubOS Messaging Client
         try:
             try:
@@ -319,7 +332,7 @@ def create_app():
             except ImportError:
                 from services.clubos_messaging_client_simple import ClubOSMessagingClient
                 from services.authentication.secure_secrets_manager import SecureSecretsManager
-            
+
             secrets_manager = SecureSecretsManager()
             username = secrets_manager.get_secret('clubos-username')
             password = secrets_manager.get_secret('clubos-password')
@@ -332,6 +345,24 @@ def create_app():
 
             app.messaging_client = ClubOSMessagingClient(username, password)
             logger.info("✅ ClubOS messaging client initialized with validated credentials")
+
+            # CRITICAL FIX: Share the authenticated ClubOS session instead of authenticating again
+            if clubos_authenticated and hasattr(app.clubos, 'api') and hasattr(app.clubos.api, 'auth_session'):
+                # Reuse the already-authenticated session from app.clubos
+                app.messaging_client.auth_session = app.clubos.api.auth_session
+                app.messaging_client.authenticated = True
+                app.messaging_client.session = app.clubos.api.auth_session.session
+                app.messaging_client.logged_in_user_id = app.clubos.api.auth_session.logged_in_user_id
+                app.messaging_client.delegated_user_id = app.clubos.api.auth_session.delegated_user_id
+                app.messaging_client.delegated_bearer_token = app.clubos.api.auth_session.bearer_token
+                logger.info("✅ ClubOS messaging client using shared authenticated session (no duplicate auth)")
+            else:
+                # Fallback: authenticate messaging client independently if ClubOS auth failed
+                logger.warning("⚠️ ClubOS not authenticated, messaging client will authenticate independently")
+                if app.messaging_client.authenticate():
+                    logger.info("✅ ClubOS messaging client authenticated successfully on startup")
+                else:
+                    logger.warning("⚠️ ClubOS messaging client authentication failed on startup - will retry on first use")
         except Exception as e:
             app.messaging_client = None
             logger.warning(f"⚠️ ClubOS messaging client initialization failed: {e}")

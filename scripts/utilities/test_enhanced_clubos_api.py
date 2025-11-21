@@ -6,7 +6,7 @@ Tests all real endpoints discovered from Charles Proxy sessions
 
 import json
 import time
-from services.api.clubos_api_client import ClubOSAPIClient
+from src.services.api.clubos_api_client import ClubOSAPIClient
 
 def test_enhanced_clubos_api():
     """Test the enhanced ClubOS API client with real endpoints"""

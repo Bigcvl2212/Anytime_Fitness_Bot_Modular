@@ -30,14 +30,24 @@ CLUBOS_PASSWORD_SECRET = "clubos-password"
 CLUBHUB_API_URL_MEMBERS = "https://clubhub-ios-api.anytimefitness.com/api/v1.0/clubs/1156/members"
 CLUBHUB_API_URL_PROSPECTS = "https://clubhub-ios-api.anytimefitness.com/api/v1.0/clubs/1156/prospects"
 CLUBHUB_HEADERS = {
-    "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMDgyMDQ0OSIsImVtYWlsIjoibWF5by5qZXJlbXkyMjEyQGdtYWlsLmNvbSIsImdpdmVuX25hbWUiOiJKZXJlbXkiLCJhZl9hcGlfdG9rZW4iOiJQQXVYUndoZHdWNWFRTEV0ZHNudWhSQVBKTllGQnAzQm9uNG0xSkIwY280anRQaDBQdmRtcnJxaEpXMHZ4elZYblk1T01aaGNWRTRDV1VHWXdOWUl2b3g2TVFEZEllelI1aG1BZm5BMlFsdFd1VFhXQ3VCWTg1cF9MQjNxejVxOEpoMWIzUlVBMHZhQ2c0QWpzXzl0ZnNlVWFxTWc3RE9Hb055UVJmVGY5NHRuZU4tVFgtbm1oWll5SmdpVXZiRTMwWnlFQWR0aGszOUhSeVR1TDBvRVlNUEM1d1JZRlpwbVh3ZV9XaGlnc1ZhWU1HWVdocUd5d2o1MTlZbW5BTTVlUHByQ3JNU1ZkdmxvQXdkblBJa2prTE9QLTlKZm9ZbmZHZFo3S2JpeTF6Z245a3JtWGU2d3V6TDF3dEdUU2FQWXNFNi1RTUtybk9iQ00tRnJlRlh5RzZCd0FMQSIsInBob3RvX3VybCI6IiIsInVzZXJfdHlwZSI6IlRyYWluZXIiLCJjbHViX2lkcyI6WyIxMTU2IiwiMTY1NyJdLCJyb2xlIjoiVHJhaW5lciIsImFwcGxpY2F0aW9uX2lkcyI6WyIxIiwiMyIsIjgiLCIxMiJdLCJuYmYiOjE3NTIxNzAzNzYsImV4cCI6MTc1MjI1Njc3NiwiaWF0IjoxNzUyMTcwMzc2LCJpc3MiOiJodHRwczovL2NsdWJodWItaW9zLWFwaS5hbnl0aW1lZml0bmVzcy5jb20vIiwiYXVkIjoiQ2x1Ykh1Yklvc0FwaSJ9.mecnEPZamfSfUShoWmZkt1pz1qKoSXhqNPRqn7jBJ-M",
+    "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzMDgyMDQ0OSIsImVtYWlsIjoibWF5by5qZXJlbXkyMjEyQGdtYWlsLmNvbSIsImdpdmVuX25hbWUiOiJKZXJlbXkiLCJhZl9hcGlfdG9rZW4iOiJlNVY4RFdVTUE0Q1dCMUFhOGpDTU1hTFNMTDNCR2RIMFZLQldPazZPME9uUkIweUVpUF9UMUFYNEdGWG1MTWJFa0ZjSmNhSm0zbjIwVEM3aUZVSmQxVzlnWk12VkRIY1F0TE1uOXZvSXk5UWhka3BIRHAyUndVVFR2WDJyM05SeEVwZHlPdVBWU19xWENXQmNBUHpnWjhVWktfbWZBSTBfUW40S1B0Wkdib3V3ZGJKcHRCWEhxY2ZUNzRUQy1oRUNCTnhIMWdyTkZLU19UeUhmcUpLdTZhMlBNd1A4MHZ5V0c4Si1LUnJyVlpPZXRuRzcyd2V5N1FBRUk3MHZqZlJjUFh0V1FBandXMk5DNFRhU0U2MndsMFRXT1BleEc2RmloRGR0SnpuVklkSER5SmV2a1l5TFlwaVZoTDllMXpTdFNSaVNhdHhaN18wVFFEb3hhYUU2ZTliOE5hVSIsInBob3RvX3VybCI6IiIsInVzZXJfdHlwZSI6IlRyYWluZXIiLCJjbHViX2lkcyI6WyIxMTU2IiwiMTY1NyJdLCJyb2xlIjoiVHJhaW5lciIsImFwcGxpY2F0aW9uX2lkcyI6WyIxIiwiMyIsIjgiLCIxMiJdLCJuYmYiOjE3NTIzODAxNjQsImV4cCI6MTc1MjQ2NjU2NCwiaWF0IjoxNzUyMzgwMTY0LCJpc3MiOiJodHRwczovL2NsdWJodWItaW9zLWFwaS5hbnl0aW1lZml0bmVzcy5jb20vIiwiYXVkIjoiQ2x1Ykh1Yklvc0FwaSJ9.K1hiET3Bg_-CDhdUfK7Fus4smHFbZUTwHFYZbJcSXvA",
     "API-version": "1",
     "Accept": "application/json",
     "Content-Type": "application/json",
     "Cookie": "incap_ses_132_434694=pJ43Iiiq7AgIQwVIVvXUAX//b2gAAAAAcBM8Epq6mDANrol1AXD4VQ==; dtCookie=v_4_srv_2_sn_942031A186D4529AF35E56616641EB2B_perc_100000_ol_0_mul_1_app-3Aea7c4b59f27d43eb_0_app-3A4b32026d63ce75ab_0_rcs-3Acss_1; visid_incap_434694=RnkdTm5oTZGIHQp7qeKPZANjSGgAAAAAQUIPAAAAAADfxJ4/rmakILSU3890u2w3; _ga_E3V4XR2W24=GS2.1.s1748029777$o2$g1$t1748029958$j0$l0$h0; rl_anonymous_id=RS_ENC_v3_IjQ4N2UyYTBkLTQ3NjItNDRhYy04ZDVkLTQ5ZWJjM2M1MWMyYSI%3D; rl_page_init_referrer=RS_ENC_v3_Imh0dHBzOi8vcmVzb3VyY2VjZW50ZXIuc2VicmFuZHMuY29tLyI%3D; rl_page_init_referring_domain=RS_ENC_v3_InJlc291cmNlY2VudGVyLnNlYnJhbmRzLmNvbSI%3D; rl_session=RS_ENC_v3_eyJpZCI6MTc0ODAyOTc3ODU1MiwiZXhwaXJlc0F0IjoxNzQ4MDMxNTc4NTYxLCJ0aW1lb3V0IjoxODAwMDAwLCJhdXRvVHJhY2siOnRydWUsInNlc3Npb25TdGFydCI6dHJ1ZX0%3D; _ga=GA1.1.2023145946.1747779026; visid_incap_498134=n71aHYAISneGZ49qOGxwdM39LGgAAAAAQUIPAAAAAABKTx/MOoTZK3A95JgTilNy"
 }
+
+# Historical parameters for getting ALL prospects (like the working legacy script)
+PARAMS_FOR_HISTORICAL_PULL = { "days": "10000", "page": "1", "pageSize": "100" }
 PARAMS_FOR_MEMBERS_RECENT = {"recent": True}
-PARAMS_FOR_PROSPECTS_RECENT = {"recent": True}
+PARAMS_FOR_PROSPECTS_RECENT = { 
+    "days": "10000", 
+    "page": "1", 
+    "pageSize": "100",
+    "includeInactive": "true",
+    "includeAll": "true", 
+    "status": "all"
+}
 
 # =============================================================================
 # MULTI-CHANNEL NOTIFICATIONS CONFIGURATION
@@ -93,8 +103,8 @@ SQUARE_ACCESS_TOKEN_SECRET = get_square_access_token_secret()
 SQUARE_LOCATION_ID_SECRET = get_square_location_id_secret()
 
 # Payment Configuration
-LATE_FEE_AMOUNT = 25.00
-PROCESSING_FEE_PERCENTAGE = 0.029  # 2.9% processing fee
+LATE_FEE_AMOUNT = 19.50
+PROCESSING_FEE_PERCENTAGE = 0.03  # 3.0% processing fee
 
 # =============================================================================
 # GOOGLE CLOUD CONFIGURATION
@@ -120,7 +130,7 @@ STAFF_NAMES = ["Gym-Bot AI", "Jeremy", "Staff"]
 
 # Message limits
 TEXT_MESSAGE_CHARACTER_LIMIT = 300
-PROSPECT_DAILY_LIMIT = 60
+PROSPECT_DAILY_LIMIT = 100
 PPV_MEMBER_DAILY_LIMIT = 10
 
 # Note configuration

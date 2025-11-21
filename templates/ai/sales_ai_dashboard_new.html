@@ -1,0 +1,1118 @@
+{% extends "base.html" %}
+
+{% block title %}AI Sales Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary-blue: #007bff;
+        --success-green: #28a745;
+        --warning-yellow: #ffc107;
+        --danger-red: #dc3545;
+        --sidebar-bg: #f8f9fa;
+        --card-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    body {
+        overflow-x: hidden;
+    }
+
+    /* 3-Column Grid Layout */
+    .dashboard-container {
+        display: grid;
+        grid-template-columns: 280px 1fr 320px;
+        gap: 0;
+        height: calc(100vh - 56px);
+        overflow: hidden;
+    }
+
+    /* Left Sidebar - Workflows */
+    .workflows-panel {
+        background: var(--sidebar-bg);
+        border-right: 1px solid #dee2e6;
+        overflow-y: auto;
+        padding: 20px;
+    }
+
+    .workflow-card {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: var(--card-shadow);
+        cursor: pointer;
+        transition: all 0.2s;
+        border-left: 4px solid transparent;
+    }
+
+    .workflow-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .workflow-card.active {
+        border-left-color: var(--primary-blue);
+        box-shadow: 0 4px 12px rgba(0,123,255,0.2);
+    }
+
+    .workflow-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .workflow-name {
+        font-weight: 600;
+        font-size: 14px;
+        margin: 0;
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .status-dot.running { background: var(--success-green); }
+    .status-dot.paused { background: var(--warning-yellow); }
+    .status-dot.error { background: var(--danger-red); }
+
+    .workflow-meta {
+        font-size: 11px;
+        color: #6c757d;
+        margin-bottom: 4px;
+    }
+
+    .workflow-actions {
+        display: flex;
+        gap: 4px;
+        margin-top: 12px;
+    }
+
+    .workflow-actions button {
+        flex: 1;
+        font-size: 11px;
+        padding: 4px 8px;
+    }
+
+    /* Center - Conversation Feed */
+    .conversation-panel {
+        display: flex;
+        flex-direction: column;
+        background: white;
+        overflow: hidden;
+    }
+
+    .conversation-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid #dee2e6;
+        background: white;
+        z-index: 10;
+    }
+
+    .conversation-feed {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background: #f8f9fa;
+    }
+
+    .conversation-input {
+        padding: 16px 20px;
+        border-top: 1px solid #dee2e6;
+        background: white;
+    }
+
+    /* Message Styles */
+    .ai-message {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: var(--card-shadow);
+    }
+
+    .ai-message.workflow-notification {
+        border-left: 4px solid var(--primary-blue);
+    }
+
+    .ai-message.approval-request {
+        border-left: 4px solid var(--warning-yellow);
+        background: #fffbf0;
+    }
+
+    .ai-message.tool-result {
+        border-left: 4px solid var(--success-green);
+    }
+
+    .ai-message.error {
+        border-left: 4px solid var(--danger-red);
+        background: #fff5f5;
+    }
+
+    .message-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .message-timestamp {
+        font-size: 12px;
+        color: #6c757d;
+    }
+
+    .message-body {
+        font-size: 14px;
+        line-height: 1.6;
+    }
+
+    .approval-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    /* Enhanced Message Styles */
+    .ai-summary {
+        font-size: 14px;
+        line-height: 1.7;
+        color: #212529;
+        padding: 8px 12px;
+        background: linear-gradient(to right, #f8f9fa, transparent);
+        border-radius: 4px;
+    }
+
+    .tool-calls-section {
+        border-top: 1px dashed #dee2e6;
+        padding-top: 12px;
+    }
+
+    .tool-call-card {
+        transition: all 0.2s ease;
+    }
+
+    .tool-call-card:hover {
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        transform: translateX(2px);
+    }
+
+    .command-result {
+        position: relative;
+    }
+
+    .command-result strong {
+        color: var(--primary-blue);
+    }
+
+    /* Badge animations */
+    @keyframes pulse-badge {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+
+    .badge.bg-info {
+        animation: pulse-badge 2s ease-in-out infinite;
+    }
+
+    /* Tool details table styling */
+    .tool-details table {
+        margin-bottom: 0;
+    }
+
+    .tool-details table thead {
+        background: #e9ecef;
+    }
+
+    .tool-details table thead th {
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* Smooth transitions */
+    .tool-details {
+        transition: all 0.3s ease;
+    }
+
+    /* Copy button for code blocks */
+    pre {
+        position: relative;
+    }
+
+    /* Status indicators */
+    .text-success {
+        color: #28a745 !important;
+        font-weight: 500;
+    }
+
+    .text-danger {
+        color: #dc3545 !important;
+        font-weight: 500;
+    }
+
+    /* Improved scrollbar */
+    .conversation-feed::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .conversation-feed::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+
+    .conversation-feed::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 4px;
+    }
+
+    .conversation-feed::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+
+    /* Right Sidebar - Workflow Details */
+    .details-panel {
+        background: var(--sidebar-bg);
+        border-left: 1px solid #dee2e6;
+        overflow-y: auto;
+        padding: 20px;
+    }
+
+    .details-card {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: var(--card-shadow);
+    }
+
+    .details-card h6 {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: #6c757d;
+        margin-bottom: 12px;
+    }
+
+    .metric-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .metric-row:last-child {
+        border-bottom: none;
+    }
+
+    .metric-label {
+        font-size: 13px;
+        color: #6c757d;
+    }
+
+    .metric-value {
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .execution-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px;
+        background: #f8f9fa;
+        border-radius: 4px;
+        margin-bottom: 6px;
+        font-size: 12px;
+    }
+
+    .execution-item.success {
+        border-left: 3px solid var(--success-green);
+    }
+
+    .execution-item.error {
+        border-left: 3px solid var(--danger-red);
+    }
+
+    /* Loading States */
+    .loading-skeleton {
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: loading 1.5s ease-in-out infinite;
+        border-radius: 4px;
+        height: 20px;
+        margin-bottom: 8px;
+    }
+
+    @keyframes loading {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 1199px) {
+        .dashboard-container {
+            grid-template-columns: 240px 1fr;
+        }
+        .details-panel {
+            display: none;
+        }
+    }
+
+    @media (max-width: 767px) {
+        .dashboard-container {
+            grid-template-columns: 1fr;
+        }
+        .workflows-panel {
+            display: none;
+        }
+        .mobile-tabs {
+            display: flex !important;
+        }
+    }
+
+    .mobile-tabs {
+        display: none;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        border-top: 1px solid #dee2e6;
+        padding: 8px;
+        z-index: 1000;
+    }
+
+    .mobile-tab {
+        flex: 1;
+        text-align: center;
+        padding: 8px;
+        font-size: 12px;
+        border: none;
+        background: none;
+        cursor: pointer;
+    }
+
+    .mobile-tab.active {
+        color: var(--primary-blue);
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- Left Panel: Workflows -->
+    <div class="workflows-panel" id="workflowsPanel">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">Workflows</h5>
+            <button class="btn btn-sm btn-primary" onclick="refreshWorkflows()">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+
+        <div id="workflowsList">
+            <!-- Loading skeleton -->
+            <div class="loading-skeleton"></div>
+            <div class="loading-skeleton"></div>
+            <div class="loading-skeleton"></div>
+        </div>
+
+        <button class="btn btn-outline-primary btn-sm w-100 mt-3" onclick="showManualCommand()">
+            <i class="fas fa-plus me-1"></i> Manual Task
+        </button>
+    </div>
+
+    <!-- Center Panel: Conversation -->
+    <div class="conversation-panel">
+        <div class="conversation-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-1">AI Sales Dashboard</h4>
+                    <small class="text-muted">Autonomous workflow management & insights</small>
+                </div>
+                <div>
+                    <span class="badge bg-success">
+                        <i class="fas fa-robot me-1"></i>AI Active
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="conversation-feed" id="conversationFeed">
+            <div class="ai-message workflow-notification">
+                <div class="message-header">
+                    <span class="badge bg-primary">System</span>
+                    <span class="message-timestamp">Just now</span>
+                </div>
+                <div class="message-body">
+                    <strong>Welcome to the AI Sales Dashboard</strong>
+                    <p class="mb-0 mt-2">Your autonomous workflows are ready. 6 workflows configured to help with campaigns, collections, and member management.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="conversation-input">
+            <div class="input-group">
+                <input type="text" class="form-control" id="commandInput" 
+                       placeholder="Ask the AI anything or give it a task..."
+                       onkeypress="handleCommandKeyPress(event)">
+                <button class="btn btn-primary" onclick="sendCommand()" id="sendButton">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            <div class="mt-2">
+                <small class="text-muted">Quick commands:</small>
+                <button class="btn btn-sm btn-outline-secondary ms-2" onclick="sendQuickCommand('Show past due summary')">
+                    Past Due Summary
+                </button>
+                <button class="btn btn-sm btn-outline-secondary ms-2" onclick="sendQuickCommand('Run daily campaigns')">
+                    Run Campaigns
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel: Workflow Details -->
+    <div class="details-panel" id="detailsPanel">
+        <h5 class="mb-3">Workflow Details</h5>
+        
+        <div id="workflowDetails">
+            <div class="text-center text-muted py-5">
+                <i class="fas fa-mouse-pointer fa-3x mb-3"></i>
+                <p>Select a workflow to view details</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mobile Tabs -->
+<div class="mobile-tabs">
+    <button class="mobile-tab active" onclick="showMobilePanel('workflows')">
+        <i class="fas fa-list d-block"></i>
+        Workflows
+    </button>
+    <button class="mobile-tab" onclick="showMobilePanel('conversation')">
+        <i class="fas fa-comments d-block"></i>
+        Chat
+    </button>
+    <button class="mobile-tab" onclick="showMobilePanel('details')">
+        <i class="fas fa-info-circle d-block"></i>
+        Details
+    </button>
+</div>
+
+<script>
+let selectedWorkflowId = null;
+
+// Initialize dashboard
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Initializing AI Sales Dashboard...');
+    loadWorkflows();
+    loadConversationHistory();
+    
+    // Auto-refresh every 30 seconds
+    setInterval(loadWorkflows, 30000);
+});
+
+// Load workflows from API
+async function loadWorkflows() {
+    try {
+        const response = await fetch('/api/ai/workflows/status');
+        const data = await response.json();
+        
+        if (data.success) {
+            renderWorkflows(data.workflows);
+        } else {
+            console.error('Failed to load workflows:', data.error);
+        }
+    } catch (error) {
+        console.error('Error loading workflows:', error);
+    }
+}
+
+// Render workflow cards
+function renderWorkflows(workflows) {
+    const container = document.getElementById('workflowsList');
+    
+    if (!workflows || workflows.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center">No workflows available</p>';
+        return;
+    }
+    
+    container.innerHTML = workflows.map(wf => `
+        <div class="workflow-card ${selectedWorkflowId === wf.id ? 'active' : ''}" 
+             onclick="selectWorkflow('${wf.id}')">
+            <div class="workflow-header">
+                <h6 class="workflow-name">${wf.name}</h6>
+                <span class="status-dot ${getWorkflowStatus(wf)}"></span>
+            </div>
+            <div class="workflow-meta">
+                <i class="fas fa-clock"></i> Next: ${formatNextRun(wf.next_run)}
+            </div>
+            <div class="workflow-meta">
+                <i class="fas fa-check-circle"></i> Last: ${formatLastRun(wf.last_run)}
+            </div>
+            <div class="workflow-actions">
+                <button class="btn btn-sm btn-success" onclick="runWorkflowNow('${wf.id}'); event.stopPropagation();">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="viewWorkflowHistory('${wf.id}'); event.stopPropagation();">
+                    <i class="fas fa-history"></i>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Select workflow
+function selectWorkflow(workflowId) {
+    selectedWorkflowId = workflowId;
+    loadWorkflows(); // Refresh to show active state
+    loadWorkflowDetails(workflowId);
+}
+
+// Load workflow details
+async function loadWorkflowDetails(workflowId) {
+    try {
+        const [configRes, historyRes] = await Promise.all([
+            fetch(`/api/ai/workflows/${workflowId}/config`),
+            fetch(`/api/ai/workflows/${workflowId}/history?limit=10`)
+        ]);
+        
+        const config = await configRes.json();
+        const history = await historyRes.json();
+        
+        renderWorkflowDetails(workflowId, config, history);
+    } catch (error) {
+        console.error('Error loading workflow details:', error);
+    }
+}
+
+// Render workflow details
+function renderWorkflowDetails(workflowId, config, history) {
+    const container = document.getElementById('workflowDetails');
+    
+    const cfg = config.config || {};
+    const executions = history.executions || [];
+    
+    container.innerHTML = `
+        <div class="details-card">
+            <h6>Configuration</h6>
+            <div class="metric-row">
+                <span class="metric-label">Schedule</span>
+                <span class="metric-value">${cfg.schedule || 'N/A'}</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Status</span>
+                <span class="metric-value">${cfg.enabled ? '✅ Enabled' : '❌ Disabled'}</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-label">Dry Run</span>
+                <span class="metric-value">${cfg.dry_run ? 'Yes' : 'No'}</span>
+            </div>
+        </div>
+        
+        <div class="details-card">
+            <h6>Recent Executions</h6>
+            ${executions.length > 0 ? executions.map(exec => `
+                <div class="execution-item ${exec.success ? 'success' : 'error'}">
+                    <span>${formatTimestamp(exec.timestamp)}</span>
+                    <span>${exec.success ? '✓' : '✗'} ${exec.duration ? exec.duration.toFixed(1) + 's' : ''}</span>
+                </div>
+            `).join('') : '<p class="text-muted text-center mb-0">No executions yet</p>'}
+        </div>
+    `;
+}
+
+// Load conversation history
+async function loadConversationHistory() {
+    try {
+        const response = await fetch('/api/ai/conversation/history?limit=20');
+        const data = await response.json();
+        
+        if (data.success && data.messages) {
+            data.messages.reverse().forEach(msg => {
+                addMessageToFeed(msg);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading conversation history:', error);
+    }
+}
+
+// Add message to conversation feed
+function addMessageToFeed(message) {
+    const feed = document.getElementById('conversationFeed');
+    const messageEl = document.createElement('div');
+    messageEl.className = `ai-message ${message.type || 'generic'}`;
+
+    let content = message.content;
+
+    // Parse content if it's a string
+    if (typeof content === 'string') {
+        try {
+            content = JSON.parse(content);
+        } catch (e) {
+            // If parsing fails, content is plain text
+        }
+    }
+
+    messageEl.innerHTML = `
+        <div class="message-header">
+            <span class="badge bg-secondary">${formatMessageType(message.type)}</span>
+            <span class="message-timestamp">${formatTimestamp(message.timestamp)}</span>
+        </div>
+        <div class="message-body">
+            ${formatMessageContent(content, message.type)}
+        </div>
+    `;
+
+    feed.appendChild(messageEl);
+    feed.scrollTop = feed.scrollHeight;
+}
+
+// Format message type for display
+function formatMessageType(type) {
+    const typeMap = {
+        'manual_command': 'Manual Command',
+        'workflow_notification': 'Workflow',
+        'approval_request': 'Needs Approval',
+        'tool-result': 'AI Response',
+        'error': 'Error',
+        'system': 'System'
+    };
+    return typeMap[type] || type || 'System';
+}
+
+// Format message content based on type and structure
+function formatMessageContent(content, messageType) {
+    // Handle plain text
+    if (typeof content === 'string') {
+        return `<p class="mb-0">${escapeHtml(content)}</p>`;
+    }
+
+    // Handle manual command results
+    if (content.command && content.result) {
+        return formatCommandResult(content);
+    }
+
+    // Handle direct AI responses
+    if (content.success !== undefined && content.result) {
+        return formatAIResponse(content);
+    }
+
+    // Handle workflow notifications
+    if (messageType === 'workflow_notification' && typeof content === 'object') {
+        return formatWorkflowNotification(content);
+    }
+
+    // Fallback: format as readable JSON
+    return `<pre class="mb-0" style="font-size: 12px; background: #f8f9fa; padding: 12px; border-radius: 4px; overflow-x: auto;">${JSON.stringify(content, null, 2)}</pre>`;
+}
+
+// Format manual command result
+function formatCommandResult(data) {
+    const { command, result } = data;
+
+    let html = `<div class="command-result">`;
+    html += `<p class="mb-2"><strong>Command:</strong> ${escapeHtml(command)}</p>`;
+
+    if (result.success !== undefined && result.result) {
+        html += formatAIResponse(result);
+    } else if (typeof result === 'string') {
+        html += `<p class="mb-0">${escapeHtml(result)}</p>`;
+    } else {
+        html += `<pre style="font-size: 12px; background: #f8f9fa; padding: 12px; border-radius: 4px;">${JSON.stringify(result, null, 2)}</pre>`;
+    }
+
+    html += `</div>`;
+    return html;
+}
+
+// Format AI response with tool calls
+function formatAIResponse(data) {
+    let html = '';
+
+    // Show the AI's summary/result text prominently
+    if (typeof data.result === 'string') {
+        html += `<div class="ai-summary mb-3">${escapeHtml(data.result).replace(/\n/g, '<br>')}</div>`;
+    }
+
+    // Show tool execution details if present
+    if (data.tool_calls && data.tool_calls.length > 0) {
+        html += `<div class="tool-calls-section mt-3">`;
+        html += `<div class="d-flex align-items-center gap-2 mb-2">`;
+        html += `<span class="badge bg-info">Used ${data.tool_calls.length} tool${data.tool_calls.length > 1 ? 's' : ''}</span>`;
+        if (data.iterations) {
+            html += `<span class="badge bg-secondary">${data.iterations} iteration${data.iterations > 1 ? 's' : ''}</span>`;
+        }
+        html += `</div>`;
+
+        // Format each tool call
+        data.tool_calls.forEach((toolCall, idx) => {
+            html += formatToolCall(toolCall, idx);
+        });
+
+        html += `</div>`;
+    }
+
+    // Show error if present
+    if (data.error) {
+        html += `<div class="alert alert-danger mb-0 mt-2"><i class="fas fa-exclamation-triangle me-2"></i>${escapeHtml(data.error)}</div>`;
+    }
+
+    return html || '<p class="mb-0">Task completed</p>';
+}
+
+// Format individual tool call
+function formatToolCall(toolCall, index) {
+    const toolName = toolCall.tool || 'unknown';
+    const toolResult = toolCall.result || {};
+    const success = toolCall.success !== false;
+
+    let html = `<div class="tool-call-card mb-2" style="border-left: 3px solid ${success ? '#28a745' : '#dc3545'}; background: #f8f9fa; padding: 12px; border-radius: 4px;">`;
+
+    // Tool header with expand/collapse
+    html += `<div class="d-flex justify-content-between align-items-center mb-2">`;
+    html += `<strong style="font-size: 13px;"><i class="fas fa-wrench me-2"></i>${formatToolName(toolName)}</strong>`;
+    html += `<button class="btn btn-sm btn-link p-0" onclick="toggleToolDetails(${index})" style="font-size: 11px;">`;
+    html += `<i class="fas fa-chevron-down" id="tool-toggle-${index}"></i> Details</button>`;
+    html += `</div>`;
+
+    // Tool summary (always visible)
+    html += `<div class="tool-summary" style="font-size: 12px; color: #6c757d;">`;
+    html += formatToolSummary(toolName, toolResult);
+    html += `</div>`;
+
+    // Tool details (collapsible)
+    html += `<div class="tool-details" id="tool-details-${index}" style="display: none; margin-top: 8px; font-size: 12px;">`;
+    html += formatToolDetails(toolName, toolResult);
+    html += `</div>`;
+
+    html += `</div>`;
+    return html;
+}
+
+// Format tool name for display
+function formatToolName(toolName) {
+    const nameMap = {
+        'get_past_due_members': 'Get Past Due Members',
+        'get_past_due_training_clients': 'Get Past Due Training Clients',
+        'send_bulk_campaign': 'Send Bulk Campaign',
+        'send_message_to_member': 'Send Message',
+        'get_campaign_prospects': 'Get Campaign Prospects',
+        'get_green_members': 'Get New Members',
+        'get_ppv_members': 'Get PPV Members',
+        'get_member_profile': 'Get Member Profile',
+        'get_collection_attempts': 'Get Collection Attempts',
+        'get_campaign_templates': 'Get Campaign Templates',
+        'lock_door_access': 'Lock Door Access',
+        'unlock_door_access': 'Unlock Door Access'
+    };
+    return nameMap[toolName] || toolName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+// Format tool summary (brief overview)
+function formatToolSummary(toolName, result) {
+    if (result.error) {
+        return `<span class="text-danger"><i class="fas fa-times-circle me-1"></i>${escapeHtml(result.error)}</span>`;
+    }
+
+    // Tool-specific summaries
+    if (toolName === 'get_past_due_members' && result.members) {
+        return `Found <strong>${result.count || result.members.length}</strong> past due members | Total: <strong>$${(result.total_amount || 0).toFixed(2)}</strong>`;
+    }
+
+    if (toolName === 'get_past_due_training_clients' && result.clients) {
+        return `Found <strong>${result.count || result.clients.length}</strong> past due training clients | Total: <strong>$${(result.total_amount || 0).toFixed(2)}</strong>`;
+    }
+
+    if (toolName === 'send_bulk_campaign' && result.sent !== undefined) {
+        return `Sent: <strong>${result.sent}</strong> | Failed: <strong>${result.failed || 0}</strong>`;
+    }
+
+    if (toolName === 'get_campaign_prospects' || toolName === 'get_green_members' || toolName === 'get_ppv_members') {
+        return `Found <strong>${result.count || (result.members ? result.members.length : 0)}</strong> members`;
+    }
+
+    if (toolName === 'get_member_profile' && result.profile) {
+        const p = result.profile;
+        return `${p.name} | Status: ${p.status} | Past Due: $${(p.amount_past_due || 0).toFixed(2)}`;
+    }
+
+    if (toolName === 'get_campaign_templates' && result.templates) {
+        return `Found <strong>${result.count || result.templates.length}</strong> campaign templates`;
+    }
+
+    if (result.success) {
+        return `<span class="text-success"><i class="fas fa-check-circle me-1"></i>Success</span>`;
+    }
+
+    return 'Completed';
+}
+
+// Format tool details (expandable)
+function formatToolDetails(toolName, result) {
+    if (result.error) {
+        return `<div class="alert alert-danger mb-0 p-2" style="font-size: 11px;">${escapeHtml(result.error)}</div>`;
+    }
+
+    let html = '';
+
+    // Show member/client lists in a table
+    if ((toolName === 'get_past_due_members' && result.members) ||
+        (toolName === 'get_past_due_training_clients' && result.clients)) {
+
+        const items = result.members || result.clients;
+        const displayItems = items.slice(0, 10); // Show first 10
+
+        html += `<div style="max-height: 200px; overflow-y: auto;">`;
+        html += `<table class="table table-sm table-striped mb-0" style="font-size: 11px;">`;
+        html += `<thead><tr><th>Name</th><th>Email</th><th>Amount</th></tr></thead><tbody>`;
+
+        displayItems.forEach(item => {
+            html += `<tr>`;
+            html += `<td>${escapeHtml(item.name || 'N/A')}</td>`;
+            html += `<td>${escapeHtml(item.email || 'No email')}</td>`;
+            html += `<td>$${(item.amount_past_due || item.past_due_amount || 0).toFixed(2)}</td>`;
+            html += `</tr>`;
+        });
+
+        html += `</tbody></table>`;
+        if (items.length > 10) {
+            html += `<p class="mb-0 mt-1 text-muted" style="font-size: 10px;">... and ${items.length - 10} more</p>`;
+        }
+        html += `</div>`;
+    }
+    // Show campaign templates
+    else if (toolName === 'get_campaign_templates' && result.templates) {
+        html += `<div style="max-height: 200px; overflow-y: auto;">`;
+        result.templates.forEach(tmpl => {
+            html += `<div class="mb-2 p-2" style="background: white; border-radius: 4px;">`;
+            html += `<strong>${escapeHtml(tmpl.title || tmpl.name)}</strong>`;
+            html += `<p class="mb-0 mt-1" style="font-size: 10px; color: #6c757d;">${escapeHtml(tmpl.message).substring(0, 100)}...</p>`;
+            html += `</div>`;
+        });
+        html += `</div>`;
+    }
+    // Show member profile
+    else if (toolName === 'get_member_profile' && result.profile) {
+        const p = result.profile;
+        html += `<div style="background: white; padding: 8px; border-radius: 4px;">`;
+        html += `<div class="row g-1">`;
+        html += `<div class="col-6"><small class="text-muted">ID:</small> ${p.member_id}</div>`;
+        html += `<div class="col-6"><small class="text-muted">Status:</small> ${p.status}</div>`;
+        html += `<div class="col-6"><small class="text-muted">Email:</small> ${p.email || 'N/A'}</div>`;
+        html += `<div class="col-6"><small class="text-muted">Past Due:</small> $${(p.amount_past_due || 0).toFixed(2)}</div>`;
+        html += `</div></div>`;
+    }
+    // Default: show JSON
+    else {
+        html += `<pre class="mb-0 p-2" style="font-size: 10px; background: white; border-radius: 4px; max-height: 150px; overflow: auto;">${JSON.stringify(result, null, 2)}</pre>`;
+    }
+
+    return html;
+}
+
+// Format workflow notification
+function formatWorkflowNotification(content) {
+    if (typeof content === 'string') {
+        return `<p class="mb-0">${escapeHtml(content)}</p>`;
+    }
+
+    let html = '';
+    if (content.workflow_name) {
+        html += `<p class="mb-2"><strong>${escapeHtml(content.workflow_name)}</strong></p>`;
+    }
+    if (content.message) {
+        html += `<p class="mb-0">${escapeHtml(content.message)}</p>`;
+    }
+
+    return html || `<pre>${JSON.stringify(content, null, 2)}</pre>`;
+}
+
+// Toggle tool details visibility
+function toggleToolDetails(index) {
+    const details = document.getElementById(`tool-details-${index}`);
+    const toggle = document.getElementById(`tool-toggle-${index}`);
+
+    if (details.style.display === 'none') {
+        details.style.display = 'block';
+        toggle.className = 'fas fa-chevron-up';
+    } else {
+        details.style.display = 'none';
+        toggle.className = 'fas fa-chevron-down';
+    }
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+    if (typeof text !== 'string') return text;
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Send command
+async function sendCommand() {
+    const input = document.getElementById('commandInput');
+    const command = input.value.trim();
+    
+    if (!command) return;
+    
+    // Add user message
+    addUserMessage(command);
+    input.value = '';
+    
+    // Show loading
+    const sendButton = document.getElementById('sendButton');
+    sendButton.disabled = true;
+    sendButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    
+    try {
+        const response = await fetch('/api/ai/conversation/command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            addMessageToFeed({
+                type: 'tool-result',
+                timestamp: new Date().toISOString(),
+                content: data.result
+            });
+        } else {
+            addMessageToFeed({
+                type: 'error',
+                timestamp: new Date().toISOString(),
+                content: `Error: ${data.error}`
+            });
+        }
+    } catch (error) {
+        console.error('Error sending command:', error);
+        addMessageToFeed({
+            type: 'error',
+            timestamp: new Date().toISOString(),
+            content: `Error: ${error.message}`
+        });
+    } finally {
+        sendButton.disabled = false;
+        sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
+    }
+}
+
+// Add user message to feed
+function addUserMessage(text) {
+    const feed = document.getElementById('conversationFeed');
+    const messageEl = document.createElement('div');
+    messageEl.className = 'ai-message';
+    messageEl.style.background = '#e3f2fd';
+    messageEl.innerHTML = `
+        <div class="message-header">
+            <span class="badge bg-info">You</span>
+            <span class="message-timestamp">Just now</span>
+        </div>
+        <div class="message-body">${text}</div>
+    `;
+    feed.appendChild(messageEl);
+    feed.scrollTop = feed.scrollHeight;
+}
+
+// Quick command
+function sendQuickCommand(command) {
+    document.getElementById('commandInput').value = command;
+    sendCommand();
+}
+
+// Run workflow now
+async function runWorkflowNow(workflowId) {
+    if (!confirm('Run this workflow now?')) return;
+    
+    try {
+        const response = await fetch(`/api/ai/workflows/${workflowId}/run`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            addMessageToFeed({
+                type: 'workflow-notification',
+                timestamp: new Date().toISOString(),
+                content: `Workflow started: ${workflowId}`
+            });
+        }
+    } catch (error) {
+        console.error('Error running workflow:', error);
+    }
+}
+
+// Helper functions
+function getWorkflowStatus(wf) {
+    if (wf.last_run && !wf.last_run.success) return 'error';
+    return wf.enabled ? 'running' : 'paused';
+}
+
+function formatNextRun(nextRun) {
+    if (!nextRun) return 'Not scheduled';
+    const date = new Date(nextRun);
+    const now = new Date();
+    const diff = date - now;
+    
+    if (diff < 0) return 'Pending...';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
+    return date.toLocaleDateString();
+}
+
+function formatLastRun(lastRun) {
+    if (!lastRun || !lastRun.timestamp) return 'Never';
+    const date = new Date(lastRun.timestamp);
+    const now = new Date();
+    const diff = now - date;
+    
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    return date.toLocaleDateString();
+}
+
+function formatTimestamp(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function handleCommandKeyPress(event) {
+    if (event.key === 'Enter') {
+        sendCommand();
+    }
+}
+
+function refreshWorkflows() {
+    loadWorkflows();
+    if (selectedWorkflowId) {
+        loadWorkflowDetails(selectedWorkflowId);
+    }
+}
+
+function showManualCommand() {
+    document.getElementById('commandInput').focus();
+}
+
+function showMobilePanel(panel) {
+    // Mobile tab switching logic
+    document.querySelectorAll('.mobile-tab').forEach(tab => tab.classList.remove('active'));
+    event.target.closest('.mobile-tab').classList.add('active');
+}
+
+function viewWorkflowHistory(workflowId) {
+    selectWorkflow(workflowId);
+}
+</script>
+{% endblock %}

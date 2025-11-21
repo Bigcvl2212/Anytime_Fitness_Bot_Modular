@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
-from services.api.migration_service import get_migration_service
+from src.services.api.migration_service import get_migration_service
 from config.secrets_local import get_secret
 from datetime import datetime
 

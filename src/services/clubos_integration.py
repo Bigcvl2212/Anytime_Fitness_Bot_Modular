@@ -26,46 +26,55 @@ class ClubOSIntegration:
     """Integration class to connect dashboard with working ClubOS API"""
     
     def __init__(self):
-        # Use SecureSecretsManager for credentials
+        # CRITICAL FIX: Prioritize config file credentials (matches working implementations)
         self.username = None
         self.password = None
+        self.base_url = os.getenv('CLUBOS_BASE_URL', 'https://anytime.club-os.com')
+
+        # Try config file first (same as working implementations)
         try:
             try:
-                from .authentication.secure_secrets_manager import SecureSecretsManager
+                from config.clubhub_credentials import CLUBOS_USERNAME, CLUBOS_PASSWORD
             except ImportError:
-                from src.services.authentication.secure_secrets_manager import SecureSecretsManager
-            secrets_manager = SecureSecretsManager()
-            
-            self.username = secrets_manager.get_secret('clubos-username')
-            self.password = secrets_manager.get_secret('clubos-password')
-            self.base_url = os.getenv('CLUBOS_BASE_URL', 'https://anytime.club-os.com')
-            
-            if self.username and self.password:
-                logger.info("🔐 ClubOS credentials loaded from SecureSecretsManager")
-            else:
-                logger.warning("⚠️ Missing ClubOS credentials in SecureSecretsManager")
-                
-        except Exception as e:
-            logger.warning(f"⚠️ Could not load ClubOS credentials from SecureSecretsManager: {e}")
-            
-            # No fallback - SecureSecretsManager is the only secure source
-            logger.warning("⚠️ ClubOS credentials not configured in SecureSecretsManager")
-            self.username = None
-            self.password = None
-            self.base_url = os.getenv('CLUBOS_BASE_URL', 'https://anytime.club-os.com')
+                from src.config.clubhub_credentials import CLUBOS_USERNAME, CLUBOS_PASSWORD
 
+            if CLUBOS_USERNAME and CLUBOS_PASSWORD:
+                self.username = CLUBOS_USERNAME
+                self.password = CLUBOS_PASSWORD
+                logger.info("✅ ClubOS credentials loaded from config file (prioritized)")
+            else:
+                logger.warning("⚠️ Config file credentials are empty")
+
+        except ImportError:
+            logger.warning("⚠️ Could not import config file credentials")
+        except Exception as e:
+            logger.warning(f"⚠️ Error loading config file credentials: {e}")
+
+        # Fallback to SecureSecretsManager only if config not available
         if not (self.username and self.password):
             try:
-                self.username = os.getenv('CLUBOS_USERNAME')
-                self.password = os.getenv('CLUBOS_PASSWORD')
+                try:
+                    from .authentication.secure_secrets_manager import SecureSecretsManager
+                except ImportError:
+                    from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+                secrets_manager = SecureSecretsManager()
+
+                self.username = secrets_manager.get_secret('clubos-username')
+                self.password = secrets_manager.get_secret('clubos-password')
+
                 if self.username and self.password:
-                    logger.info("🔐 ClubOS credentials loaded from environment variables")
+                    logger.info("🔐 ClubOS credentials loaded from SecureSecretsManager (fallback)")
                 else:
-                    logger.warning("⚠️ ClubOS credentials not configured")
+                    logger.warning("⚠️ Missing ClubOS credentials in SecureSecretsManager")
+
             except Exception as e:
-                logger.warning(f"⚠️ Error accessing environment variables: {e}")
-                self.username = None
-                self.password = None
+                logger.warning(f"⚠️ Could not load ClubOS credentials from SecureSecretsManager: {e}")
+
+        # Final check
+        if not (self.username and self.password):
+            logger.error("❌ ClubOS credentials not configured in any source (config file or SecureSecretsManager)")
+            self.username = None
+            self.password = None
         
         # Initialize API instances
         self.api = None
@@ -76,8 +85,16 @@ class ClubOSIntegration:
     def authenticate(self):
         """Authenticate with ClubOS using unified authentication service"""
         try:
-            # Get unified authentication service  
+            # Get unified authentication service
             auth_service = get_unified_auth_service()
+
+            # CRITICAL FIX: Invalidate any cached session to force fresh authentication
+            # This prevents Flask from reusing corrupted/invalid cached sessions
+            session_key = f"clubos_{self.username}"
+            if session_key in auth_service._sessions:
+                logger.info(f"🔄 Invalidating cached ClubOS session for {self.username} to force fresh auth")
+                del auth_service._sessions[session_key]
+
             auth_session = auth_service.authenticate_clubos(self.username, self.password)
             
             if not auth_session or not auth_session.authenticated:
@@ -584,19 +601,30 @@ class ClubOSIntegration:
             thread_local = threading.local()
             
             def get_thread_safe_training_api():
-                """Get a thread-local authenticated training API instance"""
+                """Get a thread-local training API instance using SHARED authentication session"""
                 if not hasattr(thread_local, 'training_api'):
-                    # Create fresh authenticated training API for this thread
+                    # Create fresh training API for this thread
                     from clubos_training_api_fixed import ClubOSTrainingPackageAPI
                     thread_local.training_api = ClubOSTrainingPackageAPI()
-                    if self.username and self.password:
+
+                    # CRITICAL FIX: Reuse the parent's authenticated session instead of authenticating again
+                    # This prevents 6 concurrent authentication attempts (one per worker thread)
+                    if hasattr(self, 'training_api') and hasattr(self.training_api, 'auth_session'):
+                        thread_local.training_api.auth_session = self.training_api.auth_session
+                        thread_local.training_api.authenticated = True
+                        thread_local.training_api.session = self.training_api.auth_session.session
                         thread_local.training_api.username = self.username
                         thread_local.training_api.password = self.password
-                        # Authenticate this thread's API instance
-                        if not thread_local.training_api.authenticate():
-                            logger.error(f"❌ Thread {threading.get_ident()} failed to authenticate training API")
-                            return None
-                    logger.debug(f"🔐 Thread {threading.get_ident()} created authenticated training API")
+                        logger.debug(f"🔐 Thread {threading.get_ident()} using shared authenticated training API (no duplicate auth)")
+                    else:
+                        # Fallback: authenticate if parent session not available (shouldn't happen)
+                        logger.warning(f"⚠️ Thread {threading.get_ident()} parent session not available, authenticating independently")
+                        if self.username and self.password:
+                            thread_local.training_api.username = self.username
+                            thread_local.training_api.password = self.password
+                            if not thread_local.training_api.authenticate():
+                                logger.error(f"❌ Thread {threading.get_ident()} failed to authenticate training API")
+                                return None
                 return thread_local.training_api
             
             def process_assignee_thread_safe(assignee):
@@ -659,32 +687,34 @@ class ClubOSIntegration:
                             # Check for numeric status (ClubOS uses numeric codes)
                             numeric_status = agreement.get('status')
                             text_status = agreement.get('status_text', '').lower() if agreement.get('status_text') else ''
-                            
-                            # ClubOS status codes: 2 = Active, 5 = Cancelled/Inactive
-                            is_active = False
-                            
+
+                            # CRITICAL FIX: Process ALL agreements that might have past due amounts
+                            # Don't filter out agreements just because status != 2
+                            # Past due clients may have agreements with status 3, 4, 6, etc.
+                            # ClubOS status codes: 2=Active, 3=Suspended?, 4=Delinquent?, 5=Cancelled, 6=Expired?, etc.
+                            is_processable = True
+
+                            # Only skip if explicitly cancelled (status 5) or no agreement ID
                             if isinstance(numeric_status, (int, str)) and str(numeric_status).isdigit():
-                                # Use numeric status code (2 = Active)
-                                if int(numeric_status) == 2:
-                                    is_active = True
-                                    logger.debug(f"✅ Thread {threading.get_ident()}: Active agreement (numeric status 2): {agreement_id}")
+                                status_int = int(numeric_status)
+                                if status_int == 5:  # Only skip cancelled
+                                    is_processable = False
+                                    logger.debug(f"⚠️ Thread {threading.get_ident()}: Skipping cancelled agreement {agreement_id} (status: 5)")
                                 else:
-                                    is_active = False
-                                    logger.debug(f"⚠️ Thread {threading.get_ident()}: Skipping inactive agreement {agreement_id} (status: {numeric_status})")
+                                    # Process all other statuses (2=Active, 3/4/6=potentially past due)
+                                    logger.debug(f"✅ Thread {threading.get_ident()}: Processing agreement {agreement_id} (status: {status_int})")
                             elif text_status:
-                                # Fallback to text-based status for older data
-                                if text_status in ['active', 'current', 'open', 'ongoing']:
-                                    is_active = True
-                                    logger.debug(f"✅ Thread {threading.get_ident()}: Active agreement (text status '{text_status}'): {agreement_id}")
+                                # Skip only if explicitly cancelled or terminated
+                                if text_status in ['cancelled', 'terminated', 'void']:
+                                    is_processable = False
+                                    logger.debug(f"⚠️ Thread {threading.get_ident()}: Skipping {text_status} agreement {agreement_id}")
                                 else:
-                                    is_active = False
-                                    logger.debug(f"⚠️ Thread {threading.get_ident()}: Skipping inactive agreement {agreement_id} (text status '{text_status}')")
+                                    logger.debug(f"✅ Thread {threading.get_ident()}: Processing agreement {agreement_id} (text status: '{text_status}')")
                             else:
-                                # No status found - skip for safety (don't assume active)
-                                is_active = False
-                                logger.warning(f"⚠️ Thread {threading.get_ident()}: No status found for agreement {agreement_id}, skipping for safety")
-                            
-                            if is_active:
+                                # No status - still process to check for past due
+                                logger.debug(f"ℹ️ Thread {threading.get_ident()}: Processing agreement {agreement_id} (no status info)")
+
+                            if is_processable:
                                 active_agreements.append(agreement)
                         
                         if not active_agreements:
@@ -723,11 +753,18 @@ class ClubOSIntegration:
                                         f'Training Package {agreement_id}'
                                     )
                                     
-                                    # Check if agreement is active (agreementStatus == 2 means active)
+                                    # CRITICAL FIX: Process ALL agreements that might have past due amounts
+                                    # Don't skip agreements just because status != 2 (active)
+                                    # Past due clients may have agreements with status 3 (suspended), 4 (delinquent), 6 (expired), etc.
+                                    # ONLY skip status 5 (cancelled/terminated)
                                     agreement_status = detail_data.get('agreementStatus', 0)
-                                    if agreement_status != 2:
-                                        logger.debug(f"⚠️ Thread {threading.get_ident()}: Skipping inactive agreement {agreement_id} (status: {agreement_status})")
+                                    if agreement_status == 5:
+                                        logger.debug(f"⚠️ Thread {threading.get_ident()}: Skipping cancelled agreement {agreement_id} (status: 5)")
                                         continue
+
+                                    # Log agreement status for diagnostics
+                                    if agreement_status != 2:
+                                        logger.info(f"📋 Thread {threading.get_ident()}: Processing NON-ACTIVE agreement {agreement_id} (status: {agreement_status}) - may have past due amounts")
                                     
                                     # Extract billing information from invoices using breakthrough method
                                     invoices = include_data.get('invoices', [])
@@ -770,8 +807,9 @@ class ClubOSIntegration:
                                             })
                                             logger.info(f"💰 PAID invoice {invoice_id}: ${invoice_amount} (paid: {paid_date or invoice_date})")
                                         
-                                        # Past due invoices for current tracking
-                                        elif invoice_status in [4, 5] and invoice_amount > 0:  # Overdue/Past Due
+                                        # CRITICAL FIX: Capture ALL past due invoice statuses
+                                        # Past due invoices - Status 4=Overdue, 5=Past Due, 6+=Unknown overdue
+                                        elif invoice_status >= 4 and invoice_amount > 0:  # All overdue statuses
                                             agreement_past_due += invoice_amount
                                             past_due_invoices.append({
                                                 'id': invoice_id,
@@ -780,7 +818,10 @@ class ClubOSIntegration:
                                                 'invoice_date': invoice_date,
                                                 'due_date': invoice.get('dueDate')
                                             })
-                                            logger.info(f"� Past due invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
+                                            if invoice_status in [4, 5]:
+                                                logger.info(f"� Past due invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
+                                            else:
+                                                logger.warning(f"� Past due invoice {invoice_id}: ${invoice_amount} (UNKNOWN status: {invoice_status}) - treating as past due")
                                         
                                         # Current unpaid invoices
                                         elif invoice_status in [2, 3] and invoice_amount > 0:  # Unpaid/Partial

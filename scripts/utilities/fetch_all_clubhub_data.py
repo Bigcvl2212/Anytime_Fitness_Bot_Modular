@@ -5,7 +5,7 @@ Fetch ALL members and prospects from ClubHub API
 
 import json
 import pandas as pd
-from services.api.clubhub_api_client import ClubHubAPIClient
+from src.services.api.clubhub_api_client import ClubHubAPIClient
 from config.constants import CLUBHUB_HEADERS
 
 def extract_auth_token():

@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+"""
+Send test message directly to Jeremy Mayo staff account using ID 187032782
+"""
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
+from services.clubos_messaging_client import ClubOSMessagingClient
+
+def send_test_message_to_jeremy():
+    print("📱 Sending test message to Jeremy Mayo (Staff ID: 187032782)...")
+    
+    # Use the CORRECT credentials
+    client = ClubOSMessagingClient("j.mayo", "j@SD4fjhANK5WNA")
+    
+    # Your staff account details
+    jeremy_staff_id = "187032782"
+    test_message = "🎯 TEST MESSAGE: ClubOS messaging routing is now working correctly!"
+    
+    print(f"📤 Sending SMS to staff ID: {jeremy_staff_id}")
+    print(f"📝 Message: {test_message}")
+    
+    # Send SMS message directly to your staff account
+    result = client.send_sms_message(
+        member_id=jeremy_staff_id,
+        message=test_message,
+        notes="Test message to Jeremy Mayo staff account"
+    )
+    
+    print(f"📊 SMS Result: {result}")
+    
+    if result:
+        print("✅ SUCCESS: Test message sent to Jeremy Mayo's staff account!")
+        print("📱 Check your phone for the message!")
+    else:
+        print("❌ FAILED: Message could not be sent")
+    
+    return result
+
+if __name__ == "__main__":
+    success = send_test_message_to_jeremy()
+    
+    if success:
+        print("\n🎉 MESSAGING SYSTEM IS WORKING!")
+        print("🎯 Staff ID 187032782 confirmed as Jeremy Mayo's account")
+    else:
+        print("\n❌ Messaging system still has issues")

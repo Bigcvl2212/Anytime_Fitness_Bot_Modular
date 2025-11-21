@@ -3,7 +3,7 @@
 Get Jeremy Mayo's complete member details using the confirmed member ID
 """
 
-from services.api.clubos_api_client import ClubOSAPIClient
+from src.services.api.clubos_api_client import ClubOSAPIClient
 from config.secrets_local import get_secret
 from bs4 import BeautifulSoup
 import re

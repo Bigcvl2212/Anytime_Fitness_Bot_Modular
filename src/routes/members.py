@@ -674,12 +674,28 @@ def member_profile(member_id):
     """Member profile page."""
     try:
         # Get member data using database manager's cross-database compatible method
+        # Try guid and prospect_id first
         member = current_app.db_manager.execute_query("""
             SELECT * FROM members WHERE guid = ? OR prospect_id = ?
         """, (member_id, member_id), fetch_one=True)
-        
+
+        # If not found and member_id looks like a name, try searching by name
+        if not member and ' ' in member_id:
+            logger.info(f"🔍 Member not found by ID, trying name search for: {member_id}")
+            # Split into first and last name
+            name_parts = member_id.rsplit(' ', 1)
+            if len(name_parts) == 2:
+                first_name, last_name = name_parts
+                member = current_app.db_manager.execute_query("""
+                    SELECT * FROM members
+                    WHERE (first_name LIKE ? AND last_name LIKE ?)
+                    OR (first_name || ' ' || last_name) LIKE ?
+                    LIMIT 1
+                """, (f"%{first_name}%", f"%{last_name}%", f"%{member_id}%"), fetch_one=True)
+
         if not member:
-            return render_template('error.html', error='Member not found')
+            logger.warning(f"❌ Member not found: {member_id}")
+            return render_template('error.html', error=f'Member not found: {member_id}')
         
         member_data = dict(member)
         

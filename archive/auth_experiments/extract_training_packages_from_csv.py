@@ -19,8 +19,8 @@ from datetime import datetime
 # Add the current directory to the path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from services.api.enhanced_clubos_client import create_enhanced_clubos_client
-from services.data.member_data import save_training_package_data_comprehensive
+from src.services.api.enhanced_clubos_client import create_enhanced_clubos_client
+from src.services.data.member_data import save_training_package_data_comprehensive
 
 
 def extract_member_ids_from_profile_urls(df):

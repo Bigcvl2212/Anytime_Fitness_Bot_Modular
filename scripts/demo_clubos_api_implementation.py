@@ -28,7 +28,7 @@ def demo_messaging_implementation():
     print("-" * 40)
     
     try:
-        from services.api.enhanced_clubos_client import create_enhanced_clubos_client
+        from src.services.api.enhanced_clubos_client import create_enhanced_clubos_client
         
         print("✅ Enhanced ClubOS client available")
         print("🔧 Messaging Features Implemented:")

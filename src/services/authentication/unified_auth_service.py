@@ -285,10 +285,21 @@ class UnifiedAuthService:
                 session = AuthenticationSession('clubos')
                 session.username = username
                 session.base_url = 'https://anytime.club-os.com'
-                session.session.headers.update(self.clubos_headers)
+
+                # CRITICAL FIX: Use BROWSER headers for login, NOT AJAX/API headers
+                # ClubOS rejects login attempts with X-Requested-With: XMLHttpRequest
+                browser_headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1'
+                }
+                session.session.headers.update(browser_headers)
                 
                 # Step 1: Get login page and extract CSRF tokens
-                login_url = f"{session.base_url}/action/Login/view?__fsk=1221801756"
+                login_url = f"{session.base_url}/action/Login/view"
                 login_response = session.session.get(login_url, verify=False, timeout=30)
                 login_response.raise_for_status()
                 
@@ -314,7 +325,8 @@ class UnifiedAuthService:
                 
                 login_headers = {
                     'Content-Type': 'application/x-www-form-urlencoded',
-                    'Referer': login_url
+                    'Referer': login_url,
+                    'Origin': session.base_url  # CRITICAL: Required for ClubOS CSRF protection
                 }
                 
                 auth_response = session.session.post(
@@ -344,7 +356,7 @@ class UnifiedAuthService:
                     logger.error(f"❌ ClubOS authentication failed for {username} - missing session cookies")
                     logger.error(f"❌ Session ID: {session.session_id}, User ID: {session.logged_in_user_id}")
 
-                    # Check if we got redirected to error page
+                    # Check if we got redirected to error or login page
                     if 'error' in auth_response.url.lower() or 'login' in auth_response.url.lower():
                         logger.error("❌ Authentication appears to have failed - redirected to login/error page")
 

@@ -140,7 +140,7 @@ def run_social_media_management():
     print("="*40)
     
     try:
-        from services.social_media.social_media_manager import SocialMediaManager
+        from src.services.social_media.social_media_manager import SocialMediaManager
         
         # Initialize social media manager
         ai_client = get_gemini_client()

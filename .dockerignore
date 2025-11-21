@@ -1,0 +1,83 @@
+# Development and testing files
+scripts/
+tests/
+backups/
+logs/
+cache/
+captures/
+data/
+docs/
+archive/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+.venv/
+.env.local
+.env.development
+
+# Development databases
+gym_bot.db
+*.sqlite
+*.sqlite3
+*.db
+
+# Analysis and debug files
+*.json
+*.txt
+*.html
+*.md
+*.csv
+*.har
+*.chls
+
+# Except required files
+!requirements.txt
+!README.md
+!.env.production
+!src/utils/
+!src/config/
+!src/services/
+!src/routes/
+!src/monitoring/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Various Python development artifacts
+build/
+dist/
+*.egg-info/
+.coverage
+.pytest_cache/
+.mypy_cache/
+.tox/
+
+# Temporary files
+*.tmp
+*.log
+*.pid
+
+# Node modules (if any)
+node_modules/
+
+# Backup files
+*.bak
+*.backup
+*_backup.py
+*.orig

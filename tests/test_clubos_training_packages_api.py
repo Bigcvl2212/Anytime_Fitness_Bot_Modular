@@ -12,7 +12,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from services.api.enhanced_clubos_client import create_enhanced_clubos_client
+from src.services.api.enhanced_clubos_client import create_enhanced_clubos_client
 
 
 class ClubOSTrainingPackageTests:

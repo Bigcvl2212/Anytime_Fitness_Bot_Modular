@@ -100,10 +100,13 @@ def enhanced_startup_sync(app, selected_clubs_override: List[str] = None, multi_
             logger.info(f"🔄 Starting multi-club startup sync for {len(selected_clubs)} clubs...")
             
             # Define sync functions for each data type
+            # Order: prospects FIRST (needed for member addresses), then members, then training clients
             sync_functions = {
-                'members': sync_members_for_club,
                 'prospects': sync_prospects_for_club,
-                'training_clients': sync_training_clients_for_club
+                'members': sync_members_for_club,
+                'training_clients': sync_training_clients_for_club,
+                'messages': sync_messages_for_club,
+                'sessions': sync_sessions_for_club
             }
             
             # Get ClubHub client
@@ -119,6 +122,8 @@ def enhanced_startup_sync(app, selected_clubs_override: List[str] = None, multi_
             sync_results['combined_totals']['members'] = len(combined_data.get('members', []))
             sync_results['combined_totals']['prospects'] = len(combined_data.get('prospects', []))
             sync_results['combined_totals']['training_clients'] = len(combined_data.get('training_clients', []))
+            sync_results['combined_totals']['messages'] = len(combined_data.get('messages', []))
+            sync_results['combined_totals']['sessions'] = len(combined_data.get('sessions', []))
             sync_results['club_results'] = combined_data.get('club_metadata', {})
             
             # CRITICAL FIX: Save fresh multi-club data to database
@@ -151,7 +156,24 @@ def enhanced_startup_sync(app, selected_clubs_override: List[str] = None, multi_
                             logger.info(f"💾 Successfully saved {len(training_data)} training clients to database")
                         else:
                             logger.error(f"❌ Failed to save training clients to database")
-                    
+
+                    # Save messages to database
+                    messages_data = combined_data.get('messages', [])
+                    if messages_data:
+                        # Use the store_messages_in_database function from messaging.py
+                        from src.routes.messaging import store_messages_in_database
+                        stored_count = store_messages_in_database(messages_data, owner_id='187032782')  # TODO: Make owner_id dynamic
+                        if stored_count > 0:
+                            logger.info(f"💾 Successfully saved {stored_count} messages to database")
+                        else:
+                            logger.error(f"❌ Failed to save messages to database")
+
+                    # Cache calendar sessions in app
+                    sessions_data = combined_data.get('sessions', [])
+                    if sessions_data:
+                        app.cached_calendar_events = sessions_data
+                        logger.info(f"📅 Successfully cached {len(sessions_data)} calendar events")
+
                     logger.info("✅ Fresh multi-club data saved to database successfully!")
                 else:
                     logger.warning("⚠️ No database manager available, skipping database save")
@@ -163,14 +185,20 @@ def enhanced_startup_sync(app, selected_clubs_override: List[str] = None, multi_
             app.cached_members = combined_data.get('members', [])
             app.cached_prospects = combined_data.get('prospects', [])
             app.cached_training_clients = combined_data.get('training_clients', [])
+            app.cached_messages = combined_data.get('messages', [])
+            if combined_data.get('sessions'):
+                app.cached_calendar_events = combined_data.get('sessions', [])
 
             # Set variables for unified processing below
             members = combined_data.get('members', [])
             prospects = combined_data.get('prospects', [])
             training_clients = combined_data.get('training_clients', [])
+            messages = combined_data.get('messages', [])
+            sessions = combined_data.get('sessions', [])
 
             logger.info(f"🎉 Multi-club sync complete! Members: {len(members)}, "
-                       f"Prospects: {len(prospects)}, Training Clients: {len(training_clients)}")
+                       f"Prospects: {len(prospects)}, Training Clients: {len(training_clients)}, "
+                       f"Messages: {len(messages)}, Sessions: {len(sessions)}")
             
         else:
             # Single club sync (existing functionality)
@@ -288,23 +316,60 @@ def sync_members_for_club(club_id: str = None, app=None, manager_id: str = None)
             logger.warning(f"⚠️ No members found for club {club_id}")
             return []
 
-        # Get prospects to get address data (prospects endpoint has full contact info)
-        logger.info(f"📍 Fetching prospects to get address data...")
-        prospects = clubhub_client.get_all_prospects_paginated(club_id=club_id)
+        # Get prospects for address data - check database first to avoid duplicate fetch
+        logger.info(f"📍 Getting prospect address data...")
+
+        # Try to read from database first (prospects might have been synced already)
+        try:
+            db_prospects = app.db_manager.execute_query(
+                "SELECT prospect_id, address, city, state, zip_code, phone, mobile_phone, email FROM prospects",
+                fetch_all=True
+            )
+            if db_prospects and len(db_prospects) > 0:
+                logger.info(f"📊 Using {len(db_prospects)} prospects from database for address lookup")
+                prospects = [dict(row) for row in db_prospects]
+            else:
+                logger.info(f"📍 No prospects in database yet, fetching from ClubHub API...")
+                prospects = clubhub_client.get_all_prospects_paginated()
+        except Exception as e:
+            logger.warning(f"⚠️ Could not read prospects from database: {e}, fetching from API...")
+            prospects = clubhub_client.get_all_prospects_paginated()
 
         # Create address lookup by prospect ID
         address_lookup = {}
         if prospects:
             for prospect in prospects:
-                prospect_id = str(prospect.get('id') or prospect.get('prospectId'))
+                # Handle both API field names and database column names
+                prospect_id = str(
+                    prospect.get('id') or
+                    prospect.get('prospectId') or
+                    prospect.get('prospect_id')
+                )
                 if prospect_id:
                     address_lookup[prospect_id] = {
-                        'address': prospect.get('address') or prospect.get('address1') or prospect.get('streetAddress'),
+                        'address': (
+                            prospect.get('address') or
+                            prospect.get('address1') or
+                            prospect.get('streetAddress')
+                        ),
                         'city': prospect.get('city'),
                         'state': prospect.get('state'),
-                        'zip_code': prospect.get('zip') or prospect.get('zipCode') or prospect.get('postalCode'),
-                        'phone': prospect.get('homePhone') or prospect.get('phone') or prospect.get('phoneNumber'),
-                        'mobile_phone': prospect.get('mobilePhone') or prospect.get('mobile'),
+                        'zip_code': (
+                            prospect.get('zip_code') or
+                            prospect.get('zip') or
+                            prospect.get('zipCode') or
+                            prospect.get('postalCode')
+                        ),
+                        'phone': (
+                            prospect.get('phone') or
+                            prospect.get('homePhone') or
+                            prospect.get('phoneNumber')
+                        ),
+                        'mobile_phone': (
+                            prospect.get('mobile_phone') or
+                            prospect.get('mobilePhone') or
+                            prospect.get('mobile')
+                        ),
                         'email': prospect.get('email')
                     }
             logger.info(f"📊 Built address lookup from {len(address_lookup)} prospects")
@@ -386,17 +451,25 @@ def sync_members_for_club(club_id: str = None, app=None, manager_id: str = None)
                         if total_amount_past_due > 0 and not is_comp_member:
                             if recurring_cost == 0:
                                 recurring_cost = 39.50  # Standard AF monthly rate
-                            
-                            # Calculate billing breakdown
-                            base_amount = total_amount_past_due
-                            missed_payments = max(1, int(base_amount / recurring_cost))
+
+                            # Calculate billing breakdown - BREAK DOWN the total into base + fees
+                            # The total_amount_past_due from API is what member owes (INCLUDING any late fees)
+                            # We need to calculate: base amount, late fees, and missed payments
+
+                            # Calculate missed payments from past due amount
+                            missed_payments = max(1, int(total_amount_past_due / recurring_cost))
+
+                            # Calculate late fees ($19.50 per missed payment)
                             late_fees = missed_payments * 19.50
-                            total_with_fees = base_amount + late_fees
-                            
-                            member_data['amount_past_due'] = total_with_fees
-                            member_data['base_amount_past_due'] = base_amount
-                            member_data['late_fees'] = late_fees
-                            member_data['missed_payments'] = missed_payments
+
+                            # Base amount is total MINUS calculated late fees
+                            base_amount = max(0, total_amount_past_due - late_fees)
+
+                            # Store the breakdown
+                            member_data['amount_past_due'] = total_amount_past_due  # Total owed (from API)
+                            member_data['base_amount_past_due'] = base_amount  # Base dues owed
+                            member_data['late_fees'] = late_fees  # Late fees portion
+                            member_data['missed_payments'] = missed_payments  # Number of missed payments
                         else:
                             member_data['amount_past_due'] = total_amount_past_due
                             member_data['base_amount_past_due'] = total_amount_past_due
@@ -543,7 +616,14 @@ def sync_training_clients_for_club(club_id: str = None, app=None, manager_id: st
             from src.services.api.clubhub_api_client import ClubHubAPIClient
             from src.services.authentication.secure_secrets_manager import SecureSecretsManager
 
-            clubos = ClubOSIntegration()
+            # CRITICAL FIX: Use app.clubos to avoid duplicate authentication
+            if app and hasattr(app, 'clubos'):
+                clubos = app.clubos
+                logger.info("✅ Using shared ClubOS session from app (no duplicate auth)")
+            else:
+                clubos = ClubOSIntegration()
+                logger.warning("⚠️ Creating new ClubOSIntegration instance (app.clubos not available)")
+
             training_clients = clubos.get_training_clients()
 
             if training_clients:
@@ -695,3 +775,140 @@ def get_multi_club_summary(app) -> Dict[str, Any]:
             'selected_clubs': [],
             'club_names': []
         }
+
+def sync_messages_for_club(club_id: str = None, app=None, manager_id: str = None) -> List[Dict[str, Any]]:
+    """
+    Sync initial inbox messages (last 30 days) from ClubOS
+
+    Args:
+        club_id: Club ID to sync (optional for backward compatibility)
+        app: Flask application instance (for accessing messaging_client)
+        manager_id: Manager ID for credential retrieval
+
+    Returns:
+        List of message data
+    """
+    try:
+        logger.info(f"💬 Syncing messages for club {club_id or 'default'}...")
+
+        # Get ClubOS messaging client from app
+        if not hasattr(app, 'messaging_client') or not app.messaging_client:
+            logger.warning("⚠️ ClubOS messaging client not available - skipping message sync")
+            return []
+
+        messaging_client = app.messaging_client
+
+        # Get logged in user's owner_id
+        if not hasattr(messaging_client, 'logged_in_user_id') or not messaging_client.logged_in_user_id:
+            logger.warning("⚠️ ClubOS messaging client not authenticated - skipping message sync")
+            return []
+
+        owner_id = messaging_client.logged_in_user_id
+
+        # Get messages from ClubOS
+        try:
+            messages = messaging_client.get_messages(owner_id=owner_id)
+            if not messages:
+                logger.info("📭 No messages found in ClubOS inbox")
+                return []
+        except Exception as api_error:
+            logger.error(f"❌ Error fetching messages from ClubOS: {api_error}")
+            return []
+
+        # Filter to last 30 days to avoid loading too much data
+        from datetime import datetime, timedelta
+        cutoff_date = datetime.now() - timedelta(days=30)
+
+        recent_messages = []
+        for msg in messages:
+            try:
+                # Parse timestamp
+                msg_timestamp = msg.get('timestamp', '')
+                if msg_timestamp:
+                    # Try to parse various date formats
+                    msg_date = None
+                    for fmt in ['%m/%d/%Y %I:%M %p', '%Y-%m-%d %H:%M:%S', '%m/%d/%y %I:%M %p']:
+                        try:
+                            msg_date = datetime.strptime(msg_timestamp, fmt)
+                            break
+                        except:
+                            continue
+
+                    # Skip if message is older than 30 days
+                    if msg_date and msg_date < cutoff_date:
+                        continue
+
+                recent_messages.append(msg)
+            except Exception as filter_error:
+                # Include message if we can't parse date (better to have extra than miss some)
+                recent_messages.append(msg)
+                logger.debug(f"⚠️ Could not filter message by date: {filter_error}")
+
+        logger.info(f"✅ Synced {len(recent_messages)} messages from last 30 days (out of {len(messages)} total)")
+        return recent_messages
+
+    except Exception as e:
+        logger.error(f"❌ Error syncing messages for club {club_id}: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return []
+
+def sync_sessions_for_club(club_id: str = None, app=None, manager_id: str = None) -> List[Dict[str, Any]]:
+    """
+    Sync today's and upcoming PT sessions/calendar events
+
+    Args:
+        club_id: Club ID to sync (optional for backward compatibility)
+        app: Flask application instance
+        manager_id: Manager ID for credential retrieval
+
+    Returns:
+        List of calendar session data
+    """
+    try:
+        logger.info(f"📅 Syncing calendar sessions for club {club_id or 'default'}...")
+
+        # Import ClubOS integration
+        try:
+            from src.services.clubos_integration import ClubOSIntegration
+        except ImportError:
+            from services.clubos_integration import ClubOSIntegration
+
+        # CRITICAL FIX: Use app.clubos to avoid duplicate authentication
+        if app and hasattr(app, 'clubos'):
+            clubos = app.clubos
+            logger.info("✅ Using shared ClubOS session from app (no duplicate auth)")
+
+            # Check if already authenticated
+            if not clubos.authenticated:
+                logger.warning("⚠️ ClubOS not authenticated - skipping session sync")
+                return []
+        else:
+            # Fallback: Create new instance if app not available
+            logger.warning("⚠️ Creating new ClubOSIntegration instance (app.clubos not available)")
+            clubos = ClubOSIntegration()
+
+            # Authenticate
+            if not clubos.authenticate():
+                logger.warning("⚠️ ClubOS authentication failed - skipping session sync")
+                return []
+
+        # Get calendar events for next 30 days
+        try:
+            sessions = clubos.api.get_current_calendar_events(limit=50)
+            if not sessions:
+                logger.info("📭 No calendar sessions found")
+                return []
+
+            logger.info(f"✅ Synced {len(sessions)} calendar sessions for next 30 days")
+            return sessions
+
+        except Exception as api_error:
+            logger.error(f"❌ Error fetching calendar sessions from ClubOS: {api_error}")
+            return []
+
+    except Exception as e:
+        logger.error(f"❌ Error syncing sessions for club {club_id}: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return []

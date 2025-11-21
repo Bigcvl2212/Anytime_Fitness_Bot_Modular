@@ -1,0 +1,12 @@
+=== CLUBOS CALENDAR ANALYSIS ===
+
+Total HTML length: 75392 characters
+Calendar elements found: 0
+Time patterns found: 0
+Unique time patterns: 0
+
+=== CALENDAR ELEMENTS ===
+
+=== TIME PATTERNS ===
+
+=== API ENDPOINTS ===

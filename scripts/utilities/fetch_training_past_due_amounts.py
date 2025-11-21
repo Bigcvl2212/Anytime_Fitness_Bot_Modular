@@ -1,7 +1,7 @@
 import pandas as pd
 import requests
 import time
-from services.api.clubos_api_client import ClubOSAPIClient
+from src.services.api.clubos_api_client import ClubOSAPIClient
 
 MASTER_CONTACT_LIST_XLSX = "master_contact_list_20250715_181714.xlsx"
 MASTER_CONTACT_LIST_CSV = "master_contact_list_20250715_181714.csv"

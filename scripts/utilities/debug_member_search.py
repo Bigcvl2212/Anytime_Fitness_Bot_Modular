@@ -3,7 +3,7 @@
 Debug ClubOS Member Search - Show Raw Results
 """
 
-from services.api.clubos_api_client import ClubOSAPIClient
+from src.services.api.clubos_api_client import ClubOSAPIClient
 import json
 
 def debug_search_results():

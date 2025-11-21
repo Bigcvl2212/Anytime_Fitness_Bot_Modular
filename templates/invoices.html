@@ -1,0 +1,572 @@
+{% extends "base.html" %}
+
+{% block title %}Invoice Management - Anytime Fitness Club Management{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/members.css') }}">
+<style>
+.invoice-status-badge {
+    font-size: 0.8rem;
+    padding: 0.25rem 0.5rem;
+}
+.payment-status-paid {
+    background-color: #d4edda;
+    color: #155724;
+}
+.payment-status-unpaid {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+.payment-status-pending {
+    background-color: #fff3cd;
+    color: #856404;
+}
+.invoice-card {
+    border-left: 4px solid #007bff;
+    transition: all 0.2s ease;
+}
+.invoice-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+.invoice-amount {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #28a745;
+}
+.invoice-date {
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-file-invoice-dollar me-2 text-primary"></i>
+                        Invoice Management
+                    </h1>
+                    <p class="text-muted mb-0">Track and manage all sent invoices and their payment status</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" onclick="refreshInvoices()">
+                        <i class="fas fa-sync-alt me-1"></i>
+                        Refresh Invoices
+                    </button>
+                    <button class="btn btn-success" onclick="checkPaymentStatuses()">
+                        <i class="fas fa-credit-card me-1"></i>
+                        Check Payment Status
+                    </button>
+                    <a href="/members" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>
+                        Back to Members
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card text-center border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="h4 mb-1 text-primary" id="total-invoices">0</div>
+                    <div class="text-muted">Total Invoices</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card text-center border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="h4 mb-1 text-success" id="paid-invoices">0</div>
+                    <div class="text-muted">Paid Invoices</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card text-center border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="h4 mb-1 text-danger" id="unpaid-invoices">0</div>
+                    <div class="text-muted">Unpaid Invoices</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card text-center border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="h4 mb-1 text-success" id="total-revenue">$0</div>
+                    <div class="text-muted">Total Revenue</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label for="filter-status" class="form-label">Payment Status</label>
+                            <select class="form-select" id="filter-status" onchange="filterInvoices()">
+                                <option value="">All Statuses</option>
+                                <option value="PAID">Paid</option>
+                                <option value="UNPAID">Unpaid</option>
+                                <option value="PENDING">Pending</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="filter-date-from" class="form-label">From Date</label>
+                            <input type="date" class="form-control" id="filter-date-from" onchange="filterInvoices()">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="filter-date-to" class="form-label">To Date</label>
+                            <input type="date" class="form-control" id="filter-date-to" onchange="filterInvoices()">
+                        </div>
+                        <div class="col-md-3">
+                            <label for="search-member" class="form-label">Search Member</label>
+                            <input type="text" class="form-control" id="search-member" placeholder="Member name..." onkeyup="filterInvoices()">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Invoices List -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>
+                        Invoice History
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div id="invoices-loading" class="text-center p-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div class="mt-2">Loading invoices...</div>
+                    </div>
+                    <div id="invoices-container" style="display: none;">
+                        <!-- Invoices will be populated here -->
+                    </div>
+                    <div id="no-invoices" class="text-center p-4" style="display: none;">
+                        <i class="fas fa-file-invoice-dollar fa-3x text-muted mb-3"></i>
+                        <h5>No Invoices Found</h5>
+                        <p class="text-muted">No invoices match your current filters.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Invoice Details Modal -->
+<div class="modal fade" id="invoiceDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Invoice Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="invoice-details-content">
+                    <!-- Details will be populated here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-success" id="mark-paid-btn" onclick="markInvoiceAsPaid()">
+                    <i class="fas fa-check me-1"></i>
+                    Mark as Paid
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let allInvoices = [];
+let currentInvoice = null;
+
+// Load invoices on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadInvoices();
+});
+
+// Customer info is now included directly in invoice data from SquareInvoiceService
+
+async function loadInvoices() {
+    try {
+        const response = await fetch('/api/invoices');
+        const data = await response.json();
+
+        if (data.success) {
+            allInvoices = data.invoices;
+            displayInvoices(allInvoices);
+            updateStats(allInvoices);
+        } else {
+            console.error('Error loading invoices:', data.error);
+            showError('Failed to load invoices: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error loading invoices:', error);
+        showError('Failed to load invoices: ' + error.message);
+    } finally {
+        document.getElementById('invoices-loading').style.display = 'none';
+    }
+}
+
+function displayInvoices(invoices) {
+    const container = document.getElementById('invoices-container');
+    const noInvoices = document.getElementById('no-invoices');
+
+    if (invoices.length === 0) {
+        container.style.display = 'none';
+        noInvoices.style.display = 'block';
+        return;
+    }
+
+    container.style.display = 'block';
+    noInvoices.style.display = 'none';
+
+    const html = invoices.map(invoice => {
+        // Extract customer info from enhanced invoice data
+        const customerInfo = invoice.customer_details || {};
+        
+        // Calculate total amount from payment requests
+        let totalAmount = 0;
+        let paidAmount = 0;
+        invoice.payment_requests?.forEach(pr => {
+            const computed = pr.computed_amount_money || {};
+            const completed = pr.total_completed_amount_money || {};
+            totalAmount += (computed.amount || 0) / 100;
+            paidAmount += (completed.amount || 0) / 100;
+        });
+
+        const invoiceStatus = invoice.invoice_status || 'UNPAID';
+        const isPaid = invoiceStatus === 'PAID' || paidAmount > 0;
+
+        return `
+        <div class="invoice-card border-bottom p-3" onclick="showInvoiceDetails('${invoice.id}')">
+            <div class="row align-items-center">
+                <div class="col-md-3">
+                    <div class="fw-bold">${customerInfo.given_name || 'Customer'} ${customerInfo.family_name || ''}</div>
+                    <div class="text-muted small">${customerInfo.email_address || 'No email'}</div>
+                </div>
+                <div class="col-md-2">
+                    <div class="invoice-amount">$${totalAmount.toFixed(2)}</div>
+                </div>
+                <div class="col-md-2">
+                    <span class="badge invoice-status-badge payment-status-${isPaid ? 'paid' : 'unpaid'}">
+                        ${isPaid ? 'PAID' : 'UNPAID'}
+                    </span>
+                </div>
+                <div class="col-md-2">
+                    <div class="invoice-date">${formatDate(invoice.created_at)}</div>
+                    ${isPaid ? `<div class="small text-success">Paid: ${formatDate(invoice.updated_at)}</div>` : ''}
+                </div>
+                <div class="col-md-2">
+                    <div class="small text-muted">#${invoice.id ? invoice.id.slice(-8) : 'N/A'}</div>
+                </div>
+                <div class="col-md-1">
+                    <i class="fas fa-chevron-right text-muted"></i>
+                </div>
+            </div>
+        </div>
+        `;
+    }).join('');
+
+    container.innerHTML = html;
+}
+
+function updateStats(invoices) {
+    const totalInvoices = invoices.length;
+    let paidInvoices = 0;
+    let unpaidInvoices = 0;
+    let totalRevenue = 0;
+
+    invoices.forEach(invoice => {
+        const invoiceStatus = invoice.invoice_status || 'UNPAID';
+        let paidAmount = 0;
+        
+        // Calculate paid amount from payment requests
+        invoice.payment_requests?.forEach(pr => {
+            const completed = pr.total_completed_amount_money || {};
+            paidAmount += (completed.amount || 0) / 100;
+        });
+
+        const isPaid = invoiceStatus === 'PAID' || paidAmount > 0;
+        
+        if (isPaid) {
+            paidInvoices++;
+            totalRevenue += paidAmount;
+        } else {
+            unpaidInvoices++;
+        }
+    });
+
+    document.getElementById('total-invoices').textContent = totalInvoices;
+    document.getElementById('paid-invoices').textContent = paidInvoices;
+    document.getElementById('unpaid-invoices').textContent = unpaidInvoices;
+    document.getElementById('total-revenue').textContent = `$${totalRevenue.toFixed(2)}`;
+}
+
+function filterInvoices() {
+    const statusFilter = document.getElementById('filter-status').value;
+    const dateFromFilter = document.getElementById('filter-date-from').value;
+    const dateToFilter = document.getElementById('filter-date-to').value;
+    const memberFilter = document.getElementById('search-member').value.toLowerCase();
+
+    let filtered = allInvoices.filter(invoice => {
+        // Status filter - check Square API format
+        const invoiceStatus = invoice.invoice_status || 'UNPAID';
+        let isPaid = false;
+        invoice.payment_requests?.forEach(pr => {
+            const completed = pr.total_completed_amount_money || {};
+            if ((completed.amount || 0) > 0) isPaid = true;
+        });
+        const paymentStatus = isPaid || invoiceStatus === 'PAID' ? 'PAID' : 'UNPAID';
+        
+        if (statusFilter && paymentStatus !== statusFilter) {
+            return false;
+        }
+
+        // Date filters
+        if (dateFromFilter && new Date(invoice.created_at) < new Date(dateFromFilter)) {
+            return false;
+        }
+        if (dateToFilter && new Date(invoice.created_at) > new Date(dateToFilter)) {
+            return false;
+        }
+
+        // Member name filter - use customer details from enhanced invoice
+        if (memberFilter) {
+            const customerInfo = invoice.customer_details || {};
+            const memberName = `${customerInfo.given_name || ''} ${customerInfo.family_name || ''}`.toLowerCase();
+            const email = (customerInfo.email_address || '').toLowerCase();
+            
+            if (!memberName.includes(memberFilter) && !email.includes(memberFilter)) {
+                return false;
+            }
+        }
+
+        return true;
+    });
+
+    displayInvoices(filtered);
+    updateStats(filtered);
+}
+
+function showInvoiceDetails(invoiceId) {
+    const invoice = allInvoices.find(inv => inv.id === invoiceId);
+    if (!invoice) return;
+
+    currentInvoice = invoice;
+
+    // Get customer info from enhanced invoice data
+    const customerInfo = invoice.customer_details || {};
+    
+    // Calculate amounts
+    let totalAmount = 0;
+    let paidAmount = 0;
+    invoice.payment_requests?.forEach(pr => {
+        const computed = pr.computed_amount_money || {};
+        const completed = pr.total_completed_amount_money || {};
+        totalAmount += (computed.amount || 0) / 100;
+        paidAmount += (completed.amount || 0) / 100;
+    });
+
+    const invoiceStatus = invoice.invoice_status || 'UNPAID';
+    const isPaid = invoiceStatus === 'PAID' || paidAmount > 0;
+
+    const detailsHtml = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Customer Information</h6>
+                <p><strong>Name:</strong> ${customerInfo.given_name || 'Customer'} ${customerInfo.family_name || ''}</p>
+                <p><strong>Email:</strong> ${customerInfo.email_address || 'N/A'}</p>
+                <p><strong>Phone:</strong> ${customerInfo.phone_number || 'N/A'}</p>
+                <p><strong>Customer ID:</strong> ${customerInfo.id || 'N/A'}</p>
+            </div>
+            <div class="col-md-6">
+                <h6>Invoice Details</h6>
+                <p><strong>Invoice ID:</strong> ${invoice.id || 'N/A'}</p>
+                <p><strong>Total Amount:</strong> $${totalAmount.toFixed(2)}</p>
+                <p><strong>Paid Amount:</strong> $${paidAmount.toFixed(2)}</p>
+                <p><strong>Status:</strong>
+                    <span class="badge payment-status-${isPaid ? 'paid' : 'unpaid'}">
+                        ${isPaid ? 'PAID' : 'UNPAID'}
+                    </span>
+                </p>
+                <p><strong>Created:</strong> ${formatDate(invoice.created_at)}</p>
+                ${isPaid ? `<p><strong>Updated:</strong> ${formatDate(invoice.updated_at)}</p>` : ''}
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-12">
+                <h6>Payment Requests</h6>
+                ${invoice.payment_requests?.map(pr => `
+                    <div class="border p-2 mb-2">
+                        <strong>Request Type:</strong> ${pr.request_type || 'N/A'}<br>
+                        <strong>Amount:</strong> $${((pr.computed_amount_money?.amount || 0) / 100).toFixed(2)}<br>
+                        <strong>Paid:</strong> $${((pr.total_completed_amount_money?.amount || 0) / 100).toFixed(2)}<br>
+                        <strong>Due Date:</strong> ${pr.due_date || 'N/A'}
+                    </div>
+                `).join('') || '<p>No payment requests found</p>'}
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-12">
+                <a href="https://squareup.com/invoice/${invoice.id}" target="_blank" class="btn btn-outline-primary">
+                    <i class="fas fa-external-link-alt me-1"></i>
+                    View Invoice in Square
+                </a>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('invoice-details-content').innerHTML = detailsHtml;
+
+    // Show/hide mark as paid button
+    const markPaidBtn = document.getElementById('mark-paid-btn');
+    if (isPaid) {
+        markPaidBtn.style.display = 'none';
+    } else {
+        markPaidBtn.style.display = 'inline-block';
+    }
+
+    new bootstrap.Modal(document.getElementById('invoiceDetailsModal')).show();
+}
+
+async function markInvoiceAsPaid() {
+    if (!currentInvoice) return;
+
+    try {
+        const response = await fetch(`/api/invoices/${currentInvoice.id}/payment-status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            showSuccess('Payment status checked and member auto-unlocked if applicable');
+            bootstrap.Modal.getInstance(document.getElementById('invoiceDetailsModal')).hide();
+            loadInvoices(); // Refresh the list
+        } else {
+            showError('Failed to check payment status: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error checking payment status:', error);
+        showError('Failed to check payment status: ' + error.message);
+    }
+}
+
+async function checkPaymentStatuses() {
+    try {
+        showSuccess('Checking payment statuses via Square API... This may take a moment.');
+
+        const response = await fetch('/api/invoices/check-payments', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            const results = data.results;
+            const message = `Payment check complete! ${results.newly_paid || 0} invoices newly paid, ${results.still_unpaid || 0} still unpaid.`;
+
+            if (results.newly_paid > 0) {
+                const memberNames = results.updated_invoices?.map(inv => inv.member_name).join(', ') || '';
+                showSuccess(`${message} Paid invoices: ${memberNames}`);
+
+                if (results.auto_unlocked_members?.length > 0) {
+                    const unlockedNames = results.auto_unlocked_members.map(member => member.member_name).join(', ');
+                    showSuccess(`Auto-unlocked members: ${unlockedNames}`);
+                }
+            } else {
+                showSuccess(message);
+            }
+
+            // Refresh the invoice list
+            loadInvoices();
+        } else {
+            showError('Failed to check payment statuses: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error checking payment statuses:', error);
+        showError('Failed to check payment statuses: ' + error.message);
+    }
+}
+
+function refreshInvoices() {
+    document.getElementById('invoices-loading').style.display = 'block';
+    document.getElementById('invoices-container').style.display = 'none';
+    loadInvoices();
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'N/A';
+    try {
+        return new Date(dateString).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    } catch (e) {
+        return dateString;
+    }
+}
+
+function showSuccess(message) {
+    const alertHtml = `
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    const container = document.querySelector('.container-fluid');
+    container.insertAdjacentHTML('afterbegin', alertHtml);
+
+    setTimeout(() => {
+        const alert = container.querySelector('.alert');
+        if (alert) alert.remove();
+    }, 5000);
+}
+
+function showError(message) {
+    const alertHtml = `
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    const container = document.querySelector('.container-fluid');
+    container.insertAdjacentHTML('afterbegin', alertHtml);
+
+    setTimeout(() => {
+        const alert = container.querySelector('.alert');
+        if (alert) alert.remove();
+    }, 8000);
+}
+</script>
+{% endblock %}

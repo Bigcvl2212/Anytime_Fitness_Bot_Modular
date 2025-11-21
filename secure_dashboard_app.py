@@ -12,8 +12,8 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from flask_session import Session
 import logging
 from datetime import datetime
-from services.authentication.secure_auth_service import SecureAuthService
-from services.authentication.secure_secrets_manager import SecureSecretsManager
+from src.services.authentication.secure_auth_service import SecureAuthService
+from src.services.authentication.secure_secrets_manager import SecureSecretsManager
 
 # Configure logging
 logging.basicConfig(

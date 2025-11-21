@@ -1,0 +1,645 @@
+{% extends "base.html" %}
+
+{% block title %}Sales AI Assistant{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sales-ai-card {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e1e5e9;
+    }
+
+    .sales-ai-card.revenue {
+        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        color: white;
+    }
+
+    .sales-ai-card.collections {
+        border-left: 4px solid #dc3545;
+    }
+
+    .sales-ai-card.campaigns {
+        border-left: 4px solid #007bff;
+    }
+
+    .sales-ai-card.analytics {
+        border-left: 4px solid #6f42c1;
+    }
+
+    .revenue-metric {
+        text-align: center;
+        padding: 20px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        margin-bottom: 16px;
+    }
+
+    .revenue-value {
+        font-size: 28px;
+        font-weight: bold;
+    }
+
+    .revenue-label {
+        font-size: 14px;
+        opacity: 0.9;
+    }
+
+    .collections-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        margin-bottom: 8px;
+        border-left: 3px solid #dc3545;
+    }
+
+    .collections-item.high-priority {
+        background: #fff5f5;
+        border-left-color: #dc3545;
+    }
+
+    .collections-item.medium-priority {
+        background: #fffdf5;
+        border-left-color: #ffc107;
+    }
+
+    .amount-badge {
+        background: #dc3545;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    .campaign-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        margin-bottom: 8px;
+    }
+
+    .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+    }
+
+    .status-running { background: #28a745; }
+    .status-paused { background: #ffc107; }
+    .status-completed { background: #6c757d; }
+    .status-draft { background: #007bff; }
+
+    .ai-command-panel {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .command-input-sales {
+        border-radius: 25px;
+        padding: 12px 20px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font-size: 16px;
+    }
+
+    .command-input-sales::placeholder {
+        color: rgba(255, 255, 255, 0.8);
+    }
+
+    .command-input-sales:focus {
+        border-color: rgba(255, 255, 255, 0.6);
+        box-shadow: 0 0 0 0.2rem rgba(255, 255, 255, 0.25);
+        background: rgba(255, 255, 255, 0.15);
+    }
+
+    .sales-chat-container {
+        max-height: 350px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.1);
+        margin: 16px 0;
+    }
+
+    .sales-chat-message {
+        margin-bottom: 12px;
+        padding: 10px;
+        border-radius: 8px;
+    }
+
+    .sales-chat-message.user {
+        background: rgba(255, 255, 255, 0.2);
+        margin-left: 20%;
+        text-align: right;
+    }
+
+    .sales-chat-message.ai {
+        background: rgba(255, 255, 255, 0.95);
+        color: #333;
+        margin-right: 20%;
+    }
+
+    .quick-sales-action {
+        margin: 4px;
+        padding: 6px 12px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        border-radius: 15px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .quick-sales-action:hover {
+        background: rgba(255, 255, 255, 0.2);
+        border-color: rgba(255, 255, 255, 0.5);
+    }
+
+    .analytics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .analytics-item {
+        text-align: center;
+        padding: 16px;
+        background: white;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+    }
+
+    .analytics-value {
+        font-size: 20px;
+        font-weight: bold;
+        color: #6f42c1;
+    }
+
+    .analytics-label {
+        font-size: 12px;
+        color: #6c757d;
+        margin-top: 4px;
+    }
+
+    .action-button {
+        background: linear-gradient(45deg, #28a745, #20c997);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+
+    .action-button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .ai-recommendation {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        padding: 16px;
+        border-radius: 8px;
+        margin-bottom: 16px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-chart-line me-2"></i>Sales AI Assistant</h2>
+                    <p class="text-muted mb-0">Intelligent revenue generation and member engagement</p>
+                </div>
+                <div>
+                    {% if ai_available %}
+                        <span class="badge bg-success">
+                            <i class="fas fa-robot me-1"></i>AI Active
+                        </span>
+                    {% else %}
+                        <span class="badge bg-danger">
+                            <i class="fas fa-exclamation-triangle me-1"></i>AI Unavailable
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- AI Command Center -->
+                <div class="col-lg-8">
+                    <div class="ai-command-panel">
+                        <h4><i class="fas fa-robot me-2"></i>Sales AI Command Center</h4>
+                        <p class="mb-3">Ask me about collections, campaigns, member engagement, or revenue optimization.</p>
+
+                        <!-- Chat Container -->
+                        <div class="sales-chat-container" id="salesChatContainer">
+                            <div class="sales-chat-message ai">
+                                <strong>Sales AI:</strong> Hello! I'm your sales AI assistant. I can help you with past due collections, campaign management, revenue analytics, and member engagement strategies. What would you like me to help you with today?
+                            </div>
+                        </div>
+
+                        <!-- Quick Actions -->
+                        <div class="mb-3">
+                            <small>Quick Actions:</small><br>
+                            <button class="quick-sales-action" onclick="sendSalesCommand('Show past due members over $100')">High-Value Collections</button>
+                            <button class="quick-sales-action" onclick="sendSalesCommand('Create payment reminder campaign')">Payment Reminders</button>
+                            <button class="quick-sales-action" onclick="sendSalesCommand('Revenue analytics this month')">Revenue Analysis</button>
+                            <button class="quick-sales-action" onclick="sendSalesCommand('Optimize member retention')">Retention Strategy</button>
+                        </div>
+
+                        <!-- Command Input -->
+                        <div class="input-group">
+                            <input type="text" class="form-control command-input-sales" id="salesCommandInput"
+                                   placeholder="Ask me about sales, collections, campaigns, or analytics..."
+                                   onkeypress="handleSalesKeyPress(event)">
+                            <button class="btn btn-light" onclick="sendSalesCommand()" id="salesSendButton">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Revenue Overview -->
+                    <div class="sales-ai-card revenue">
+                        <h5><i class="fas fa-dollar-sign me-2"></i>Revenue Intelligence</h5>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="revenue-metric">
+                                    <div class="revenue-value" id="totalPastDue">Loading...</div>
+                                    <div class="revenue-label">Total Past Due</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="revenue-metric">
+                                    <div class="revenue-value" id="pastDueCount">Loading...</div>
+                                    <div class="revenue-label">Past Due Accounts</div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="revenue-metric">
+                                    <div class="revenue-value" id="collectionRate">--</div>
+                                    <div class="revenue-label">Collection Rate</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Panel -->
+                <div class="col-lg-4">
+                    <!-- AI Recommendations -->
+                    <div class="ai-recommendation">
+                        <h6><i class="fas fa-lightbulb me-2"></i>AI Recommendations</h6>
+                        <div id="aiRecommendations">
+                            <p>Loading intelligent recommendations...</p>
+                        </div>
+                    </div>
+
+                    <!-- Priority Collections -->
+                    <div class="sales-ai-card collections">
+                        <h6><i class="fas fa-exclamation-triangle me-2"></i>Priority Collections</h6>
+                        <div id="priorityCollections">
+                            <div class="text-center">
+                                <div class="spinner-border text-primary" role="status"></div>
+                                <p class="mt-2">Loading collections data...</p>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-danger" onclick="loadCollectionsData()">
+                            <i class="fas fa-sync-alt me-1"></i>Refresh
+                        </button>
+                    </div>
+
+                    <!-- Campaign Status -->
+                    <div class="sales-ai-card campaigns">
+                        <h6><i class="fas fa-bullhorn me-2"></i>Campaign Status</h6>
+                        <div id="campaignStatus">
+                            <div class="text-center">
+                                <div class="spinner-border text-primary" role="status"></div>
+                                <p class="mt-2">Loading campaigns...</p>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="loadCampaignData()">
+                            <i class="fas fa-sync-alt me-1"></i>Refresh
+                        </button>
+                    </div>
+
+                    <!-- Quick Analytics -->
+                    <div class="sales-ai-card analytics">
+                        <h6><i class="fas fa-chart-bar me-2"></i>Quick Analytics</h6>
+                        <button class="btn btn-sm btn-primary mb-2 w-100" onclick="getAnalytics()">
+                            <i class="fas fa-analytics me-1"></i>Generate AI Insights
+                        </button>
+                        <div id="quickAnalytics" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let salesSessionId = null;
+
+function handleSalesKeyPress(event) {
+    if (event.key === 'Enter') {
+        sendSalesCommand();
+    }
+}
+
+async function sendSalesCommand(command = null) {
+    const input = document.getElementById('salesCommandInput');
+    const commandText = command || input.value.trim();
+
+    if (!commandText) return;
+
+    // Add user message to chat
+    addSalesMessageToChat('user', commandText);
+    if (!command) input.value = '';
+
+    // Show loading
+    const sendButton = document.getElementById('salesSendButton');
+    const originalContent = sendButton.innerHTML;
+    sendButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    sendButton.disabled = true;
+
+    try {
+        const response = await fetch('/sales-ai/command', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                command: commandText,
+                session_id: salesSessionId
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            salesSessionId = data.session_id;
+            const aiResponse = data.result.response || 'Command processed successfully.';
+            addSalesMessageToChat('ai', aiResponse);
+
+            // Handle specific result types
+            if (data.result.actionable) {
+                handleActionableResult(data.result);
+            }
+        } else {
+            addSalesMessageToChat('ai', `Error: ${data.error}`);
+        }
+    } catch (error) {
+        addSalesMessageToChat('ai', `Network error: ${error.message}`);
+    } finally {
+        sendButton.innerHTML = originalContent;
+        sendButton.disabled = false;
+    }
+}
+
+function addSalesMessageToChat(role, message) {
+    const chatContainer = document.getElementById('salesChatContainer');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `sales-chat-message ${role}`;
+
+    if (role === 'user') {
+        messageDiv.innerHTML = `<strong>You:</strong> ${message}`;
+    } else {
+        messageDiv.innerHTML = `<strong>Sales AI:</strong> ${message}`;
+    }
+
+    chatContainer.appendChild(messageDiv);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function handleActionableResult(result) {
+    if (result.action === 'send_invoices' && result.data) {
+        showInvoiceActions(result.data);
+    } else if (result.action === 'list_past_due' && result.data) {
+        updatePriorityCollections(result.data);
+    }
+}
+
+function showInvoiceActions(members) {
+    const actionHtml = `
+        <div class="mt-2">
+            <button class="btn btn-sm btn-danger" onclick="confirmBulkInvoices(${JSON.stringify(members).replace(/"/g, '&quot;')})">
+                Send ${members.length} Invoices
+            </button>
+        </div>
+    `;
+
+    const lastMessage = document.querySelector('.sales-chat-message:last-child');
+    lastMessage.innerHTML += actionHtml;
+}
+
+async function loadCollectionsData() {
+    const collectionsDiv = document.getElementById('priorityCollections');
+    collectionsDiv.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"></div></div>';
+
+    try {
+        const response = await fetch('/sales-ai/collections');
+        const data = await response.json();
+
+        if (data.success) {
+            updateRevenueMetrics(data);
+            updatePriorityCollections(data.priority_accounts || []);
+        } else {
+            collectionsDiv.innerHTML = `<div class="alert alert-danger">Error: ${data.error}</div>`;
+        }
+    } catch (error) {
+        collectionsDiv.innerHTML = `<div class="alert alert-danger">Network error: ${error.message}</div>`;
+    }
+}
+
+function updateRevenueMetrics(data) {
+    document.getElementById('totalPastDue').textContent = `$${data.total_amount?.toFixed(0) || '0'}`;
+    document.getElementById('pastDueCount').textContent = data.total_accounts || '0';
+}
+
+function updatePriorityCollections(accounts) {
+    const collectionsDiv = document.getElementById('priorityCollections');
+
+    if (!accounts || accounts.length === 0) {
+        collectionsDiv.innerHTML = '<p class="text-muted">No priority accounts found.</p>';
+        return;
+    }
+
+    let html = '';
+    accounts.slice(0, 5).forEach(account => {
+        const amount = account.amount_past_due || 0;
+        const priority = amount >= 100 ? 'high-priority' : 'medium-priority';
+        const name = `${account.first_name || ''} ${account.last_name || ''}`.trim() || 'Unknown';
+
+        html += `
+            <div class="collections-item ${priority}">
+                <div>
+                    <strong>${name}</strong><br>
+                    <small class="text-muted">${account.email || 'No email'}</small>
+                </div>
+                <div>
+                    <span class="amount-badge">$${amount.toFixed(0)}</span>
+                    <br>
+                    <button class="btn btn-sm btn-outline-primary mt-1" onclick="createInvoice('${account.prospect_id}', ${amount})">
+                        Invoice
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+
+    collectionsDiv.innerHTML = html;
+}
+
+async function createInvoice(memberId, amount) {
+    try {
+        const response = await fetch('/sales-ai/collections/invoice', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                member_id: memberId,
+                amount: amount
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(`Invoice created successfully for ${data.member_name}!\nDelivery: ${data.delivery_method}\nContact: ${data.contact_info}`);
+            loadCollectionsData(); // Refresh the list
+        } else {
+            alert(`Error creating invoice: ${data.error}`);
+        }
+    } catch (error) {
+        alert(`Network error: ${error.message}`);
+    }
+}
+
+async function loadCampaignData() {
+    const campaignDiv = document.getElementById('campaignStatus');
+    campaignDiv.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"></div></div>';
+
+    try {
+        const response = await fetch('/sales-ai/campaigns');
+        const data = await response.json();
+
+        if (data.success) {
+            updateCampaignStatus(data.campaigns || []);
+        } else {
+            campaignDiv.innerHTML = `<div class="alert alert-danger">Error: ${data.error}</div>`;
+        }
+    } catch (error) {
+        campaignDiv.innerHTML = `<div class="alert alert-danger">Network error: ${error.message}</div>`;
+    }
+}
+
+function updateCampaignStatus(campaigns) {
+    const campaignDiv = document.getElementById('campaignStatus');
+
+    if (!campaigns || campaigns.length === 0) {
+        campaignDiv.innerHTML = '<p class="text-muted">No active campaigns.</p>';
+        return;
+    }
+
+    let html = '';
+    campaigns.forEach(campaign => {
+        const status = campaign.status?.status || 'none';
+        const statusClass = status === 'running' ? 'status-running' :
+                          status === 'paused' ? 'status-paused' :
+                          status === 'completed' ? 'status-completed' : 'status-draft';
+
+        html += `
+            <div class="campaign-status">
+                <div>
+                    <span class="status-indicator ${statusClass}"></span>
+                    <strong>${campaign.category.replace(/_/g, ' ').toUpperCase()}</strong><br>
+                    <small>${status.toUpperCase()}</small>
+                </div>
+                <div class="text-end">
+                    <small>${campaign.status?.progress || 0}%</small>
+                </div>
+            </div>
+        `;
+    });
+
+    campaignDiv.innerHTML = html;
+}
+
+async function getAnalytics() {
+    const analyticsDiv = document.getElementById('quickAnalytics');
+    analyticsDiv.style.display = 'block';
+    analyticsDiv.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"></div></div>';
+
+    try {
+        const response = await fetch('/sales-ai/analytics');
+        const data = await response.json();
+
+        if (data.success) {
+            analyticsDiv.innerHTML = `
+                <div class="alert alert-info">
+                    <strong>AI Insights:</strong><br>
+                    ${data.ai_insights || 'Analytics generated successfully.'}
+                </div>
+            `;
+        } else {
+            analyticsDiv.innerHTML = `<div class="alert alert-danger">Error: ${data.error}</div>`;
+        }
+    } catch (error) {
+        analyticsDiv.innerHTML = `<div class="alert alert-danger">Network error: ${error.message}</div>`;
+    }
+}
+
+async function loadAIRecommendations() {
+    const recommendationsDiv = document.getElementById('aiRecommendations');
+
+    try {
+        const response = await fetch('/sales-ai/analytics');
+        const data = await response.json();
+
+        if (data.success && data.ai_insights) {
+            recommendationsDiv.innerHTML = `<p>${data.ai_insights.substring(0, 200)}...</p>`;
+        } else {
+            recommendationsDiv.innerHTML = `
+                <p>• Focus on accounts over $100 for immediate revenue impact</p>
+                <p>• Schedule payment reminder campaigns for better engagement</p>
+                <p>• Analyze member retention patterns for optimization opportunities</p>
+            `;
+        }
+    } catch (error) {
+        recommendationsDiv.innerHTML = `<p class="text-warning">Unable to load recommendations.</p>`;
+    }
+}
+
+// Load data on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadCollectionsData();
+    loadCampaignData();
+    loadAIRecommendations();
+});
+</script>
+{% endblock %}

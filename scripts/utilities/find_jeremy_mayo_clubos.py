@@ -3,7 +3,7 @@
 Find Jeremy Mayo in ClubOS using the correct location ID from HAR file
 """
 
-from services.api.clubos_api_client import ClubOSAPIClient
+from src.services.api.clubos_api_client import ClubOSAPIClient
 from config.secrets_local import get_secret
 import json
 

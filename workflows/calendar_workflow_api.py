@@ -9,7 +9,7 @@ import json
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Union
 
-from services.api.calendar_api_service import ClubOSCalendarAPIService
+from src.services.api.calendar_api_service import ClubOSCalendarAPIService
 from config.constants import CLUBOS_CALENDAR_URL, CLUBOS_USERNAME_SECRET, CLUBOS_PASSWORD_SECRET
 from config.secrets import get_secret
 
@@ -266,7 +266,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.today_available_times:
-        from services.api.calendar_api_service import ClubOSCalendarAPIService
+        from src.services.api.calendar_api_service import ClubOSCalendarAPIService
         from config.secrets import get_clubos_credentials
         creds = get_clubos_credentials()
         service = ClubOSCalendarAPIService(creds['username'], creds['password'])

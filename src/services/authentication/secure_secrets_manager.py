@@ -411,6 +411,26 @@ class SecureSecretsManager:
             except Exception as db_error:
                 logger.debug(f"Database Square credential retrieval failed: {db_error}")
 
+        # Try secrets_local.py as a fallback (for local development)
+        try:
+            import sys
+            import os as os_module
+
+            # Add config directory to path
+            config_path = os_module.path.join(os_module.path.dirname(__file__), '..', '..', '..', 'config')
+            if config_path not in sys.path:
+                sys.path.insert(0, config_path)
+
+            from secrets_local import get_secret as get_local_secret
+            local_value = get_local_secret(secret_name)
+            if local_value:
+                logger.info(f"✅ Retrieved {secret_name} from secrets_local.py")
+                return local_value
+        except ImportError:
+            logger.debug(f"secrets_local.py not available for {secret_name}")
+        except Exception as e:
+            logger.debug(f"Failed to get secret from secrets_local.py: {e}")
+
         # Only try Secret Manager if client is initialized
         if not self.client:
             logger.debug(f"SecretManager client not initialized, no alternative source for {secret_name}")

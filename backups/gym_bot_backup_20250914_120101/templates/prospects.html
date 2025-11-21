@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+
+{% block title %}Prospects - Anytime Fitness Management{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="text-purple mb-3">
+            <i class="fas fa-user-plus me-2"></i>
+            Prospects
+            <span class="badge badge-purple ms-3">{{ total_prospects }} Total</span>
+        </h1>
+        <p class="lead text-muted">Manage your potential members and track their journey to membership</p>
+    </div>
+</div>
+
+<!-- Search and Controls -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="input-group">
+            <input type="text" id="searchInput" class="form-control search-bar" 
+                   placeholder="Search prospects by name, email, or phone..." 
+                   value="">
+            <button type="button" id="searchButton" class="btn btn-purple">
+                <i class="fas fa-search"></i>
+            </button>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <select id="perPageSelect" class="form-select">
+            <option value="25">25 per page</option>
+            <option value="50" selected>50 per page</option>
+            <option value="100">100 per page</option>
+            <option value="200">200 per page</option>
+        </select>
+    </div>
+    <div class="col-md-3 text-end">
+        <a href="/prospect/new" class="btn btn-purple">
+            <i class="fas fa-plus me-2"></i>Add New Prospect
+        </a>
+    </div>
+</div>
+
+<!-- Results Count -->
+<div class="row mb-3">
+    <div class="col-12">
+        <p id="resultsCount" class="text-muted mb-0">Loading prospects...</p>
+    </div>
+</div>
+
+<!-- Prospects List -->
+<div class="row" id="prospectsContainer">
+    <!-- Prospects will be loaded asynchronously here -->
+</div>
+
+<!-- Loading State -->
+<div id="prospects-loading" class="text-center py-5">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="text-muted mt-3">Loading prospects from ClubHub...</p>
+</div>
+
+<!-- No Prospects Found -->
+<div id="no-prospects" class="col-12" style="display: none;">
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-user-plus fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">No prospects found</h5>
+            <p class="text-muted">Get started by adding your first prospect.</p>
+            <a href="/prospect/new" class="btn btn-purple">Add Prospect</a>
+        </div>
+    </div>
+</div>
+
+<script>
+// Load prospects asynchronously
+async function loadProspects() {
+    console.log('🔄 Loading prospects from ClubHub API...');
+    
+    const prospectsContainer = document.getElementById('prospectsContainer');
+    const loadingElement = document.getElementById('prospects-loading');
+    const noProspectsElement = document.getElementById('no-prospects');
+    
+    try {
+        const response = await fetch('/api/prospects/all');
+        const data = await response.json();
+        
+        // Hide loading state
+        if (loadingElement) loadingElement.style.display = 'none';
+        
+        if (data.success && data.prospects.length > 0) {
+            console.log(`✅ Loaded ${data.prospects.length} prospects from ClubHub`);
+            
+            // Cache the prospects data for search functionality
+            window.cachedProspects = data.prospects;
+            
+            // Display all prospects
+            displayProspects(data.prospects);
+            
+            // Update the total count in the header badge
+            const totalBadge = document.querySelector('.badge-purple');
+            if (totalBadge) {
+                totalBadge.textContent = `${data.prospects.length} Total`;
+            }
+            
+        } else {
+            console.log('ℹ️ No prospects found or API returned empty result');
+            if (noProspectsElement) noProspectsElement.style.display = 'block';
+        }
+    } catch (error) {
+        console.error('❌ Error loading prospects:', error);
+        
+        // Hide loading state
+        if (loadingElement) loadingElement.style.display = 'none';
+        
+        // Show error message
+        prospectsContainer.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Error loading prospects: ${error.message}
+                    <button class="btn btn-sm btn-outline-danger ms-2" onclick="loadProspects()">
+                        <i class="fas fa-retry me-1"></i>Retry
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// Check for cached data and load it if available
+async function checkCachedData() {
+    console.log('🔍 Checking for cached prospect data...');
+    try {
+        const response = await fetch('/api/prospects/all');
+        const data = await response.json();
+        
+        if (data.success && data.source === 'cache') {
+            console.log('✅ Using cached prospect data:', data.prospects.length, 'prospects');
+            // Cache the data locally for faster access
+            window.cachedProspects = data.prospects;
+        } else if (data.success) {
+            console.log('📊 Using database prospect data:', data.prospects.length, 'prospects');
+            // Cache the data locally for faster access
+            window.cachedProspects = data.prospects;
+        } else {
+            console.log('⚠️ No prospect data available');
+        }
+    } catch (error) {
+        console.error('❌ Error checking cached data:', error);
+    }
+}
+
+// Search functionality
+function setupSearch() {
+    const searchInput = document.getElementById('searchInput');
+    const searchButton = document.getElementById('searchButton');
+    
+    if (searchInput) {
+        // Search on input
+        searchInput.addEventListener('input', function() {
+            filterProspects(this.value);
+        });
+        
+        // Search on button click
+        if (searchButton) {
+            searchButton.addEventListener('click', function() {
+                filterProspects(searchInput.value);
+            });
+        }
+        
+        // Search on Enter key
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                filterProspects(this.value);
+            }
+        });
+    }
+}
+
+function filterProspects(searchTerm) {
+    console.log(`🔍 Filtering prospects with: "${searchTerm}"`);
+    
+    if (!window.cachedProspects) {
+        console.log('⚠️ No cached prospects data available');
+        return;
+    }
+    
+    const filteredProspects = window.cachedProspects.filter(prospect => {
+        const fullName = `${prospect.firstName || ''} ${prospect.lastName || ''}`.toLowerCase();
+        const email = (prospect.email || '').toLowerCase();
+        const phone = (prospect.phone || '').toLowerCase();
+        const searchLower = searchTerm.toLowerCase();
+        
+        return fullName.includes(searchLower) || 
+               email.includes(searchLower) || 
+               phone.includes(searchLower);
+    });
+    
+    displayProspects(filteredProspects, searchTerm);
+}
+
+function displayProspects(prospects, searchTerm = '') {
+    const prospectsContainer = document.getElementById('prospectsContainer');
+    const resultsCount = document.getElementById('resultsCount');
+    
+    if (resultsCount) {
+        if (searchTerm) {
+            resultsCount.textContent = `Found ${prospects.length} prospects matching "${searchTerm}"`;
+        } else {
+            resultsCount.textContent = `Showing ${prospects.length} prospects`;
+        }
+    }
+    
+    if (prospects.length === 0) {
+        prospectsContainer.innerHTML = `
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No prospects found</h5>
+                        <p class="text-muted">${searchTerm ? `No prospects match "${searchTerm}"` : 'No prospects available'}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = '';
+    prospects.forEach(prospect => {
+        const displayName = prospect.full_name || `${prospect.firstName || ''} ${prospect.lastName || ''}`.trim() || 'Unknown Name';
+        const prospectId = prospect.id || prospect.prospectId || 'N/A';
+        
+        html += `
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card prospect-card h-100" style="cursor: pointer;" onclick="window.location.href='/prospect/${prospectId}'">
+                    <div class="card-body">
+                        <h5 class="text-purple mb-2">
+                            <i class="fas fa-user-plus me-2"></i>
+                            ${displayName}
+                        </h5>
+                        
+                        <div class="contact-info mb-3">
+                            <p class="mb-1">
+                                <i class="fas fa-id-card me-2 text-muted"></i>
+                                <strong>ID:</strong> ${prospectId}
+                            </p>
+                            ${prospect.email ? `
+                            <p class="mb-1">
+                                <i class="fas fa-envelope me-2 text-muted"></i>
+                                <a href="mailto:${prospect.email}">${prospect.email}</a>
+                            </p>
+                            ` : ''}
+                            ${prospect.mobilePhone || prospect.mobile_phone ? `
+                            <p class="mb-1">
+                                <i class="fas fa-phone me-2 text-muted"></i>
+                                <a href="tel:${prospect.mobilePhone || prospect.mobile_phone}">${prospect.mobilePhone || prospect.mobile_phone}</a>
+                            </p>
+                            ` : ''}
+                            ${prospect.address1 ? `
+                            <p class="mb-1">
+                                <i class="fas fa-map-marker-alt me-2 text-muted"></i>
+                                ${prospect.address1}, ${prospect.city || ''}, ${prospect.state || ''}
+                            </p>
+                            ` : ''}
+                        </div>
+                        
+                        <div class="agreement-info mb-3">
+                            ${prospect.leadSource || prospect.lead_source ? `
+                            <p class="mb-1">
+                                <i class="fas fa-source me-2 text-muted"></i>
+                                <strong>Source:</strong> ${prospect.leadSource || prospect.lead_source}
+                            </p>
+                            ` : ''}
+                            ${prospect.interestLevel || prospect.interest_level ? `
+                            <p class="mb-1">
+                                <i class="fas fa-star me-2 text-muted"></i>
+                                <strong>Interest:</strong> ${prospect.interestLevel || prospect.interest_level}/5
+                            </p>
+                            ` : ''}
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="badge bg-info">${prospect.status || 'New Lead'}</span>
+                            <div>
+                                <a href="/prospect/${prospectId}" class="btn btn-sm btn-purple" style="text-decoration: none;" onclick="event.stopPropagation();">
+                                    <i class="fas fa-eye me-1"></i> View Profile
+                                </a>
+                            </div>
+                        </div>
+                        
+                        ${prospect.followUpDate || prospect.follow_up_date ? `
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-calendar-alt me-1"></i>
+                                Follow-up: ${prospect.followUpDate || prospect.follow_up_date}
+                            </small>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    prospectsContainer.innerHTML = html;
+}
+
+function showProspectProfile(prospectId) {
+    // Navigate to prospect profile page or open modal
+    window.location.href = `/prospect/${prospectId}`;
+}
+
+// Load prospects when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Prospects page loaded');
+    
+    // Check for cached data first
+    console.log('🔍 Checking for cached prospect data...');
+    checkCachedData();
+    
+    // Load prospects data
+    loadProspects();
+    
+    // Set up search functionality
+    setupSearch();
+    
+    // Check for search parameter in URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const searchParam = urlParams.get('search');
+    if (searchParam) {
+        console.log(`🔍 Found search parameter: "${searchParam}"`);
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.value = searchParam;
+            filterProspects(searchParam);
+        }
+    }
+});
+</script>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div class="row mt-4">
+    <div class="col-12">
+        <nav aria-label="Prospects pagination">
+            <ul class="pagination justify-content-center">
+                {% if has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page - 1 }}{% if search %}&search={{ search }}{% endif %}">
+                        <i class="fas fa-chevron-left"></i>
+                    </a>
+                </li>
+                {% endif %}
+                
+                {% for p in range(1, total_pages + 1) %}
+                    {% if p == page %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ p }}</span>
+                    </li>
+                    {% elif p <= 5 or p > total_pages - 5 or (p >= page - 2 and p <= page + 2) %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ p }}{% if search %}&search={{ search }}{% endif %}">{{ p }}</a>
+                    </li>
+                    {% elif p == 6 or p == total_pages - 5 %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page + 1 }}{% if search %}&search={{ search }}{% endif %}">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        
+        <div class="text-center text-muted">
+            Showing {{ ((page - 1) * per_page) + 1 }} to {{ (page * per_page if page * per_page < total_prospects else total_prospects) }} of {{ total_prospects }} prospects
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

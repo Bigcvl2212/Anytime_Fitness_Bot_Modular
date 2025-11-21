@@ -1,0 +1,139 @@
+{
+  "agreements": [
+    {
+      "agreement_id": "1674989",
+      "amount_owed": 0.0,
+      "bare": {
+        "billingStatuses": {
+          "current": {
+            "billingState": 1,
+            "effectiveDate": "2025-05-20",
+            "eventDate": "2025-05-20"
+          },
+          "future": [],
+          "next": null,
+          "past": []
+        },
+        "packageAgreement": {
+          "activatedBy": 187032782,
+          "ageVerificationSignature": null,
+          "agreementBillingStatusChanges": [
+            {
+              "billingState": 1,
+              "effectiveDate": "2025-05-20",
+              "eventDate": "2025-05-20"
+            }
+          ],
+          "agreementStatus": 2,
+          "autoRenewDates": [],
+          "autoRenewInitials": "data:image/png;base64,",
+          "billingBaseDate": null,
+          "billingDuration": 2,
+          "billingDurationType": 6,
+          "cancelInitials": "data:image/png;base64,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",
+          "description": "2025 Single Club Membership",
+          "discount": null,
+          "downPaymentBillingDurations": 1,
+          "downPaymentProfile": null,
+          "duration": 12,
+          "durationType": 5,
+          "endDate": "2026-05-20",
+          "fullAgreementValue": null,
+          "id": 1674989,
+          "lastEmailDate": "2025-05-20",
+          "locationId": 3586,
+          "memberId": 191015549,
+          "name": "2025 Single Club Membership",
+          "packageAgreementCancellationFees": [
+            {
+              "cancellationFeeType": 1,
+              "description": "Early Termination Fee",
+              "id": 340170,
+              "packageAgreementId": 1674989,
+              "packageCancellationFeeId": 96189,
+              "salesTaxTypes": [],
+              "unitPrice": 349.99,
+              "unitPriceMin": 349.99
+            }
+          ],
+          "packageAgreementFees": [],
+          "packageAgreementMemberServices": [
+            {
+              "billingDuration": 2,
+              "billingDurationType": 6,
+              "calendarEventType": {
+                "consumable": true,
+                "groupClass": true,
+                "icon": "icon_group_class.png",
+                "id": 3,
+                "meeting": false,
+                "name": "Group Class",
+                "privateOnly": false,
+                "ptEventType": false
+              },
+              "description": "2025 Single Club Membership",
+              "discount": 0.0,
+              "expirationDuration": 1,
+              "expirationDurationType": 5,
+              "id": 2044406,
+              "name": "2025 Single Club Membership",
+              "packageAgreementId": 1674989,
+              "packageMemberServiceId": 134558,
+              "priceAfterDiscount": 25.0,
+              "salesTaxTypes": [],
+              "unitPrice": 25.0,
+              "unitsPerBillingDuration": 1
+            }
+          ],
+          "packageAgreementRewrites": [],
+          "packageAgreementTerms": [
+            {
+              "termsId": 1830,
+              "termsText": "<p>1. All the information as above set forth is true and correct. I have disclosed any and all facts and information which would limit or prohibit my personal training program, other than has been set forth herein.</p><p>2. Buyer shall be obligated for all Personal Training services, regardless of whether he/she uses the Fond du Lac facilities or Personal Training services, until such time as Buyer has given notice of terminations stipulated and has paid all amounts then due and owing.</p><p>3. I understand that I must be a member in good standing with Anytime Fitness Fond du Lac at all times while I am participating in my personal training program.</p><p>4. I understand the risk of injury from Anytime Fitness Fond du Lac activities and using any Anytime Fitness Fond du Lac equipment is significant, including the potential for permanent paralysis and death, I KNOWINGLY AND FREELY ASSUME ALL SUCH RISKS, both known and unknown. I acknowledge that this is an UNSUPERVISED FITNESS CENTER and I assume all risks associated with using exercise equipment and exercising alone without the aid and presence of Anytime Fitness Fond du Lac staff on the premises. I understand that Anytime Fitness\u00ae is a trademark of Anytime Fitness, LLC. that has been licensed to this Anytime Fitness Fond du Lac and that this Anytime Fitness Fond du Lac is independently owned and operated by ACE FITNESS LLC. I HEREBY RELEASE, INDEMNIFY, AND HOLD HARMLESS Anytime Fitness, LLC., ABC FINANCIAL SERVICES, INC., AND THE OWNERS OF ALL CLUBS WITHIN THE ANYTIME FITNESS SYSTEM, as well as all sponsors and advertisers, and all owners and lessors of the premises of such clubs, and their respective officers, affiliates, agents and employees WITH RESPECT TO ANY AND ALL INJURY, DISABILITY, DEATH, LOSS OR DAMAGE to person or property that may arise out of or in connection with my use of any of the equipment or the facilities of the CLUB of any other Anytime Fitness club, or any incident that occurs while using such facilities, or otherwise related to my membership. I expressly agree that this release is intended to be as broad and inclusive as permitted by applicable law and if a portion of this release is held invalid, the balance shall remain in full force and effect. This release shall apply to my heirs, assigns, personal representatives and any other next of kin. I understand that the Anytime Fitness Fond du Lac is relying on this release in agreeing to enter into this Agreement. I HAVE READ THE RELEASE OF LIABILITY AND ASSUMPTIONS OF RISK AGREEMENT, FULLY UNDERSTAND ITS TERMS AND THAT I HAVE GIVEN UP SUBSTANTIAL RIGHTS BY SIGNING IT, AND SIGN IT FREELY AND VOLUNTARILY WITHOUT ANY INDUCEMENT.</p><p>5. Anytime Fitness Fond du Lac and/or Anytime Fitness Fond du Lac employees or representatives in no way intended to diagnose, cure, treat or prevent any disease through any services or programs provided. </p><p>6. All sales & PAYMENTS are final and there are no refunds. All pre-paid personal training sessions are fully non-refundable as well.</p><p>7. Anytime Fitness Fond du Lac reserves the right to provide a substitute trainer in the event the original scheduled trainer is unavailable to conduct the workout without any prior notice or consent needed.</p><p>8. All personal training will be undertaken at the Anytime Fitness Fond du Lac facilities or via zoom/online video coaching fully at the clubs discretion without member consent needed. Training must be completed during the Anytime Fitness Fond du Lac hours of operation unless otherwise agreed to by Anytime Fitness Fond du Lac in written signed form.</p><p>9. Clients who wish to cancel their monthly EFT PT packages must do so with a written cancellation (must be a written letter delivered to the club during staffed hours) email, text, or calls DO NOT SUFFICE AS CANCELLATION NOTICE. Client will still be responsible for 45 days worth of training payments from the date the cancellation request is physically received by a staff member, in writing, in person during club staffed hours. Client will be also responsible for an EARLY TERMINATION FEE of $599.99 PER TRAINING AGREEMENT or the remainder of the agreement value (lesser of the two amounts) on top of and in addition to the 45 days worth of training payments still due to cancel.</p><p>10. Any additional training sessions which are obtained will be subject to and governed by this written agreement.</p><p>11. All Sessions are to be completed in a weekly or bi-weekly period. If the sessions are not fulfilled for any reason whether because of client or club, those sessions will be considered fulfilled & executed without being able to be made up at a later time or date.</p><p>12. Release of Exclusive Rights to before and after pictures or videos to Anytime Fitness Fond du Lac, not individual trainer.</p><p>13. This agreement may be cancelled within the first three business days of the agreement, excluding holidays and weekends, of the date stated above. A written request must be received by the club (Email, Text, Calls DO NOT SUFFICE AS CANCELLATION NOTICE) in person during staffed hours within the first three business days. Any payments or down payments made will be NON REFUNDABLE.</p><p>15. In the event that I sustain a medical injury that is not permanent, but renders my ability to train (i.e a broken leg), I will provide written documentation from my physician to receive a medical freeze on payment for my sessions. The medical hold will reflect the amount of time my doctor stipulates to refrain from training. THIS WILL NOT SHORTEN THE LENGTH OF THE AGREEMENT, but instead freeze the agreement in place extending the end date of the agreement from the time of freeze on to the new agreement end date. Example: if you provide doctors written documentation that you need to freeze for 6 weeks, your original contract end date will now be extended by 6 weeks to make up and equal to the time frozen.</p><p>16. Should you default on any payment obligation as called for in this agreement, the club will have the right to declare the entire remaining balance due and payable and you agree to pay allowable interest, and all costs of collection, including but not limited to collection agency fees, court costs, and attorney fees. A default occurs when any payment due under this agreement is more than ten days late. SHOULD ANY MONTHLY PAYMENT BECOME MORE THAN TEN DAYS PAST DUE, YOU WILL BE CHARGED A LATE FEE. AN ADDITIONAL SERVICE FEE WILL BE CHARGED FOR ANY CHECK, DRAFT, CREDIT CARD, OR ORDER RETURNED FOR INSUFFICIENT FUNDS OR ANY OTHER REASON. If the Member is paying monthly dues by electronic funds transfer (EFT), the club\u2019s billing company, ABC Financial Services, Inc., reserves the right to draft via EFT all amounts owed by the member including any and all late fees and service fees. Subject to appropriate State and Federal Law.</p><p>CONSENT TO CONTACT: MEMBER authorizes the Anytime Fitness Fond du Lac ABC Financial Services, Inc., Anytime Fitness, LLC and Technique Software, Inc. d/b/a Club OS), and their affiliates and designees, to contact them by e-mail, text message or telephone. Subject to applicable law, Member agrees that such parties may contact Member at any mailing address, phone number or e-mail address set forth on the face of this agreement, or any other address subsequently provided to, or obtained by, any such party. Member expressly consents to receive autodialed and or prerecorded telemarketing calls from or on behalf of CLUB, ABC Financial Services, Inc., Technique Software, Inc. d/b/a Club OS) and Anytime Fitness, LLC at the telephone number provided by MEMBER, including any wireless number, if applicable. Member understands that consent is not a condition of purchase.</p><p>BY SIGNING & OR AGREEING TO WAIVE SIGNATURE BY STARTING THE SERVICES WITHIN THIS AGREEMENT BUYER ACKNOWLEDGES THAT BUYER HAS READ AND RECEIVED A FILLED IN AND COMPLETED COPY OF THIS AGREEMENT. THIS AGREEMENT CONSTITUTES THE ENTIRE AGREEMENT OF THE PARTIES AND NO OTHER AGREEMENT OR UNDERSTANDING EXISTS BETWEEN BUYER AND CLUB. CLUB HAS MADE NO EXPRESS OR IMPLIED WARRANTIES OR REPRESENTATIONS OTHER THAN THOSE EXPRESSLY SET FORTH IN THIS AGREEMENT TO INDUCE BUYER TO ENTER INTO THIS AGREEMENT. ANY CONFLICT BETWEEN THE ORIGINAL AGREEMENT AND ANY COPY OF THE ORIGINAL AGREEMENT SHALL BE CONTROLLED BY THE ORIGINAL AGREEMENT.</p>",
+              "termsType": "1"
+            },
+            {
+              "termsId": 4407,
+              "termsText": "<p><strong><em>\u201cCANCELLATION AND REFUNDS\"</em></strong></p><p>\u201cRight to Cancel. You are permitted to cancel this contract until midnight of the 3rd operating day after the date on which you signed the contract. If the facilities or services that are described in the contract are not available at the time you sign the contract, you have until midnight of the 3rd operating day after the day on which you received notice of their availability, to cancel the contract. If within this time period you decide you want to cancel this contract, you may do so by notifying .... (the seller) by any writing mailed or delivered to .... (the seller) at the address shown on the contract, within the previously described time period. If you do so cancel, any payments made by you, less a user fee of no more than $3 per day of actual use, will be refunded within 21 days after notice of cancellation is delivered, and any evidence of any indebtedness executed by you will be canceled by .... (the seller) and arrangements will be made to relieve you of any further obligation to pay the same.\"&nbsp;</p><p><strong>Wis. Stat. \u00a7 100.177(6) (11) (a)&nbsp;</strong></p><p>Every contract for center services shall provide that if any of the facilities or services described in the contract become unavailable or are no longer fully operational, before full receipt of the services and use of facilities for which the buyer contracted, the buyer is liable for only that portion of the total consideration proportional to the elapsed time portion of the contract at the time of the unavailability. The buyer is entitled to a refund of any other funds already paid.&nbsp;</p><p><strong>Wis. Stat. \u00a7 100.177(11)(a) (12)&nbsp;</strong></p><p>Every contract for center services shall provide that if the buyer is unable to make use of or receive the center services contracted for because of death or disability, the buyer is liable for only that portion of the total consideration proportional to the elapsed time portion of the contract at the time of the death or disability.&nbsp;</p><p><strong>Wis. Stat. \u00a7 100.177(12)</strong></p><p><strong><br></strong></p><p><strong>Cancellations will not be processed via phone or email.</strong> Client must come into the club to sign off on the Cancellation Form. Also, All cancellations require a 45- day notice written to the club and delivered to the club by member. Cancellations can only happen when full cancellation amount (including 45 days worth of payments from time of cancellation notice delivered to the club in person on top of the $599.99 or remaining agreement value -whichever is lesser) or remaining cancellation related fees are paid.</p>",
+              "termsType": "2"
+            },
+            {
+              "termsId": 4408,
+              "termsText": "<p>1. The items shall be drawn on or about the date or dates of the Payment Schedule. The transactions on your bank statement will constitute receipts for payment on your account.</p><p>2. If the regular payments set forth on the Payment Schedule should vary in amount, you are entitled to notice at least 10 days before each payment of when it will be made and how much it will be. However, by executing this preauthorization, you choose to instead get this notice only when the payment would differ by more than $100.00 from the most recent payment.</p><p>3. By executing this agreement, you acknowledge your awareness that certain disclosures required by the Electronic Funds Transfer Act and its regulations are available for your review at the Company\u2019s website: www.abcfinancial.com under terms and conditions.</p><p>4. The privilege of making payments under this arrangement may be revoked by the Company if any item is not paid upon presentation.</p><p>5. If this preauthorization payment arrangement is revoked for any reason, this does not release you from your obligation (Payment Schedule).</p><p>6. A service fee will be assessed and drafted for any check, draft, credit card, or order returned for insufficient funds or any other reason. A late fee will be assessed and drafted should any monthly payment become past due.</p><p>7. This preauthorization payment arrangement shall apply to the following Applicant(s): Any Training Client&nbsp;</p>",
+              "termsType": "3"
+            }
+          ],
+          "packageId": 103518,
+          "promoCode": null,
+          "recurringInitials": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGQAAABUCAYAAAB0mJL5AAAAAXNSR0IArs4c6QAACDNJREFUeF7tnHnodUMYx7+vNZIIRSiyZcm+U9aUPdn+sJNddiF7IdllV5bXUtYSQiG77CR7shMhZMvufDRHY5q5Z+bcOfc393fPU7ff+947Z87M851nnmWeZ2aop6I4MKOo0fSDUQ9IYYugB6QHpDAOFDacXkJ6QArjQGHDmWQJWVnSXZKWlvS+pO/N505Jl08VTpMIyMKS9pF09gCmfyTpUkkXjBqYSQTkGkn7RzL6rUp69pT0YmT7oZtNGiAbS3q0BdeQlPskPdbi2aRHJg2QNySt4HDoJkkrSnpV0vbVVrVAgIPHSTo/ibstGk8SIKdKOsPh0SaeVb9pBdrtAWBWkfRaCz5HPzIpgOxsmGwz5jtJ8w/g1K6SbnV+/0XS3NHcbdFwUgD5WNLiDn+2lPRgA8+O8WxTb0vaoytFPwmAHCDpaofxZ0o6JXIBvylpeU9brC/0T1aaBEBekbSqxbUfJM2bwMU1Jb0QaL9LZRDckdBXY9PpDsglkg53uLCBpGcaOfP/Bnj1TwaAzCop0xkQn8/BamZVtyXf9kdf2SRlugJypKSLPFz3mbmp4IScyyySMh0BWS+wJR2WMWjYJCmAdlrl4/AX7x7/J8rLbwKElXaoiYiykv6QhP3+VWW5LCLpU0lfVBNdqDIP5zHf/S1pFkl/SZpd0kmj8HDNMl9C0gcdSYbbbUhSsOCWk4TvUxPmNWZ2IzUB8q2k+Rp7iWvwkwXUHMYH2C7u0ehW90ja1ml9iKQro3tIaxiSFF8vTbz+95mmRqz2rqkGitDGMLGizSU95Az26IAuyTmn2IBlE6+jAMkpIbFMIDyBBP1mHpizcuL+lHSvMT0vDnTkOnAfSloy9qVDtruwOtw6qqGPLICEdAh6ZEGjQ56rQtM4T+gQIqXoDXTIe5KWlQRDc1GIyQdLusJ5CWN6KdeLI/p5VtI6A9plASRiHI1NrpO0gwEKsH43EsC/U6k2GNznTjdWTf3955IWTe08Q/ubJe3m6SebUs8wxmAXNlCzJUiSb6VdZqzB+mWEyAmVj5oWk4TeYvv60ewaMyXdkMvsHeWEbIDmMnrDJ0U+QF43h0z1eIlfrT7Kwed6V9S+lutlif38arY2+zGUO9Jk075VaP1a5zssrkcS31dE81IBCYU+Xq6srTUcznFGjulZU+eHSF0iVyognDPs7kwcH2MLDzOel7SW9T2h8rW7ZFqXfZcISEg6QmN9x5jXY68/mEBpgBwo6SrPCjzIc+pHM7YvN2dq60pC7u9yFXfZd0mAkLxGEptLOFxEcH2Ev0GQc1roj5IkhND0Rh6O4+0vEwDDZ13tZPJ1u1zEnfZdgoSE4kCkcbpJbTYzppV1VU9sqgEJKfCzqrOXkxuW4rSyrkoAhFM0Qu42Eat6wvErQrjgk6xm/Ti23rk9wamSEB8YjIsSADdLJARILyEZtZnv4IuAXOisw/fqXkIyAUL43Y5HEZ86NhEMhuIqdSw1skrGmka5ZREK8aVepkpGzXAOn+yI7liHTEat1ENOX1swGP/1kva2xIH6DlvJj6WkjEJCQk4faTIUWLYlV6lTqEnu1VhT14CEnD7S+TnuHIZcpU511ErDdFjCs10CQqUrp4AuxTh9MbzZTNLDTsO9JN0Y83CpbboCxCcZKU5fLL9+lsRxb01jr9i7AAQwcO5mdbia4vTFAuKTEpxOslDGknIDAhhHmLwsmyFEZrGKuiBXSnhHlkz0Lgbb1GdOQGA6pWNuEsIwpm3T+Pl9fUlPexpmq9mIGUSuNrkA8UVt23rgbebmq7IdS0nJAcjdpuDeZuQowajfGwKFMxXOVsaChgEEqTjPs0Ux8f0CJm/XTPEV64yV5dUGEBIOSGwOPTusBz4saL7tk7N6EiiKp1RAmtLuj69uOji3gFn7LC+GRYEQZQ3FUgogtw2oYP3aZLg/VchMQ5YXw0NSfNktRQw9FhAyuLHtXaLG8MQMcakumOHL2arfU6zzGANIaJui7JjU+9IJ34haQJeKlJQmQAh3+ELaBPAI5E0FwchzJJ0QyGb0jclXf0g7TipHfo3fIKaFACHhjDujfL8PyiRMAaiuB6HkjQ/BR0qp+ct7+cuHUmxK5CCiAHbNSIpF51ZZ1WMlWx7AQtdtkFlf153X9eZRNecpzKjb+hg+yJJ6QNJWbV5kPYNZygWUdpS2bZdNd165/Q5S9qFQi3sySTUURwudkA8QNwmhfvG7pt47JTPEHjRAcJQ7KBsxdZKhJOxB/XARAiVwPvIFJX0ZMk1bfeo8/mvvduwrvEekCRC6d06FXgrjuYp1XVMmQLVumwLPpklRIcVW04a4/wrL0a4rqfth6+KmucdNdTH3MdrS3Gm5tQ3IhqYO3J5gqOrVZQK3J7C/co2Rew4yiGHoDG5oW8roB/QFH+rUQzqEa5J2NFd8tAHDfiakVwb1e4unmGjYcXglhPtLWM02cesad3cMIrI9Uite8aTx6N1LKbNNLKEjXxb9oMeR/i8T+k9qWksIDp6vrpvVWls+/IU+Mx/qMrgQklLgGKKWg1WPuTpsgkPM+1La4ERyrYddq+h7vvMzFgBhpXInbU5iBQEmk+R+9U9ydt5hXwCyjakxx5rEzGbnYEvFMvQlbWQdDoDkus+EMxAS10pb/VkZ1nVnuSSELY/r88YhlNI1T4fqv9YhJJlhCtb/Z6/HH+H/tadc65BvLL2BY4YvQCS4pwwc6MzByTC2ieyiB6Qw2HtAekAK40Bhw+klpAekMA4UNpxeQnpACuNAYcPpJaQHpDAOFDacXkJ6QArjQGHD6SWkMED+ASCCYGTOORTyAAAAAElFTkSuQmCC",
+          "recurringPaymentProfile": {
+            "description": null,
+            "id": 100698595,
+            "mask": "1131",
+            "memberId": 191015549,
+            "name": "MasterDebit-1131",
+            "paymentProfileType": "DEBIT_CARD",
+            "paymentSystem": null,
+            "token": "a9d9e9931488479f94826e477330ed27"
+          },
+          "renewType": 2,
+          "rewrite": false,
+          "rewriteTotal": null,
+          "rewritten": false,
+          "saleDate": "2025-05-20",
+          "salespersonId": 187032782,
+          "signature": "data:image/png;base64,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",
+          "signaturesWaived": false,
+          "startDate": "2025-05-20",
+          "trainerId": 187032782
+        }
+      },
+      "billing": {},
+      "package_name": "2025 Single Club Membership",
+      "status": "Current"
+    }
+  ],
+  "member_id": "191015549",
+  "success": true,
+  "total_agreements": 1
+}

@@ -9,7 +9,7 @@ import os
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 sys.path.insert(0, project_root)
 
-from services.api.calendar_api_service import ClubOSCalendarAPIService
+from src.services.api.calendar_api_service import ClubOSCalendarAPIService
 from config.secrets_local import get_secret
 
 def test_calendar_service():

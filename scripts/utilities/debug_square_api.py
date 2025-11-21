@@ -3,7 +3,7 @@
 Debug Square API to see what methods are available
 """
 
-from services.payments.square_client_fixed import get_square_client
+from src.services.payments.square_client_fixed import get_square_client
 from config.secrets_local import get_secret
 
 def debug_square_client():

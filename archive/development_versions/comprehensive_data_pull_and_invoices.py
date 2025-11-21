@@ -20,7 +20,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 def get_fresh_clubhub_headers():
     """Get fresh ClubHub authentication headers using stored tokens"""
     try:
-        from services.authentication.clubhub_token_capture import ClubHubTokenCapture
+        from src.services.authentication.clubhub_token_capture import ClubHubTokenCapture
         capture = ClubHubTokenCapture()
         
         # Load stored tokens

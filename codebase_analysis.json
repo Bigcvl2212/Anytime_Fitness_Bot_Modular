@@ -1,0 +1,185 @@
+{
+  "summary": {
+    "total_files": 84,
+    "total_size_bytes": 1690624,
+    "total_size_mb": 1.61,
+    "average_file_size": 20126.0
+  },
+  "file_categories": {
+    "backup_files": 9,
+    "test_files": 1,
+    "config_files": 9,
+    "service_files": 36,
+    "route_files": 13,
+    "main_modules": 4
+  },
+  "code_metrics": {
+    "total_functions": 702,
+    "total_classes": 44,
+    "unique_imports": 126
+  },
+  "potential_issues": {
+    "backup_files_count": 9,
+    "potential_duplicates": 42,
+    "potentially_unused": 39
+  },
+  "detailed_analysis": {
+    "backup_files": [
+      "gym_bot_clean.py",
+      "gym_bot_dashboard_fixed.py",
+      "config\\clubhub_credentials_clean.py",
+      "config\\clubos_credentials_clean.py",
+      "routes\\messaging_fixed.py",
+      "routes\\training_backup.py",
+      "routes\\training_clean.py",
+      "services\\clubos_messaging_client_backup.py",
+      "services\\clubos_messaging_client_clean.py"
+    ],
+    "potential_duplicates": [
+      {
+        "function": "authenticate",
+        "files": [
+          "clubos_fresh_data_api.py",
+          "clubos_real_calendar_api.py",
+          "clubos_training_api.py",
+          "clubos_training_clients_api.py",
+          "gym_bot_clean.py",
+          "services\\clubos_integration.py",
+          "services\\clubos_messaging_client.py",
+          "services\\clubos_messaging_client_simple.py",
+          "services\\api\\clubhub_api_client.py",
+          "services\\api\\clubos_calendar_client.py"
+        ]
+      },
+      {
+        "function": "get_member_payment_status",
+        "files": [
+          "clubos_fresh_data_api.py",
+          "clubos_training_api.py"
+        ]
+      },
+      {
+        "function": "get_source_page_token",
+        "files": [
+          "clubos_real_calendar_api.py",
+          "clubos_real_calendar_api.py",
+          "services\\api\\enhanced_clubos_client.py"
+        ]
+      },
+      {
+        "function": "get_fingerprint_token",
+        "files": [
+          "clubos_real_calendar_api.py",
+          "services\\api\\enhanced_clubos_client.py"
+        ]
+      },
+      {
+        "function": "add_attendee_to_event",
+        "files": [
+          "clubos_real_calendar_api.py",
+          "services\\api\\clubos_calendar_manager.py"
+        ]
+      },
+      {
+        "function": "remove_attendee_from_event",
+        "files": [
+          "clubos_real_calendar_api.py",
+          "services\\api\\clubos_calendar_manager.py"
+        ]
+      },
+      {
+        "function": "delegate_to_member",
+        "files": [
+          "clubos_training_api.py",
+          "services\\clubos_messaging_client_simple.py"
+        ]
+      },
+      {
+        "function": "get_member_package_agreements",
+        "files": [
+          "clubos_training_api.py",
+          "routes\\training.py",
+          "routes\\training_backup.py"
+        ]
+      },
+      {
+        "function": "get_training_clients",
+        "files": [
+          "clubos_training_clients_api.py",
+          "services\\clubos_integration.py"
+        ]
+      },
+      {
+        "function": "enhanced_startup_sync",
+        "files": [
+          "main_app.py",
+          "services\\multi_club_startup_sync.py"
+        ]
+      }
+    ],
+    "potentially_unused": [
+      "clean_dashboard.py",
+      "clubos_live_calendar.py",
+      "clubos_training_clients_api.py",
+      "fix_db_columns.py",
+      "gym_bot_clean.py",
+      "gym_bot_dashboard.py",
+      "gym_bot_dashboard_fixed.py",
+      "ical_calendar_parser.py",
+      "test_modular.py",
+      "config\\clubhub_credentials.py",
+      "config\\security_config.py",
+      "config\\ssl_config.py",
+      "routes\\api_routes.py",
+      "routes\\auth_simple.py",
+      "routes\\messaging_enhanced.py",
+      "routes\\messaging_fixed.py",
+      "routes\\training_backup.py",
+      "routes\\training_clean.py",
+      "services\\clubos_messaging_client_backup.py",
+      "services\\clubos_messaging_client_clean.py"
+    ],
+    "largest_files": [
+      [
+        "src\\clean_dashboard.py",
+        246043
+      ],
+      [
+        "src\\clubos_real_calendar_api.py",
+        98044
+      ],
+      [
+        "src\\services\\database_manager.py",
+        91971
+      ],
+      [
+        "src\\clubos_training_api.py",
+        88154
+      ],
+      [
+        "src\\services\\clubos_messaging_client_backup.py",
+        80416
+      ],
+      [
+        "src\\routes\\api.py",
+        79618
+      ],
+      [
+        "src\\routes\\training_backup.py",
+        69118
+      ],
+      [
+        "src\\services\\clubos_integration.py",
+        61674
+      ],
+      [
+        "src\\services\\authentication\\clubhub_token_capture.py",
+        53288
+      ],
+      [
+        "src\\services\\clubos_messaging_client.py",
+        52365
+      ]
+    ]
+  }
+}

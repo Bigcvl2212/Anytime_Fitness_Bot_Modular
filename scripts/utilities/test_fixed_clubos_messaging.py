@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from services.api.clubos_api_client import create_clubos_api_client
+from src.services.api.clubos_api_client import create_clubos_api_client
 from config.secrets_local import get_secret
 
 # Target member details

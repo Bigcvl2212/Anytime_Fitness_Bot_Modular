@@ -1,5 +1,5 @@
 from config.secrets_local import get_secret
-from services.api.clubos_api_client import ClubOSAPIClient
+from src.services.api.clubos_api_client import ClubOSAPIClient
 import re
 
 if __name__ == "__main__":

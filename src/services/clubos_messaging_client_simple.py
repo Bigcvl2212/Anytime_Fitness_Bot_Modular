@@ -57,7 +57,14 @@ class ClubOSMessagingClient:
         """Authenticate using the unified authentication service"""
         try:
             logger.info("Authenticating ClubOS Messaging Client Simple")
-            
+
+            # CRITICAL FIX: Invalidate any cached session to force fresh authentication
+            # This prevents Flask from reusing corrupted/invalid cached sessions
+            session_key = f"clubos_{self.username}"
+            if session_key in self.auth_service._sessions:
+                logger.info(f"🔄 Invalidating cached ClubOS session for {self.username} to force fresh auth")
+                del self.auth_service._sessions[session_key]
+
             # Use unified authentication service
             self.auth_session = self.auth_service.authenticate_clubos(self.username, self.password)
             
@@ -724,7 +731,7 @@ class ClubOSMessagingClient:
             if not self.authenticated:
                 if not self.authenticate():
                     logger.error("❌ Authentication failed before getting messages")
-                    return []
+                    return None  # Return None instead of [] to indicate auth failure
             
             logger.info(f"📨 Fetching ALL messages for owner {owner_id}...")
             
@@ -766,7 +773,14 @@ class ClubOSMessagingClient:
             
             logger.info(f"📡 Response status: {response.status_code}")
             logger.info(f"📏 Response length: {len(response.text) if response.text else 0}")
-            
+
+            # CRITICAL: Check for "Session Expired" in response (authentication failed)
+            if response.text and ('Session Expired' in response.text or 'session expired' in response.text.lower()):
+                logger.error(f"❌ Session expired - authentication failed")
+                logger.error(f"❌ ClubOS rejected credentials or session is invalid")
+                self.authenticated = False  # Mark as not authenticated
+                return None  # Return None to indicate auth failure
+
             if response.status_code == 200:
                 messages = self._parse_messages_from_html(response.text, owner_id)
                 logger.info(f"✅ Successfully parsed {len(messages)} messages from ClubOS")
@@ -776,11 +790,11 @@ class ClubOSMessagingClient:
                 logger.error(f"Response headers: {dict(response.headers)}")
                 if response.text:
                     logger.error(f"Response preview: {response.text[:500]}...")
-                return []
+                return None  # Return None for error cases
                 
         except Exception as e:
             logger.error(f"❌ Error getting messages: {e}")
-            return []
+            return None  # Return None for exceptions
     
     def _parse_messages_from_html(self, html_content: str, owner_id: str) -> List[Dict[str, Any]]:
         """Parse messages from ClubOS HTML response"""
@@ -816,9 +830,39 @@ class ClubOSMessagingClient:
                         span_tag = next_sibling.find('span')
                         if span_tag:
                             timestamp_text = span_tag.get_text(strip=True)
-                            # timestamp_text will be like "9:30 AM" or "Sep 4"
-                            timestamp_value = timestamp_text
-                    
+                            # timestamp_text will be like "9:30 AM" or "Sep 4" or "Oct 13"
+
+                            # CRITICAL FIX: Parse timestamp and add year for proper sorting
+                            try:
+                                current_year = datetime.now().year
+                                current_month = datetime.now().month
+
+                                # Check if it's a time only (e.g., "9:30 AM") - assume today
+                                if 'AM' in timestamp_text or 'PM' in timestamp_text or ':' in timestamp_text:
+                                    # Parse time and use today's date
+                                    time_obj = datetime.strptime(timestamp_text.strip(), '%I:%M %p')
+                                    dt_obj = datetime.now().replace(hour=time_obj.hour, minute=time_obj.minute, second=0, microsecond=0)
+                                    timestamp_value = dt_obj.isoformat()
+
+                                # Check if it's a date (e.g., "Oct 13" or "Sep 4")
+                                else:
+                                    # Try parsing "Oct 13" format
+                                    try:
+                                        dt_obj = datetime.strptime(f"{timestamp_text} {current_year}", '%b %d %Y')
+
+                                        # If the parsed date is in the future, it's probably from last year
+                                        if dt_obj.month > current_month + 1:
+                                            dt_obj = dt_obj.replace(year=current_year - 1)
+
+                                        timestamp_value = dt_obj.isoformat()
+                                    except ValueError:
+                                        # If parsing fails, use raw text
+                                        timestamp_value = timestamp_text
+
+                            except Exception as parse_err:
+                                logger.debug(f"⚠️ Could not parse timestamp '{timestamp_text}': {parse_err}")
+                                timestamp_value = timestamp_text
+
                     # If no timestamp found, use current time
                     if not timestamp_value:
                         timestamp_value = datetime.now().isoformat()

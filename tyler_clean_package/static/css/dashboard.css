@@ -1,0 +1,203 @@
+/* Dashboard Specific Styles */
+
+/* Card Titles */
+.dashboard-card-title {
+    color: var(--af-purple-primary);
+}
+
+/* Icon Circles */
+.dashboard-icon-circle {
+    background: var(--af-purple-light);
+}
+
+.dashboard-icon {
+    color: var(--af-purple-primary);
+}
+
+/* Section Headers */
+.dashboard-section-header {
+    background: var(--af-gray-50);
+}
+
+.dashboard-calendar-icon {
+    color: var(--af-purple-primary);
+}
+
+/* Session Rows */
+.session-row {
+    padding: 16px 20px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.session-row:hover {
+    background-color: var(--af-gray-25);
+}
+
+/* Column Headers */
+.dashboard-columns {
+    padding: 12px 20px;
+    background: var(--af-gray-25);
+}
+
+/* Column Widths */
+.col-time { width: 80px; }
+.col-client { flex: 1; }
+.col-type { width: 120px; }
+.col-funding { width: 160px; }
+.col-actions { width: 80px; }
+
+/* Inbox Messages */
+.inbox-message-item {
+    transition: all 0.15s ease;
+    border-radius: 8px;
+    margin-bottom: 2px;
+}
+
+.inbox-message-item:hover {
+    background-color: var(--af-gray-25) !important;
+    transform: translateX(2px);
+}
+
+.inbox-message-item .cursor-pointer {
+    cursor: pointer;
+}
+
+.inbox-avatar {
+    font-weight: 600;
+    background: var(--af-purple-primary) !important;
+}
+
+.inbox-messages {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.inbox-messages::-webkit-scrollbar {
+    width: 4px;
+}
+
+.inbox-messages::-webkit-scrollbar-track {
+    background: var(--af-gray-25);
+}
+
+.inbox-messages::-webkit-scrollbar-thumb {
+    background: var(--af-purple-primary);
+    border-radius: 2px;
+}
+
+/* Session Client Names */
+.session-client-name {
+    color: var(--af-purple-primary);
+}
+
+/* Session Stats */
+.session-stats-large {
+    font-size: 1.3em;
+    color: var(--af-purple-primary);
+}
+
+/* Empty States */
+.dashboard-empty-state {
+    background: var(--af-gray-50);
+    border-top: 1px solid var(--af-gray-200);
+}
+
+/* Message Section */
+.dashboard-message-header {
+    background: var(--af-gray-50);
+}
+
+.dashboard-message-icon {
+    color: var(--af-purple-primary);
+}
+
+/* Conversation Items */
+.conversation-item {
+    cursor: pointer;
+}
+
+.conversation-status-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--af-gray-300);
+}
+
+.conversation-unread {
+    background: var(--af-purple-primary) !important;
+}
+
+.conversation-read {
+    background: var(--af-gray-300) !important;
+}
+
+/* Modal Styles */
+.dashboard-modal-content {
+    border-radius: var(--border-radius-large);
+    border: none;
+}
+
+.dashboard-modal-header {
+    background: linear-gradient(135deg, var(--af-purple-primary) 0%, var(--af-purple-dark) 100%);
+    color: white;
+    border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;
+}
+
+/* Hidden Elements */
+.dashboard-hidden {
+    display: none;
+}
+
+/* Session row styling */
+.session-time-text {
+    font-size: 1.0em;
+}
+
+.session-title-text {
+    font-size: 1.2em;
+}
+
+.col-type {
+    width: 120px;
+}
+
+.col-funding {
+    width: 160px;
+}
+
+.col-actions {
+    width: 80px;
+}
+
+.quick-add-section {
+    background: var(--af-gray-50);
+    border-top: 1px solid var(--af-gray-200);
+}
+
+/* Bulk check-in progress styling */
+.bulk-progress-card {
+    border-left: 4px solid var(--af-purple-primary);
+}
+
+.bulk-progress-bar-container {
+    height: 20px;
+}
+
+.bulk-progress-bar-initial {
+    width: 0%;
+    background-color: var(--af-purple-primary);
+}
+
+.bulk-errors-container {
+    display: none;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .col-type, .col-funding { 
+        width: 100px; 
+    }
+    .col-actions { 
+        width: 60px; 
+    }
+}

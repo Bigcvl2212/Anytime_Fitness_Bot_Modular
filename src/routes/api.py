@@ -318,6 +318,49 @@ def api_member_past_due_status():
         logger.error(f"❌ Error getting training client past due status: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@api_bp.route('/members/by-category/<category>', methods=['GET'])
+def api_get_members_by_category(category):
+    """Get members filtered by category for campaign messaging"""
+    try:
+        logger.info(f"📋 Fetching members for category: {category}")
+
+        # Validate category
+        valid_categories = ['green', 'past_due', 'yellow', 'comp', 'ppv', 'staff', 'inactive', 'all']
+        if category not in valid_categories:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid category: {category}. Valid categories: {", ".join(valid_categories)}'
+            }), 400
+
+        # Get members from database using the existing method
+        if category == 'all':
+            # Get all members across all categories
+            members = []
+            for cat in ['green', 'past_due', 'comp', 'ppv', 'staff', 'inactive']:
+                try:
+                    cat_members = current_app.db_manager.get_members_by_category(cat)
+                    members.extend(cat_members)
+                except Exception as e:
+                    logger.warning(f"Failed to get {cat} members: {e}")
+        else:
+            members = current_app.db_manager.get_members_by_category(category)
+
+        logger.info(f"✅ Found {len(members)} members in category '{category}'")
+
+        return jsonify({
+            'success': True,
+            'category': category,
+            'count': len(members),
+            'members': members
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Error getting members by category '{category}': {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @api_bp.route('/bulk-checkin', methods=['POST'])
 def api_bulk_checkin():
     """Start bulk check-in process."""

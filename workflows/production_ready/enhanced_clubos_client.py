@@ -13,7 +13,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from services.api.clubos_api_client import ClubOSAPIClient, ClubOSAPIAuthentication
+from src.services.api.clubos_api_client import ClubOSAPIClient, ClubOSAPIAuthentication
 from config.constants import (
     CLUBOS_DASHBOARD_URL, 
     CLUBOS_MESSAGES_URL,

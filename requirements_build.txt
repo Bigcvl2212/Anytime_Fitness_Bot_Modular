@@ -1,0 +1,17 @@
+# Build Dependencies for Gym Bot Packaging
+# Install these in addition to requirements.txt when building installers
+# Usage: pip install -r requirements.txt -r requirements_build.txt
+
+# PyInstaller for creating executables
+pyinstaller>=5.0.0
+
+# Additional packaging tools
+setuptools>=60.0.0
+wheel>=0.37.0
+
+# For Windows builds:
+# - Inno Setup 6 must be installed separately from https://jrsoftware.org/isdl.php
+
+# For macOS builds:
+# - create-dmg (install via Homebrew: brew install create-dmg)
+# - Xcode Command Line Tools (install via: xcode-select --install)

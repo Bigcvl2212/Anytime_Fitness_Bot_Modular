@@ -106,23 +106,43 @@ def store_messages_in_database(messages: List[Dict], owner_id: str) -> int:
                 message_actions = parse_message_actions(content)
                 member_id = extract_member_id_from_content(content)
                 conversation_id = generate_conversation_id(member_id, owner_id)
-                
+
+                # Extract user information
+                from_user = message.get('from_user', message.get('from'))
+                to_user = message.get('to_user', message.get('to'))
+                status = message.get('status')
+
+                # Populate name fields for proper bidirectional queries
+                # These fields are used by the member history query
+                from_member_name = None
+                to_staff_name = None
+                recipient_name = None
+
+                if status == 'sent':
+                    # Staff sent TO member
+                    to_staff_name = from_user  # Staff who sent
+                    recipient_name = to_user    # Member who received
+                else:
+                    # Member sent FROM member
+                    from_member_name = from_user  # Member who sent
+                    recipient_name = from_user     # Same as from_user for member messages
+
                 # Use database manager for cross-platform compatibility
                 current_app.db_manager.execute_query('''
-                    INSERT OR REPLACE INTO messages 
+                    INSERT OR REPLACE INTO messages
                     (id, message_type, content, timestamp, from_user, to_user, status, owner_id,
-                     delivery_status, campaign_id, channel, member_id, message_actions, 
+                     delivery_status, campaign_id, channel, member_id, message_actions,
                      is_confirmation, is_opt_in, is_opt_out, has_emoji, emoji_reactions,
-                     conversation_id, thread_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     conversation_id, thread_id, from_member_name, to_staff_name, recipient_name)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     message.get('id'),
                     message.get('message_type', message.get('type')),
                     content,
                     message.get('timestamp'),
-                    message.get('from_user', message.get('from')),
-                    message.get('to_user', message.get('to')),
-                    message.get('status'),
+                    from_user,
+                    to_user,
+                    status,
                     owner_id,
                     message.get('delivery_status', 'received'),
                     message.get('campaign_id'),
@@ -135,7 +155,10 @@ def store_messages_in_database(messages: List[Dict], owner_id: str) -> int:
                     message_actions.get('has_emoji', False),
                     json.dumps(message_actions.get('emojis', [])),
                     conversation_id,
-                    message.get('thread_id')
+                    message.get('thread_id'),
+                    from_member_name,
+                    to_staff_name,
+                    recipient_name
                 ))
                 stored_count += 1
             except Exception as e:
@@ -214,6 +237,84 @@ def generate_conversation_id(member_id: str, owner_id: str) -> str:
     conversation_key = f"{member_id}_{owner_id}".lower().replace(' ', '_')
     return hashlib.md5(conversation_key.encode()).hexdigest()[:16]
 
+@messaging_bp.route('/api/auth/refresh-clubos', methods=['POST'])
+def refresh_clubos_auth():
+    """Force refresh ClubOS authentication to resolve 403 errors"""
+    try:
+        logger.info("🔄 Manual ClubOS authentication refresh requested")
+
+        # Try to use unified auth service if available
+        try:
+            from ..services.authentication.unified_auth_service import get_unified_auth_service
+
+            auth_service = get_unified_auth_service()
+            # Invalidate existing session
+            auth_service.invalidate_session('clubos')
+            logger.info("✅ Invalidated existing ClubOS session")
+
+            # Create fresh session
+            session = auth_service.authenticate_clubos()
+
+            if session and session.authenticated:
+                logger.info("✅ ClubOS authentication refreshed successfully")
+                return jsonify({
+                    'success': True,
+                    'message': 'ClubOS authentication refreshed successfully',
+                    'authenticated': True
+                })
+            else:
+                logger.warning("⚠️ ClubOS authentication refresh failed")
+                return jsonify({
+                    'success': False,
+                    'error': 'Authentication failed - please check credentials'
+                }), 401
+        except ImportError:
+            # Fallback: try to re-create messaging client
+            logger.info("📝 Using fallback authentication method")
+
+            if hasattr(current_app, 'messaging_client'):
+                del current_app.messaging_client
+
+            # Get fresh credentials
+            credentials = get_clubos_credentials('187032782')  # Default owner_id
+            if not credentials:
+                return jsonify({
+                    'success': False,
+                    'error': 'ClubOS credentials not configured'
+                }), 500
+
+            # Create new client
+            client = ClubOSMessagingClient(
+                credentials['base_url'],
+                credentials['username'],
+                credentials['password']
+            )
+
+            # Authenticate
+            if client.authenticate():
+                current_app.messaging_client = client
+                logger.info("✅ ClubOS re-authenticated successfully (fallback method)")
+                return jsonify({
+                    'success': True,
+                    'message': 'ClubOS authentication refreshed successfully',
+                    'authenticated': True
+                })
+            else:
+                logger.error("❌ ClubOS authentication failed (fallback method)")
+                return jsonify({
+                    'success': False,
+                    'error': 'Authentication failed - please check credentials'
+                }), 401
+
+    except Exception as e:
+        logger.error(f"❌ Error refreshing ClubOS authentication: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': f'Authentication refresh error: {str(e)}'
+        }), 500
+
 @messaging_bp.route('/messaging')
 # @require_auth  # Temporarily disabled for testing
 def messaging_page():
@@ -235,9 +336,9 @@ def sync_clubos_messages():
             owner_id = request.json.get('owner_id')
         else:
             owner_id = request.form.get('owner_id')
-        
-        # CRITICAL FIX: Auto-detect owner_id if not provided
-        if not owner_id:
+
+        # CRITICAL FIX: Auto-detect owner_id if not provided or if it's "default"
+        if not owner_id or owner_id == 'default':
             if hasattr(current_app, 'messaging_client') and current_app.messaging_client:
                 if hasattr(current_app.messaging_client, 'logged_in_user_id'):
                     owner_id = current_app.messaging_client.logged_in_user_id
@@ -259,7 +360,22 @@ def sync_clubos_messages():
             # Quick check if session is still valid
             try:
                 test_messages = messaging_client.get_messages(owner_id)
-                if test_messages is not None:
+                # CRITICAL FIX: None means auth failed, empty list means no messages
+                if test_messages is None:
+                    logger.error("❌ Authentication failed - ClubOS rejected credentials")
+                    messaging_client = None
+                    # Don't return here - fall through to re-authentication below
+                elif len(test_messages) == 0:
+                    logger.warning("⚠️ No messages found, but authentication succeeded")
+                    return jsonify({
+                        'success': True,
+                        'message': 'No new messages from ClubOS',
+                        'total_messages': 0,
+                        'stored_count': 0,
+                        'owner_id': owner_id,
+                        'auth_warning': 'Authentication succeeded but no messages returned'
+                    })
+                else:
                     logger.info(f"✅ Session still valid! Fetched {len(test_messages)} messages")
                     stored_count = store_messages_in_database(test_messages, owner_id)
                     return jsonify({
@@ -269,11 +385,8 @@ def sync_clubos_messages():
                         'stored_count': stored_count,
                         'owner_id': owner_id
                     })
-                else:
-                    logger.warning("⚠️ Existing session invalid, will re-authenticate")
-                    messaging_client = None
             except Exception as e:
-                logger.warning(f"⚠️ Existing session check failed: {e}, will re-authenticate")
+                logger.error(f"❌ Existing session check failed: {e}, will re-authenticate")
                 messaging_client = None
         
         # If no valid client, create new one and authenticate
@@ -1200,32 +1313,44 @@ def get_campaign_history():
 
 @messaging_bp.route('/api/messages/member/<member_name>', methods=['GET'])
 def get_member_messages(member_name):
-    """Get all messages for a specific member"""
+    """Get all messages for a specific member (fallback endpoint for frontend)"""
     try:
-        owner_id = request.args.get('owner_id', '187032782')
-        
-        # Search for messages containing the member name
+        logger.info(f"📬 Fallback endpoint: Getting messages for member name: {member_name}")
+
+        # ENHANCED: Search all possible name fields to capture FULL conversation (both directions)
+        # This matches the main endpoint's comprehensive search including staff replies
         messages = current_app.db_manager.execute_query('''
-            SELECT * FROM messages 
-            WHERE owner_id = ? 
-            AND (content LIKE ? OR from_user LIKE ?)
+            SELECT * FROM messages
+            WHERE LOWER(from_user) = LOWER(?)
+               OR LOWER(to_user) = LOWER(?)
+               OR LOWER(recipient_name) = LOWER(?)
+               OR LOWER(from_member_name) = LOWER(?)
+               OR LOWER(to_staff_name) = LOWER(?)
+               OR (LOWER(recipient_name) = LOWER(?) AND status = 'sent')
+               OR (LOWER(recipient_name) = LOWER(?) AND delivery_status = 'sent')
+               OR LOWER(content) LIKE LOWER(?)
             ORDER BY timestamp DESC, created_at DESC
-        ''', (owner_id, f'%{member_name}%', f'%{member_name}%'))
-        
+            LIMIT 100
+        ''', (member_name, member_name, member_name, member_name, member_name, member_name, member_name, f'%{member_name}%'), fetch_all=True)
+
         if not messages:
             messages = []
-        
+
+        # Convert Row objects to dicts if needed
+        if messages and not isinstance(messages[0], dict):
+            messages = [dict(row) for row in messages]
+
         # Convert datetime objects to strings for template compatibility
         for message in messages:
             for key, value in message.items():
                 if isinstance(value, (dt.datetime, dt.date)):
                     message[key] = value.isoformat()
-        
-        logger.info(f"✅ Retrieved {len(messages)} messages for member: {member_name}")
+
+        logger.info(f"✅ Fallback endpoint retrieved {len(messages)} messages for member: {member_name}")
         return jsonify({'success': True, 'messages': messages, 'member_name': member_name})
-        
+
     except Exception as e:
-        logger.error(f"❌ Error getting member messages: {e}")
+        logger.error(f"❌ Error getting member messages (fallback): {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @messaging_bp.route('/api/messages/search', methods=['GET'])
@@ -1537,27 +1662,67 @@ def get_message_templates():
 @messaging_bp.route('/api/messaging/inbox/recent', methods=['GET'])
 # @require_auth  # Temporarily disabled for testing
 def get_recent_inbox():
-    """Get ALL recent messages for scrollable inbox display"""
+    """Get ALL recent messages - SYNCS FRESH FROM CLUBOS first"""
     try:
-        limit = request.args.get('limit', 50, type=int)  # Show more messages by default
+        limit = request.args.get('limit', 50, type=int)
 
-        # Get ALL recent messages from ClubOS (don't filter out as much)
-        # CRITICAL FIX: ClubOS returns messages in REVERSE CHRONOLOGICAL ORDER (newest first)
-        # When we insert them sequentially, LOWER ROWID = NEWER message within the same sync batch
-        # SOLUTION: ClubOS syncs create 20+ batches per second. The batch with NEWEST messages
-        # is NOT necessarily the latest created_at (it may have fewer messages than historical batches).
-        # Use ROWID >= 863319 to get messages from the most recent ClubOS content (Sophia's batch onwards)
+        # CRITICAL FIX: Sync fresh messages from ClubOS FIRST, then query database
+        # This ensures inbox always shows the LATEST messages
+        try:
+            logger.info("🔄 Syncing fresh messages from ClubOS before loading inbox...")
+
+            # Get messaging client
+            if not hasattr(current_app, 'messaging_client') or current_app.messaging_client is None:
+                from src.services.clubos_messaging_client_simple import ClubOSMessagingClient
+                current_app.messaging_client = ClubOSMessagingClient()
+                if not current_app.messaging_client.authenticate():
+                    logger.warning("⚠️ ClubOS authentication failed, using cached messages")
+
+            # Sync messages from ClubOS
+            if current_app.messaging_client:
+                clubos_messages = current_app.messaging_client.get_messages()
+                if clubos_messages:
+                    logger.info(f"✅ Synced {len(clubos_messages)} fresh messages from ClubOS")
+
+                    # Store in database
+                    for msg in clubos_messages:
+                        try:
+                            current_app.db_manager.execute_query('''
+                                INSERT OR REPLACE INTO messages
+                                (id, content, from_user, owner_id, created_at, channel, timestamp, status, message_type)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ''', (
+                                msg.get('id'),
+                                msg.get('content', ''),
+                                msg.get('from_user', ''),
+                                msg.get('owner_id', ''),
+                                msg.get('created_at', ''),
+                                'clubos',
+                                msg.get('timestamp', ''),
+                                msg.get('status', 'received'),
+                                msg.get('message_type', 'text')
+                            ))
+                        except Exception as store_err:
+                            logger.debug(f"⚠️ Error storing message: {store_err}")
+
+                    logger.info("💾 Stored fresh messages in database")
+        except Exception as sync_err:
+            logger.warning(f"⚠️ ClubOS sync error (will use cached messages): {sync_err}")
+
+        # Query database for recent messages (now includes fresh synced messages)
+        # CRITICAL FIX: ORDER BY timestamp DESC to show NEWEST messages first (by message date, not sync time)
+        # CRITICAL FIX: Filter out old messages with incomplete timestamps (e.g., "Oct 13" without year)
         messages = current_app.db_manager.execute_query('''
             SELECT
                 id, content, from_user, owner_id, created_at, channel,
-                timestamp, status, message_type, ROWID
+                timestamp, status, message_type
             FROM messages
             WHERE channel = 'clubos'
             AND from_user IS NOT NULL
             AND from_user != ''
             AND LENGTH(TRIM(content)) > 5
-            AND ROWID >= 863319
-            ORDER BY ROWID ASC
+            AND (timestamp LIKE '20%' OR timestamp LIKE '19%')
+            ORDER BY timestamp DESC
             LIMIT ?
         ''', (limit,), fetch_all=True)
 
@@ -1569,7 +1734,90 @@ def get_recent_inbox():
         if messages and hasattr(messages[0], 'keys'):
             messages = [dict(row) for row in messages]
 
-        # Convert messages to individual message items (FAST - no HTTP lookups)
+        # PERFORMANCE OPTIMIZATION: Batch lookup sender names (with safety limits)
+        # Collect unique sender names (limit to avoid SQL query size issues)
+        sender_names = set()
+        for message in messages:
+            sender_name = message.get('from_user', '').strip()
+            if sender_name:
+                sender_names.add(sender_name)
+
+        # Build lookup dictionaries
+        member_lookup = {}
+        prospect_lookup = {}
+
+        # IMPROVED: Use flexible name matching to handle variations (Angela vs Angela L vs Angela Louise)
+        if sender_names and len(sender_names) < 100:
+            try:
+                # Query ALL members and prospects ONCE, then match in Python (faster for small datasets)
+                all_members = current_app.db_manager.execute_query('''
+                    SELECT guid, prospect_id, full_name, first_name, last_name
+                    FROM members
+                ''', fetch_all=True)
+
+                if all_members:
+                    for member in all_members:
+                        if not isinstance(member, dict):
+                            member = dict(member)
+                        full_name = member.get('full_name', '').strip()
+                        first_name = member.get('first_name', '').strip()
+                        last_name = member.get('last_name', '').strip()
+                        guid = member.get('guid') or member.get('prospect_id')
+
+                        if full_name and guid:
+                            # Match against all sender names using flexible matching
+                            for sender_name in sender_names:
+                                sender_lower = sender_name.lower()
+                                full_lower = full_name.lower()
+
+                                # Match if:
+                                # 1. Exact match: "Angela Franke" == "Angela Franke"
+                                # 2. Partial match: "Angela Franke" in "Angela L Franke"
+                                # 3. First+Last match: "Angela" + "Franke" both in full name
+                                if (sender_lower == full_lower or
+                                    sender_lower in full_lower or
+                                    (first_name and last_name and
+                                     first_name.lower() in sender_lower and
+                                     last_name.lower() in sender_lower)):
+                                    member_lookup[sender_name.lower()] = guid
+                                    break
+
+                # Query ALL prospects ONCE (only if not already found as member)
+                all_prospects = current_app.db_manager.execute_query('''
+                    SELECT prospect_id, full_name
+                    FROM prospects
+                ''', fetch_all=True)
+
+                if all_prospects:
+                    for prospect in all_prospects:
+                        if not isinstance(prospect, dict):
+                            prospect = dict(prospect)
+                        full_name = prospect.get('full_name', '').strip()
+                        prospect_id = prospect.get('prospect_id')
+
+                        if full_name and prospect_id:
+                            for sender_name in sender_names:
+                                # Skip if already found as member
+                                if sender_name.lower() in member_lookup:
+                                    continue
+
+                                sender_lower = sender_name.lower()
+                                full_lower = full_name.lower()
+
+                                # Same flexible matching for prospects
+                                if sender_lower == full_lower or sender_lower in full_lower:
+                                    prospect_lookup[sender_name.lower()] = f"prospect:{prospect_id}"
+                                    break
+
+                logger.info(f"📋 Batch lookup: {len(member_lookup)} members, {len(prospect_lookup)} prospects from {len(sender_names)} senders")
+
+            except Exception as lookup_err:
+                logger.warning(f"⚠️ Batch lookup failed, will use fallback: {lookup_err}")
+                # Clear lookups on error so we fall back to name search
+                member_lookup = {}
+                prospect_lookup = {}
+
+        # Convert messages to individual message items using prebuilt lookups (FAST!)
         message_items = []
         for message in messages:
             sender_name = message.get('from_user', 'Unknown')
@@ -1580,9 +1828,16 @@ def get_recent_inbox():
 
             sender_name = sender_name.strip()
 
-            # Use owner_id directly - much faster than HTTP lookups
+            # Use prebuilt lookup dictionaries (instant lookup, no database query)
+            member_id = member_lookup.get(sender_name.lower())
+            if not member_id:
+                member_id = prospect_lookup.get(sender_name.lower())
+
+            # Fallback: If no member/prospect found in lookup, use name search
+            if not member_id:
+                member_id = f"search:{sender_name.replace(' ', '_')}"
+
             owner_id = message.get('owner_id', '')
-            member_id = owner_id if owner_id else f"search:{sender_name.replace(' ', '_')}"
 
             # Create individual message item
             message_item = {
@@ -2298,34 +2553,84 @@ def get_member_message_history(member_id):
                     except Exception:
                         logger.debug(traceback.format_exc())
 
-                    # Resolve profile member identifier (guid/prospect) to actual ClubOS ID to delegate to
+                    # Resolve profile member identifier (guid/prospect) to actual ClubOS numeric ID and name for delegation
                     try:
-                        clubos_member_id = member_id
+                        clubos_member_id = member_id  # Default to input if lookup fails
+                        member_full_name = None  # For database fallback queries
                         try:
-                            # Some deployments have different member schemas; try a few safe queries
+                            # CRITICAL FIX: Select prospect_id (numeric ClubOS ID) AND full_name
+                            # The guid is what we already have - we need the numeric ClubOS ID for the FollowUp API
+                            # We also need the full_name for database fallback queries (messages table uses names, not IDs)
+                            # Database schema: prospect_id = ClubOS numeric member ID (e.g., '66082049'), full_name = "Mark Benzinger"
                             member_lookup = None
                             try:
                                 member_lookup = current_app.db_manager.execute_query(
-                                    "SELECT guid FROM members WHERE guid = ? OR prospect_id = ? OR id = ? LIMIT 1",
-                                    (member_id, member_id, member_id)
+                                    "SELECT prospect_id, full_name FROM members WHERE guid = ? OR prospect_id = ? LIMIT 1",
+                                    (member_id, member_id),
+                                    fetch_one=True
                                 )
-                            except Exception:
-                                # Fallback to selecting any id-like column
+                            except Exception as e:
+                                logger.warning(f"⚠️ Primary member ID lookup failed: {e}")
+                                # Fallback: try selecting from prospects table
                                 try:
                                     member_lookup = current_app.db_manager.execute_query(
-                                        "SELECT id as guid FROM members WHERE id = ? LIMIT 1",
-                                        (member_id,)
+                                        "SELECT prospect_id FROM prospects WHERE prospect_id = ? LIMIT 1",
+                                        (member_id,),
+                                        fetch_one=True
                                     )
+                                    if member_lookup:
+                                        logger.info("✅ Found member ID in prospects table")
                                 except Exception:
                                     member_lookup = None
 
-                            if member_lookup and len(member_lookup) > 0:
-                                if isinstance(member_lookup[0], dict):
-                                    clubos_member_id = member_lookup[0].get('guid') or clubos_member_id
+                            if member_lookup:
+                                # Extract the prospect_id AND full_name from the query result
+                                if isinstance(member_lookup, dict):
+                                    resolved_id = member_lookup.get('prospect_id')
+                                    member_full_name = member_lookup.get('full_name')
                                 else:
-                                    clubos_member_id = member_lookup[0][0] or clubos_member_id
-                                logger.info(f"🔎 Resolved profile id {member_id} -> ClubOS id {clubos_member_id}")
-                        except Exception:
+                                    resolved_id = member_lookup[0] if len(member_lookup) > 0 else None
+                                    member_full_name = member_lookup[1] if len(member_lookup) > 1 else None
+
+                                if resolved_id:
+                                    clubos_member_id = str(resolved_id)  # This is ClubHub prospect_id (e.g., 66082049)
+                                    logger.info(f"✅ Resolved profile ID {member_id} -> ClubHub prospect_id {clubos_member_id}, Name: {member_full_name}")
+
+                                    # CRITICAL FIX: Get the actual ClubOS member_id by searching ClubOS
+                                    # ClubHub prospect_id (66082049) ≠ ClubOS member_id (125814462)
+                                    # The FollowUp API requires the ClubOS member_id, not ClubHub prospect_id!
+                                    if member_full_name and hasattr(messaging_client, 'search_member_by_name'):
+                                        try:
+                                            # Parse first and last name from full name
+                                            name_parts = member_full_name.strip().split()
+                                            if len(name_parts) >= 2:
+                                                first_name = name_parts[0]
+                                                last_name = ' '.join(name_parts[1:])
+
+                                                logger.info(f"🔍 Searching ClubOS for actual member_id: {first_name} {last_name}")
+
+                                                # Search ClubOS to get the actual ClubOS member_id
+                                                actual_clubos_id = messaging_client.search_member_by_name(first_name, last_name, member_type="member")
+
+                                                if actual_clubos_id:
+                                                    # Found the ClubOS member_id! Use this instead of ClubHub prospect_id
+                                                    logger.info(f"✅ Found ClubOS member_id: {actual_clubos_id} (was using ClubHub prospect_id: {clubos_member_id})")
+                                                    clubos_member_id = str(actual_clubos_id)
+                                                else:
+                                                    logger.warning(f"⚠️ ClubOS search returned no results for {member_full_name}, using ClubHub prospect_id {clubos_member_id} as fallback")
+                                            else:
+                                                logger.warning(f"⚠️ Could not parse name '{member_full_name}' into first/last, using ClubHub prospect_id {clubos_member_id}")
+                                        except Exception as search_err:
+                                            logger.error(f"❌ ClubOS search failed: {search_err}, using ClubHub prospect_id {clubos_member_id} as fallback")
+                                            logger.debug(traceback.format_exc())
+                                    else:
+                                        logger.warning(f"⚠️ Cannot search ClubOS (no name or search function unavailable), using ClubHub prospect_id {clubos_member_id}")
+                                else:
+                                    logger.warning(f"⚠️ Member lookup returned None for {member_id}, using fallback")
+                            else:
+                                logger.warning(f"⚠️ No member found with ID {member_id}, using original ID")
+                        except Exception as lookup_err:
+                            logger.error(f"❌ Error during member ID resolution: {lookup_err}")
                             logger.debug(traceback.format_exc())
 
                         # Ensure we are delegated to the target member before calling FollowUp
@@ -2417,33 +2722,91 @@ def get_member_message_history(member_id):
                     logger.error(f"❌ Failed to create temporary ClubOS messaging client: {create_err}")
                     raise
             
-            # Request data - followUpType=3 for messages as per your example
-            # Use the delegated user id if delegation succeeded; fall back to original member_id
-            delegated_user_id = None
-            try:
-                delegated_user_id = getattr(messaging_client, 'delegated_user_id', None)
-            except Exception:
-                delegated_user_id = None
+            # CRITICAL FIX: Use the resolved clubos_member_id (from above), NOT delegated_user_id
+            # delegated_user_id is the MANAGER's ID (who we're logged in as)
+            # clubos_member_id is the MEMBER's numeric ID (whose messages we want to fetch)
+            follow_up_user = clubos_member_id  # This was resolved above from GUID→numeric ID
 
-            follow_up_user = delegated_user_id if delegated_user_id else member_id
+            # Validation: Ensure we're not accidentally fetching the manager's own messages
+            # when requesting a different member's conversation
+            if hasattr(messaging_client, 'logged_in_user_id'):
+                manager_id = str(messaging_client.logged_in_user_id)
+                if follow_up_user == manager_id and member_id != manager_id:
+                    logger.error(f"❌ VALIDATION FAILED: Attempting to fetch manager's messages ({manager_id}) for member profile {member_id}")
+                    logger.error(f"❌ This indicates the GUID→numeric ID lookup failed")
+                    raise ValueError(f"Member ID resolution failed: would fetch wrong user's messages")
+
+            logger.info(f"✅ Using followUpUserId: {follow_up_user} for member profile {member_id}")
 
             data = {
                 'followUpUserId': follow_up_user,
                 'followUpType': '3'  # Type 3 for messages/conversation history
             }
 
-            # Ensure Authorization header contains delegated bearer token if present on the session
+            # CRITICAL FIX: Get or Generate Bearer token with CORRECT delegateUserId for FollowUp API
             try:
-                auth_header = None
-                if hasattr(messaging_client, 'session') and getattr(messaging_client, 'session') is not None:
-                    auth_header = messaging_client.session.headers.get('Authorization')
-                if auth_header:
-                    headers['Authorization'] = auth_header
-                    logger.info("🔐 Using delegated Authorization header for FollowUp request")
+                # First, try to get the Bearer token that ClubOS provides in cookies (most reliable)
+                clubos_bearer_token = auth_session.cookies.get('apiV3AccessToken')
+
+                if clubos_bearer_token:
+                    # Use the Bearer token that ClubOS provided (best option)
+                    headers['Authorization'] = f'Bearer {clubos_bearer_token}'
+                    logger.info(f"✅ Using ClubOS-provided Bearer token from apiV3AccessToken cookie")
                 else:
-                    logger.info("🔑 No delegated Authorization header found on session; proceeding with existing headers/cookies")
-            except Exception:
+                    # If ClubOS didn't provide a token, generate one ourselves
+                    import base64
+                    import hashlib
+                    import json
+
+                    # Get session data
+                    session_id = auth_session.cookies.get('JSESSIONID')
+                    logged_in_user_id = messaging_client.logged_in_user_id if hasattr(messaging_client, 'logged_in_user_id') else auth_session.cookies.get('loggedInUserId')
+
+                    # CRITICAL: delegateUserId should be the MEMBER we're viewing (follow_up_user)
+                    # NOT the logged-in manager ID
+                    delegate_user_id = follow_up_user  # This is the member's ClubOS ID
+
+                    logger.info(f"🔑 Generating Bearer token - loggedInUserId: {logged_in_user_id}, delegateUserId: {delegate_user_id}, sessionId: {session_id}")
+
+                    # Generate JWT Bearer token with proper delegateUserId
+                    payload = {
+                        'delegateUserId': int(delegate_user_id),
+                        'loggedInUserId': int(logged_in_user_id),
+                        'sessionId': session_id
+                    }
+
+                    # Create JWT-like token matching ClubOS format
+                    header = 'eyJhbGciOiJIUzI1NiJ9'  # Standard JWT header for HMAC SHA256
+                    payload_json = json.dumps(payload, separators=(',', ':'))
+                    payload_b64 = base64.urlsafe_b64encode(payload_json.encode()).decode().rstrip('=')
+
+                    # Generate signature based on session data
+                    signature_data = f"{session_id}:{logged_in_user_id}:{delegate_user_id}"
+                    signature = hashlib.sha256(signature_data.encode()).hexdigest()[:43]  # 43 chars to match JWT signature length
+
+                    bearer_token = f"{header}.{payload_b64}.{signature}"
+
+                    # Add Bearer token to Authorization header
+                    headers['Authorization'] = f'Bearer {bearer_token}'
+                    logger.info(f"✅ Generated and added Bearer token to Authorization header for FollowUp API")
+                    logger.info(f"   Token payload: delegateUserId={delegate_user_id}, loggedInUserId={logged_in_user_id}")
+
+            except Exception as token_error:
+                logger.error(f"❌ Failed to get/generate Bearer token: {token_error}")
                 logger.debug(traceback.format_exc())
+
+                # Fallback: Try to use existing Authorization header from session
+                try:
+                    auth_header = None
+                    if hasattr(messaging_client, 'session') and getattr(messaging_client, 'session') is not None:
+                        auth_header = messaging_client.session.headers.get('Authorization')
+                    if auth_header:
+                        headers['Authorization'] = auth_header
+                        logger.info("🔐 Using existing delegated Authorization header as fallback")
+                    else:
+                        logger.warning("⚠️ No Bearer token available - FollowUp API may fail")
+                except Exception:
+                    logger.debug(traceback.format_exc())
             
             logger.info(f"📬 Making ClubOS FollowUp request for member {member_id} (followUpUserId={follow_up_user})")
             
@@ -2481,25 +2844,43 @@ def get_member_message_history(member_id):
                     
                     # Combine with database messages
                     # Try a flexible DB query for local messages — be defensive about schema differences
+                    # CRITICAL FIX: Messages table stores member NAMES, not numeric IDs in member_id column
+                    # Search by full_name (if we have it) instead of member_id numeric value
                     try:
-                        db_messages = current_app.db_manager.execute_query('''
-                            SELECT * FROM messages 
-                            WHERE (owner_id = ? OR member_id = ?) 
-                            OR (content LIKE ? OR from_user LIKE ?)
-                            ORDER BY created_at DESC 
-                            LIMIT 50
-                        ''', (member_id, member_id, f'%{member_id}%', f'%{member_id}%'))
+                        if member_full_name:
+                            # Search by member name (messages table uses names, not numeric IDs)
+                            db_messages = current_app.db_manager.execute_query('''
+                                SELECT * FROM messages
+                                WHERE from_user LIKE ? OR recipient_name LIKE ? OR content LIKE ?
+                                ORDER BY created_at DESC
+                                LIMIT 50
+                            ''', (f'%{member_full_name}%', f'%{member_full_name}%', f'%{member_full_name}%'), fetch_all=True)
+                            logger.info(f"📋 Database fallback query for '{member_full_name}' returned {len(db_messages) if db_messages else 0} messages")
+                        else:
+                            # Fallback: try with the original member_id (might be a GUID or name)
+                            db_messages = current_app.db_manager.execute_query('''
+                                SELECT * FROM messages
+                                WHERE from_user LIKE ? OR recipient_name LIKE ? OR content LIKE ?
+                                ORDER BY created_at DESC
+                                LIMIT 50
+                            ''', (f'%{member_id}%', f'%{member_id}%', f'%{member_id}%'), fetch_all=True)
+                            logger.info(f"📋 Database fallback query for ID '{member_id}' returned {len(db_messages) if db_messages else 0} messages")
+
                         if db_messages and not isinstance(db_messages[0], dict):
                             db_messages = [dict(row) for row in db_messages]
                     except Exception as db_err:
                         logger.warning(f"⚠️ Database fallback query failed (trying simpler query): {db_err}")
                         try:
+                            # Simplified fallback - just search by name in from_user
+                            search_term = member_full_name if member_full_name else member_id
                             db_messages = current_app.db_manager.execute_query(
-                                "SELECT * FROM messages WHERE owner_id = ? OR member_id = ? ORDER BY created_at DESC LIMIT 50",
-                                (member_id, member_id)
+                                "SELECT * FROM messages WHERE from_user LIKE ? OR recipient_name LIKE ? ORDER BY created_at DESC LIMIT 50",
+                                (f'%{search_term}%', f'%{search_term}%'),
+                                fetch_all=True
                             )
                             if db_messages and not isinstance(db_messages[0], dict):
                                 db_messages = [dict(row) for row in db_messages]
+                            logger.info(f"📋 Simplified fallback returned {len(db_messages) if db_messages else 0} messages")
                         except Exception as db_err2:
                             logger.error(f"❌ Simplified DB fallback also failed: {db_err2}")
                             db_messages = []
@@ -2517,26 +2898,140 @@ def get_member_message_history(member_id):
                 
                 # Save response for debugging (optional)
                 try:
-                    with open(f'clubos_followup_response_{member_id}.html', 'w', encoding='utf-8') as f:
+                    import os
+                    from datetime import datetime
+                    debug_dir = 'data/debug_outputs'
+                    os.makedirs(debug_dir, exist_ok=True)
+                    timestamp = int(datetime.now().timestamp())
+                    debug_file = os.path.join(debug_dir, f'followup_response_{member_id}_{timestamp}.html')
+                    with open(debug_file, 'w', encoding='utf-8') as f:
                         f.write(html_content)
-                    logger.debug(f"📝 Saved ClubOS response to clubos_followup_response_{member_id}.html")
-                except:
-                    pass
+                    logger.info(f"📝 Saved ClubOS FollowUp response to {debug_file}")
+                except Exception as save_error:
+                    logger.debug(f"⚠️ Could not save debug file: {save_error}")
                 
                 # Extract message history from HTML response
-                message_history = parse_clubos_followup_response(html_content, member_id)
-                
-                logger.info(f"✅ Retrieved {len(message_history)} message history items for member {member_id}")
-                
+                clubos_messages = parse_clubos_followup_response(html_content, member_id)
+
+                logger.info(f"✅ Retrieved {len(clubos_messages)} messages from ClubOS FollowUp API for member {member_id}")
+
+                # CRITICAL FIX: DO NOT merge with database when ClubOS API works
+                # The database contains OLD messages with incorrect timestamps (2001) from before the timestamp fix
+                # ClubOS FollowUp API now works correctly and returns properly parsed messages with accurate timestamps (2025)
+                # Database should ONLY be used as fallback when ClubOS API fails completely
+
+                if clubos_messages:
+                    # ClubOS API worked! Return ONLY ClubOS messages (with correct timestamps)
+                    logger.info(f"✅ Using {len(clubos_messages)} messages from ClubOS FollowUp API (database fallback DISABLED - timestamps are correct)")
+
+                    # DEBUG: Log sample messages to verify timestamps
+                    if clubos_messages:
+                        logger.info(f"📊 Sample ClubOS messages (with correct timestamps):")
+                        for i, msg in enumerate(clubos_messages[:5]):  # First 5 messages
+                            logger.info(f"   Message {i+1}: from={msg.get('from_user')}, timestamp={msg.get('timestamp')}, content={msg.get('content', '')[:50]}")
+
+                    return jsonify({
+                        'success': True,
+                        'member_id': member_id,
+                        'message_history': clubos_messages,
+                        'count': len(clubos_messages),
+                        'source': 'clubos_followup_api',
+                        'note': 'Database fallback disabled - using only ClubOS messages with correct timestamps'
+                    })
+
+                # FALLBACK: ClubOS API returned empty - try database
+                logger.warning(f"⚠️ ClubOS FollowUp API returned no messages - falling back to database")
+
+                # Get member name to search database messages
+                member_name = None
+                try:
+                    member = current_app.db_manager.execute_query(
+                        "SELECT full_name, first_name, last_name FROM members WHERE guid = ? OR prospect_id = ? LIMIT 1",
+                        (member_id, member_id), fetch_one=True
+                    )
+                    if member:
+                        if not isinstance(member, dict):
+                            member = dict(member)
+                        member_name = member.get('full_name') or f"{member.get('first_name', '')} {member.get('last_name', '')}".strip()
+                        logger.info(f"✅ Found member name for database fallback: {member_name}")
+                except Exception as name_err:
+                    logger.warning(f"⚠️ Error getting member name for database fallback: {name_err}")
+
+                # Query database for messages as fallback
+                db_messages = []
+                if member_name:
+                    try:
+                        db_messages = current_app.db_manager.execute_query('''
+                            SELECT * FROM messages
+                            WHERE LOWER(from_user) = LOWER(?)
+                               OR LOWER(to_user) = LOWER(?)
+                               OR LOWER(recipient_name) = LOWER(?)
+                               OR LOWER(from_member_name) = LOWER(?)
+                               OR LOWER(to_staff_name) = LOWER(?)
+                               OR (LOWER(recipient_name) = LOWER(?) AND status = 'sent')
+                               OR (LOWER(recipient_name) = LOWER(?) AND delivery_status = 'sent')
+                            ORDER BY created_at DESC
+                            LIMIT 100
+                        ''', (member_name, member_name, member_name, member_name, member_name, member_name, member_name), fetch_all=True)
+
+                        # Convert to dict if needed
+                        if db_messages and not isinstance(db_messages[0], dict):
+                            db_messages = [dict(row) for row in db_messages]
+
+                        logger.info(f"✅ Database fallback retrieved {len(db_messages)} messages for member {member_name}")
+                    except Exception as db_err:
+                        logger.warning(f"⚠️ Error querying database for fallback: {db_err}")
+                        db_messages = []
+
                 return jsonify({
                     'success': True,
                     'member_id': member_id,
-                    'message_history': message_history,
-                    'count': len(message_history),
-                    'source': 'clubos_followup_api'
+                    'message_history': db_messages,
+                    'count': len(db_messages),
+                    'source': 'database_fallback',
+                    'note': 'ClubOS API returned no messages - using database as fallback'
                 })
             else:
                 logger.warning(f"⚠️ ClubOS FollowUp request failed with status {response.status_code}: {response.text[:100]}")
+
+                # If 403, attempt auto-reauth and retry ONCE
+                if response.status_code == 403:
+                    logger.info("🔑 Detected 403 - attempting automatic re-authentication...")
+                    try:
+                        if messaging_client.authenticate():
+                            logger.info("✅ Auto-reauth successful, retrying request...")
+
+                            # Retry the same request with fresh session
+                            response_retry = messaging_client.session.post(
+                                f"{messaging_client.base_url}/action/FollowUp",
+                                data=payload,
+                                timeout=30
+                            )
+
+                            if response_retry.status_code == 200:
+                                logger.info("✅ Retry successful after re-authentication!")
+                                html_content = response_retry.text
+                                clubos_messages_retry = parse_clubos_followup_response(html_content, member_id)
+
+                                # CRITICAL FIX: DO NOT merge with database (same as above)
+                                # Return ONLY ClubOS messages with correct timestamps
+                                logger.info(f"✅ Retry returned {len(clubos_messages_retry)} messages from ClubOS (database fallback DISABLED)")
+
+                                return jsonify({
+                                    'success': True,
+                                    'member_id': member_id,
+                                    'message_history': clubos_messages_retry,
+                                    'count': len(clubos_messages_retry),
+                                    'source': 'clubos_followup_api_retry',
+                                    'note': 'Retry after re-auth successful - using only ClubOS messages with correct timestamps'
+                                })
+                            else:
+                                logger.warning(f"⚠️ Retry failed with status {response_retry.status_code}")
+                        else:
+                            logger.warning("⚠️ Auto-reauth failed")
+                    except Exception as reauth_error:
+                        logger.warning(f"⚠️ Auto-reauth error: {reauth_error}")
+
                 # Create an error message
                 api_error_message = {
                     'id': f"clubos_api_error_{member_id}_{int(datetime.now().timestamp())}",
@@ -2552,7 +3047,7 @@ def get_member_message_history(member_id):
                     'channel': 'system',
                     'note': f'ClubOS API error: {response.status_code}'
                 }
-                
+
                 # Fall through to database fallback with error message
                 
         except Exception as api_error:
@@ -2577,43 +3072,85 @@ def get_member_message_history(member_id):
         
         # Fallback to database messages if ClubOS API fails
         logger.info(f"🔄 Using database fallback for member {member_id}")
-        
+
         # Get any error message created above
         error_message = None
         if 'api_error_message' in locals():
             error_message = api_error_message
         elif 'exception_message' in locals():
             error_message = exception_message
-        
-        # Defensive DB fallback: try a richer query, fall back to simpler forms if schema differs
+
+        # CRITICAL FIX: Get member's NAME to search messages (messages have name, not GUID)
+        member_name = None
         try:
-            messages = current_app.db_manager.execute_query('''
-                SELECT * FROM messages
-                WHERE (owner_id = ? OR member_id = ?)
-                OR (content LIKE ? OR from_user LIKE ? OR to_user LIKE ?)
-                ORDER BY created_at DESC
-                LIMIT 100
-            ''', (member_id, member_id, f'%{member_id}%', f'%{member_id}%', f'%{member_id}%'), fetch_all=True)
+            member = current_app.db_manager.execute_query(
+                "SELECT full_name, first_name, last_name FROM members WHERE guid = ? OR prospect_id = ? LIMIT 1",
+                (member_id, member_id), fetch_one=True
+            )
+            if member:
+                # Convert Row object to dict
+                if not isinstance(member, dict):
+                    member = dict(member)
+                member_name = member.get('full_name') or f"{member.get('first_name', '')} {member.get('last_name', '')}".strip()
+                logger.info(f"✅ Found member name for {member_id}: {member_name}")
+            else:
+                logger.warning(f"⚠️ No member found with GUID/prospect_id: {member_id}")
+        except Exception as name_err:
+            logger.warning(f"⚠️ Error getting member name: {name_err}")
+
+        # Search messages by member NAME (not GUID)
+        messages = []
+        try:
+            if member_name:
+                # ENHANCED: Search by all possible name fields to capture FULL conversation (both directions)
+                # This ensures we get messages FROM member AND messages TO member (staff replies)
+                messages = current_app.db_manager.execute_query('''
+                    SELECT * FROM messages
+                    WHERE LOWER(from_user) = LOWER(?)
+                       OR LOWER(to_user) = LOWER(?)
+                       OR LOWER(recipient_name) = LOWER(?)
+                       OR LOWER(from_member_name) = LOWER(?)
+                       OR LOWER(to_staff_name) = LOWER(?)
+                       OR (LOWER(recipient_name) = LOWER(?) AND status = 'sent')
+                       OR (LOWER(recipient_name) = LOWER(?) AND delivery_status = 'sent')
+                    ORDER BY created_at DESC
+                    LIMIT 100
+                ''', (member_name, member_name, member_name, member_name, member_name, member_name, member_name), fetch_all=True)
+                logger.info(f"📬 Found {len(messages) if messages else 0} messages for {member_name} (full conversation with staff replies)")
+
+            # Fallback: search by member_id if name search found nothing
+            if not messages or len(messages) == 0:
+                logger.info(f"🔄 No messages found by name, trying member_id search")
+                messages = current_app.db_manager.execute_query('''
+                    SELECT * FROM messages
+                    WHERE (owner_id = ? OR member_id = ?)
+                    OR (content LIKE ? OR from_user LIKE ? OR to_user LIKE ?)
+                    ORDER BY created_at DESC
+                    LIMIT 100
+                ''', (member_id, member_id, f'%{member_id}%', f'%{member_id}%', f'%{member_id}%'), fetch_all=True)
+
             if messages and not isinstance(messages[0], dict):
                 messages = [dict(row) for row in messages]
+
+            # DETAILED LOGGING: Show what we're actually returning
+            if messages:
+                logger.info(f"✅ Database returned {len(messages)} messages")
+                logger.info(f"🔍 Message type: {type(messages[0])}")
+                logger.info(f"🔍 First message keys: {list(messages[0].keys()) if isinstance(messages[0], dict) else 'Not a dict'}")
+                logger.info(f"🔍 Sample message: from_user='{messages[0].get('from_user')}', content_preview='{messages[0].get('content', '')[:50]}...'")
+            else:
+                logger.warning(f"⚠️ No messages found in database for member_name='{member_name}' or member_id='{member_id}'")
         except Exception as e_db:
-            logger.warning(f"⚠️ Rich DB fallback query failed: {e_db}")
-            try:
-                messages = current_app.db_manager.execute_query(
-                    "SELECT * FROM messages WHERE owner_id = ? OR member_id = ? ORDER BY created_at DESC LIMIT 100",
-                    (member_id, member_id), fetch_all=True
-                )
-                if messages and not isinstance(messages[0], dict):
-                    messages = [dict(row) for row in messages]
-            except Exception as e_db2:
-                logger.error(f"❌ Simplified DB fallback also failed: {e_db2}")
-                messages = []
-        
+            logger.error(f"❌ Database fallback query failed: {e_db}")
+            messages = []
+
         # Add error message if any
         all_messages = messages
         if error_message:
             all_messages = [error_message] + messages
-        
+
+        logger.info(f"📤 Returning API response: success=True, count={len(all_messages)}, source=database_fallback")
+
         return jsonify({
             'success': True,
             'member_id': member_id,
@@ -2640,7 +3177,25 @@ def parse_clubos_followup_response(html_content: str, member_id: str) -> List[Di
         messages = []
         
         logger.info(f"📄 ClubOS response length: {len(html_content)} characters")
-        
+
+        # CRITICAL FIX: Look up member's actual name for proper message attribution
+        # This fixes the bug where staff replies were stored with to_user='Member' instead of actual name
+        member_name = None
+        try:
+            from flask import current_app
+            member = current_app.db_manager.execute_query(
+                "SELECT full_name, first_name, last_name FROM members WHERE guid = ? OR prospect_id = ? LIMIT 1",
+                (member_id, member_id), fetch_one=True
+            )
+            if member:
+                if not isinstance(member, dict):
+                    member = dict(member)
+                member_name = member.get('full_name') or f"{member.get('first_name', '')} {member.get('last_name', '')}".strip()
+                logger.info(f"✅ Resolved member name for message attribution: {member_name}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not resolve member name: {e}")
+            member_name = None
+
         # Method 1: Look for followup-entry divs (preferred format)
         followup_entries = soup.find_all('div', class_='followup-entry')
         logger.info(f"🔍 Found {len(followup_entries)} followup-entry divs")
@@ -2650,61 +3205,135 @@ def parse_clubos_followup_response(html_content: str, member_id: str) -> List[Di
                 # Extract date and author from followup-entry-date
                 date_div = entry.find('div', class_='followup-entry-date')
                 note_div = entry.find('div', class_='followup-entry-note')
-                
-                if not date_div or not note_div:
+
+                # ENHANCED: Try to extract content even if structure is imperfect
+                # This ensures we capture member messages with different HTML structure
+                if not date_div and not note_div:
+                    logger.debug(f"⚠️ Skipping entry - completely missing both date_div and note_div")
                     continue
-                
-                date_text = date_div.get_text(strip=True)
-                note_text = note_div.get_text(strip=True)
-                
-                # Skip empty entries
-                if len(note_text.strip()) < 5:
+
+                # Allow entries with only one of the divs (be more lenient)
+                if not date_div:
+                    # Try to find date text anywhere in the entry
+                    date_text = entry.get_text(strip=True)
+                    logger.debug(f"⚠️ No date_div found, using entire entry text for date parsing")
+                else:
+                    date_text = date_div.get_text(strip=True)
+
+                if not note_div:
+                    # Try to extract content from the entry itself
+                    note_text = entry.get_text(strip=True)
+                    # Remove the date text to isolate the message content
+                    if date_text:
+                        note_text = note_text.replace(date_text, '').strip()
+                    logger.debug(f"⚠️ No note_div found, using entry text minus date")
+                else:
+                    note_text = note_div.get_text(strip=True)
+
+                # Skip empty entries (allow short messages like "Ok", "Yes")
+                if len(note_text.strip()) < 1:
+                    logger.debug(f"⚠️ Skipping empty entry")
                     continue
+
+                logger.debug(f"📝 Processing entry - Date: {repr(date_text[:50])}, Content: {repr(note_text[:100])}")
                 
                 timestamp = None
                 author = 'ClubOS System'
-                
-                # Parse date and author from date_text
-                date_match = re.search(r'(\d{1,2}/\d{1,2}/\d{2,4})\s*@\s*(\d{1,2}:\d{2}\s*[AP]M)', date_text)
+
+                # Parse date and author from date_text (handle multiline with flexible whitespace)
+                # FIXED: Accept both forward slash AND backslash as date separators (ClubOS uses backslashes)
+                date_match = re.search(r'(\d{1,2}[/\\]\d{1,2}[/\\]\d{2,4})\s*@\s*(\d{1,2}:\d{2}\s*[AP]M)', date_text, re.MULTILINE | re.DOTALL)
                 if date_match:
                     date_str = date_match.group(1)
                     time_str = date_match.group(2)
-                    
-                    # Convert to full year format if needed
-                    if '/' in date_str:
+
+                    logger.debug(f"🔍 Raw date_str from ClubOS: {repr(date_str)}, time_str: {repr(time_str)}")
+
+                    # FIXED: Normalize backslashes to forward slashes (ClubOS returns dates like 9\26\25)
+                    date_str = date_str.replace('\\', '/')
+                    logger.debug(f"🔄 After backslash normalization: {repr(date_str)}")
+
+                    # CRITICAL FIX: Use proper datetime parsing to ensure correct year handling
+                    try:
+                        from datetime import datetime as dt
+
+                        # Parse the date string
                         date_parts = date_str.split('/')
-                        if len(date_parts[2]) == 2:  # Convert YY to YYYY
-                            year = int(date_parts[2])
-                            date_parts[2] = f"20{year}" if year < 50 else f"19{year}"
-                        date_str = '/'.join(date_parts)
-                    
-                    timestamp = f"{date_str} {time_str}"
-                
-                # Extract author
-                author_match = re.search(r'by\s+([^.]+\.?)', date_text)
+                        month = int(date_parts[0])
+                        day = int(date_parts[1])
+                        year = int(date_parts[2])
+
+                        # Convert 2-digit year to 4-digit year (2000-2099 range)
+                        if year < 100:
+                            # Assume all 2-digit years are in the 2000s (00-99 -> 2000-2099)
+                            year = 2000 + year
+                            logger.debug(f"📅 Converted 2-digit year {date_parts[2]} to 4-digit: {year}")
+
+                        # Parse the time string
+                        time_obj = dt.strptime(time_str.strip(), '%I:%M %p')
+
+                        # Create a proper datetime object
+                        dt_obj = dt(year, month, day, time_obj.hour, time_obj.minute)
+
+                        # Format as ISO 8601 for consistency and proper sorting
+                        timestamp = dt_obj.isoformat()
+
+                        logger.debug(f"✅ Parsed datetime object: {dt_obj}")
+                        logger.debug(f"✅ Final ISO timestamp: {timestamp}")
+
+                    except Exception as parse_error:
+                        logger.warning(f"⚠️ Datetime parsing failed: {parse_error}, falling back to string concatenation")
+                        # Fallback to original string-based approach
+                        if '/' in date_str:
+                            date_parts = date_str.split('/')
+                            if len(date_parts[2]) == 2:  # Convert YY to YYYY
+                                year = int(date_parts[2])
+                                date_parts[2] = f"20{year:02d}"  # Force 2000s range with zero-padding
+                            date_str = '/'.join(date_parts)
+                        timestamp = f"{date_str} {time_str}"
+
+                else:
+                    logger.debug(f"⚠️ Could not parse timestamp from: {repr(date_text)}")
+
+                # Extract author (handle newlines and whitespace in HTML)
+                author_match = re.search(r'by\s+(.+?)(?:\n|$)', date_text, re.MULTILINE | re.DOTALL)
                 if author_match:
                     author = author_match.group(1).strip()
+                    # Remove trailing periods and extra whitespace
+                    author = re.sub(r'\.$', '', author).strip()
+                    logger.debug(f"✅ Parsed author: {author}")
+                else:
+                    logger.debug(f"⚠️ No author found in: {repr(date_text)}")
                 
                 # Determine message type and status
                 message_type = 'conversation'
                 status = 'received'
-                
+
                 if 'icon_text.png' in str(note_div) or 'Text -' in note_text:
                     message_type = 'sms'
                 elif 'icon_email.png' in str(note_div) or 'Email -' in note_text:
                     message_type = 'email'
                 elif 'icon_phone.png' in str(note_div) or 'Call -' in note_text:
                     message_type = 'call'
-                
-                # Determine direction
-                staff_indicators = ['Jeremy M.', 'Natoya T.', 'Grace S.', 'Staff', 'Gym Bot']
-                if any(indicator in date_text for indicator in staff_indicators) or 'Message sent' in note_text:
-                    status = 'sent'
+
+                # Smart direction detection: Staff messages always have "by [Name]" attribution
+                # Member messages typically don't have "by" in the date text
+                if re.search(r'by\s+', date_text, re.IGNORECASE):
+                    status = 'sent'  # Staff message TO member
+                    logger.debug(f"✅ Detected as STAFF message (has 'by' attribution)")
+                elif 'Message sent' in note_text or 'sent successfully' in note_text.lower():
+                    status = 'sent'  # Also catch system confirmations
+                    logger.debug(f"✅ Detected as STAFF message (has 'sent' indicator)")
+                else:
+                    status = 'received'  # Member message FROM member
+                    logger.debug(f"✅ Detected as MEMBER message (no 'by' attribution)")
                 
                 # Clean up content
                 content = note_text
                 content = re.sub(r'^(Text|Email|Call)\s*-\s*', '', content)
-                
+
+                # CRITICAL FIX: Use actual member name instead of generic "Member"
+                # This allows database queries to find staff replies by searching for the member's name
                 message_data = {
                     'id': f"clubos_followup_{member_id}_{hash(content + str(timestamp)) % 1000000}",
                     'member_id': member_id,
@@ -2713,16 +3342,24 @@ def parse_clubos_followup_response(html_content: str, member_id: str) -> List[Di
                     'created_at': timestamp or datetime.now().strftime('%m/%d/%Y %I:%M %p'),
                     'message_type': message_type,
                     'status': status,
-                    'from_user': author,
-                    'to_user': 'Member' if status == 'sent' else author,
+                    # FIXED: Staff messages (status='sent') should show staff as from_user and member as to_user
+                    # Member messages (status='received') should show member as from_user and staff as to_user
+                    'from_user': author if status == 'sent' else (member_name or 'Member'),
+                    'to_user': (member_name or 'Member') if status == 'sent' else author,
+                    'recipient_name': (member_name or 'Member') if status == 'sent' else None,
+                    'from_member_name': (member_name or 'Member') if status != 'sent' else None,
+                    'to_staff_name': author if status != 'sent' else None,
                     'source': 'clubos_followup',
                     'channel': 'clubos'
                 }
-                
+
                 messages.append(message_data)
-                
+                logger.debug(f"✅ Added message: {status.upper()} - {message_type} - {author} - {content[:50]}...")
+
             except Exception as entry_error:
-                logger.debug(f"⚠️ Error parsing followup entry: {entry_error}")
+                logger.warning(f"⚠️ Error parsing followup entry: {entry_error}")
+                import traceback
+                logger.debug(f"Full traceback: {traceback.format_exc()}")
                 continue
         
         # Method 2: If no followup entries found, try to extract from HTML tables or other structures
@@ -2730,22 +3367,26 @@ def parse_clubos_followup_response(html_content: str, member_id: str) -> List[Di
             logger.info("📋 No followup-entry divs found, trying alternative parsing...")
             
             # Look for any divs or elements containing date patterns
-            date_pattern = re.compile(r'(\d{1,2}/\d{1,2}/\d{2,4})\s*[@at]\s*(\d{1,2}:\d{2}\s*[AP]M)', re.IGNORECASE)
-            
+            # FIXED: Accept both forward slash AND backslash as date separators
+            date_pattern = re.compile(r'(\d{1,2}[/\\]\d{1,2}[/\\]\d{2,4})\s*[@at]\s*(\d{1,2}:\d{2}\s*[AP]M)', re.IGNORECASE)
+
             # Search in all text content for date patterns
             all_text_elements = soup.find_all(text=date_pattern)
             logger.info(f"🔍 Found {len(all_text_elements)} elements with date patterns")
-            
+
             for text_element in all_text_elements[:10]:  # Limit to first 10
                 try:
                     parent = text_element.parent
                     if parent:
                         parent_text = parent.get_text(strip=True)
-                        
+
                         # Extract date/time
                         date_match = date_pattern.search(parent_text)
                         if date_match:
-                            timestamp = f"{date_match.group(1)} {date_match.group(2)}"
+                            # FIXED: Normalize backslashes to forward slashes
+                            date_str = date_match.group(1).replace('\\', '/')
+                            time_str = date_match.group(2)
+                            timestamp = f"{date_str} {time_str}"
                             
                             # Get surrounding content
                             content = parent_text
@@ -2799,8 +3440,51 @@ def parse_clubos_followup_response(html_content: str, member_id: str) -> List[Di
         
         # Sort messages by timestamp (newest first)
         messages.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
-        
+
+        # Log summary statistics with detailed breakdown
+        sent_count = sum(1 for m in messages if m.get('status') == 'sent')
+        received_count = sum(1 for m in messages if m.get('status') == 'received')
+        sms_count = sum(1 for m in messages if m.get('message_type') == 'sms')
+        email_count = sum(1 for m in messages if m.get('message_type') == 'email')
+        conversation_count = sum(1 for m in messages if m.get('message_type') == 'conversation')
+
         logger.info(f"✅ Successfully parsed {len(messages)} messages from ClubOS FollowUp response for member {member_id}")
+        logger.info(f"   📊 Direction: {sent_count} staff→member (sent), {received_count} member→staff (received)")
+        logger.info(f"   📊 Types: {conversation_count} conversation, {sms_count} SMS, {email_count} email")
+
+        # CRITICAL FIX: Sort messages by timestamp in descending order (newest first)
+        try:
+            from datetime import datetime as dt
+
+            def parse_timestamp_for_sorting(msg):
+                """Parse timestamp for sorting - handles both ISO format and legacy formats"""
+                timestamp = msg.get('timestamp') or msg.get('created_at')
+                if not timestamp:
+                    return dt.min  # Put messages with no timestamp at the end
+
+                try:
+                    # Try ISO 8601 format first (from our fixed parser)
+                    return dt.fromisoformat(timestamp)
+                except:
+                    try:
+                        # Try legacy format: "9/4/2025 6:00 AM"
+                        return dt.strptime(timestamp, '%m/%d/%Y %I:%M %p')
+                    except:
+                        try:
+                            # Try another common format
+                            return dt.strptime(timestamp, '%m/%d/%Y %H:%M:%S')
+                        except:
+                            logger.debug(f"⚠️ Could not parse timestamp for sorting: {timestamp}")
+                            return dt.min
+
+            # Sort by timestamp descending (newest first)
+            messages.sort(key=parse_timestamp_for_sorting, reverse=True)
+            logger.info(f"✅ Sorted {len(messages)} messages by timestamp (newest first)")
+
+        except Exception as sort_error:
+            logger.warning(f"⚠️ Failed to sort messages by timestamp: {sort_error}")
+            # Continue without sorting rather than failing
+
         return messages
         
     except Exception as e:

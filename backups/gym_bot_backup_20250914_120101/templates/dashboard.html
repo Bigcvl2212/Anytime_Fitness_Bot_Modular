@@ -1,0 +1,1168 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Dashboard - Anytime Fitness{% endblock %}
+
+{% block page_icon %}<i class="fas fa-tachometer-alt"></i>{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block header_actions %}
+<div class="d-flex gap-2">
+    <button id="refresh-funding-btn" class="outlook-btn outlook-btn-warning">
+        <i class="fas fa-sync-alt"></i>
+        Refresh Funding
+    </button>
+    <button id="bulk-checkin-btn" class="outlook-btn outlook-btn-success">
+        <i class="fas fa-bolt"></i>
+        ULTRA-FAST Bulk Check-in ALL Members (Excludes PPV)
+    </button>
+    <a href="/calendar" class="outlook-btn outlook-btn-primary">
+        <i class="fas fa-plus"></i>
+        New Session
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Statistics Row -->
+    <div class="row mb-4">
+        <!-- Bot Activity Monitor -->
+        <div class="col-md-3">
+            <div class="outlook-stat-card h-100">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="fw-bold mb-1" style="color: var(--af-purple-primary);">
+                            <i class="fas fa-robot me-2"></i>Bot Activity
+                        </h6>
+                        <div class="h4 fw-bold mb-1">{{ bot_stats['messages_sent'] }}</div>
+                        <small class="text-muted">Messages sent today</small>
+                        <div class="bot-activity mt-2">
+                            <small class="text-muted">{{ bot_stats['last_activity'] }}</small>
+                        </div>
+                    </div>
+                    <div class="outlook-icon-circle" style="background: var(--af-purple-light);">
+                        <i class="fas fa-robot" style="color: var(--af-purple-primary);"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Inbox Supervision -->
+        <div class="col-md-3">
+            <div class="outlook-stat-card h-100">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="fw-bold mb-1" style="color: var(--af-purple-primary);">
+                            <i class="fas fa-inbox me-2"></i>Inbox
+                        </h6>
+                        <div class="h4 fw-bold mb-1">{{ bot_stats['unread_conversations'] }}</div>
+                        <small class="text-muted">Unread conversations</small>
+                        <div class="mt-2">
+                            <small class="text-success">
+                                <i class="fas fa-check-circle"></i>
+                                {{ bot_stats['response_rate'] }}% response rate
+                            </small>
+                        </div>
+                    </div>
+                    <div class="outlook-icon-circle" style="background: var(--af-purple-light);">
+                        <i class="fas fa-inbox" style="color: var(--af-purple-primary);"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Today's Sessions -->
+        <div class="col-md-3">
+            <div class="outlook-stat-card h-100">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="fw-bold mb-1" style="color: var(--af-purple-primary);">
+                            <i class="fas fa-calendar-day me-2"></i>Today's Sessions
+                        </h6>
+                        <div class="h4 fw-bold mb-1">{{ stats['todays_events'] }}</div>
+                        <small class="text-muted">Training sessions</small>
+                        <div class="mt-2">
+                            <small class="text-info">
+                                <i class="fas fa-clock"></i>
+                                Next at {{ stats['next_session_time'] or 'None scheduled' }}
+                            </small>
+                        </div>
+                    </div>
+                    <div class="outlook-icon-circle" style="background: var(--af-purple-light);">
+                        <i class="fas fa-dumbbell" style="color: var(--af-purple-primary);"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Revenue -->
+        <div class="col-md-3">
+            <div class="outlook-stat-card h-100">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h6 class="fw-bold mb-1" style="color: var(--af-purple-primary);">
+                            <i class="fas fa-dollar-sign me-2"></i>Today's Revenue
+                        </h6>
+                        <div class="h4 fw-bold mb-1">${{ stats['revenue'] }}</div>
+                        <small class="text-muted">Training & packages</small>
+                        <div class="mt-2">
+                            <small class="text-success">
+                                <i class="fas fa-arrow-up"></i>
+                                +12% vs yesterday
+                            </small>
+                        </div>
+                    </div>
+                    <div class="outlook-icon-circle" style="background: var(--af-purple-light);">
+                        <i class="fas fa-chart-line" style="color: var(--af-purple-primary);"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Row -->
+    <div class="row">
+        <!-- Schedule Column -->
+        <div class="col-md-8">
+            <div class="outlook-card h-100">
+                <div class="p-3 border-bottom" style="background: var(--af-gray-50);">
+                                    <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center">
+                        <h5 class="fw-bold mb-0 me-3">
+                            <i class="fas fa-calendar-check me-2" style="color: var(--af-purple-primary);"></i>
+                            {% if day_offset == 0 %}
+                                Today's Schedule
+                            {% elif day_offset == 1 %}
+                                Tomorrow's Schedule
+                            {% elif day_offset == -1 %}
+                                Yesterday's Schedule
+                            {% else %}
+                                {{ day_name }}'s Schedule
+                            {% endif %}
+                            <small class="text-muted d-block">{{ date_formatted }}</small>
+                        </h5>
+                        <div class="d-flex gap-2">
+                            <a href="/{{ day_offset - 1 }}" class="outlook-btn outlook-btn-outline outlook-btn-sm">
+                                <i class="fas fa-chevron-left"></i> Previous Day
+                            </a>
+                            <a href="/" class="outlook-btn outlook-btn-outline outlook-btn-sm">
+                                Today
+                            </a>
+                            <a href="/{{ day_offset + 1 }}" class="outlook-btn outlook-btn-outline outlook-btn-sm">
+                                Next Day <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                    <span class="outlook-badge outlook-badge-info">{{ recent_events|length }} sessions</span>
+                </div>
+                </div>
+
+                <!-- Schedule Header -->
+                <div class="d-flex fw-bold text-muted small border-bottom" style="padding: 12px 20px; background: var(--af-gray-25);">
+                    <div style="width: 80px;">TIME</div>
+                    <div style="flex: 1;">CLIENT</div>
+                    <div style="width: 120px;">TYPE</div>
+                    <div style="width: 160px;">FUNDING</div>
+                    <div style="width: 80px;">ACTIONS</div>
+                </div>
+
+                <!-- Schedule Items -->
+                {% if recent_events %}
+                    {% for event in recent_events %}
+                    {% set participants_list = event.get('participants', []) %}
+                    {% set all_participants = participants_list|selectattr('name')|map(attribute='name')|list %}
+                    {% set participants_with_past_due = participants_list|selectattr('past_due')|list %}
+                    {% set is_appointment = (
+                        'savannah' in (event.get('title', '') | string).lower() or
+                        'consult' in (event.get('title', '') | string).lower() or
+                        'meeting' in (event.get('title', '') | string).lower() or
+                        'appointment' in (event.get('title', '') | string).lower() or
+                        'tour' in (event.get('title', '') | string).lower() or
+                        'assessment' in (event.get('title', '') | string).lower() or
+                        not all_participants or (all_participants | length) == 0
+                    ) %}
+                    <div class="d-flex align-items-center border-bottom session-row" style="padding: 16px 20px; transition: all 0.2s ease; cursor: pointer;" 
+                         data-participant="{{ (all_participants | join(', ')) if all_participants else 'Unknown' }}"
+                         data-time="{{ (event.get('start_time', '') | string) }} - {{ (event.get('end_time', '') | string) }}"
+                         data-trainer="{{ event.get('trainer', 'Not specified') | string }}"
+                         data-type="{{ event.get('title', 'Training Session') | string }}"
+                         data-location="{{ event.get('location', 'Training Floor') | string }}"
+                         data-is-appointment="{{ 'true' if is_appointment else 'false' }}"
+                         data-event-id="{{ event.get('id', '') | string }}"
+                         data-all-participants="{{ (all_participants | join(', ')) if all_participants else '' }}"
+                         onclick="console.log('🖱️ Inline click detected!'); if (typeof openEventDetails === 'function') { openEventDetails(this); } else { console.error('❌ openEventDetails function not found!'); }"
+                         title="Click to view session details">
+                        
+                        <!-- Time -->
+                        <div style="width: 80px;">
+                            <div class="fw-bold" style="color: var(--af-purple-primary);">
+                                {{ event.get('start_time', 'TBD') }}
+                            </div>
+                            <small class="text-muted">
+                                {{ event.get('end_time', '') }}
+                            </small>
+                        </div>
+
+                        <!-- Client Name -->
+                        <div style="flex: 1;">
+                            {% if is_appointment %}
+                                <div class="d-flex align-items-center">
+                                    <span class="outlook-badge outlook-badge-warning me-2">APPT</span>
+                                    <div>
+                                        <div class="fw-bold" style="font-size: 1.2em;">{{ event.get('title', 'Consultation') }}</div>
+                                        {% if all_participants %}
+                                            <div class="text-muted" style="font-size: 1.0em;">
+                                                with {% for participant in participants_list %}
+                                                    {% if participant.past_due %}
+                                                        <span class="text-danger fw-bold" title="Past Due: {{ participant.past_due.formatted_amount | string }}">{{ participant.name | string }}</span>
+                                                    {% else %}
+                                                        {{ participant.name | string }}
+                                                    {% endif %}
+                                                    {% if not loop.last %}, {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                        {% else %}
+                                            <small class="text-muted">Prospect appointment</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div class="d-flex align-items-center">
+                                    <span class="outlook-badge outlook-badge-success me-2">PT</span>
+                                    <div>
+                                        {% if all_participants %}
+                                            <div class="fw-bold" style="font-size: 1.3em; color: var(--af-purple-primary);">
+                                                {% for participant in participants_list %}
+                                                    {% if participant.past_due %}
+                                                        <span class="text-danger fw-bold" title="Past Due: {{ participant.past_due.formatted_amount | string }}">{{ participant.name | string }}</span>
+                                                    {% else %}
+                                                        {{ participant.name | string }}
+                                                    {% endif %}
+                                                    {% if not loop.last %}, {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                            <small class="text-muted">{{ event.get('title', 'Training Session') }}</small>
+                                        {% else %}
+                                            <div class="fw-bold" style="font-size: 1.2em;">{{ event.get('title', 'Training Session') }}</div>
+                                            <small class="text-muted">No participants specified</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Session Type -->
+                        <div style="width: 120px;">
+                            {% if is_appointment %}
+                                <span class="outlook-badge outlook-badge-warning">Consultation</span>
+                            {% else %}
+                                <span class="outlook-badge outlook-badge-primary">Training</span>
+                            {% endif %}
+                        </div>
+
+                        <!-- Funding Status -->
+                        <div style="width: 160px;">
+                            {% if is_appointment %}
+                                <span class="outlook-badge outlook-badge-info">Free</span>
+                            {% else %}
+                                <span id="funding-status-{{ loop.index }}" class="outlook-badge outlook-badge-warning" 
+                                      data-participant="{{ (all_participants[0] | string) if all_participants else '' }}"
+                                      data-time="{{ (event.get('start_time', '') | string) }} - {{ (event.get('end_time', '') | string) }}"
+                                      data-all-participants="{{ (all_participants | join(', ')) if all_participants else '' }}"
+                                      title="Loading live funding data...">
+                                    <i class="fas fa-wifi"></i>
+                                    Live...
+                                </span>
+                            {% endif %}
+                        </div>
+
+                        <!-- Actions -->
+                        <div style="width: 80px;">
+                            <div class="d-flex gap-1">
+                                <button class="outlook-btn-icon outlook-btn-icon-sm" 
+                                        title="Edit session" 
+                                        aria-label="Edit session for {{ (all_participants | join(', ')) if all_participants else 'Unknown' }}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <form method="POST" action="/delete_event" style="display: inline;">
+                                    <input type="hidden" name="event_id" value="{{ event.get('id', '') }}">
+                                    <button type="submit" 
+                                            class="outlook-btn-icon outlook-btn-icon-sm outlook-btn-danger" 
+                                            title="Delete session"
+                                            aria-label="Delete session for {{ (all_participants | join(', ')) if all_participants else 'Unknown' }}"
+                                            onclick="return confirm('Delete this session?')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    
+                    <!-- Quick Add Section -->
+                    <div class="p-3 text-center" style="background: var(--af-gray-50); border-top: 1px solid var(--af-gray-200);">
+                        <a href="/calendar" class="outlook-btn outlook-btn-primary">
+                            <i class="fas fa-plus"></i>
+                            Add New Session
+                        </a>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-calendar-plus fa-3x text-muted mb-3"></i>
+                        <h6 class="text-muted">No sessions scheduled for today</h6>
+                        <p class="text-muted small mb-3">Your schedule is clear! Perfect time to reach out to prospects.</p>
+                        <a href="/calendar" class="outlook-btn outlook-btn-primary">
+                            <i class="fas fa-plus"></i>
+                            Schedule New Session
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Training Payment Lookup Column -->
+        <!-- Remove Training Payment Lookup UI card -->
+
+        <!-- Bot Supervision Column -->
+        <div class="col-md-4">
+            <div class="outlook-card h-100">
+                <div class="p-3 border-bottom" style="background: var(--af-gray-50);">
+                    <h5 class="fw-bold mb-0">
+                        <i class="fas fa-robot me-2" style="color: var(--af-purple-primary);"></i>
+                        Bot Supervision
+                    </h5>
+                </div>
+
+                <!-- Bot Activity -->
+                <div class="p-3 border-bottom">
+                    <h6 class="fw-bold mb-3">Recent Activity</h6>
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="small">Status:</span>
+                        <span class="outlook-badge outlook-badge-success">
+                            <i class="fas fa-check-circle"></i>
+                            Active
+                        </span>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between mb-2">
+                        <span class="small">Last Response:</span>
+                        <span class="text-muted small">2 minutes ago</span>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-between">
+                        <span class="small">Response Rate:</span>
+                        <span class="text-success small fw-bold">{{ bot_stats['response_rate'] }}%</span>
+                    </div>
+                </div>
+
+                <!-- Inbox Monitor -->
+                <div class="p-3">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h6 class="fw-bold mb-0">Inbox Monitor</h6>
+                        <button class="outlook-btn-icon outlook-btn-icon-sm" onclick="refreshInbox()" title="Refresh Inbox" aria-label="Refresh Inbox">
+                            <i class="fas fa-refresh"></i>
+                        </button>
+                    </div>
+                    
+                    <div id="bot-inbox">
+                        {% for conversation in bot_conversations %}
+                        <div class="border rounded p-2 mb-2" style="cursor: pointer;" onclick="viewConversation('{{ conversation.id }}')">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div class="d-flex align-items-center">
+                                    <div class="rounded-circle me-2"
+                                         style="width: 8px; height: 8px; background: {{ 'var(--af-purple-primary)' if conversation.unread else 'var(--af-gray-300)' }};"></div>
+                                    <div>
+                                        <div class="fw-bold small">{{ conversation.name }}</div>
+                                        <div class="text-muted small">{{ conversation.preview }}</div>
+                                    </div>
+                                </div>
+                                <small class="text-muted">{{ conversation.time }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Event Details Modal -->
+<div class="modal fade" id="eventDetailsModal" tabindex="-1" aria-labelledby="eventDetailsModalLabel">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="border-radius: var(--border-radius-large); border: none;" aria-live="polite">
+            <div class="modal-header" style="background: linear-gradient(135deg, var(--af-purple-primary) 0%, var(--af-purple-dark) 100%); color: white; border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;">
+                <h5 class="modal-title" id="eventDetailsModalLabel">
+                    <i class="fas fa-calendar-alt me-2"></i>Session Details
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close session details modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-4">
+                            <label class="fw-bold text-muted small">CLIENT</label>
+                            <div class="fs-5 fw-bold" id="modal-participant">-</div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="fw-bold text-muted small">TIME</label>
+                            <div class="fs-6" id="modal-time">-</div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="fw-bold text-muted small">TRAINER</label>
+                            <div class="fs-6" id="modal-trainer">-</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-4">
+                            <label class="fw-bold text-muted small">SESSION TYPE</label>
+                            <div id="modal-type">-</div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="fw-bold text-muted small">LOCATION</label>
+                            <div class="fs-6" id="modal-location">Training Floor</div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="fw-bold text-muted small">FUNDING STATUS</label>
+                            <div id="modal-funding">
+                                <span class="outlook-badge outlook-badge-warning">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    Checking...
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Training Package Details -->
+                <div id="training-package-details" style="display: none;">
+                    <hr class="my-4">
+                    <h6 class="fw-bold mb-3">
+                        <i class="fas fa-file-contract me-2"></i>Training Package Details
+                    </h6>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="fw-bold text-muted small">SESSIONS REMAINING</label>
+                                <div class="fs-4 fw-bold text-success" id="sessions-remaining">-</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="fw-bold text-muted small">PACKAGE TYPE</label>
+                                <div id="package-type">-</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="fw-bold text-muted small">EXPIRATION</label>
+                                <div id="package-expiration">-</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="fw-bold text-muted small">PURCHASE DATE</label>
+                                <div id="purchase-date">-</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="fw-bold text-muted small">TOTAL PAID</label>
+                                <div class="fw-bold text-success" id="total-paid">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="outlook-btn outlook-btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times"></i>
+                    Close
+                </button>
+                <button type="button" class="outlook-btn outlook-btn-primary" id="edit-session-btn">
+                    <i class="fas fa-edit"></i>
+                    Edit Session
+                </button>
+                <button type="button" class="outlook-btn outlook-btn-danger" id="delete-session-btn">
+                    <i class="fas fa-trash"></i>
+                    Delete Session
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Event details popup functions
+function openEventDetails(element) {
+    console.log('🚀 openEventDetails called');
+    console.log('Element:', element);
+    
+    // Get data from the clicked row with better error handling
+    const participant = element.getAttribute('data-participant') || 'Unknown';
+    const allParticipants = element.getAttribute('data-all-participants') || participant;
+    const time = element.getAttribute('data-time') || 'Time not specified';
+    const trainer = element.getAttribute('data-trainer') || 'Not specified';
+    const eventType = element.getAttribute('data-type') || 'Training Session';
+    const location = element.getAttribute('data-location') || 'Training Floor';
+    const isAppointment = element.getAttribute('data-is-appointment') === 'true';
+    const eventId = element.getAttribute('data-event-id') || '';
+    
+    console.log(`🎯 Opening event details for: ${allParticipants}`, {
+        participant,
+        allParticipants, 
+        time,
+        trainer,
+        eventType,
+        location,
+        isAppointment,
+        eventId
+    });
+    
+    try {
+        // Update modal content with basic info
+        const modalParticipant = document.getElementById('modal-participant');
+        const modalTime = document.getElementById('modal-time');
+        const modalTrainer = document.getElementById('modal-trainer');
+        const modalType = document.getElementById('modal-type');
+        const modalLocation = document.getElementById('modal-location');
+        const modalFunding = document.getElementById('modal-funding');
+        const trainingPackageDetails = document.getElementById('training-package-details');
+        
+        if (modalParticipant) modalParticipant.textContent = allParticipants;
+        if (modalTime) modalTime.textContent = time;
+        if (modalTrainer) modalTrainer.textContent = trainer;
+        if (modalType) modalType.textContent = eventType;
+        if (modalLocation) modalLocation.textContent = location;
+        
+        // Show loading state for funding details
+        if (modalFunding) {
+            modalFunding.innerHTML = `
+                <span class="outlook-badge outlook-badge-secondary">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    Loading...
+                </span>
+            `;
+        }
+        
+        if (trainingPackageDetails) {
+            trainingPackageDetails.style.display = 'none';
+        }
+        
+        // Show the modal
+        const modalElement = document.getElementById('eventDetailsModal');
+        if (modalElement) {
+            console.log('📋 Modal element found, attempting to show...');
+            
+            // Try Bootstrap first
+            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                try {
+                    const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+                    modal.show();
+                    console.log('✅ Modal opened with Bootstrap');
+                } catch (bootstrapError) {
+                    console.error('❌ Bootstrap modal error:', bootstrapError);
+                    // Fallback to manual display
+                    modalElement.style.display = 'block';
+                    modalElement.classList.add('show');
+                    modalElement.setAttribute('aria-hidden', 'false');
+                    document.body.classList.add('modal-open');
+                    console.log('⚠️ Using manual modal display fallback');
+                }
+            } else {
+                console.log('⚠️ Bootstrap not available, using manual modal display');
+                modalElement.style.display = 'block';
+                modalElement.classList.add('show');
+                modalElement.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('modal-open');
+            }
+        } else {
+            console.error('❌ Modal element not found!');
+            alert(`Event Details:\n\nClient: ${allParticipants}\nTime: ${time}\nTrainer: ${trainer}\nType: ${eventType}`);
+        }
+        
+        // Load funding status in background
+        if (isAppointment) {
+            if (modalFunding) {
+                modalFunding.innerHTML = `
+                    <span class="outlook-badge outlook-badge-info">
+                        <i class="fas fa-handshake"></i>
+                        Free Consultation
+                    </span>
+                `;
+            }
+        } else {
+            const participants = allParticipants.split(', ').filter(p => p && p !== 'Unknown');
+            if (participants.length > 0) {
+                checkMultipleParticipantsFunding(participants, time);
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Error in openEventDetails:', error);
+        // Ultimate fallback
+        alert(`Event Details:\n\nClient: ${allParticipants}\nTime: ${time}\nTrainer: ${trainer}\nType: ${eventType}\n\n(Modal display error - see console)`);
+    }
+}
+
+function checkMultipleParticipantsFunding(participants, time) {
+    console.log(`� Checking past due status for ${participants.length} participants:`, participants);
+    
+    const pastDuePromises = participants.map(participant => 
+        fetch('/api/member/past-due-status', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                participant: participant.trim()
+            })
+        }).then(response => response.json())
+    );
+    
+    Promise.allSettled(pastDuePromises).then(results => {
+        const fundingResults = [];
+        
+        results.forEach((result, index) => {
+            if (result.status === 'fulfilled' && result.value.success) {
+                fundingResults.push({
+                    participant: participants[index],
+                    funding: result.value.past_due_info
+                });
+            } else {
+                fundingResults.push({
+                    participant: participants[index],
+                    funding: {
+                        status_text: 'Status Unknown',
+                        status_class: 'secondary',
+                        status_icon: 'fas fa-question-circle'
+                    }
+                });
+            }
+        });
+        
+        displayMultipleParticipantsFunding(fundingResults);
+    });
+}
+
+function displayMultipleParticipantsFunding(fundingResults) {
+    let fundingHtml = '';
+    
+    fundingResults.forEach(result => {
+        const funding = result.funding;
+        const statusIcon = funding.status_icon || 'fas fa-question-circle';
+        const statusText = funding.status_text || 'Status Unknown';
+        const statusClass = `outlook-badge-${funding.status_class || 'secondary'}`;
+        
+        fundingHtml += `
+            <div class="mb-2">
+                <strong>${result.participant}:</strong>
+                <span class="outlook-badge ${statusClass} ms-2">
+                    <i class="${statusIcon}"></i>
+                    ${statusText}
+                </span>
+            </div>
+        `;
+    });
+    
+    document.getElementById('modal-funding').innerHTML = fundingHtml;
+    
+    const validFunding = fundingResults.find(r => r.funding.sessions_remaining);
+    if (validFunding && validFunding.funding.package_type) {
+        const funding = validFunding.funding;
+        document.getElementById('sessions-remaining').textContent = funding.sessions_remaining;
+        document.getElementById('package-type').textContent = funding.package_type;
+        document.getElementById('package-expiration').textContent = funding.expiration_date || 'Not specified';
+        document.getElementById('purchase-date').textContent = funding.purchase_date || 'Not specified';
+        document.getElementById('total-paid').textContent = funding.total_paid ? `$${funding.total_paid.toLocaleString()}` : 'Not specified';
+        
+        document.getElementById('training-package-details').style.display = 'block';
+    }
+}
+
+function refreshFundingCache() {
+    console.log('🔄 Refreshing funding cache...');
+    
+    const refreshBtn = document.getElementById('refresh-funding-btn');
+    const originalText = refreshBtn.innerHTML;
+    
+    refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+    refreshBtn.disabled = true;
+    
+    fetch('/api/refresh-funding', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('✅ Funding cache refreshed:', data);
+            refreshBtn.innerHTML = '<i class="fas fa-check"></i> Updated ' + data.success_count + ' clients';
+            refreshBtn.className = 'outlook-btn outlook-btn-success';
+            
+            setTimeout(() => {
+                checkAllFundingStatusesAsync();
+            }, 1000);
+            
+            setTimeout(() => {
+                refreshBtn.innerHTML = originalText;
+                refreshBtn.className = 'outlook-btn outlook-btn-warning';
+                refreshBtn.disabled = false;
+            }, 3000);
+        } else {
+            console.error('❌ Funding cache refresh failed:', data.error);
+            refreshBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
+            refreshBtn.className = 'outlook-btn outlook-btn-danger';
+            
+            setTimeout(() => {
+                refreshBtn.innerHTML = originalText;
+                refreshBtn.className = 'outlook-btn outlook-btn-warning';
+                refreshBtn.disabled = false;
+            }, 3000);
+        }
+    })
+    .catch(error => {
+        console.error('❌ Network error:', error);
+        refreshBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Network Error';
+        refreshBtn.className = 'outlook-btn outlook-btn-danger';
+        
+        setTimeout(() => {
+            refreshBtn.innerHTML = originalText;
+            refreshBtn.className = 'outlook-btn outlook-btn-warning';
+            refreshBtn.disabled = false;
+        }, 3000);
+    });
+}
+
+function performBulkCheckin() {
+    console.log('🏋️ Starting bulk member check-in...');
+    
+    const bulkBtn = document.getElementById('bulk-checkin-btn');
+    const originalText = bulkBtn.innerHTML;
+    
+    // Create or show progress bar
+    let progressContainer = document.getElementById('bulk-checkin-progress');
+    if (!progressContainer) {
+        progressContainer = document.createElement('div');
+        progressContainer.id = 'bulk-checkin-progress';
+        progressContainer.innerHTML = `
+            <div class="card mt-3" style="border-left: 4px solid var(--af-purple-primary);">
+                <div class="card-body">
+                    <h6 class="card-title mb-3">
+                        <i class="fas fa-users text-primary"></i> Bulk Check-in Progress
+                    </h6>
+                    <div class="progress mb-2" style="height: 20px;">
+                        <div id="bulk-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 0%; background-color: var(--af-purple-primary);">
+                            0%
+                        </div>
+                    </div>
+                    <div id="bulk-status-text" class="text-muted small">Initializing...</div>
+                    <div id="bulk-stats" class="row mt-2">
+                        <div class="col-sm-3">
+                            <small class="text-muted">Members:</small>
+                            <div id="members-count" class="fw-bold">0</div>
+                        </div>
+                        <div class="col-sm-3">
+                            <small class="text-muted">Processed:</small>
+                            <div id="processed-count" class="fw-bold text-success">0</div>
+                        </div>
+                        <div class="col-sm-3">
+                            <small class="text-muted">Check-ins:</small>
+                            <div id="checkins-count" class="fw-bold text-primary">0</div>
+                        </div>
+                        <div class="col-sm-3">
+                            <small class="text-muted">PPV Excluded:</small>
+                            <div id="ppv-count" class="fw-bold text-warning">0</div>
+                        </div>
+                    </div>
+                    <div id="current-member" class="mt-2 small text-info"></div>
+                    <div id="bulk-errors" class="mt-2" style="display: none;">
+                        <small class="text-danger">Errors:</small>
+                        <div id="error-list" class="small text-danger"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        bulkBtn.parentNode.insertBefore(progressContainer, bulkBtn.nextSibling);
+    }
+    progressContainer.style.display = 'block';
+    
+    bulkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting Bulk Check-in...';
+    bulkBtn.disabled = true;
+    
+    // Start the bulk check-in process
+    fetch('/api/bulk-checkin', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('✅ Bulk check-in started:', data);
+            bulkBtn.innerHTML = '<i class="fas fa-cog fa-spin"></i> Running in Background...';
+            
+            // Start polling for status updates
+            pollBulkCheckinStatus(bulkBtn, originalText, progressContainer);
+        } else {
+            console.error('❌ Failed to start bulk check-in:', data.error);
+            bulkBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Failed to Start';
+            bulkBtn.className = 'outlook-btn outlook-btn-danger';
+            
+            document.getElementById('bulk-status-text').textContent = `Error: ${data.error}`;
+            
+            setTimeout(() => {
+                bulkBtn.innerHTML = originalText;
+                bulkBtn.className = 'outlook-btn outlook-btn-success';
+                bulkBtn.disabled = false;
+                progressContainer.style.display = 'none';
+            }, 5000);
+        }
+    })
+    .catch(error => {
+        console.error('❌ Network error:', error);
+        bulkBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Network Error';
+        bulkBtn.className = 'outlook-btn outlook-btn-danger';
+        
+        setTimeout(() => {
+            bulkBtn.innerHTML = originalText;
+            bulkBtn.className = 'outlook-btn outlook-btn-success';
+            bulkBtn.disabled = false;
+            progressContainer.style.display = 'none';
+        }, 3000);
+    });
+}
+
+function pollBulkCheckinStatus(bulkBtn, originalText, progressContainer) {
+    const statusInterval = setInterval(() => {
+        fetch('/api/bulk-checkin-status')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.status) {
+                const status = data.status;
+                
+                // Update progress bar with smooth animations
+                const progressBar = document.getElementById('bulk-progress-bar');
+                const statusText = document.getElementById('bulk-status-text');
+                const membersCount = document.getElementById('members-count');
+                const processedCount = document.getElementById('processed-count');
+                const checkinsCount = document.getElementById('checkins-count');
+                const ppvCount = document.getElementById('ppv-count');
+                const currentMember = document.getElementById('current-member');
+                const bulkErrors = document.getElementById('bulk-errors');
+                const errorList = document.getElementById('error-list');
+                
+                if (progressBar) {
+                    progressBar.style.width = `${status.progress}%`;
+                    progressBar.textContent = `${status.progress}%`;
+                    
+                    // Add speed indicators based on status
+                    if (status.status === 'ultra_processing') {
+                        progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-success';
+                    } else if (status.status === 'filtering' || status.status === 'fetching') {
+                        progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-info';
+                    }
+                }
+                
+                // Enhanced status messages with speed indicators
+                let displayMessage = status.message;
+                if (status.status === 'ultra_processing') {
+                    displayMessage = `⚡ ${status.message} (ULTRA-FAST MODE)`;
+                } else if (status.status === 'fetching') {
+                    displayMessage = `🚀 ${status.message} (HIGH-SPEED FETCH)`;
+                } else if (status.status === 'filtering') {
+                    displayMessage = `⚡ ${status.message} (VECTORIZED FILTERING)`;
+                }
+                
+                if (statusText) statusText.textContent = displayMessage;
+                if (membersCount) membersCount.textContent = status.total_members.toLocaleString();
+                if (processedCount) processedCount.textContent = status.processed_members.toLocaleString();
+                if (checkinsCount) checkinsCount.textContent = status.total_checkins.toLocaleString();
+                if (ppvCount) ppvCount.textContent = status.ppv_excluded.toLocaleString();
+                
+                // Show current member with processing speed
+                if (currentMember && status.current_member) {
+                    const processingRate = status.processed_members > 0 ? 
+                        Math.round((status.total_checkins / status.processed_members) * 60) : 0;
+                    currentMember.innerHTML = `<i class="fas fa-bolt"></i> Processing: <strong>${status.current_member}</strong> <span class="text-info">(~${processingRate} check-ins/min)</span>`;
+                } else if (currentMember) {
+                    currentMember.innerHTML = '';
+                }
+                
+                // Show errors if any
+                if (status.errors && status.errors.length > 0) {
+                    bulkErrors.style.display = 'block';
+                    errorList.textContent = `${status.errors.length} errors occurred`;
+                } else {
+                    bulkErrors.style.display = 'none';
+                }
+                
+                // Update button based on status with enhanced messaging
+                if (status.status === 'completed') {
+                    clearInterval(statusInterval);
+                    const totalTime = status.completed_at && status.started_at ? 
+                        Math.round((new Date(status.completed_at) - new Date(status.started_at)) / 1000) : 0;
+                    const avgSpeed = totalTime > 0 ? Math.round(status.total_checkins / totalTime) : 0;
+                    
+                    bulkBtn.innerHTML = `<i class="fas fa-check"></i> ULTRA-FAST Complete! ${status.total_checkins} check-ins in ${totalTime}s (${avgSpeed}/s avg) - ${status.processed_members} members, ${status.ppv_excluded} PPV excluded`;
+                    bulkBtn.className = 'outlook-btn outlook-btn-success';
+                    
+                    setTimeout(() => {
+                        bulkBtn.innerHTML = originalText;
+                        bulkBtn.disabled = false;
+                        progressContainer.style.display = 'none';
+                    }, 15000); // Show success for 15 seconds
+                    
+                } else if (status.status === 'error') {
+                    clearInterval(statusInterval);
+                    bulkBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error in Ultra-Fast Processing';
+                    bulkBtn.className = 'outlook-btn outlook-btn-danger';
+                    
+                    setTimeout(() => {
+                        bulkBtn.innerHTML = originalText;
+                        bulkBtn.className = 'outlook-btn outlook-btn-success';
+                        bulkBtn.disabled = false;
+                        progressContainer.style.display = 'none';
+                    }, 5000);
+                    
+                } else {
+                    // Still running - update status with speed indicators
+                    const statusMessages = {
+                        'starting': '🚀 Initializing Ultra-Fast Engine...',
+                        'authenticating': '🔐 High-Speed Authentication...',
+                        'fetching': '⚡ High-Speed Member Fetch...',
+                        'filtering': '⚡ Vectorized PPV Filtering...',
+                        'ready_processing': '🚀 Ready for Ultra-Fast Processing...',
+                        'ultra_processing': '⚡ ULTRA-FAST Processing Mode...'
+                    };
+                    
+                    const displayMessage = statusMessages[status.status] || status.message;
+                    bulkBtn.innerHTML = `<i class="fas fa-bolt fa-spin"></i> ${displayMessage}`;
+                }
+            }
+        })
+        .catch(error => {
+            console.error('❌ Error polling status:', error);
+        });
+    }, 1000); // Poll every 1 second for faster updates
+}
+
+function checkAllFundingStatusesAsync() {
+    console.log('🔍 Starting asynchronous funding status checks...');
+    
+    const fundingElements = document.querySelectorAll('[id^="funding-status-"]');
+    console.log(`Found ${fundingElements.length} funding status elements to check`);
+    
+    fundingElements.forEach((element, index) => {
+        const participant = element.getAttribute('data-participant');
+        const time = element.getAttribute('data-time');
+        
+        console.log(`Element ${index + 1}: participant="${participant}", time="${time}"`);
+        
+        if (participant && participant.trim() !== '' && participant !== 'Unknown') {
+            setTimeout(() => {
+                checkEventCardFunding(element, participant, time);
+            }, index * 300);
+        } else {
+            console.log(`Skipping element ${index + 1} - no valid participant`);
+            element.innerHTML = `
+                <span class="outlook-badge outlook-badge-secondary">
+                    <i class="fas fa-question-circle"></i>
+                    Unknown
+                </span>
+            `;
+        }
+    });
+}
+
+function checkEventCardFunding(element, participant, time) {
+    console.log(`💰 CHECKING PAST DUE STATUS for event card: ${participant}`);
+    console.log('API endpoint: /api/member/past-due-status');
+    console.log('Request data:', { participant });
+    
+    // Show loading state
+    element.innerHTML = `
+        <span class="outlook-badge outlook-badge-warning">
+            <i class="fas fa-sync fa-spin"></i>
+            Checking...
+        </span>
+    `;
+    element.title = 'Fetching past due status from database...';
+    
+    fetch('/api/member/past-due-status', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            participant: participant
+        })
+    })
+    .then(response => {
+        console.log('Past Due API response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Past Due API response data:', data);
+        if (data.success) {
+            const pastDueInfo = data.past_due_info;
+            console.log(`✅ Past due data received for ${participant}:`, pastDueInfo);
+            
+            const statusIcon = pastDueInfo.status_icon || 'fas fa-question-circle';
+            const statusClass = `outlook-badge-${pastDueInfo.status_class || 'secondary'}`;
+            const statusText = pastDueInfo.status_text || 'Unknown';
+
+            // Show the calculated past due status from our training payment tracking system
+            element.innerHTML = `
+                <span class="outlook-badge ${statusClass}" title="Past due data from training payment tracking system">
+                    <i class="${statusIcon}"></i>
+                    ${statusText}
+                </span>
+            `;
+            element.title = 'Past due status from training payment tracking system';
+        } else {
+            console.error('❌ API error for', participant, ':', data.error);
+            element.innerHTML = `
+                <span class="outlook-badge outlook-badge-secondary">
+                    <i class="fas fa-question-circle"></i>
+                    Not Found
+                </span>
+            `;
+        }
+    })
+    .catch(error => {
+        console.error('❌ Network error checking past due for', participant, ':', error);
+        element.innerHTML = `
+            <span class="outlook-badge outlook-badge-secondary">
+                <i class="fas fa-exclamation-triangle"></i>
+                Error
+            </span>
+        `;
+    });
+}
+
+// Simple test function to verify event card clicking works
+function testEventCardClick() {
+    console.log('🧪 Testing event card click functionality...');
+    const testData = {
+        participant: 'Test Client',
+        time: '2:00 PM - 3:00 PM',
+        trainer: 'Test Trainer',
+        type: 'Test Session',
+        location: 'Training Floor',
+        eventId: 'test-123'
+    };
+    
+    // Create a mock element for testing
+    const mockElement = {
+        getAttribute: function(key) {
+            const mapping = {
+                'data-participant': testData.participant,
+                'data-all-participants': testData.participant,
+                'data-time': testData.time,
+                'data-trainer': testData.trainer,
+                'data-type': testData.type,
+                'data-location': testData.location,
+                'data-event-id': testData.eventId,
+                'data-is-appointment': 'false'
+            };
+            return mapping[key] || null;
+        }
+    };
+    
+    console.log('🧪 Calling openEventDetails with test data...');
+    openEventDetails(mockElement);
+}
+
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Dashboard loaded - attaching event listeners');
+    
+    // Add test button for debugging
+    console.log('🧪 To test event card functionality, run: testEventCardClick()');
+    
+    checkAllFundingStatusesAsync();
+    
+    const refreshFundingBtn = document.getElementById('refresh-funding-btn');
+    if (refreshFundingBtn) {
+        refreshFundingBtn.addEventListener('click', refreshFundingCache);
+    }
+    
+    const bulkCheckinBtn = document.getElementById('bulk-checkin-btn');
+    if (bulkCheckinBtn) {
+        bulkCheckinBtn.addEventListener('click', performBulkCheckin);
+    }
+    
+    // Add click handlers to all event cards
+    document.querySelectorAll('.session-row').forEach((row, index) => {
+        row.style.cursor = 'pointer';
+        
+        // Debug: Log what we found
+        console.log(`Found event row ${index + 1}:`, {
+            participant: row.getAttribute('data-participant'),
+            time: row.getAttribute('data-time'),
+            type: row.getAttribute('data-type')
+        });
+        
+        row.addEventListener('click', function(e) {
+            // Don't trigger if clicking on buttons or forms
+            if (e.target.closest('button, a, form, .outlook-btn-icon')) {
+                console.log('🚫 Click ignored - target is button/form:', e.target);
+                return;
+            }
+            
+            console.log('🖱️ Event card clicked!');
+            console.log('Row data:', {
+                participant: this.getAttribute('data-participant'),
+                time: this.getAttribute('data-time'),
+                trainer: this.getAttribute('data-trainer'),
+                type: this.getAttribute('data-type'),
+                eventId: this.getAttribute('data-event-id')
+            });
+            
+            openEventDetails(this);
+        });
+        
+        // Visual feedback on hover
+        row.addEventListener('mouseenter', function() {
+            this.style.background = 'var(--af-gray-100)';
+            this.style.borderLeft = '4px solid var(--af-purple-primary)';
+            this.style.transform = 'translateX(2px)';
+            this.style.transition = 'all 0.2s ease';
+        });
+        
+        row.addEventListener('mouseleave', function() {
+            this.style.background = 'white';
+            this.style.borderLeft = 'none';
+            this.style.transform = 'translateX(0)';
+        });
+    });
+    
+    const totalEventCards = document.querySelectorAll('.session-row').length;
+    console.log(`✅ Added click handlers to ${totalEventCards} event cards`);
+    
+    if (totalEventCards === 0) {
+        console.log('⚠️ No event cards found! This might be why clicking does nothing.');
+        console.log('💡 Try: testEventCardClick() to test the modal functionality');
+    } else {
+        console.log('✅ Event cards found and ready for clicking!');
+    }
+    
+    // Make test function available globally for debugging
+    window.testEventCardClick = testEventCardClick;
+    
+    console.log('✅ Dashboard initialization complete');
+});
+</script>
+{% endblock %}

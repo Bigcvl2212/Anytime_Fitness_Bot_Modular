@@ -3,7 +3,7 @@
 Send messages using the correct ClubOS endpoints based on working Selenium implementation
 """
 
-from services.api.clubos_api_client import ClubOSAPIClient, ClubOSAPIAuthentication
+from src.services.api.clubos_api_client import ClubOSAPIClient, ClubOSAPIAuthentication
 from config.secrets_local import get_secret
 import requests
 from bs4 import BeautifulSoup

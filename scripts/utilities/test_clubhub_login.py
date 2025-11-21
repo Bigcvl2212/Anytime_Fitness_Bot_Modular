@@ -1,4 +1,4 @@
-from services.authentication.clubhub_automated_login import ClubHubAutomatedLogin
+from src.services.authentication.clubhub_automated_login import ClubHubAutomatedLogin
 
 try:
     from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD

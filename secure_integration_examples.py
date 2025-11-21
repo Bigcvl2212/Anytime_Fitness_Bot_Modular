@@ -16,7 +16,7 @@ def example_clubos_integration():
     # from config.clubhub_credentials import CLUBOS_USERNAME, CLUBOS_PASSWORD
     
     # NEW WAY (secure credential service)
-    from services.authentication.secure_credential_service import get_clubos_credentials
+    from src.services.authentication.secure_credential_service import get_clubos_credentials
     
     username, password = get_clubos_credentials()
     
@@ -40,7 +40,7 @@ def example_clubhub_integration():
     # from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
     
     # NEW WAY (secure credential service)
-    from services.authentication.secure_credential_service import get_clubhub_credentials
+    from src.services.authentication.secure_credential_service import get_clubhub_credentials
     
     email, password = get_clubhub_credentials()
     
@@ -60,7 +60,7 @@ def example_legacy_secret_access():
     """
     print("🔑 Legacy Secret Access Example")
     
-    from services.authentication.secure_credential_service import get_secret
+    from src.services.authentication.secure_credential_service import get_secret
     
     # This will first try to get from authenticated session,
     # then fall back to Google Secret Manager legacy secrets
@@ -79,7 +79,7 @@ def example_authentication_check():
     """
     print("🔐 Authentication Check Example")
     
-    from services.authentication.secure_credential_service import is_authenticated, get_current_manager_id
+    from src.services.authentication.secure_credential_service import is_authenticated, get_current_manager_id
     
     if is_authenticated():
         manager_id = get_current_manager_id()
@@ -97,7 +97,7 @@ def example_calendar_api_integration():
     """
     print("📅 Calendar API Integration Example")
     
-    from services.authentication.secure_credential_service import get_clubos_credentials, is_authenticated
+    from src.services.authentication.secure_credential_service import get_clubos_credentials, is_authenticated
     
     if not is_authenticated():
         print("❌ Authentication required for calendar access")
@@ -128,7 +128,7 @@ def example_flask_route_integration():
     print("🌐 Flask Route Integration Example")
     
     from flask import Flask, jsonify, session
-    from services.authentication.secure_credential_service import get_clubos_credentials, is_authenticated
+    from src.services.authentication.secure_credential_service import get_clubos_credentials, is_authenticated
     
     app = Flask(__name__)
     
@@ -172,14 +172,14 @@ def migration_guide():
     steps = [
         "1. Replace hardcoded imports:",
         "   OLD: from config.clubhub_credentials import CLUBOS_USERNAME, CLUBOS_PASSWORD",
-        "   NEW: from services.authentication.secure_credential_service import get_clubos_credentials",
+        "   NEW: from src.services.authentication.secure_credential_service import get_clubos_credentials",
         "",
         "2. Update credential access:",
         "   OLD: username = CLUBOS_USERNAME",
         "   NEW: username, password = get_clubos_credentials()",
         "",
         "3. Add authentication checks:",
-        "   from services.authentication.secure_credential_service import is_authenticated",
+        "   from src.services.authentication.secure_credential_service import is_authenticated",
         "   if not is_authenticated():",
         "       return redirect('/login')",
         "",

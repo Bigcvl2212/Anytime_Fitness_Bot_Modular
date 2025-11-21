@@ -1,0 +1,471 @@
+{% extends "base.html" %}
+
+{% block title %}Admin AI Assistant{% endblock %}
+
+{% block extra_css %}
+<style>
+    .ai-card {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e1e5e9;
+    }
+
+    .ai-card.primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .ai-card.success {
+        border-left: 4px solid #28a745;
+    }
+
+    .ai-card.warning {
+        border-left: 4px solid #ffc107;
+    }
+
+    .ai-card.info {
+        border-left: 4px solid #17a2b8;
+    }
+
+    .chat-container {
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 16px;
+        background: #f8f9fa;
+    }
+
+    .chat-message {
+        margin-bottom: 16px;
+        padding: 12px;
+        border-radius: 8px;
+    }
+
+    .chat-message.user {
+        background: #007bff;
+        color: white;
+        margin-left: 20%;
+        text-align: right;
+    }
+
+    .chat-message.ai {
+        background: white;
+        border: 1px solid #dee2e6;
+        margin-right: 20%;
+    }
+
+    .command-input {
+        border-radius: 25px;
+        padding: 12px 20px;
+        border: 2px solid #dee2e6;
+        font-size: 16px;
+    }
+
+    .command-input:focus {
+        border-color: #007bff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+
+    .quick-action-btn {
+        margin: 4px;
+        border-radius: 20px;
+        padding: 8px 16px;
+        border: 1px solid #dee2e6;
+        background: white;
+        color: #333;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .quick-action-btn:hover {
+        background: #007bff;
+        color: white;
+        border-color: #007bff;
+    }
+
+    .ai-status {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .ai-status.available {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .ai-status.unavailable {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .stat-item {
+        text-align: center;
+        padding: 16px;
+        background: white;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+    }
+
+    .stat-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #007bff;
+    }
+
+    .stat-label {
+        font-size: 14px;
+        color: #6c757d;
+        margin-top: 4px;
+    }
+
+    .insight-panel {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .suggestion-item {
+        display: flex;
+        align-items: center;
+        padding: 12px;
+        background: white;
+        border-radius: 8px;
+        margin-bottom: 8px;
+        border-left: 4px solid #007bff;
+    }
+
+    .suggestion-icon {
+        margin-right: 12px;
+        color: #007bff;
+    }
+
+    .loading-spinner {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #007bff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2><i class="fas fa-robot me-2"></i>Admin AI Assistant</h2>
+                    <p class="text-muted mb-0">Intelligent administrative automation and insights</p>
+                </div>
+                <div>
+                    {% if ai_available %}
+                        <span class="ai-status available">
+                            <i class="fas fa-check-circle me-1"></i>AI Available
+                        </span>
+                    {% else %}
+                        <span class="ai-status unavailable">
+                            <i class="fas fa-exclamation-circle me-1"></i>AI Unavailable
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- AI Usage Stats -->
+            {% if ai_stats %}
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-value">{{ ai_stats.get('total_requests', 0) }}</div>
+                    <div class="stat-label">Total Requests</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">{{ "%.1f"|format(ai_stats.get('success_rate', 0) * 100) }}%</div>
+                    <div class="stat-label">Success Rate</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">{{ ai_stats.get('daily_requests_used', 0) }}</div>
+                    <div class="stat-label">Today's Usage</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">{{ ai_stats.get('daily_limit', 0) }}</div>
+                    <div class="stat-label">Daily Limit</div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="row">
+                <!-- AI Chat Interface -->
+                <div class="col-lg-8">
+                    <div class="ai-card">
+                        <h4><i class="fas fa-comments me-2"></i>AI Command Center</h4>
+                        <p class="text-muted">Ask me anything about system management, user administration, or data insights.</p>
+
+                        <!-- Chat Container -->
+                        <div class="chat-container" id="chatContainer">
+                            <div class="chat-message ai">
+                                <strong>AI Assistant:</strong> Hello! I'm your administrative AI assistant. I can help you with user management, system monitoring, security analysis, and data insights. What would you like me to help you with?
+                            </div>
+                        </div>
+
+                        <!-- Quick Actions -->
+                        <div class="mt-3 mb-3">
+                            <small class="text-muted">Quick Actions:</small><br>
+                            <button class="quick-action-btn" onclick="sendQuickCommand('Show me all admin users')">List Admin Users</button>
+                            <button class="quick-action-btn" onclick="sendQuickCommand('System health check')">System Health</button>
+                            <button class="quick-action-btn" onclick="sendQuickCommand('Security audit report')">Security Audit</button>
+                            <button class="quick-action-btn" onclick="sendQuickCommand('Show recent login activity')">Recent Activity</button>
+                        </div>
+
+                        <!-- Command Input -->
+                        <div class="input-group">
+                            <input type="text" class="form-control command-input" id="commandInput"
+                                   placeholder="Ask me to help with admin tasks..."
+                                   onkeypress="handleKeyPress(event)">
+                            <button class="btn btn-primary" onclick="sendCommand()" id="sendButton">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Insights Panel -->
+                <div class="col-lg-4">
+                    <!-- System Insights -->
+                    <div class="insight-panel">
+                        <h5><i class="fas fa-lightbulb me-2"></i>AI Insights</h5>
+                        <div id="insightsContent">
+                            <p>Loading intelligent insights...</p>
+                        </div>
+                        <button class="btn btn-light btn-sm" onclick="refreshInsights()">
+                            <i class="fas fa-sync-alt me-1"></i>Refresh
+                        </button>
+                    </div>
+
+                    <!-- Quick Stats -->
+                    <div class="ai-card info">
+                        <h6><i class="fas fa-chart-bar me-2"></i>Quick Database Query</h6>
+                        <div class="mb-2">
+                            <input type="text" class="form-control" id="quickQueryInput"
+                                   placeholder="e.g., How many users logged in today?">
+                        </div>
+                        <button class="btn btn-info btn-sm" onclick="runQuickQuery()">
+                            <i class="fas fa-search me-1"></i>Query
+                        </button>
+                        <div id="queryResult" class="mt-2" style="display: none;"></div>
+                    </div>
+
+                    <!-- AI Suggestions -->
+                    <div class="ai-card">
+                        <h6><i class="fas fa-magic me-2"></i>AI Recommendations</h6>
+                        <div id="aiSuggestions">
+                            <div class="suggestion-item">
+                                <i class="fas fa-shield-alt suggestion-icon"></i>
+                                <div>
+                                    <strong>Security Check</strong><br>
+                                    <small>Run routine security audit</small>
+                                </div>
+                            </div>
+                            <div class="suggestion-item">
+                                <i class="fas fa-users suggestion-icon"></i>
+                                <div>
+                                    <strong>User Review</strong><br>
+                                    <small>Review inactive admin accounts</small>
+                                </div>
+                            </div>
+                            <div class="suggestion-item">
+                                <i class="fas fa-chart-line suggestion-icon"></i>
+                                <div>
+                                    <strong>Performance Analysis</strong><br>
+                                    <small>Analyze system performance trends</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentSessionId = null;
+
+function handleKeyPress(event) {
+    if (event.key === 'Enter') {
+        sendCommand();
+    }
+}
+
+function sendQuickCommand(command) {
+    document.getElementById('commandInput').value = command;
+    sendCommand();
+}
+
+async function sendCommand() {
+    const input = document.getElementById('commandInput');
+    const command = input.value.trim();
+
+    if (!command) return;
+
+    // Add user message to chat
+    addMessageToChat('user', command);
+    input.value = '';
+
+    // Show loading
+    const sendButton = document.getElementById('sendButton');
+    const originalContent = sendButton.innerHTML;
+    sendButton.innerHTML = '<span class="loading-spinner"></span>';
+    sendButton.disabled = true;
+
+    try {
+        const response = await fetch('/admin/ai/command', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                command: command,
+                session_id: currentSessionId
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            currentSessionId = data.session_id;
+            const aiResponse = data.result.response || 'Command processed successfully.';
+            addMessageToChat('ai', aiResponse);
+
+            // Show actionable data if available
+            if (data.result.actionable && data.result.data) {
+                displayActionableData(data.result);
+            }
+        } else {
+            addMessageToChat('ai', `Error: ${data.error}`);
+        }
+    } catch (error) {
+        addMessageToChat('ai', `Network error: ${error.message}`);
+    } finally {
+        sendButton.innerHTML = originalContent;
+        sendButton.disabled = false;
+    }
+}
+
+function addMessageToChat(role, message) {
+    const chatContainer = document.getElementById('chatContainer');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${role}`;
+
+    if (role === 'user') {
+        messageDiv.innerHTML = `<strong>You:</strong> ${message}`;
+    } else {
+        messageDiv.innerHTML = `<strong>AI Assistant:</strong> ${message}`;
+    }
+
+    chatContainer.appendChild(messageDiv);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+function displayActionableData(result) {
+    if (result.data && Array.isArray(result.data)) {
+        let dataHtml = '<div class="mt-2"><small class="text-muted">Data:</small><ul>';
+        result.data.slice(0, 5).forEach(item => {
+            if (typeof item === 'object') {
+                const key = Object.keys(item)[0];
+                dataHtml += `<li>${key}: ${item[key]}</li>`;
+            } else {
+                dataHtml += `<li>${item}</li>`;
+            }
+        });
+        dataHtml += '</ul></div>';
+
+        const lastMessage = document.querySelector('.chat-message:last-child');
+        lastMessage.innerHTML += dataHtml;
+    }
+}
+
+async function runQuickQuery() {
+    const input = document.getElementById('quickQueryInput');
+    const query = input.value.trim();
+
+    if (!query) return;
+
+    const resultDiv = document.getElementById('queryResult');
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<span class="loading-spinner"></span> Processing query...';
+
+    try {
+        const response = await fetch('/admin/ai/query', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ query: query })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            resultDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <strong>Result:</strong> ${data.interpretation}<br>
+                    <small>Found ${data.row_count} results</small>
+                </div>
+            `;
+        } else {
+            resultDiv.innerHTML = `<div class="alert alert-danger">Error: ${data.error}</div>`;
+        }
+    } catch (error) {
+        resultDiv.innerHTML = `<div class="alert alert-danger">Network error: ${error.message}</div>`;
+    }
+}
+
+async function refreshInsights() {
+    const insightsDiv = document.getElementById('insightsContent');
+    insightsDiv.innerHTML = '<span class="loading-spinner"></span> Generating insights...';
+
+    try {
+        const response = await fetch('/admin/ai/insights/system_health');
+        const data = await response.json();
+
+        if (data.success) {
+            insightsDiv.innerHTML = `<p>${data.insights.response || 'System insights generated.'}</p>`;
+        } else {
+            insightsDiv.innerHTML = `<p class="text-warning">Unable to generate insights: ${data.error}</p>`;
+        }
+    } catch (error) {
+        insightsDiv.innerHTML = `<p class="text-warning">Error loading insights: ${error.message}</p>`;
+    }
+}
+
+// Load insights on page load
+document.addEventListener('DOMContentLoaded', function() {
+    refreshInsights();
+});
+</script>
+{% endblock %}

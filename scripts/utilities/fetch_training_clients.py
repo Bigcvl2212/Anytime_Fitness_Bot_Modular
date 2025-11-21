@@ -1,5 +1,5 @@
 import pandas as pd
-from services.api.clubos_api_client import ClubOSAPIClient
+from src.services.api.clubos_api_client import ClubOSAPIClient
 # Remove the import for CONTACT_LIST_XLSX, CONTACT_LIST_CSV
 # from config.constants import CONTACT_LIST_XLSX, CONTACT_LIST_CSV
 CONTACT_LIST_XLSX = "master_contact_list_20250715_181714.xlsx"

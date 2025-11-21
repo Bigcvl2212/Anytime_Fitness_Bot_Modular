@@ -3,7 +3,7 @@
 Extract Jeremy Mayo's Member ID from ClubOS HTML
 """
 
-from services.api.clubos_api_client import ClubOSAPIClient
+from src.services.api.clubos_api_client import ClubOSAPIClient
 from bs4 import BeautifulSoup
 import re
 

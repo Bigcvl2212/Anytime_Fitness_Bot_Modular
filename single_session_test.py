@@ -9,7 +9,7 @@ from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
 # Import ClubOS APIs
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from clubos_training_api import ClubOSTrainingPackageAPI
-from config.clubhub_credentials_clean import CLUBOS_USERNAME, CLUBOS_PASSWORD
+from config.clubhub_credentials import CLUBOS_USERNAME, CLUBOS_PASSWORD
 
 def main():
     # Use single API instances throughout

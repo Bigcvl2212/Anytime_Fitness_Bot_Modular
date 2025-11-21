@@ -63,6 +63,7 @@
             background: var(--af-gray-50);
             color: var(--af-black-primary);
             overflow-x: hidden;
+            min-height: 100vh;
         }
         
         /* Outlook-style Top Bar */
@@ -130,6 +131,60 @@
             margin-left: auto;
         }
         
+        .outlook-user .dropdown-toggle::after {
+            display: none;
+        }
+        
+        .outlook-user .dropdown-menu {
+            background: var(--af-black-secondary);
+            border: 1px solid var(--af-black-tertiary);
+            border-radius: var(--border-radius-medium);
+            margin-top: 8px;
+            min-width: 200px;
+        }
+        
+        .outlook-user .dropdown-item {
+            color: var(--af-gray-300);
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+        
+        .outlook-user .dropdown-item:hover {
+            background: var(--af-black-tertiary);
+            color: white;
+        }
+        
+        .outlook-user .dropdown-header {
+            color: var(--af-gray-600);
+            font-size: 12px;
+            font-weight: 600;
+            padding: 8px 16px 4px;
+        }
+        
+        .outlook-user .dropdown-item-text {
+            padding: 4px 16px;
+        }
+        
+        .outlook-user .dropdown-divider {
+            border-color: var(--af-black-tertiary);
+        }
+        
+        .dropdown-user-toggle {
+            cursor: pointer;
+        }
+        
+        .visually-hidden {
+            position: absolute !important;
+            width: 1px !important;
+            height: 1px !important;
+            padding: 0 !important;
+            margin: -1px !important;
+            overflow: hidden !important;
+            clip: rect(0, 0, 0, 0) !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+        }
+        
         .outlook-user-avatar {
             width: 28px;
             height: 28px;
@@ -147,8 +202,9 @@
         /* Outlook-style Layout */
         .outlook-container {
             display: flex;
-            height: 100vh;
+            min-height: calc(100vh - 48px);
             padding-top: 48px;
+            position: relative;
         }
         
         /* Outlook-style Sidebar */
@@ -159,6 +215,9 @@
             display: flex;
             flex-direction: column;
             overflow-y: auto;
+            position: relative;
+            min-height: calc(100vh - 48px);
+            flex-shrink: 0;
         }
         
         .outlook-nav {
@@ -214,7 +273,7 @@
             display: flex;
             flex-direction: column;
             background: var(--af-gray-50);
-            overflow: hidden;
+            min-height: calc(100vh - 48px);
         }
         
         .outlook-header {
@@ -245,6 +304,7 @@
             flex: 1;
             padding: 24px;
             overflow-y: auto;
+            width: 100%;
         }
         
         /* Outlook-style Cards */
@@ -540,13 +600,26 @@
         </div>
         
         <div class="outlook-search">
+            <label for="globalSearch" class="visually-hidden">Global search for members, prospects, and events</label>
             <i class="fas fa-search"></i>
-            <input type="text" placeholder="Search members, prospects, events...">
+            <input type="text" id="globalSearch" placeholder="Search members, prospects, events..." onkeypress="handleGlobalSearch(event)">
         </div>
         
         <div class="outlook-user">
-            <span>Jeremy Mayo</span>
-            <div class="outlook-user-avatar">JM</div>
+            <div class="dropdown">
+                <div class="d-flex align-items-center dropdown-user-toggle" data-bs-toggle="dropdown">
+                    <span>Jeremy Mayo</span>
+                    <div class="outlook-user-avatar">JM</div>
+                </div>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><h6 class="dropdown-header">Account</h6></li>
+                    <li><span class="dropdown-item-text small text-muted">Logged in as Jeremy Mayo</span></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="/logout">
+                        <i class="fas fa-sign-out-alt me-2"></i>Logout
+                    </a></li>
+                </ul>
+            </div>
         </div>
     </div>
     
@@ -591,6 +664,47 @@
                         <span>Messages</span>
                     </a>
                 </div>
+
+                <div class="outlook-nav-section">
+                    <div class="outlook-nav-section-title">AI Assistants</div>
+                    <a href="/sales-ai/dashboard" class="outlook-nav-item {% if request.endpoint == 'sales_ai.sales_ai_dashboard' %}active{% endif %}">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Sales AI</span>
+                    </a>
+                </div>
+
+                <!-- Admin Section - Only show for admin users -->
+                {% if is_admin %}
+                <div class="outlook-nav-section">
+                    <div class="outlook-nav-section-title">
+                        <i class="fas fa-shield-alt me-2"></i>Administration
+                    </div>
+                    <a href="/admin" class="outlook-nav-item {% if request.endpoint and request.endpoint.startswith('admin.') %}active{% endif %}">
+                        <i class="fas fa-tachometer-alt"></i>
+                        <span>Admin Dashboard</span>
+                    </a>
+                    <a href="/admin/users" class="outlook-nav-item {% if request.endpoint == 'admin.user_management' %}active{% endif %}">
+                        <i class="fas fa-users-cog"></i>
+                        <span>User Management</span>
+                    </a>
+                    <a href="/admin/system" class="outlook-nav-item {% if request.endpoint == 'admin.system_overview' %}active{% endif %}">
+                        <i class="fas fa-server"></i>
+                        <span>System Overview</span>
+                    </a>
+                    <a href="/admin/audit" class="outlook-nav-item {% if request.endpoint == 'admin.audit_log' %}active{% endif %}">
+                        <i class="fas fa-clipboard-list"></i>
+                        <span>Audit Log</span>
+                    </a>
+                    <a href="/admin/ai/dashboard" class="outlook-nav-item {% if request.endpoint == 'admin_ai.ai_dashboard' %}active{% endif %}">
+                        <i class="fas fa-robot"></i>
+                        <span>Admin AI</span>
+                    </a>
+                    <a href="/settings" class="outlook-nav-item {% if request.endpoint == 'dashboard.settings' %}active{% endif %}">
+                        <i class="fas fa-cog"></i>
+                        <span>Settings</span>
+                    </a>
+                </div>
+                {% endif %}
             </nav>
         </div>
         
@@ -613,6 +727,107 @@
     <!-- Scripts -->
     <!-- Core JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Global Debug Functions -->
+<script>
+        // Debug logging system - set to false for production
+        const DEBUG_MODE = true;
+        
+        function debugLog(...args) {
+            if (DEBUG_MODE) {
+                console.log(...args);
+            }
+        }
+        
+        function debugError(...args) {
+            console.error(...args); // Always show errors
+        }
+        
+        function debugWarn(...args) {
+            if (DEBUG_MODE) {
+                console.warn(...args);
+            }
+        }
+</script>
+
+<!-- Global Search Functionality -->
+<script>
+function handleGlobalSearch(event) {
+    if (event.key === 'Enter') {
+        const searchTerm = document.getElementById('globalSearch').value.trim();
+        if (searchTerm) {
+            performGlobalSearch(searchTerm);
+        }
+    }
+}
+
+function performGlobalSearch(searchTerm) {
+    debugLog(`🔍 Global search for: "${searchTerm}"`);
+    
+    // First try to find in members
+    fetch(`/api/members/search?q=${encodeURIComponent(searchTerm)}`)
+        .then(response => response.json())
+        .then(memberData => {
+            if (memberData.success && memberData.members && memberData.members.length > 0) {
+                // Found member, navigate to their profile
+                const member = memberData.members[0];
+                const memberId = member.guid || member.prospect_id || member.id;
+                debugLog(`✅ Found member: ${member.full_name} (ID: ${memberId})`);
+                window.location.href = `/member/${memberId}`;
+                return;
+            }
+            
+            // If not found in members, try prospects
+            debugLog(`🔍 Not found in members, searching prospects...`);
+            return fetch('/api/prospects/all');
+        })
+        .then(prospectResponse => {
+            if (!prospectResponse) return; // Already handled member case
+            
+            return prospectResponse.json();
+        })
+        .then(prospectData => {
+            if (prospectData && prospectData.success && prospectData.prospects) {
+                // Search through prospects for the name
+                const prospect = prospectData.prospects.find(p => {
+                    const fullName = `${p.firstName || ''} ${p.lastName || ''}`.trim();
+                    return fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           searchTerm.toLowerCase().includes(fullName.toLowerCase());
+                });
+                
+                if (prospect) {
+                    const prospectId = prospect.prospect_id || prospect.id;
+                    debugLog(`✅ Found prospect: ${prospect.firstName} ${prospect.lastName} (ID: ${prospectId})`);
+                    window.location.href = `/prospect/${prospectId}`;
+                    return;
+                }
+            }
+            
+            // If not found in either, show search results page or alert
+            debugLog(`⚠️ Not found in members or prospects`);
+            alert(`No members or prospects found matching "${searchTerm}"`);
+        })
+        .catch(error => {
+            debugError('❌ Error in global search:', error);
+            alert('Search error occurred. Please try again.');
+        });
+}
+
+// Add click handler for search icon
+document.addEventListener('DOMContentLoaded', function() {
+    const searchIcon = document.querySelector('.outlook-search i');
+    const searchInput = document.getElementById('globalSearch');
+    
+    if (searchIcon && searchInput) {
+        searchIcon.addEventListener('click', function() {
+            const searchTerm = searchInput.value.trim();
+            if (searchTerm) {
+                performGlobalSearch(searchTerm);
+            }
+        });
+    }
+});
+</script>
 
 <!-- Page-specific JS -->
 {% block extra_js %}{% endblock %}

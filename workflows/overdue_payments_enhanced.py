@@ -6,9 +6,9 @@ Includes hybrid fallback support for maximum reliability.
 """
 
 from typing import Dict, List, Optional, Union
-from ..services.data.member_data import get_yellow_red_members, get_member_balance_from_contact_data, batch_update_past_due_amounts
-from ..services.payments.square_client import create_overdue_payment_message_with_invoice
-from ..services.api.migration_service import get_migration_service
+from src.services.data.member_data import get_yellow_red_members, get_member_balance_from_contact_data, batch_update_past_due_amounts
+from src.services.payments.square_client import create_overdue_payment_message_with_invoice
+from src.services.api.migration_service import get_migration_service
 
 
 def process_overdue_payments_api(migration_mode: str = "hybrid") -> bool:
@@ -141,7 +141,7 @@ def process_overdue_payments_legacy(driver) -> bool:
     
     try:
         # Import the legacy implementation
-        from ..services.clubos.messaging import send_clubos_message
+        from src.services.clubos.messaging import send_clubos_message
         
         # Get yellow/red members who need invoices
         past_due_members = get_yellow_red_members()

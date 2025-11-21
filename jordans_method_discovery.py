@@ -18,7 +18,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from api.clubhub_api_client import ClubHubAPIClient
 from config.clubhub_credentials import CLUBHUB_EMAIL, CLUBHUB_PASSWORD
-from clean_dashboard import TrainingPackageCache
+from src.services.training_package_cache import TrainingPackageCache
 
 def main():
     print("=== JORDAN'S METHOD: COMPLETE TRAINING CLIENT DISCOVERY ===")

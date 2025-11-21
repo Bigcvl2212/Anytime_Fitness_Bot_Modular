@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - System Overview{% endblock %}
+
+{% block extra_css %}
+<style>
+    .system-card {
+        background: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border-left: 4px solid #3498db;
+    }
+
+    .system-card.healthy {
+        border-left-color: #27ae60;
+    }
+
+    .system-card.warning {
+        border-left-color: #f39c12;
+    }
+
+    .system-card.error {
+        border-left-color: #e74c3c;
+    }
+
+    .system-card h5 {
+        margin-bottom: 15px;
+        color: #2c3e50;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .status-healthy {
+        background-color: #27ae60;
+    }
+
+    .status-warning {
+        background-color: #f39c12;
+    }
+
+    .status-error {
+        background-color: #e74c3c;
+    }
+
+    .metric-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #ecf0f1;
+    }
+
+    .metric-row:last-child {
+        border-bottom: none;
+    }
+
+    .metric-label {
+        color: #7f8c8d;
+        font-weight: 500;
+    }
+
+    .metric-value {
+        color: #2c3e50;
+        font-weight: 600;
+    }
+
+    .refresh-button {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+    }
+
+    .health-summary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .health-summary h3 {
+        margin-bottom: 15px;
+    }
+
+    .service-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-server me-2"></i>System Overview</h2>
+                <div>
+                    <span class="badge bg-secondary">Last Updated: {{ current_time }}</span>
+                    <button class="btn btn-outline-primary btn-sm ms-2" onclick="location.reload()">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Health Summary -->
+            <div class="health-summary">
+                <h3><i class="fas fa-heartbeat me-2"></i>System Health</h3>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4>{{ system_health.healthy_services }}/{{ system_health.total_services }}</h4>
+                            <small>Services Online</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4>{{ system_stats.total_members|default(0) }}</h4>
+                            <small>Total Members</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4>{{ system_stats.total_prospects|default(0) }}</h4>
+                            <small>Total Prospects</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h4>{{ system_stats.total_training_clients|default(0) }}</h4>
+                            <small>Training Clients</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service Status Grid -->
+            <div class="service-grid">
+                <!-- Database Status -->
+                <div class="system-card {% if database_status.healthy %}healthy{% else %}error{% endif %}">
+                    <h5>
+                        <i class="fas fa-database"></i>
+                        Database Status
+                        <span class="status-indicator {% if database_status.healthy %}status-healthy{% else %}status-error{% endif %}"></span>
+                    </h5>
+                    <div class="metric-row">
+                        <span class="metric-label">Connection</span>
+                        <span class="metric-value">{{ 'Connected' if database_status.healthy else 'Disconnected' }}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Type</span>
+                        <span class="metric-value">{{ database_status.type|default('Unknown') }}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Tables</span>
+                        <span class="metric-value">{{ database_status.table_count|default(0) }}</span>
+                    </div>
+                    {% if database_status.last_error %}
+                    <div class="metric-row">
+                        <span class="metric-label">Last Error</span>
+                        <span class="metric-value text-danger">{{ database_status.last_error }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Authentication Services -->
+                <div class="system-card {% if auth_status.healthy %}healthy{% else %}warning{% endif %}">
+                    <h5>
+                        <i class="fas fa-shield-alt"></i>
+                        Authentication
+                        <span class="status-indicator {% if auth_status.healthy %}status-healthy{% else %}status-warning{% endif %}"></span>
+                    </h5>
+                    <div class="metric-row">
+                        <span class="metric-label">ClubOS</span>
+                        <span class="metric-value">{{ 'Active' if auth_status.clubos_healthy else 'Inactive' }}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">ClubHub</span>
+                        <span class="metric-value">{{ 'Active' if auth_status.clubhub_healthy else 'Inactive' }}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Sessions</span>
+                        <span class="metric-value">{{ auth_status.active_sessions|default(0) }}</span>
+                    </div>
+                </div>
+
+                <!-- Monitoring System -->
+                <div class="system-card {% if monitoring_status.healthy %}healthy{% else %}warning{% endif %}">
+                    <h5>
+                        <i class="fas fa-eye"></i>
+                        Access Monitoring
+                        <span class="status-indicator {% if monitoring_status.healthy %}status-healthy{% else %}status-warning{% endif %}"></span>
+                    </h5>
+                    <div class="metric-row">
+                        <span class="metric-label">Status</span>
+                        <span class="metric-value">{{ 'Running' if monitoring_status.is_running else 'Stopped' }}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Last Check</span>
+                        <span class="metric-value">{{ monitoring_status.last_check|default('Never') }}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Actions Today</span>
+                        <span class="metric-value">{{ monitoring_status.actions_today|default(0) }}</span>
+                    </div>
+                </div>
+
+                <!-- Performance Cache -->
+                <div class="system-card {% if cache_status.healthy %}healthy{% else %}warning{% endif %}">
+                    <h5>
+                        <i class="fas fa-tachometer-alt"></i>
+                        Performance Cache
+                        <span class="status-indicator {% if cache_status.healthy %}status-healthy{% else %}status-warning{% endif %}"></span>
+                    </h5>
+                    <div class="metric-row">
+                        <span class="metric-label">Hit Rate</span>
+                        <span class="metric-value">{{ cache_status.hit_rate|default(0) }}%</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Cache Size</span>
+                        <span class="metric-value">{{ cache_status.cache_size|default(0) }} items</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Total Requests</span>
+                        <span class="metric-value">{{ cache_status.total_requests|default(0) }}</span>
+                    </div>
+                </div>
+
+                <!-- ClubOS Integration -->
+                <div class="system-card {% if clubos_status.healthy %}healthy{% else %}error{% endif %}">
+                    <h5>
+                        <i class="fas fa-plug"></i>
+                        ClubOS Integration
+                        <span class="status-indicator {% if clubos_status.healthy %}status-healthy{% else %}status-error{% endif %}"></span>
+                    </h5>
+                    <div class="metric-row">
+                        <span class="metric-label">API Status</span>
+                        <span class="metric-value">{{ 'Connected' if clubos_status.api_healthy else 'Disconnected' }}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Last Sync</span>
+                        <span class="metric-value">{{ clubos_status.last_sync|default('Never') }}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Sync Errors</span>
+                        <span class="metric-value">{{ clubos_status.sync_errors|default(0) }}</span>
+                    </div>
+                </div>
+
+                <!-- Admin System -->
+                <div class="system-card healthy">
+                    <h5>
+                        <i class="fas fa-users-cog"></i>
+                        Admin System
+                        <span class="status-indicator status-healthy"></span>
+                    </h5>
+                    <div class="metric-row">
+                        <span class="metric-label">Admin Users</span>
+                        <span class="metric-value">{{ admin_stats.total_admins|default(0) }}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Super Admins</span>
+                        <span class="metric-value">{{ admin_stats.super_admins|default(0) }}</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Recent Actions</span>
+                        <span class="metric-value">{{ admin_stats.recent_actions|default(0) }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Actions -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="system-card">
+                        <h5><i class="fas fa-tools me-2"></i>System Actions</h5>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-primary" onclick="refreshData()">
+                                <i class="fas fa-sync-alt me-1"></i>Refresh Data
+                            </button>
+                            <button type="button" class="btn btn-outline-info" onclick="clearCache()">
+                                <i class="fas fa-trash me-1"></i>Clear Cache
+                            </button>
+                            <button type="button" class="btn btn-outline-warning" onclick="runHealthCheck()">
+                                <i class="fas fa-heartbeat me-1"></i>Run Health Check
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function refreshData() {
+    location.reload();
+}
+
+function clearCache() {
+    if (confirm('Are you sure you want to clear the performance cache?')) {
+        fetch('/admin/api/clear-cache', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message || 'Cache cleared successfully');
+                location.reload();
+            })
+            .catch(error => {
+                alert('Error clearing cache: ' + error);
+            });
+    }
+}
+
+function runHealthCheck() {
+    fetch('/admin/api/health-check', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            alert(data.message || 'Health check completed');
+            location.reload();
+        })
+        .catch(error => {
+            alert('Error running health check: ' + error);
+        });
+}
+</script>
+{% endblock %}

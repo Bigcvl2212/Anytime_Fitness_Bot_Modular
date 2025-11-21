@@ -19,7 +19,7 @@ def main():
     
     try:
         # Import the fixed API client
-        from services.api.clubos_api_client import create_clubos_api_client
+        from src.services.api.clubos_api_client import create_clubos_api_client
         from config.secrets_local import get_secret
         
         print("✅ Successfully imported ClubOS API client")

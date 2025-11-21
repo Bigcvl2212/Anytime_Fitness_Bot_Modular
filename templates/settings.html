@@ -1,313 +1,768 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Settings - Anytime Fitness Dashboard</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f8f9fa;
-            color: #333;
-            line-height: 1.6;
-        }
-        
-        .header {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: white;
-            padding: 20px 0;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        
-        .header .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .header h1 {
-            font-size: 28px;
-            font-weight: 700;
-        }
-        
-        .btn-back {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            padding: 8px 16px;
-            border: 1px solid rgba(255,255,255,0.3);
-            border-radius: 5px;
-            text-decoration: none;
-            transition: background 0.3s;
-        }
-        
-        .btn-back:hover {
-            background: rgba(255,255,255,0.3);
-            text-decoration: none;
-        }
-        
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        .settings-card {
-            background: white;
-            border-radius: 10px;
-            padding: 30px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
-        
-        .settings-card h2 {
-            color: #1e3c72;
-            margin-bottom: 20px;
-            font-size: 24px;
-        }
-        
-        .current-info {
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .current-info h3 {
-            color: #495057;
-            margin-bottom: 15px;
-            font-size: 18px;
-        }
-        
-        .info-item {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 10px;
-            padding: 10px 0;
-            border-bottom: 1px solid #dee2e6;
-        }
-        
-        .info-item:last-child {
-            border-bottom: none;
-        }
-        
-        .info-label {
-            font-weight: 600;
-            color: #495057;
-        }
-        
-        .info-value {
-            font-family: 'Courier New', monospace;
-            color: #6c757d;
-        }
-        
-        .warning-box {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .warning-box h4 {
-            color: #856404;
-            margin-bottom: 10px;
-        }
-        
-        .warning-box p {
-            color: #856404;
-            font-size: 14px;
-        }
-        
-        .feature-coming-soon {
-            text-align: center;
-            padding: 40px;
-            color: #6c757d;
-        }
-        
-        .feature-coming-soon .icon {
-            font-size: 48px;
-            margin-bottom: 20px;
-        }
-        
-        .feature-coming-soon h3 {
-            margin-bottom: 15px;
-        }
-        
-        .feature-coming-soon p {
-            font-size: 16px;
-            margin-bottom: 10px;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: white;
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 16px;
-            font-weight: 600;
-            transition: transform 0.2s, box-shadow 0.2s;
-            cursor: pointer;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(30, 60, 114, 0.3);
-            text-decoration: none;
-            color: white;
-        }
-        
-        .btn-danger {
-            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-            color: white;
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            text-decoration: none;
-            display: inline-block;
-            font-size: 16px;
-            font-weight: 600;
-            transition: transform 0.2s, box-shadow 0.2s;
-            cursor: pointer;
-            margin-left: 10px;
-        }
-        
-        .btn-danger:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
-            text-decoration: none;
-            color: white;
-        }
-    </style>
-</head>
-<body>
-    <header class="header">
-        <div class="container">
-            <h1>⚙️ Settings</h1>
-            <a href="{{ url_for('dashboard') }}" class="btn-back">← Back to Dashboard</a>
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<style>
+.settings-wrap{display:flex;height:calc(100vh - 80px);background:#1a1a1a}.settings-sidebar{width:280px;background:#252525;border-right:1px solid #333;overflow-y:auto}.settings-sidebar h3{color:#fff;padding:20px;margin:0;border-bottom:1px solid #333}.settings-nav-item{display:flex;align-items:center;padding:12px 20px;color:#aaa;cursor:pointer;border-left:3px solid transparent}.settings-nav-item:hover{background:#2a2a2a;color:#fff}.settings-nav-item.active{background:#2a2a2a;color:#4CAF50;border-left-color:#4CAF50}.settings-nav-item i{width:24px;margin-right:12px}.settings-content{flex:1;overflow-y:auto;padding:30px}.settings-category{display:none}.settings-category.active{display:block}.settings-header h1{color:#fff;margin:0 0 10px}.settings-header p{color:#aaa;margin:0 0 30px}.settings-section{background:#252525;border:1px solid #333;border-radius:8px;padding:25px;margin-bottom:20px}.settings-section h3{color:#fff;margin:0 0 20px;padding-bottom:15px;border-bottom:1px solid #333}.form-group{margin-bottom:20px}.form-group label{display:block;color:#fff;margin-bottom:8px;font-size:14px}.form-group input,.form-group select{width:100%;padding:10px;background:#1a1a1a;border:1px solid #444;border-radius:4px;color:#fff}.form-group input:focus,.form-group select:focus{outline:none;border-color:#4CAF50}.help-text{color:#888;font-size:12px;margin-top:5px}.toggle-switch{position:relative;display:inline-block;width:50px;height:26px}.toggle-switch input{opacity:0;width:0;height:0}.toggle-slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#444;transition:.3s;border-radius:26px}.toggle-slider:before{position:absolute;content:"";height:18px;width:18px;left:4px;bottom:4px;background-color:white;transition:.3s;border-radius:50%}.toggle-switch input:checked + .toggle-slider{background-color:#4CAF50}.toggle-switch input:checked + .toggle-slider:before{transform:translateX(24px)}.slider-group{display:flex;align-items:center;gap:15px}.slider-group input[type="range"]{flex:1;height:6px;background:#444;border-radius:3px;outline:none}.slider-value{min-width:50px;padding:6px 12px;background:#1a1a1a;border:1px solid #444;border-radius:4px;color:#fff;text-align:center;font-size:14px}.radio-group{display:flex;flex-direction:column;gap:10px}.radio-option{display:flex;align-items:center;gap:8px}.radio-option input[type="radio"]{accent-color:#4CAF50}.checkbox-group{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}.checkbox-option{display:flex;align-items:center;gap:8px}.checkbox-option input[type="checkbox"]{accent-color:#4CAF50}.settings-actions{position:sticky;bottom:0;background:#252525;border-top:1px solid #333;padding:20px;display:flex;justify-content:space-between;align-items:center}.btn-settings{padding:10px 20px;border:none;border-radius:4px;font-size:14px;cursor:pointer;transition:.2s}.btn-primary{background:#4CAF50;color:white}.btn-primary:hover{background:#45a049}.btn-secondary{background:#444;color:white}.btn-secondary:hover{background:#555}.btn-danger{background:#f44336;color:white}.btn-danger:hover{background:#da190b}.unsaved-changes{display:none;color:#ff9800;font-size:14px;align-items:center;gap:8px}.unsaved-changes.show{display:flex}.info-box{background:#2a3f5f;border-left:4px solid #2196F3;padding:15px;border-radius:4px;margin-bottom:20px;color:#ddd}
+</style>
+
+<div class="settings-wrap">
+  <div class="settings-sidebar">
+    <h3>Bot Settings</h3>
+    <div>
+      <div class="settings-nav-item active" data-category="ai_agent"><i class="fas fa-robot"></i><span>AI Agent</span></div>
+      <div class="settings-nav-item" data-category="workflows"><i class="fas fa-sync"></i><span>Workflows</span></div>
+      <div class="settings-nav-item" data-category="collections"><i class="fas fa-dollar-sign"></i><span>Collections</span></div>
+      <div class="settings-nav-item" data-category="messaging"><i class="fas fa-comments"></i><span>Messaging</span></div>
+      <div class="settings-nav-item" data-category="campaigns"><i class="fas fa-bullhorn"></i><span>Campaigns</span></div>
+      <div class="settings-nav-item" data-category="approvals"><i class="fas fa-check-circle"></i><span>Approvals</span></div>
+      <div class="settings-nav-item" data-category="notifications"><i class="fas fa-bell"></i><span>Notifications</span></div>
+      <div class="settings-nav-item" data-category="dashboard"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></div>
+      <div class="settings-nav-item" data-category="data_sync"><i class="fas fa-sync-alt"></i><span>Data Sync</span></div>
+      <div class="settings-nav-item" data-category="compliance"><i class="fas fa-shield-alt"></i><span>Compliance</span></div>
+      <div class="settings-nav-item" data-category="testing"><i class="fas fa-flask"></i><span>Testing</span></div>
+    </div>
+  </div>
+
+  <div class="settings-content">
+    <div id="ai_agent" class="settings-category active">
+      <div class="settings-header">
+        <h1>AI Agent Settings</h1>
+        <p>Configure autonomous AI agent behavior</p>
+      </div>
+      <div class="info-box">AI agent uses Claude 3.7 Sonnet to handle inquiries and workflows autonomously.</div>
+      
+      <div class="settings-section">
+        <h3>Model Configuration</h3>
+        <div class="form-group">
+          <label for="ai_model">AI Model</label>
+          <select id="ai_model" name="model">
+            <option value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
+            <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+          </select>
+          <span class="help-text">Choose AI model for operations</span>
         </div>
-    </header>
-    
-    <div class="container">
-        <div class="settings-card">
-            <h2>🔐 Credential Management</h2>
-            
-            <div class="current-info">
-                <h3>Current Stored Credentials</h3>
-                <div class="info-item">
-                    <span class="info-label">Manager ID:</span>
-                    <span class="info-value">{{ manager_id }}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">ClubOS Username:</span>
-                    <span class="info-value">{{ credentials.clubos_username }}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">ClubHub Email:</span>
-                    <span class="info-value">{{ credentials.clubhub_email }}</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Storage:</span>
-                    <span class="info-value">🔐 Google Cloud Secret Manager</span>
-                </div>
-            </div>
-            
-            <div class="warning-box">
-                <h4>🛡️ Security Notice</h4>
-                <p>Your credentials are securely encrypted and stored in Google Cloud Secret Manager. Passwords are never displayed in plain text and are only accessible during authenticated API calls.</p>
-            </div>
-            
-            <div class="feature-coming-soon">
-                <div class="icon">🚧</div>
-                <h3>Credential Update Feature Coming Soon</h3>
-                <p>The ability to update your stored credentials will be available in a future version.</p>
-                <p><strong>Current Workaround:</strong> To update credentials, please logout and register again with new credentials.</p>
-                
-                <div style="margin-top: 30px;">
-                    <a href="{{ url_for('logout') }}" class="btn-danger">
-                        🚪 Logout & Re-register
-                    </a>
-                </div>
-            </div>
+        <div class="form-group">
+          <label for="token_limit">Token Limit</label>
+          <input type="number" id="token_limit" name="token_limit" min="10000" max="200000" step="1000" value="40000">
+          <span class="help-text">Max tokens per conversation (10k-200k)</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Behavior Settings</h3>
+        <div class="form-group">
+          <label for="max_iterations">Max Iterations</label>
+          <div class="slider-group">
+            <input type="range" id="max_iterations" name="max_iterations" min="1" max="50" value="10">
+            <span class="slider-value" id="max_iterations_value">10</span>
+          </div>
+          <span class="help-text">Max reasoning steps (1-50)</span>
+        </div>
+        <div class="form-group">
+          <label>Confidence Threshold</label>
+          <div class="radio-group">
+            <div class="radio-option"><input type="radio" id="conf_low" name="confidence_threshold" value="low"><label for="conf_low">Low - More autonomous</label></div>
+            <div class="radio-option"><input type="radio" id="conf_med" name="confidence_threshold" value="medium" checked><label for="conf_med">Medium - Balanced</label></div>
+            <div class="radio-option"><input type="radio" id="conf_high" name="confidence_threshold" value="high"><label for="conf_high">High - More approvals</label></div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:10px">
+            <span>Dry Run Mode</span>
+            <label class="toggle-switch"><input type="checkbox" id="dry_run_mode" name="dry_run_mode"><span class="toggle-slider"></span></label>
+          </label>
+          <span class="help-text">Simulate actions without executing</span>
+        </div>
+        <div class="form-group">
+          <label for="api_rate_limit">API Rate Limit (requests/min)</label>
+          <input type="number" id="api_rate_limit" name="api_rate_limit" min="1" max="20" value="4">
+          <span class="help-text">Max API requests per minute</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>AI Instructions & Context</h3>
+        <div class="info-box">
+          <strong>Custom instructions help keep the AI aligned with your gym's policies, tone, and procedures.</strong>
         </div>
         
-        <div class="settings-card">
-            <h2>📊 Session Management</h2>
-            
-            <div class="current-info">
-                <h3>Current Session</h3>
-                <div class="info-item">
-                    <span class="info-label">Session Status:</span>
-                    <span class="info-value">🟢 Active</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Timeout:</span>
-                    <span class="info-value">8 hours</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Security Level:</span>
-                    <span class="info-value">🔐 High</span>
-                </div>
-            </div>
-            
-            <div style="margin-top: 20px;">
-                <a href="{{ url_for('logout') }}" class="btn-danger">
-                    🚪 End Session
-                </a>
-            </div>
+        <div class="form-group">
+          <label for="custom_system_prompt">Custom System Instructions</label>
+          <textarea id="custom_system_prompt" name="custom_system_prompt" rows="6" style="width:100%;max-width:100%;padding:12px;background:#1a1a1a;border:1px solid #444;border-radius:4px;color:#fff;font-family:monospace;font-size:13px;line-height:1.5" placeholder="Example:
+- Always be friendly and professional
+- Use first names when addressing members
+- Our gym opens at 5am, closes at 11pm (24/7 key access)
+- Emphasize community and support
+- Never promise discounts without manager approval"></textarea>
+          <span class="help-text">Global instructions applied to all AI interactions</span>
         </div>
-        
-        <div class="settings-card">
-            <h2>🔗 API Integration</h2>
-            
-            <div class="current-info">
-                <h3>Integration Status</h3>
-                <div class="info-item">
-                    <span class="info-label">ClubOS API:</span>
-                    <span class="info-value">🟢 Ready</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">ClubHub API:</span>
-                    <span class="info-value">🟢 Ready</span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">Encryption:</span>
-                    <span class="info-value">🔐 HTTPS/TLS</span>
-                </div>
-            </div>
-            
-            <p style="color: #666; font-size: 14px; margin-top: 15px;">
-                Your credentials are automatically used by the system for secure API calls to retrieve member data, manage calendars, and handle other gym management tasks.
-            </p>
+
+        <div class="form-group">
+          <label for="collections_rules">Collections Handling Rules</label>
+          <textarea id="collections_rules" name="collections_rules" rows="4" style="width:100%;max-width:100%;padding:12px;background:#1a1a1a;border:1px solid #444;border-radius:4px;color:#fff;font-family:monospace;font-size:13px;line-height:1.5" placeholder="Example:
+- Be empathetic but firm about payment deadlines
+- Offer payment plan options for amounts over $100
+- Always mention our 7-day grace period
+- Escalate to manager if member is hostile"></textarea>
+          <span class="help-text">Specific rules for handling past-due accounts</span>
         </div>
+
+        <div class="form-group">
+          <label for="campaign_guidelines">Campaign & Marketing Guidelines</label>
+          <textarea id="campaign_guidelines" name="campaign_guidelines" rows="4" style="width:100%;max-width:100%;padding:12px;background:#1a1a1a;border:1px solid #444;border-radius:4px;color:#fff;font-family:monospace;font-size:13px;line-height:1.5" placeholder="Example:
+- Focus on health benefits, not weight loss
+- Highlight 24/7 access and key fob convenience
+- Mention free fitness consultation for new members
+- Use action words: Join, Start, Transform, Achieve"></textarea>
+          <span class="help-text">Guidelines for creating marketing campaigns</span>
+        </div>
+
+        <div class="form-group">
+          <label for="tone_and_voice">Brand Tone & Voice</label>
+          <textarea id="tone_and_voice" name="tone_and_voice" rows="3" style="width:100%;max-width:100%;padding:12px;background:#1a1a1a;border:1px solid #444;border-radius:4px;color:#fff;font-family:monospace;font-size:13px;line-height:1.5" placeholder="Example:
+- Energetic but not pushy
+- Supportive and motivating
+- Casual yet professional
+- Community-focused"></textarea>
+          <span class="help-text">How the AI should sound when communicating</span>
+        </div>
+
+        <div class="form-group">
+          <label for="forbidden_actions">Forbidden Actions</label>
+          <textarea id="forbidden_actions" name="forbidden_actions" rows="3" style="width:100%;max-width:100%;padding:12px;background:#1a1a1a;border:1px solid #444;border-radius:4px;color:#fff;font-family:monospace;font-size:13px;line-height:1.5" placeholder="Example:
+- Never offer discounts without approval
+- Never delete member data
+- Never send messages after 9pm local time
+- Never access medical information"></textarea>
+          <span class="help-text">Actions the AI should NEVER take</span>
+        </div>
+
+        <div class="form-group">
+          <label for="business_context">Business Context & Facts</label>
+          <textarea id="business_context" name="business_context" rows="5" style="width:100%;max-width:100%;padding:12px;background:#1a1a1a;border:1px solid #444;border-radius:4px;color:#fff;font-family:monospace;font-size:13px;line-height:1.5" placeholder="Example:
+Location: 123 Main St, Springfield
+Manager: John Smith (john@gym.com, 555-0100)
+Hours: 24/7 (staffed 5am-9pm weekdays, 7am-7pm weekends)
+Amenities: Free weights, cardio, classes, showers, lockers
+Specialty: Personal training, group fitness classes
+Membership types: Basic ($29.99/mo), Premium ($49.99/mo), PPV ($10/visit)"></textarea>
+          <span class="help-text">Important facts about your gym the AI should know</span>
+        </div>
+
+        <div class="form-group">
+          <label for="escalation_triggers">Escalation Triggers</label>
+          <textarea id="escalation_triggers" name="escalation_triggers" rows="3" style="width:100%;max-width:100%;padding:12px;background:#1a1a1a;border:1px solid #444;border-radius:4px;color:#fff;font-family:monospace;font-size:13px;line-height:1.5" placeholder="Example:
+- Member threatens legal action
+- Amount owed exceeds $500
+- Member requests refund
+- Safety or injury concerns mentioned
+- Hostile or abusive language"></textarea>
+          <span class="help-text">Situations that should be escalated to human staff</span>
+        </div>
+      </div>
     </div>
 
-    <script>
-        // Auto-refresh session status
-        setInterval(async () => {
-            try {
-                const response = await fetch('/api/session');
-                const sessionData = await response.json();
-                
-                if (!sessionData.authenticated) {
-                    alert('Your session has expired. Please log in again.');
-                    window.location.href = '/login';
-                }
-            } catch (error) {
-                console.warn('Failed to check session status:', error);
-            }
-        }, 5 * 60 * 1000);
-    </script>
-</body>
-</html>
+    <div id="workflows" class="settings-category">
+      <div class="settings-header">
+        <h1>Workflow Settings</h1>
+        <p>Configure automated workflow schedules</p>
+      </div>
+      
+      <div class="settings-section">
+        <h3>Daily Campaigns</h3>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:10px">
+            <span>Enabled</span>
+            <label class="toggle-switch"><input type="checkbox" id="daily_campaigns_enabled" name="daily_campaigns_enabled"><span class="toggle-slider"></span></label>
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="daily_campaigns_time">Run Time</label>
+          <input type="time" id="daily_campaigns_time" name="daily_campaigns_time" value="06:00">
+        </div>
+        <div class="form-group">
+          <label>Active Days</label>
+          <div class="checkbox-group">
+            <div class="checkbox-option"><input type="checkbox" name="daily_campaigns_days" value="monday"><label>Mon</label></div>
+            <div class="checkbox-option"><input type="checkbox" name="daily_campaigns_days" value="tuesday"><label>Tue</label></div>
+            <div class="checkbox-option"><input type="checkbox" name="daily_campaigns_days" value="wednesday"><label>Wed</label></div>
+            <div class="checkbox-option"><input type="checkbox" name="daily_campaigns_days" value="thursday"><label>Thu</label></div>
+            <div class="checkbox-option"><input type="checkbox" name="daily_campaigns_days" value="friday"><label>Fri</label></div>
+            <div class="checkbox-option"><input type="checkbox" name="daily_campaigns_days" value="saturday"><label>Sat</label></div>
+            <div class="checkbox-option"><input type="checkbox" name="daily_campaigns_days" value="sunday"><label>Sun</label></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Past Due Monitoring</h3>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:10px">
+            <span>Enabled</span>
+            <label class="toggle-switch"><input type="checkbox" id="past_due_monitoring_enabled" name="past_due_monitoring_enabled"><span class="toggle-slider"></span></label>
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="past_due_monitoring_frequency">Frequency</label>
+          <select id="past_due_monitoring_frequency" name="past_due_monitoring_frequency">
+            <option value="hourly">Every Hour</option>
+            <option value="4hours">Every 4 Hours</option>
+            <option value="daily">Daily</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div id="collections" class="settings-category">
+      <div class="settings-header">
+        <h1>Collections Settings</h1>
+        <p>Configure collections workflows and thresholds</p>
+      </div>
+      
+      <div class="settings-section">
+        <h3>Thresholds</h3>
+        <div class="form-group">
+          <label for="min_past_due_amount">Minimum Past Due Amount ($)</label>
+          <input type="number" id="min_past_due_amount" name="min_past_due_amount" min="0" step="0.01" value="25.00">
+          <span class="help-text">Minimum amount to trigger collections</span>
+        </div>
+        <div class="form-group">
+          <label for="grace_period_days">Grace Period (days)</label>
+          <input type="number" id="grace_period_days" name="grace_period_days" min="0" max="90" value="7">
+          <span class="help-text">Days before starting collections</span>
+        </div>
+        <div class="form-group">
+          <label for="lock_threshold">Account Lock Threshold ($)</label>
+          <input type="number" id="lock_threshold" name="lock_threshold" min="0" step="0.01" value="100.00">
+          <span class="help-text">Amount that triggers account lock</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Reminder Tiers</h3>
+        <div class="form-group">
+          <label for="friendly_reminder_amount">Friendly Reminder Amount ($)</label>
+          <input type="number" id="friendly_reminder_amount" name="friendly_reminder_amount" min="0" step="0.01" value="25.00">
+          <span class="help-text">0-25: Friendly tone</span>
+        </div>
+        <div class="form-group">
+          <label for="firm_reminder_amount">Firm Reminder Amount ($)</label>
+          <input type="number" id="firm_reminder_amount" name="firm_reminder_amount" min="0" step="0.01" value="50.00">
+          <span class="help-text">25-50: Firm tone</span>
+        </div>
+        <div class="form-group">
+          <label for="final_notice_amount">Final Notice Amount ($)</label>
+          <input type="number" id="final_notice_amount" name="final_notice_amount" min="0" step="0.01" value="75.00">
+          <span class="help-text">50-75: Final notice tone</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Automation</h3>
+        <div class="form-group">
+          <label>Auto-lock accounts over threshold</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="auto_lock_enabled" name="auto_lock_enabled">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="help-text">Automatically lock accounts exceeding threshold</span>
+        </div>
+        <div class="form-group">
+          <label for="referral_to_owner_amount">Referral to Owner Amount ($)</label>
+          <input type="number" id="referral_to_owner_amount" name="referral_to_owner_amount" min="0" step="0.01" value="150.00">
+          <span class="help-text">Amount requiring owner review</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="messaging" class="settings-category">
+      <div class="settings-header">
+        <h1>Messaging Settings</h1>
+        <p>Configure messaging behavior and limits</p>
+      </div>
+      
+      <div class="settings-section">
+        <h3>General Settings</h3>
+        <div class="form-group">
+          <label for="default_channel">Default Message Channel</label>
+          <select id="default_channel" name="default_channel">
+            <option value="sms">SMS (Text Message)</option>
+            <option value="email">Email</option>
+          </select>
+          <span class="help-text">Preferred communication channel</span>
+        </div>
+        <div class="form-group">
+          <label for="sending_rate_limit">Sending Rate Limit (per minute)</label>
+          <input type="number" id="sending_rate_limit" name="sending_rate_limit" min="1" max="100" value="10">
+          <span class="help-text">Max messages sent per minute</span>
+        </div>
+        <div class="form-group">
+          <label for="max_retries">Max Retry Attempts</label>
+          <input type="number" id="max_retries" name="max_retries" min="0" max="10" value="3">
+          <span class="help-text">Retries on failed delivery</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Compliance</h3>
+        <div class="form-group">
+          <label>Auto-add STOP instructions</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="auto_add_stop_text" name="auto_add_stop_text" checked>
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="help-text">Add "Reply STOP to opt out" to SMS</span>
+        </div>
+        <div class="form-group">
+          <label>Honor opt-out requests</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="honor_opt_outs" name="honor_opt_outs" checked>
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="help-text">Skip users who opted out</span>
+        </div>
+        <div class="form-group">
+          <label for="max_recipients_per_campaign">Max Recipients Per Campaign</label>
+          <input type="number" id="max_recipients_per_campaign" name="max_recipients_per_campaign" min="1" max="10000" value="500">
+          <span class="help-text">Safety limit for bulk campaigns</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="campaigns" class="settings-category">
+      <div class="settings-header">
+        <h1>Campaign Settings</h1>
+        <p>Configure campaign targeting and filters</p>
+      </div>
+      
+      <div class="settings-section">
+        <h3>Prospect Targeting</h3>
+        <div class="form-group">
+          <label for="prospect_exclude_statuses">Exclude Statuses (comma-separated)</label>
+          <input type="text" id="prospect_exclude_statuses" name="prospect_exclude_statuses" value="Canceled,Expired,Banned">
+          <span class="help-text">Don't target prospects with these statuses</span>
+        </div>
+        <div class="form-group">
+          <label for="prospect_max_days_since_contact">Max Days Since Last Contact</label>
+          <input type="number" id="prospect_max_days_since_contact" name="prospect_max_days_since_contact" min="0" max="365" value="90">
+          <span class="help-text">Only target recently active prospects</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Green Members (New Signups)</h3>
+        <div class="form-group">
+          <label for="green_member_days_since_signup">Days Since Signup</label>
+          <input type="number" id="green_member_days_since_signup" name="green_member_days_since_signup" min="1" max="180" value="30">
+          <span class="help-text">Target members who joined within X days</span>
+        </div>
+        <div class="form-group">
+          <label>Exclude Free Trials</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="green_exclude_free_trials" name="green_exclude_free_trials">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="help-text">Don't target free trial members</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>PPV Members (Pay Per Visit)</h3>
+        <div class="form-group">
+          <label for="ppv_min_visits">Minimum Visits Required</label>
+          <input type="number" id="ppv_min_visits" name="ppv_min_visits" min="0" max="100" value="5">
+          <span class="help-text">Only target PPV with X+ visits</span>
+        </div>
+        <div class="form-group">
+          <label for="ppv_max_days_since_visit">Max Days Since Last Visit</label>
+          <input type="number" id="ppv_max_days_since_visit" name="ppv_max_days_since_visit" min="1" max="180" value="14">
+          <span class="help-text">Only target recently active PPV members</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="approvals" class="settings-category">
+      <div class="settings-header">
+        <h1>Approval Settings</h1>
+        <p>Configure workflow approval requirements</p>
+      </div>
+      
+      <div class="settings-section">
+        <h3>Approval Requirements</h3>
+        <div class="form-group">
+          <label>Require approval for individual account lock</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="require_approval_individual_lock" name="require_approval_individual_lock" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label>Require approval for locking multiple accounts</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="require_approval_lock_multiple" name="require_approval_lock_multiple" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="lock_multiple_threshold">Multiple Lock Threshold</label>
+          <input type="number" id="lock_multiple_threshold" name="lock_multiple_threshold" min="1" value="3">
+          <span class="help-text">Approval needed when locking X+ accounts</span>
+        </div>
+        <div class="form-group">
+          <label>Require approval for high-amount reminders</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="require_approval_high_amount" name="require_approval_high_amount" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="high_amount_threshold">High Amount Threshold ($)</label>
+          <input type="number" id="high_amount_threshold" name="high_amount_threshold" min="0" step="0.01" value="200.00">
+          <span class="help-text">Approval needed for amounts over $X</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Campaign Approvals</h3>
+        <div class="form-group">
+          <label>Require approval for large campaigns</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="require_approval_campaign_large" name="require_approval_campaign_large" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="campaign_large_threshold">Large Campaign Threshold</label>
+          <input type="number" id="campaign_large_threshold" name="campaign_large_threshold" min="1" value="100">
+          <span class="help-text">Approval needed for campaigns to X+ recipients</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Approval Timeout</h3>
+        <div class="form-group">
+          <label for="approval_timeout_hours">Approval Timeout (hours)</label>
+          <input type="number" id="approval_timeout_hours" name="approval_timeout_hours" min="1" max="168" value="24">
+          <span class="help-text">Auto-reject after X hours without response</span>
+        </div>
+        <div class="form-group">
+          <label for="approval_timeout_action">Timeout Action</label>
+          <select id="approval_timeout_action" name="approval_timeout_action">
+            <option value="reject">Reject</option>
+            <option value="approve">Auto-Approve</option>
+            <option value="escalate">Escalate to Super Admin</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div id="notifications" class="settings-category">
+      <div class="settings-header">
+        <h1>Notification Settings</h1>
+        <p>Configure alerts and notifications</p>
+      </div>
+      
+      <div class="settings-section">
+        <h3>Daily Summary</h3>
+        <div class="form-group">
+          <label>Enable daily summary</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="daily_summary_enabled" name="daily_summary_enabled" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="daily_summary_time">Summary Time</label>
+          <input type="time" id="daily_summary_time" name="daily_summary_time" value="08:00">
+          <span class="help-text">When to send daily summary</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Alert Types</h3>
+        <div class="form-group">
+          <label>Workflow failure alerts</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="alert_workflow_failures" name="alert_workflow_failures" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label>High-priority collections alerts</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="alert_high_priority_collections" name="alert_high_priority_collections" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="high_priority_collections_threshold">High Priority Threshold ($)</label>
+          <input type="number" id="high_priority_collections_threshold" name="high_priority_collections_threshold" min="0" step="0.01" value="300.00">
+        </div>
+        <div class="form-group">
+          <label>Approval request alerts</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="alert_approval_requests" name="alert_approval_requests" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Notification Channels</h3>
+        <div class="form-group">
+          <label for="notification_email">Email Address</label>
+          <input type="email" id="notification_email" name="notification_email" placeholder="admin@gym.com">
+        </div>
+        <div class="form-group">
+          <label for="notification_sms_phone">SMS Phone Number</label>
+          <input type="tel" id="notification_sms_phone" name="notification_sms_phone" placeholder="+1234567890">
+        </div>
+        <div class="form-group">
+          <label for="notification_slack_webhook">Slack Webhook URL</label>
+          <input type="url" id="notification_slack_webhook" name="notification_slack_webhook" placeholder="https://hooks.slack.com/...">
+        </div>
+      </div>
+    </div>
+
+    <div id="dashboard" class="settings-category">
+      <div class="settings-header">
+        <h1>Dashboard Settings</h1>
+        <p>Configure dashboard display and behavior</p>
+      </div>
+      
+      <div class="settings-section">
+        <h3>Display Settings</h3>
+        <div class="form-group">
+          <label for="default_view">Default View</label>
+          <select id="default_view" name="default_view">
+            <option value="overview">Overview</option>
+            <option value="members">Members</option>
+            <option value="prospects">Prospects</option>
+            <option value="collections">Collections</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="items_per_page">Items Per Page</label>
+          <input type="number" id="items_per_page" name="items_per_page" min="10" max="200" value="50">
+        </div>
+        <div class="form-group">
+          <label>Show chart animations</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="chart_animations" name="chart_animations" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Auto-Refresh</h3>
+        <div class="form-group">
+          <label>Enable auto-refresh</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="auto_refresh_enabled" name="auto_refresh_enabled" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="auto_refresh_interval">Refresh Interval (minutes)</label>
+          <input type="number" id="auto_refresh_interval" name="auto_refresh_interval" min="1" max="60" value="5">
+        </div>
+      </div>
+    </div>
+
+    <div id="data_sync" class="settings-category">
+      <div class="settings-header">
+        <h1>Data Sync Settings</h1>
+        <p>Configure data synchronization schedules</p>
+      </div>
+      
+      <div class="settings-section">
+        <h3>Sync Frequency</h3>
+        <div class="form-group">
+          <label for="members_sync_frequency">Members Sync</label>
+          <select id="members_sync_frequency" name="members_sync_frequency">
+            <option value="hourly">Every Hour</option>
+            <option value="every_6_hours" selected>Every 6 Hours</option>
+            <option value="every_12_hours">Every 12 Hours</option>
+            <option value="daily">Daily</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="prospects_sync_frequency">Prospects Sync</label>
+          <select id="prospects_sync_frequency" name="prospects_sync_frequency">
+            <option value="hourly">Every Hour</option>
+            <option value="every_6_hours" selected>Every 6 Hours</option>
+            <option value="every_12_hours">Every 12 Hours</option>
+            <option value="daily">Daily</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="training_clients_sync_frequency">Training Clients Sync</label>
+          <select id="training_clients_sync_frequency" name="training_clients_sync_frequency">
+            <option value="hourly">Every Hour</option>
+            <option value="every_6_hours">Every 6 Hours</option>
+            <option value="every_12_hours">Every 12 Hours</option>
+            <option value="daily" selected>Daily</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="calendar_sync_frequency">Calendar Sync</label>
+          <select id="calendar_sync_frequency" name="calendar_sync_frequency">
+            <option value="hourly" selected>Every Hour</option>
+            <option value="every_6_hours">Every 6 Hours</option>
+            <option value="every_12_hours">Every 12 Hours</option>
+            <option value="daily">Daily</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Auto-Sync</h3>
+        <div class="form-group">
+          <label>Enable auto-sync on startup</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="auto_sync_on_startup" name="auto_sync_on_startup" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label>Sync on data access</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="sync_on_data_access" name="sync_on_data_access">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="help-text">Sync when user views stale data</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Archive Settings</h3>
+        <div class="form-group">
+          <label>Auto-archive old records</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="auto_archive_enabled" name="auto_archive_enabled" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="archive_after_days">Archive After (days)</label>
+          <input type="number" id="archive_after_days" name="archive_after_days" min="30" max="3650" value="365">
+          <span class="help-text">Archive records older than X days</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="compliance" class="settings-category">
+      <div class="settings-header">
+        <h1>Compliance Settings</h1>
+        <p>Configure compliance and privacy settings</p>
+      </div>
+      
+      <div class="settings-section">
+        <h3>Data Privacy</h3>
+        <div class="form-group">
+          <label>Redact PII in logs</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="redact_pii_in_logs" name="redact_pii_in_logs" checked>
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="help-text">Mask sensitive data in application logs</span>
+        </div>
+        <div class="form-group">
+          <label for="data_retention_days">Data Retention Period (days)</label>
+          <input type="number" id="data_retention_days" name="data_retention_days" min="30" max="3650" value="730">
+          <span class="help-text">Delete data older than X days (GDPR compliance)</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Audit Trail</h3>
+        <div class="form-group">
+          <label>Log all data access</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="log_all_data_access" name="log_all_data_access" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label>Log data modifications</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="log_data_modifications" name="log_data_modifications" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label for="audit_log_retention_days">Audit Log Retention (days)</label>
+          <input type="number" id="audit_log_retention_days" name="audit_log_retention_days" min="90" max="3650" value="2190">
+          <span class="help-text">Keep audit logs for 6 years (default)</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Consent Management</h3>
+        <div class="form-group">
+          <label>Require opt-in for marketing</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="require_marketing_opt_in" name="require_marketing_opt_in" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="form-group">
+          <label>Track consent history</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="track_consent_history" name="track_consent_history" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div id="testing" class="settings-category">
+      <div class="settings-header">
+        <h1>Testing Settings</h1>
+        <p>Configure testing and debugging options</p>
+      </div>
+      
+      <div class="settings-section">
+        <h3>Test Mode</h3>
+        <div class="form-group">
+          <label>Enable test mode</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="test_mode_enabled" name="test_mode_enabled">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="help-text">⚠️ Prevents real actions, uses test data</span>
+        </div>
+        <div class="form-group">
+          <label>Debug logging</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="debug_logging_enabled" name="debug_logging_enabled">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="help-text">Enable verbose logging for debugging</span>
+        </div>
+        <div class="form-group">
+          <label for="log_level">Log Level</label>
+          <select id="log_level" name="log_level">
+            <option value="DEBUG">DEBUG (Most Verbose)</option>
+            <option value="INFO" selected>INFO (Normal)</option>
+            <option value="WARNING">WARNING</option>
+            <option value="ERROR">ERROR (Critical Only)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="settings-actions">
+  <div class="settings-actions-left">
+    <button class="btn-settings btn-primary" id="save-settings"><i class="fas fa-save"></i> Save</button>
+    <button class="btn-settings btn-secondary" id="discard-changes"><i class="fas fa-times"></i> Discard</button>
+    <button class="btn-settings btn-danger" id="reset-category"><i class="fas fa-undo"></i> Reset</button>
+  </div>
+  <div class="unsaved-changes" id="unsaved-indicator"><i class="fas fa-exclamation-circle"></i><span>Unsaved changes</span></div>
+</div>
+
+<script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+{% endblock %}

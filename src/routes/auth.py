@@ -232,6 +232,11 @@ def login():
                                 # Ensure the sync has the club context
                                 def run_sync_with_context():
                                     try:
+                                        # CRITICAL FIX: Small delay to ensure messaging client finishes authentication first
+                                        # This prevents simultaneous authentication attempts that trigger ClubOS rate limiting
+                                        import time
+                                        time.sleep(2)
+
                                         with current_app.app_context():
                                             logger.info(f"🔄 Starting data sync for club {club_ids[0]} after single-club authentication")
                                             result = enhanced_startup_sync(current_app._get_current_object(), manager_id=manager_id)
