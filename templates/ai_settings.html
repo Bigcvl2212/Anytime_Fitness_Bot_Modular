@@ -1,0 +1,19 @@
+﻿{% extends "base.html" %}
+
+{% block title %}AI Control Center{% endblock %}
+
+{% block extra_css %}
+    {{ super() }}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ai-control-center.css') }}">
+{% endblock %}
+
+{% block extra_js %}
+    {{ super() }}
+    <script src="{{ url_for('static', filename='js/ai-control-center.js') }}" defer></script>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    {% include 'ai/ai_control_panel.html' %}
+</div>
+{% endblock %}

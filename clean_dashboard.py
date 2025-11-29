@@ -3466,18 +3466,21 @@ def get_all_training_clients():
         conn = sqlite3.connect(db_manager.db_path)
         cursor = conn.cursor()
         
-        # Get all training clients with their details
+        # Get all training clients with their details including past due amounts
         cursor.execute("""
             SELECT 
                 member_name,
                 clubos_member_id,
-                agreement_name,
+                package_summary,
                 trainer_name,
                 created_at,
-                next_invoice_subtotal,
-                sessions_remaining
+                sessions_remaining,
+                total_past_due,
+                payment_status,
+                package_details,
+                member_id
             FROM training_clients 
-            ORDER BY member_name
+            ORDER BY total_past_due DESC, member_name
         """)
         
         rows = cursor.fetchall()
@@ -3485,21 +3488,34 @@ def get_all_training_clients():
         
         # Format training clients data
         training_clients = []
+        import json
         for row in rows:
-            member_name, clubos_id, agreement_name, trainer_name, created_at, invoice_subtotal, sessions_remaining = row
+            member_name, clubos_id, package_summary, trainer_name, created_at, sessions_remaining, total_past_due, payment_status, package_details, member_id = row
+            
+            # Parse package_details if it's stored as JSON string
+            parsed_package_details = []
+            if package_details:
+                try:
+                    parsed_package_details = json.loads(package_details) if isinstance(package_details, str) else package_details
+                except:
+                    pass
             
             training_clients.append({
                 'member_name': member_name,
-                'email': 'N/A',  # Email not stored in training_clients table
+                'email': 'N/A',
                 'clubos_member_id': clubos_id,
-                'package_name': agreement_name or 'No package assigned',
+                'member_id': member_id or clubos_id,
+                'package_name': package_summary or 'Training Package',
+                'package_summary': package_summary or 'Training Package',
                 'trainer_name': trainer_name or 'Jeremy Mayo',
                 'created_at': created_at,
-                'last_updated': created_at,  # Use created_at as fallback
-                'status': 'Active',  # Default status
-                'sessions_used': 'N/A',  # Can be enhanced later
+                'last_updated': created_at,
+                'status': 'Active',
                 'sessions_remaining': sessions_remaining or 0,
-                'next_invoice_subtotal': invoice_subtotal or 0
+                'total_past_due': float(total_past_due or 0),
+                'past_due_amount': float(total_past_due or 0),
+                'payment_status': payment_status or ('Past Due' if (total_past_due or 0) > 0 else 'Current'),
+                'package_details': parsed_package_details
             })
         
         logger.info(f"✅ Returning {len(training_clients)} training clients from database")
@@ -3931,9 +3947,104 @@ def refresh_training_clients_from_clubos() -> dict:
 
 @app.route('/api/refresh-training-clients-clubos', methods=['POST', 'GET'])
 def api_refresh_training_clients_clubos():
-    result = refresh_training_clients_from_clubos()
-    status = 200 if result.get('success') else 500
-    return jsonify(result), status
+    """Refresh training clients with LIVE invoice data from ClubOS V2 API"""
+    try:
+        logger.info("🔄 Starting full training clients refresh with live invoice data...")
+        
+        # Use ClubOSIntegration to get fresh data with invoices
+        from services.clubos_integration import ClubOSIntegration
+        integration = ClubOSIntegration()
+        
+        # This fetches fresh data from ClubOS including invoices and billing
+        training_clients = integration.get_training_clients()
+        
+        if not training_clients:
+            return jsonify({
+                'success': False,
+                'error': 'No training clients returned from ClubOS'
+            }), 500
+        
+        # Update the database with the fresh data
+        conn = sqlite3.connect(db_manager.db_path)
+        cursor = conn.cursor()
+        
+        updated = 0
+        added = 0
+        
+        for client in training_clients:
+            clubos_id = client.get('clubos_member_id') or client.get('member_id')
+            member_name = client.get('member_name') or client.get('full_name')
+            
+            if not clubos_id or not member_name:
+                continue
+            
+            # Prepare data for storage
+            past_due = client.get('past_due_amount', 0) or client.get('total_past_due', 0)
+            payment_status = client.get('payment_status', 'Current')
+            package_summary = client.get('package_summary', '')
+            trainer_name = client.get('trainer_name', 'Jeremy Mayo')
+            agreement_count = client.get('agreement_count', 0)
+            
+            # Serialize package_details as JSON
+            import json
+            package_details_json = json.dumps(client.get('package_details', []))
+            
+            # Check if client exists
+            cursor.execute(
+                "SELECT id FROM training_clients WHERE clubos_member_id = ?",
+                (clubos_id,)
+            )
+            row = cursor.fetchone()
+            
+            if row:
+                # Update existing
+                cursor.execute("""
+                    UPDATE training_clients SET
+                        member_name = ?,
+                        total_past_due = ?,
+                        past_due_amount = ?,
+                        payment_status = ?,
+                        package_summary = ?,
+                        trainer_name = ?,
+                        package_details = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE clubos_member_id = ?
+                """, (member_name, past_due, past_due, payment_status, package_summary, trainer_name, package_details_json, clubos_id))
+                updated += 1
+            else:
+                # Insert new
+                cursor.execute("""
+                    INSERT INTO training_clients (
+                        member_id, clubos_member_id, member_name, total_past_due, past_due_amount,
+                        payment_status, package_summary, trainer_name, package_details
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (clubos_id, clubos_id, member_name, past_due, past_due, payment_status, package_summary, trainer_name, package_details_json))
+                added += 1
+        
+        conn.commit()
+        conn.close()
+        
+        # Count how many have past due amounts
+        past_due_count = sum(1 for c in training_clients if (c.get('past_due_amount', 0) or c.get('total_past_due', 0)) > 0)
+        total_past_due = sum(c.get('past_due_amount', 0) or c.get('total_past_due', 0) for c in training_clients)
+        
+        logger.info(f"✅ Training clients refresh complete: {len(training_clients)} total, {updated} updated, {added} added, {past_due_count} past due (${total_past_due:.2f})")
+        
+        return jsonify({
+            'success': True,
+            'message': f'Refreshed {len(training_clients)} clients ({past_due_count} with past due amounts)',
+            'total': len(training_clients),
+            'updated': updated,
+            'added': added,
+            'past_due_count': past_due_count,
+            'total_past_due': round(total_past_due, 2)
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error refreshing training clients: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # Dashboard Beta API Endpoints
 
@@ -4625,6 +4736,407 @@ def generate_daily_report(report_date: str) -> dict:
 def calendar_page():
     """Display calendar page."""
     return render_template('calendar.html')
+
+
+# ============================================
+# AI SETTINGS & WORKFLOWS INTEGRATION
+# ============================================
+
+# Initialize AI modules
+_ai_workflow_manager = None
+_ai_knowledge_base = None
+
+def init_ai_modules():
+    """Initialize AI workflow manager and knowledge base"""
+    global _ai_workflow_manager, _ai_knowledge_base
+    
+    try:
+        from src.services.ai.knowledge_base import AIKnowledgeBase
+        from src.services.ai.unified_workflow_manager import UnifiedWorkflowManager
+        
+        _ai_knowledge_base = AIKnowledgeBase(db_manager)
+        _ai_workflow_manager = UnifiedWorkflowManager(db_manager, _ai_knowledge_base)
+        
+        logger.info("✅ AI modules initialized (Knowledge Base + Workflow Manager)")
+    except Exception as e:
+        logger.warning(f"⚠️ AI modules not fully available: {e}")
+
+
+@app.route('/ai-settings')
+def ai_settings_page():
+    """Display AI settings and workflow management page."""
+    return render_template('ai_settings.html')
+
+
+@app.route('/api/ai/workflows', methods=['GET'])
+def api_get_workflows():
+    """Get all registered workflows with their status."""
+    try:
+        if not _ai_workflow_manager:
+            init_ai_modules()
+        
+        if not _ai_workflow_manager:
+            return jsonify({"success": False, "error": "Workflow manager not available"}), 503
+        
+        workflows = _ai_workflow_manager.get_all_workflow_statuses()
+        
+        return jsonify({
+            "success": True,
+            "workflows": workflows,
+            "background_worker_running": _ai_workflow_manager.is_running
+        })
+    except Exception as e:
+        logger.error(f"Error getting workflows: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/ai/workflows/<workflow_name>/enable', methods=['POST'])
+def api_enable_workflow(workflow_name):
+    """Enable a workflow."""
+    try:
+        if not _ai_workflow_manager:
+            init_ai_modules()
+        
+        success = _ai_workflow_manager.enable_workflow(workflow_name)
+        return jsonify({
+            "success": success,
+            "workflow_name": workflow_name,
+            "enabled": True,
+            "message": f"Workflow '{workflow_name}' enabled"
+        })
+    except Exception as e:
+        logger.error(f"Error enabling workflow: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/ai/workflows/<workflow_name>/disable', methods=['POST'])
+def api_disable_workflow(workflow_name):
+    """Disable a workflow."""
+    try:
+        if not _ai_workflow_manager:
+            init_ai_modules()
+        
+        success = _ai_workflow_manager.disable_workflow(workflow_name)
+        return jsonify({
+            "success": success,
+            "workflow_name": workflow_name,
+            "enabled": False,
+            "message": f"Workflow '{workflow_name}' disabled"
+        })
+    except Exception as e:
+        logger.error(f"Error disabling workflow: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/ai/workflows/<workflow_name>/run', methods=['POST'])
+def api_run_workflow(workflow_name):
+    """Manually trigger a workflow to run."""
+    try:
+        if not _ai_workflow_manager:
+            init_ai_modules()
+        
+        data = request.get_json() or {}
+        force = data.get('force', False)
+        
+        result = _ai_workflow_manager.run_workflow(workflow_name, force=force)
+        
+        return jsonify({
+            "success": result.get("success", False),
+            "workflow_name": workflow_name,
+            "result": result
+        })
+    except Exception as e:
+        logger.error(f"Error running workflow: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/ai/sync-clubos-leads', methods=['POST'])
+def api_sync_clubos_leads():
+    """Fetch and sync leads from ClubOS to the prospects table in real-time."""
+    try:
+        from clubos_leads_api import ClubOSLeadsAPI
+        
+        leads_api = ClubOSLeadsAPI()
+        if not leads_api.authenticate():
+            return jsonify({"success": False, "error": "ClubOS authentication failed"}), 401
+        
+        # Fetch leads
+        clubos_leads = leads_api.get_leads(limit=100)
+        
+        synced = 0
+        skipped = 0
+        errors = []
+        
+        for lead in clubos_leads:
+            formatted = leads_api.format_lead_for_outreach(lead)
+            prospect_id = str(formatted.get('id', ''))
+            
+            if not prospect_id:
+                continue
+            
+            try:
+                # Check if already exists
+                existing = db_manager.execute_query(
+                    "SELECT prospect_id FROM prospects WHERE prospect_id = ?",
+                    (prospect_id,),
+                    fetch_one=True
+                )
+                
+                if not existing:
+                    # Insert new prospect from ClubOS lead
+                    db_manager.execute_query(
+                        """
+                        INSERT INTO prospects (
+                            prospect_id, first_name, last_name, full_name,
+                            email, mobile_phone, source, status, created_date
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'New Lead', ?)
+                        """,
+                        (
+                            prospect_id,
+                            formatted.get('first_name', ''),
+                            formatted.get('last_name', ''),
+                            formatted.get('full_name', ''),
+                            formatted.get('email', ''),
+                            formatted.get('phone', ''),
+                            formatted.get('source', 'ClubOS'),
+                            formatted.get('created_date', datetime.now().isoformat())
+                        )
+                    )
+                    synced += 1
+                else:
+                    skipped += 1
+            except Exception as e:
+                errors.append(f"{formatted.get('full_name')}: {str(e)}")
+        
+        return jsonify({
+            "success": True,
+            "leads_fetched": len(clubos_leads),
+            "synced": synced,
+            "skipped_existing": skipped,
+            "errors": errors if errors else None
+        })
+    except ImportError:
+        return jsonify({"success": False, "error": "ClubOS leads API not available"}), 503
+    except Exception as e:
+        logger.error(f"Error syncing ClubOS leads: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/ai/knowledge-base', methods=['GET'])
+def api_get_knowledge_base():
+    """Get all knowledge base documents grouped by category."""
+    try:
+        if not _ai_knowledge_base:
+            init_ai_modules()
+        
+        if not _ai_knowledge_base:
+            return jsonify({"success": False, "error": "Knowledge base not available"}), 503
+        
+        all_docs = _ai_knowledge_base.get_all_documents()
+        categories = _ai_knowledge_base.CATEGORIES
+        
+        return jsonify({
+            "success": True,
+            "documents": all_docs,
+            "categories": categories,
+            "total_count": sum(len(docs) for docs in all_docs.values())
+        })
+    except Exception as e:
+        logger.error(f"Error getting knowledge base: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/ai/knowledge-base', methods=['POST'])
+def api_add_kb_document():
+    """Add a new document to the knowledge base."""
+    try:
+        if not _ai_knowledge_base:
+            init_ai_modules()
+        
+        data = request.get_json()
+        
+        required = ['category', 'title', 'content']
+        for field in required:
+            if field not in data:
+                return jsonify({"success": False, "error": f"Missing required field: {field}"}), 400
+        
+        success = _ai_knowledge_base.add_document(
+            category=data['category'],
+            title=data['title'],
+            content=data['content'],
+            priority=data.get('priority', 1)
+        )
+        
+        return jsonify({
+            "success": success,
+            "message": f"Document '{data['title']}' added to {data['category']}"
+        })
+    except Exception as e:
+        logger.error(f"Error adding KB document: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/ai/knowledge-base/<category>/<title>', methods=['DELETE'])
+def api_delete_kb_document(category, title):
+    """Delete a knowledge base document."""
+    try:
+        if not _ai_knowledge_base:
+            init_ai_modules()
+        
+        success = _ai_knowledge_base.delete_document(category, title)
+        
+        return jsonify({
+            "success": success,
+            "message": f"Document '{title}' deleted from {category}"
+        })
+    except Exception as e:
+        logger.error(f"Error deleting KB document: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/ai/payment-plan-exemptions', methods=['GET'])
+def api_get_payment_exemptions():
+    """Get all members with payment plan exemptions."""
+    try:
+        rows = db_manager.execute_query(
+            """
+            SELECT member_id, name, email, phone, payment_plan_exempt, past_due_amount, past_due_days
+            FROM members 
+            WHERE payment_plan_exempt = 1
+            ORDER BY name
+            """,
+            fetch_all=True
+        )
+        
+        exempt_members = []
+        for row in (rows or []):
+            exempt_members.append({
+                "member_id": row[0],
+                "name": row[1],
+                "email": row[2],
+                "phone": row[3],
+                "exempt": bool(row[4]) if row[4] else False,
+                "past_due_amount": row[5],
+                "past_due_days": row[6]
+            })
+        
+        return jsonify({
+            "success": True,
+            "exempt_members": exempt_members,
+            "count": len(exempt_members)
+        })
+    except Exception as e:
+        logger.error(f"Error getting payment exemptions: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/ai/payment-plan-exemptions/<member_id>', methods=['POST'])
+def api_add_payment_exemption(member_id):
+    """Add payment plan exemption for a member."""
+    try:
+        db_manager.execute_query(
+            "UPDATE members SET payment_plan_exempt = 1 WHERE member_id = ?",
+            (member_id,)
+        )
+        
+        logger.info(f"Added payment plan exemption for member {member_id}")
+        
+        return jsonify({
+            "success": True,
+            "member_id": member_id,
+            "exempt": True,
+            "message": f"Payment plan exemption added for member {member_id}"
+        })
+    except Exception as e:
+        logger.error(f"Error adding payment exemption: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/ai/payment-plan-exemptions/<member_id>', methods=['DELETE'])
+def api_remove_payment_exemption(member_id):
+    """Remove payment plan exemption for a member."""
+    try:
+        db_manager.execute_query(
+            "UPDATE members SET payment_plan_exempt = 0 WHERE member_id = ?",
+            (member_id,)
+        )
+        
+        logger.info(f"Removed payment plan exemption for member {member_id}")
+        
+        return jsonify({
+            "success": True,
+            "member_id": member_id,
+            "exempt": False,
+            "message": f"Payment plan exemption removed for member {member_id}"
+        })
+    except Exception as e:
+        logger.error(f"Error removing payment exemption: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/ai/worker/status', methods=['GET'])
+def api_get_worker_status():
+    """Get background worker status."""
+    try:
+        if not _ai_workflow_manager:
+            init_ai_modules()
+        
+        return jsonify({
+            "success": True,
+            "running": _ai_workflow_manager.is_running if _ai_workflow_manager else False
+        })
+    except Exception as e:
+        logger.error(f"Error getting worker status: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/ai/worker/start', methods=['POST'])
+def api_start_worker():
+    """Start the background workflow worker."""
+    try:
+        if not _ai_workflow_manager:
+            init_ai_modules()
+        
+        data = request.get_json() or {}
+        interval = data.get('check_interval_seconds', 60)
+        
+        _ai_workflow_manager.start_background_worker(interval)
+        
+        return jsonify({
+            "success": True,
+            "message": f"Background worker started (checking every {interval}s)",
+            "running": True
+        })
+    except Exception as e:
+        logger.error(f"Error starting background worker: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/ai/worker/stop', methods=['POST'])
+def api_stop_worker():
+    """Stop the background workflow worker."""
+    try:
+        if not _ai_workflow_manager:
+            return jsonify({"success": True, "running": False})
+        
+        _ai_workflow_manager.stop_background_worker()
+        
+        return jsonify({
+            "success": True,
+            "message": "Background worker stopped",
+            "running": False
+        })
+    except Exception as e:
+        logger.error(f"Error stopping background worker: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# Initialize AI modules on startup
+try:
+    init_ai_modules()
+except Exception as e:
+    logger.warning(f"⚠️ AI modules initialization deferred: {e}")
+
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=5000)

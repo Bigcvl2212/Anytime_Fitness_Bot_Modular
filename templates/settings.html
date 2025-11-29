@@ -29,17 +29,19 @@
         <h1>AI Agent Settings</h1>
         <p>Configure autonomous AI agent behavior</p>
       </div>
-      <div class="info-box">AI agent uses Claude 3.7 Sonnet to handle inquiries and workflows autonomously.</div>
+      <div class="info-box">AI agent uses Groq's Llama 3.3 70B to handle inquiries and workflows autonomously.</div>
       
       <div class="settings-section">
         <h3>Model Configuration</h3>
         <div class="form-group">
           <label for="ai_model">AI Model</label>
           <select id="ai_model" name="model">
-            <option value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
-            <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+            <option value="llama-3.3-70b-versatile" selected>Llama 3.3 70B Versatile (Recommended)</option>
+            <option value="llama-3.1-70b-versatile">Llama 3.1 70B Versatile</option>
+            <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant (Fast)</option>
+            <option value="mixtral-8x7b-32768">Mixtral 8x7B (32K Context)</option>
           </select>
-          <span class="help-text">Choose AI model for operations</span>
+          <span class="help-text">Choose Groq AI model for operations</span>
         </div>
         <div class="form-group">
           <label for="token_limit">Token Limit</label>

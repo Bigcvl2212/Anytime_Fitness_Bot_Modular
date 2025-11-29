@@ -86,48 +86,120 @@ def members_page():
 
 @members_bp.route('/api/members/all')
 def get_all_members():
-    """Get all members from database or cache - ENHANCED DEBUG LOGGING"""
+    """Get all members from database with optional category filtering"""
     try:
-        # First try to get from cache if available
+        category = request.args.get('category')
+        limit = request.args.get('limit', type=int)
+
+        # Map category to status_message values
+        category_mapping = {
+            'good_standing': ['Member is in good standing', 'In good standing'],
+            'pay_per_visit': ['Pay Per Visit Member'],
+            'past_due_6_30': ['Past Due 6-30 days'],
+            'past_due_30_plus': ['Past Due more than 30 days.'],
+            'expiring_soon': ['Member is pending cancel', 'Expiring Soon'],
+            'past_due_training': [],  # Special handling below
+            'other_statuses': []  # Special handling below
+        }
+
+        if category:
+            # Special handling for past_due_training
+            if category == 'past_due_training':
+                query = """
+                    SELECT clubos_member_id as prospect_id, clubos_member_id as id,
+                           first_name, last_name, member_name as full_name, email, mobile_phone,
+                           payment_status as status, total_past_due as amount_past_due,
+                           payment_status as status_message
+                    FROM training_clients
+                    WHERE total_past_due > 0
+                    ORDER BY full_name
+                """
+                if limit:
+                    query += f" LIMIT {limit}"
+                result = current_app.db_manager.execute_query(query, fetch_all=True)
+                members = [dict(row) for row in result] if result else []
+                logger.info(f"✅ Retrieved {len(members)} training members (past due)")
+                return jsonify({'success': True, 'members': members, 'source': 'database'})
+
+            # Special handling for other_statuses
+            elif category == 'other_statuses':
+                excluded_statuses = [
+                    'Member is in good standing', 'In good standing',
+                    'Pay Per Visit Member', 'Past Due 6-30 days',
+                    'Past Due more than 30 days.', 'Member is pending cancel', 'Expiring Soon'
+                ]
+                placeholders = ','.join(['?' for _ in excluded_statuses])
+                query = f"""
+                    SELECT prospect_id, id, first_name, last_name, full_name, email,
+                           mobile_phone, status, amount_past_due, status_message
+                    FROM members
+                    WHERE status_message IS NOT NULL
+                      AND status_message NOT IN ({placeholders})
+                      AND status_message NOT LIKE '%good standing%'
+                      AND status_message NOT LIKE '%expir%'
+                    ORDER BY full_name
+                """
+                if limit:
+                    query += f" LIMIT {limit}"
+                result = current_app.db_manager.execute_query(query, tuple(excluded_statuses), fetch_all=True)
+                members = [dict(row) for row in result] if result else []
+                logger.info(f"✅ Retrieved {len(members)} members (other statuses)")
+                return jsonify({'success': True, 'members': members, 'source': 'database'})
+
+            # Regular category filtering
+            else:
+                status_messages = category_mapping.get(category, [])
+                if status_messages:
+                    placeholders = ','.join(['?' for _ in status_messages])
+                    query = f"""
+                        SELECT prospect_id, id, first_name, last_name, full_name, email,
+                               mobile_phone, status, amount_past_due, status_message
+                        FROM members
+                        WHERE status_message IN ({placeholders})
+                        ORDER BY full_name
+                    """
+                    if limit:
+                        query += f" LIMIT {limit}"
+                    result = current_app.db_manager.execute_query(query, tuple(status_messages), fetch_all=True)
+                    members = [dict(row) for row in result] if result else []
+                    logger.info(f"✅ Retrieved {len(members)} members for category {category}")
+                    return jsonify({'success': True, 'members': members, 'source': 'database'})
+                else:
+                    # Unknown category
+                    logger.warning(f"⚠️ Unknown category: {category}")
+                    return jsonify({'success': True, 'members': [], 'source': 'database'})
+
+        # No category filter - return all members
+        # First try cache
         if hasattr(current_app, 'data_cache') and current_app.data_cache.get('members'):
             cached_members = current_app.data_cache['members']
             logger.info(f"✅ Retrieved {len(cached_members)} members from cache")
-            # Log sample status messages
-            sample_statuses = [m.get('status_message') for m in cached_members[:5] if m.get('status_message')]
-            logger.info(f"📊 Sample status messages from cache: {sample_statuses}")
             return jsonify({'success': True, 'members': cached_members, 'source': 'cache'})
 
-        # Fallback to database - INCLUDE status_message for categorization
+        # Fallback to database
         query = """
-            SELECT
-                prospect_id,
-                id,
-                first_name,
-                last_name,
-                full_name,
-                email,
-                mobile_phone,
-                status,
-                amount_past_due,
-                status_message
+            SELECT prospect_id, id, first_name, last_name, full_name, email,
+                   mobile_phone, status, amount_past_due, status_message
             FROM members
             ORDER BY full_name
         """
+        if limit:
+            query += f" LIMIT {limit}"
 
         result = current_app.db_manager.execute_query(query, fetch_all=True)
         members = [dict(row) for row in result] if result else []
-        
+
         # Log categorization debug info
         status_counts = {}
         for member in members:
             status_msg = member.get('status_message', 'None')
             status_counts[status_msg] = status_counts.get(status_msg, 0) + 1
-        
+
         logger.info(f"✅ Retrieved {len(members)} members from database")
         logger.info(f"📊 Status message distribution: {dict(list(status_counts.items())[:10])}")
-        
+
         return jsonify({'success': True, 'members': members, 'source': 'database'})
-        
+
     except Exception as e:
         logger.error(f"❌ Error getting all members: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -136,46 +208,80 @@ def get_all_members():
 def get_member_profile(member_id):
     """Get comprehensive member profile data."""
     try:
-        # Get basic member info using database manager's cross-database compatible method
-        member = current_app.db_manager.execute_query("""
-            SELECT * FROM members WHERE prospect_id = ?
-        """, (member_id,), fetch_one=True)
-        
-        if not member:
+        profile_bundle = current_app.db_manager.get_member_profile_context(member_id)
+        if not profile_bundle:
             return jsonify({'success': False, 'error': 'Member not found'}), 404
-        
-        member_data = dict(member)
-        
-        # Get category info using database manager's cross-database compatible method
-        category_result = current_app.db_manager.execute_query("""
-            SELECT category FROM member_categories WHERE member_id = ?
-        """, (member_id,), fetch_one=True)
-        
-        member_data['category'] = category_result['category'] if category_result else 'Unknown'
-        
-        # Get training package info if available
-        try:
-            training_packages = current_app.clubhub.get_member_agreements(member_id)
-            member_data['training_packages'] = training_packages
-        except Exception as e:
-            logger.warning(f"⚠️ Could not get training packages for member {member_id}: {e}")
-            member_data['training_packages'] = []
-        
-        # Get payment status
-        member_data['payment_status'] = {
-            'amount_past_due': member_data.get('amount_past_due', 0),
-            'date_of_next_payment': member_data.get('date_of_next_payment'),
-            'status': member_data.get('status'),
-            'status_message': member_data.get('status_message')
-        }
-        
-        conn.close()
-        
-        logger.info(f"✅ Retrieved profile for member {member_id}")
-        return jsonify({'success': True, 'member': member_data})
-        
+
+        member_data = profile_bundle.get('member', {})
+        member_key = member_data.get('guid') or member_data.get('prospect_id') or member_id
+
+        category_result = current_app.db_manager.execute_query(
+            "SELECT category FROM member_categories WHERE member_id = ?",
+            (str(member_key),),
+            fetch_one=True
+        )
+        if category_result:
+            member_data['category'] = category_result['category']
+
+        response_payload = {'success': True}
+        response_payload.update(profile_bundle)
+
+        logger.info(f"✅ Retrieved profile bundle for member {member_id}")
+        return jsonify(response_payload)
+
     except Exception as e:
         logger.error(f"❌ Error getting member profile {member_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@members_bp.route('/api/members/<member_id>/payment-plan', methods=['GET'])
+@require_auth
+def api_get_payment_plan(member_id):
+    """Return the current payment plan for a member."""
+    try:
+        plan = current_app.db_manager.get_payment_plan(member_id)
+        return jsonify({'success': True, 'payment_plan': plan})
+    except Exception as e:
+        logger.error(f"❌ Error retrieving payment plan for {member_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@members_bp.route('/api/members/<member_id>/payment-plan', methods=['POST'])
+@require_auth
+def api_save_payment_plan(member_id):
+    """Create or replace a manual payment plan for a member."""
+    try:
+        payload = request.get_json() or {}
+        plan = current_app.db_manager.save_payment_plan(member_id, payload)
+        return jsonify({'success': True, 'payment_plan': plan})
+    except ValueError as ve:
+        logger.warning(f"⚠️ Invalid payment plan payload for {member_id}: {ve}")
+        return jsonify({'success': False, 'error': str(ve)}), 400
+    except Exception as e:
+        logger.error(f"❌ Error saving payment plan for {member_id}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@members_bp.route('/api/members/<member_id>/payment-plan/installments/<int:installment_id>', methods=['PATCH'])
+@require_auth
+def api_mark_installment_paid(member_id, installment_id):
+    """Mark a specific payment plan installment as paid."""
+    try:
+        payload = request.get_json() or {}
+        paid_amount = payload.get('amount_paid')
+        paid_date = payload.get('paid_date')
+        plan = current_app.db_manager.mark_payment_plan_installment_paid(
+            member_id,
+            installment_id,
+            paid_amount=paid_amount,
+            paid_date=paid_date
+        )
+        return jsonify({'success': True, 'payment_plan': plan})
+    except ValueError as ve:
+        logger.warning(f"⚠️ Could not update installment {installment_id} for {member_id}: {ve}")
+        return jsonify({'success': False, 'error': str(ve)}), 400
+    except Exception as e:
+        logger.error(f"❌ Error updating installment {installment_id} for {member_id}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @members_bp.route('/api/members/past-due')
@@ -671,54 +777,137 @@ def get_training_revenue():
 
 @members_bp.route('/member/<member_id>')
 def member_profile(member_id):
-    """Member profile page."""
+    """Member profile page - searches both members and prospects."""
     try:
-        # Get member data using database manager's cross-database compatible method
-        # Try guid and prospect_id first
-        member = current_app.db_manager.execute_query("""
-            SELECT * FROM members WHERE guid = ? OR prospect_id = ?
-        """, (member_id, member_id), fetch_one=True)
+        # Handle null/empty member_id
+        if not member_id or member_id == 'null' or member_id == 'undefined':
+            logger.warning(f"❌ Invalid member_id provided: {member_id}")
+            return render_template('error.html', error='No member ID provided')
+        profile_bundle = current_app.db_manager.get_member_profile_context(member_id)
 
-        # If not found and member_id looks like a name, try searching by name
+        if profile_bundle:
+            member = profile_bundle['member']
+            member['is_prospect'] = False
+            member_guid = member.get('guid') or member.get('prospect_id') or member_id
+
+            category_result = current_app.db_manager.execute_query(
+                "SELECT category FROM member_categories WHERE member_id = ?",
+                (str(member_guid),),
+                fetch_one=True
+            )
+            if category_result:
+                member['category'] = category_result['category']
+
+            # Normalize datetime objects for template rendering
+            for key, value in list(member.items()):
+                if isinstance(value, (dt.datetime, dt.date)):
+                    member[key] = value.isoformat()
+
+            return render_template(
+                'member_profile.html',
+                member=member,
+                member_id=member_id,
+                payment_status=profile_bundle.get('payment_status'),
+                agreements=profile_bundle.get('agreements') or [],
+                payments=profile_bundle.get('payments') or [],
+                training_packages=profile_bundle.get('training_packages') or [],
+                membership_summary=profile_bundle.get('membership_summary') or {},
+                payment_plan=profile_bundle.get('payment_plan'),
+                invoices=profile_bundle.get('invoices') or []
+            )
+
+        # Fallback to legacy member/prospect lookup when database bundle is unavailable
+        member = None
+        is_prospect = False
+
+        member = current_app.db_manager.execute_query(
+            "SELECT * FROM members WHERE guid = ? OR prospect_id = ?",
+            (member_id, member_id),
+            fetch_one=True
+        )
+
+        if not member:
+            logger.info(f"🔍 Not found in members, trying prospects table for: {member_id}")
+            member = current_app.db_manager.execute_query(
+                "SELECT * FROM prospects WHERE full_name = ? COLLATE NOCASE",
+                (member_id,),
+                fetch_one=True
+            )
+            if member:
+                is_prospect = True
+                logger.info(f"✅ Found prospect by exact name match: {member_id}")
+
         if not member and ' ' in member_id:
-            logger.info(f"🔍 Member not found by ID, trying name search for: {member_id}")
-            # Split into first and last name
+            logger.info(f"🔍 Trying name search in members for: {member_id}")
             name_parts = member_id.rsplit(' ', 1)
             if len(name_parts) == 2:
                 first_name, last_name = name_parts
-                member = current_app.db_manager.execute_query("""
+                member = current_app.db_manager.execute_query(
+                    """
                     SELECT * FROM members
-                    WHERE (first_name LIKE ? AND last_name LIKE ?)
-                    OR (first_name || ' ' || last_name) LIKE ?
+                    WHERE LOWER(first_name) = LOWER(?) AND LOWER(last_name) = LOWER(?)
                     LIMIT 1
-                """, (f"%{first_name}%", f"%{last_name}%", f"%{member_id}%"), fetch_one=True)
+                    """,
+                    (first_name, last_name),
+                    fetch_one=True
+                )
+
+                if not member:
+                    logger.info(f"🔍 Trying exact name search in prospects for: {member_id}")
+                    member = current_app.db_manager.execute_query(
+                        """
+                        SELECT * FROM prospects
+                        WHERE LOWER(first_name) = LOWER(?) AND LOWER(last_name) = LOWER(?)
+                        LIMIT 1
+                        """,
+                        (first_name, last_name),
+                        fetch_one=True
+                    )
+                    if member:
+                        is_prospect = True
+                        logger.info(f"✅ Found prospect by name parts: {first_name} {last_name}")
 
         if not member:
-            logger.warning(f"❌ Member not found: {member_id}")
-            return render_template('error.html', error=f'Member not found: {member_id}')
-        
+            logger.warning(f"❌ Member/Prospect not found: {member_id}")
+            return render_template('error.html', error=f'Member or prospect not found: {member_id}')
+
         member_data = dict(member)
-        
-        # Convert datetime objects to strings for template compatibility
+        member_data['is_prospect'] = is_prospect
+
+        if is_prospect:
+            member_data['name'] = member_data.get('full_name') or f"{member_data.get('first_name', '')} {member_data.get('last_name', '')}".strip() or 'Unknown'
+
         for key, value in member_data.items():
             if isinstance(value, (dt.datetime, dt.date)):
                 member_data[key] = value.isoformat()
-        
-        # Get category - use the actual guid from the member record
-        # Database Row objects support dictionary-style access with [key]
-        member_guid = member['guid'] or member['prospect_id'] or member_id
-        
-        # Use database manager's cross-database compatible method
-        category_result = current_app.db_manager.execute_query("""
-            SELECT category FROM member_categories WHERE member_id = ?
-        """, (str(member_guid),), fetch_one=True)
-        
+
+        member_guid = member_data.get('guid') or member_data.get('prospect_id') or member_id
+        category_result = current_app.db_manager.execute_query(
+            "SELECT category FROM member_categories WHERE member_id = ?",
+            (str(member_guid),),
+            fetch_one=True
+        )
+
         if category_result:
             member_data['category'] = category_result['category'] if category_result['category'] else 'Unknown'
         else:
-            member_data['category'] = 'Unknown'
-        
-        return render_template('member_profile.html', member=member_data)
+            member_data['category'] = 'Prospect' if is_prospect else 'Unknown'
+
+        if is_prospect:
+            return render_template('prospect_profile.html', member=member_data, prospect=member_data)
+
+        return render_template(
+            'member_profile.html',
+            member=member_data,
+            member_id=member_id,
+            payment_status=None,
+            agreements=[],
+            payments=[],
+            training_packages=[],
+            membership_summary={},
+            payment_plan=None,
+            invoices=[]
+        )
         
     except Exception as e:
         logger.error(f"❌ Error loading member profile {member_id}: {e}")

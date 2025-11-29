@@ -9,7 +9,7 @@ CLUBHUB_PASSWORD = "SruLEqp464_GLrF"
 
 # ClubOS login credentials
 CLUBOS_USERNAME = "j.mayo"
-CLUBOS_PASSWORD = "j@SD4fjhANK5WNA"
+CLUBOS_PASSWORD = "Ls$gpZ98L!hht.G"
 
 # ClubHub API configuration
 CLUBHUB_BASE_URL = "https://clubhub-ios-api.anytimefitness.com"

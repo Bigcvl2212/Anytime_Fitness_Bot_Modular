@@ -4,7 +4,7 @@ Messaging Routes
 ClubOS messaging integration, conversation management, and campaign functionality
 """
 
-from flask import Blueprint, render_template, request, jsonify, current_app
+from flask import Blueprint, render_template, request, jsonify, current_app, redirect, url_for
 from functools import wraps
 from typing import Dict, List, Any
 import logging
@@ -14,6 +14,7 @@ import re
 import hashlib
 import traceback
 import requests
+import datetime as dt
 from datetime import datetime
 from ..services.clubos_messaging_client_simple import ClubOSMessagingClient
 from .auth import require_auth
@@ -169,9 +170,69 @@ def store_messages_in_database(messages: List[Dict], owner_id: str) -> int:
             logger.warning(f"⚠️ Failed to store {failed_count} messages")
         logger.info(f"✅ Stored {stored_count}/{len(messages)} ClubOS messages in database with enhanced metadata")
         return stored_count
-        
+
     except Exception as e:
         logger.error(f"❌ Error storing ClubOS messages in database: {e}")
+        return 0
+
+def cleanup_old_messages(owner_id: str, days: int = 90) -> int:
+    """
+    Remove messages older than specified days to keep database clean.
+    CRITICAL: Only delete if we have WAY too many messages (e.g. > 10,000).
+    We want to keep history for AI context.
+    """
+    try:
+        # Check total count first
+        count_result = current_app.db_manager.execute_query('''
+            SELECT COUNT(*) as count FROM messages WHERE owner_id = ?
+        ''', (owner_id,), fetch_one=True)
+        
+        total_count = count_result['count'] if count_result else 0
+        
+        # Only cleanup if we have excessive messages (e.g. > 5000)
+        if total_count < 5000:
+            logger.info(f"✅ Message count ({total_count}) is within limits, skipping cleanup to preserve history")
+            return 0
+            
+        from datetime import datetime, timedelta
+        # Calculate threshold date (very old messages only)
+        # If we have too many, delete ones older than 1 year first
+        threshold_date = datetime.now() - timedelta(days=365)
+        date_threshold_iso = threshold_date.isoformat()
+
+        # Count messages to be deleted
+        count_result = current_app.db_manager.execute_query('''
+            SELECT COUNT(*) as count FROM messages
+            WHERE owner_id = ?
+            AND (
+                (timestamp IS NOT NULL AND timestamp < ?)
+                OR 
+                ((timestamp IS NULL OR timestamp = '') AND created_at < ?)
+            )
+        ''', (owner_id, date_threshold_iso, date_threshold_iso), fetch_one=True)
+
+        old_count = count_result['count'] if count_result else 0
+
+        if old_count > 0:
+            # Delete old messages
+            current_app.db_manager.execute_query('''
+                DELETE FROM messages
+                WHERE owner_id = ?
+                AND (
+                    (timestamp IS NOT NULL AND timestamp < ?)
+                    OR 
+                    ((timestamp IS NULL OR timestamp = '') AND created_at < ?)
+                )
+            ''', (owner_id, date_threshold_iso, date_threshold_iso))
+
+            logger.info(f"🗑️ Cleaned up {old_count} messages older than 1 year for owner {owner_id}")
+            return old_count
+        else:
+            logger.info(f"✅ No extremely old messages to clean up")
+            return 0
+
+    except Exception as e:
+        logger.error(f"❌ Error cleaning up old messages: {e}")
         return 0
 
 def parse_message_actions(content: str) -> Dict[str, Any]:
@@ -318,12 +379,37 @@ def refresh_clubos_auth():
 @messaging_bp.route('/messaging')
 # @require_auth  # Temporarily disabled for testing
 def messaging_page():
-    """Enhanced messaging center page with campaign interface."""
+    """Unified AI Sales & Messaging Center - State of the Art Dashboard
+
+    Combines:
+    - Sales AI Dashboard features (workflows, commands, agent chat)
+    - Messaging/Inbox features (conversations, campaigns, real-time sync)
+    - Complete backend integration with Unified AI Agent
+    """
     try:
-        return render_template('messaging.html')
+        from flask import session
+
+        # Get user info
+        user_email = session.get('user_email', 'Unknown')
+        manager_id = session.get('manager_id', 'unknown')
+        club_id = session.get('club_id')
+
+        # Get AI service availability
+        ai_available = hasattr(current_app, 'ai_agent') and current_app.ai_agent is not None
+        unified_ai_available = hasattr(current_app, 'unified_ai_agent') and current_app.unified_ai_agent is not None
+        inbox_ai_available = hasattr(current_app, 'inbox_ai_agent') and current_app.inbox_ai_agent is not None
+
+        return render_template('messaging.html',
+                             user_email=user_email,
+                             manager_id=manager_id,
+                             club_id=club_id,
+                             ai_available=ai_available,
+                             unified_ai_available=unified_ai_available,
+                             inbox_ai_available=inbox_ai_available)
+
     except Exception as e:
-        logger.error(f"❌ Error loading messaging page: {e}")
-        return render_template('error.html', error=str(e))
+        logger.error(f"❌ Error loading unified AI dashboard: {e}")
+        return render_template('error.html', error='Failed to load unified AI dashboard')
 
 @messaging_bp.route('/api/messages/sync', methods=['POST'])
 def sync_clubos_messages():
@@ -356,7 +442,11 @@ def sync_clubos_messages():
         if hasattr(current_app, 'messaging_client') and current_app.messaging_client:
             messaging_client = current_app.messaging_client
             logger.info("♻️ Reusing existing authenticated messaging client")
-            
+
+            # Clear message cache to force fresh fetch
+            messaging_client.clear_message_cache(owner_id)
+            logger.info("🗑️ Cleared message cache to fetch fresh messages from ClubOS")
+
             # Quick check if session is still valid
             try:
                 test_messages = messaging_client.get_messages(owner_id)
@@ -378,6 +468,10 @@ def sync_clubos_messages():
                 else:
                     logger.info(f"✅ Session still valid! Fetched {len(test_messages)} messages")
                     stored_count = store_messages_in_database(test_messages, owner_id)
+
+                    # Clean up old messages that ClubOS no longer returns (older than 90 days)
+                    cleanup_old_messages(owner_id, days=90)
+
                     return jsonify({
                         'success': True,
                         'message': f'Synced {stored_count} messages from ClubOS (reused session)',
@@ -436,10 +530,13 @@ def sync_clubos_messages():
                 
                 if messages is not None:
                     logger.info(f"✅ Successfully fetched {len(messages)} messages")
-                    
+
                     # Store messages in database
                     stored_count = store_messages_in_database(messages, owner_id)
-                    
+
+                    # Clean up old messages that ClubOS no longer returns (older than 90 days)
+                    cleanup_old_messages(owner_id, days=90)
+
                     return jsonify({
                         'success': True,
                         'message': f'Synced {stored_count} messages from ClubOS',
@@ -466,6 +563,33 @@ def sync_clubos_messages():
     except Exception as e:
         logger.error(f"❌ Unexpected error in sync_clubos_messages: {e}")
         return jsonify({'error': f'Unexpected error: {str(e)}'}), 500
+
+@messaging_bp.route('/api/messages/cleanup', methods=['POST'])
+def cleanup_messages():
+    """Manually cleanup old messages from database"""
+    try:
+        if request.is_json:
+            owner_id = request.json.get('owner_id', '187032782')
+            days = request.json.get('days', 90)
+        else:
+            owner_id = request.form.get('owner_id', '187032782')
+            days = int(request.form.get('days', 90))
+
+        logger.info(f"🗑️ Manual cleanup requested for owner {owner_id} (messages older than {days} days)")
+
+        deleted_count = cleanup_old_messages(owner_id, days=days)
+
+        return jsonify({
+            'success': True,
+            'message': f'Cleaned up {deleted_count} old messages',
+            'deleted_count': deleted_count,
+            'owner_id': owner_id,
+            'days': days
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Error in manual cleanup: {e}")
+        return jsonify({'error': f'Cleanup error: {str(e)}'}), 500
 
 @messaging_bp.route('/api/messages/test-auth', methods=['POST'])
 def test_clubos_auth():
@@ -530,33 +654,109 @@ def test_clubos_auth():
         logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@messaging_bp.route('/api/ai/enable', methods=['POST'])
+def enable_ai():
+    """Enable automatic AI processing of messages"""
+    try:
+        if hasattr(current_app, 'message_sync') and current_app.message_sync:
+            current_app.message_sync.enable_ai()
+            return jsonify({
+                'success': True,
+                'message': 'AI auto-processing enabled',
+                'ai_enabled': True
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Message sync service not available'
+            }), 503
+    except Exception as e:
+        logger.error(f"❌ Error enabling AI: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@messaging_bp.route('/api/ai/disable', methods=['POST'])
+def disable_ai():
+    """Disable automatic AI processing of messages"""
+    try:
+        if hasattr(current_app, 'message_sync') and current_app.message_sync:
+            current_app.message_sync.disable_ai()
+            return jsonify({
+                'success': True,
+                'message': 'AI auto-processing disabled',
+                'ai_enabled': False
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Message sync service not available'
+            }), 503
+    except Exception as e:
+        logger.error(f"❌ Error disabling AI: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@messaging_bp.route('/api/ai/status', methods=['GET'])
+def get_ai_status():
+    """Get current AI auto-processing status"""
+    try:
+        # Try multiple possible attribute names
+        message_sync = None
+        for attr in ['message_sync', 'message_poller', 'real_time_sync']:
+            if hasattr(current_app, attr):
+                message_sync = getattr(current_app, attr)
+                if message_sync and hasattr(message_sync, 'ai_enabled'):
+                    break
+
+        if message_sync and hasattr(message_sync, 'ai_enabled'):
+            return jsonify({
+                'success': True,
+                'ai_enabled': message_sync.ai_enabled
+            })
+        else:
+            # Return default state instead of 503 error
+            return jsonify({
+                'success': True,
+                'ai_enabled': False
+            })
+    except Exception as e:
+        logger.error(f"❌ Error getting AI status: {e}")
+        return jsonify({'success': True, 'ai_enabled': False})
+
 @messaging_bp.route('/api/messages', methods=['GET'])
 def get_messages():
     """Get messages from database - ALWAYS FRESH DATA"""
     try:
         owner_id = request.args.get('owner_id', '187032782')
         limit = request.args.get('limit')  # Make limit optional
+        days = request.args.get('days', '90')  # Default to last 90 days
 
         # ALWAYS fetch fresh data from database (removed stale cache)
-        logger.info(f"📬 Fetching fresh messages from database for owner_id: {owner_id}")
+        logger.info(f"📬 Fetching fresh messages from database for owner_id: {owner_id} (last {days} days)")
 
-        # Fetch from database using database manager
+        # Calculate date threshold (only get messages from last N days)
+        from datetime import datetime, timedelta
+        date_threshold = (datetime.now() - timedelta(days=int(days))).isoformat()
+
+        # Fetch from database using database manager with date filter
+        # IMPORTANT: Order by created_at first since timestamp parsing from ClubOS is unreliable
+        # created_at = when message was synced to our DB (recent syncs = recent messages)
         if limit:
             # If limit is specified, use it
             limit = int(limit)
             messages = current_app.db_manager.execute_query('''
-                SELECT * FROM messages 
-                WHERE owner_id = ? 
-                ORDER BY timestamp DESC, created_at DESC 
+                SELECT * FROM messages
+                WHERE owner_id = ?
+                AND created_at >= ?
+                ORDER BY created_at DESC, id DESC
                 LIMIT ?
-            ''', (owner_id, limit))
+            ''', (owner_id, date_threshold, limit), fetch_all=True)
         else:
-            # If no limit, get ALL messages
+            # If no limit, get messages from last N days
             messages = current_app.db_manager.execute_query('''
-                SELECT * FROM messages 
-                WHERE owner_id = ? 
-                ORDER BY timestamp DESC, created_at DESC
-            ''', (owner_id,))
+                SELECT * FROM messages
+                WHERE owner_id = ?
+                AND created_at >= ?
+                ORDER BY created_at DESC, id DESC
+            ''', (owner_id, date_threshold), fetch_all=True)
         
         # Handle None result and ensure we have dictionaries
         if messages is None:
@@ -582,6 +782,92 @@ def get_messages():
         
     except Exception as e:
         logger.error(f"❌ Error getting messages: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@messaging_bp.route('/api/campaigns/counts', methods=['GET'])
+def get_campaign_counts():
+    """Get member counts for each campaign category using status_message"""
+    try:
+        db_manager = current_app.db_manager
+
+        counts = {}
+
+        # Good Standing - members with "Member is in good standing" or "In good standing"
+        good_standing = db_manager.execute_query(
+            """SELECT COUNT(*) as count FROM members
+               WHERE status_message IN ('Member is in good standing', 'In good standing')
+               OR status_message LIKE '%good standing%'""",
+            fetch_one=True
+        )
+        counts['good_standing'] = good_standing['count'] if good_standing else 0
+
+        # Pay Per Visit
+        pay_per_visit = db_manager.execute_query(
+            "SELECT COUNT(*) as count FROM members WHERE status_message = 'Pay Per Visit Member'",
+            fetch_one=True
+        )
+        counts['pay_per_visit'] = pay_per_visit['count'] if pay_per_visit else 0
+
+        # Past Due 6-30 days
+        past_due_6_30 = db_manager.execute_query(
+            "SELECT COUNT(*) as count FROM members WHERE status_message = 'Past Due 6-30 days'",
+            fetch_one=True
+        )
+        counts['past_due_6_30'] = past_due_6_30['count'] if past_due_6_30 else 0
+
+        # Past Due 30+ days
+        past_due_30_plus = db_manager.execute_query(
+            "SELECT COUNT(*) as count FROM members WHERE status_message = 'Past Due more than 30 days.'",
+            fetch_one=True
+        )
+        counts['past_due_30_plus'] = past_due_30_plus['count'] if past_due_30_plus else 0
+
+        # Past Due Training - members from training_clients table with past due amounts
+        past_due_training = db_manager.execute_query(
+            "SELECT COUNT(*) as count FROM training_clients WHERE total_past_due > 0",
+            fetch_one=True
+        )
+        counts['past_due_training'] = past_due_training['count'] if past_due_training else 0
+
+        # Expiring Soon - memberships ending within 30 days
+        expiring_soon = db_manager.execute_query(
+            """SELECT COUNT(*) as count FROM members
+               WHERE status_message LIKE '%expir%'
+               OR status_message = 'Member is pending cancel'""",
+            fetch_one=True
+        )
+        counts['expiring_soon'] = expiring_soon['count'] if expiring_soon else 0
+
+        # Prospects
+        prospects = db_manager.execute_query(
+            "SELECT COUNT(*) as count FROM prospects",
+            fetch_one=True
+        )
+        counts['prospects'] = prospects['count'] if prospects else 0
+
+        # Other Statuses - all other members not in above categories
+        other_statuses = db_manager.execute_query(
+            """SELECT COUNT(*) as count FROM members
+               WHERE status_message NOT IN (
+                   'Member is in good standing',
+                   'In good standing',
+                   'Pay Per Visit Member',
+                   'Past Due 6-30 days',
+                   'Past Due more than 30 days.'
+               )
+               AND (status_message NOT LIKE '%good standing%')
+               AND (status_message NOT LIKE '%expir%')
+               AND status_message != 'Member is pending cancel'
+               AND status_message IS NOT NULL""",
+            fetch_one=True
+        )
+        counts['other_statuses'] = other_statuses['count'] if other_statuses else 0
+
+        logger.info(f"✅ Campaign counts: {counts}")
+        return jsonify({'success': True, 'counts': counts})
+
+    except Exception as e:
+        logger.error(f"❌ Error getting campaign counts: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @messaging_bp.route('/api/campaigns/send', methods=['POST'])
@@ -1258,18 +1544,123 @@ def reset_campaign_progress():
     try:
         data = request.json
         category = data.get('category', 'all')
-        
+
         if category == 'all':
             current_app.db_manager.execute_query('DELETE FROM campaign_progress')
             logger.info("🔄 Reset campaign progress for all categories")
         else:
             current_app.db_manager.execute_query('DELETE FROM campaign_progress WHERE category = ?', (category,))
             logger.info(f"🔄 Reset campaign progress for category: {category}")
-        
+
         return jsonify({'success': True, 'message': f'Campaign progress reset for {category}'})
-        
+
     except Exception as e:
         logger.error(f"❌ Error resetting campaign progress: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@messaging_bp.route('/api/campaigns/status/<categoryKey>', methods=['GET'])
+def get_campaign_status(categoryKey):
+    """Get campaign status for a specific category"""
+    try:
+        # Check if there's an active or recent campaign for this category
+        progress = current_app.db_manager.execute_query('''
+            SELECT category, last_processed_member_id, last_processed_index,
+                   last_campaign_date, total_members_in_category, notes
+            FROM campaign_progress
+            WHERE category = ?
+            ORDER BY last_campaign_date DESC
+            LIMIT 1
+        ''', (categoryKey,), fetch_one=True)
+
+        if progress:
+            # Convert to dict if needed
+            if not isinstance(progress, dict):
+                progress = dict(progress)
+
+            # Calculate progress percentage
+            if progress.get('total_members_in_category') and progress.get('last_processed_index'):
+                percentage = (progress['last_processed_index'] / progress['total_members_in_category']) * 100
+                progress['progress_percentage'] = round(percentage, 2)
+            else:
+                progress['progress_percentage'] = 0
+
+            # Determine status based on progress
+            if progress['progress_percentage'] >= 100:
+                progress['status'] = 'completed'
+            elif progress['last_processed_index'] > 0:
+                progress['status'] = 'in_progress'
+            else:
+                progress['status'] = 'not_started'
+
+            logger.info(f"✅ Campaign status for {categoryKey}: {progress['status']}")
+            return jsonify({'success': True, 'campaign': progress, 'exists': True})
+        else:
+            return jsonify({'success': True, 'campaign': None, 'exists': False})
+
+    except Exception as e:
+        logger.error(f"❌ Error getting campaign status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@messaging_bp.route('/api/campaigns/<int:campaign_id>/pause', methods=['POST'])
+def pause_campaign(campaign_id):
+    """Pause a running campaign"""
+    try:
+        # Update campaign status in campaigns table
+        current_app.db_manager.execute_query('''
+            UPDATE campaigns
+            SET notes = COALESCE(notes, '') || ' [PAUSED]'
+            WHERE id = ?
+        ''', (campaign_id,))
+
+        logger.info(f"⏸️ Campaign {campaign_id} paused")
+        return jsonify({'success': True, 'message': 'Campaign paused', 'campaign_id': campaign_id})
+
+    except Exception as e:
+        logger.error(f"❌ Error pausing campaign: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@messaging_bp.route('/api/campaigns/<int:campaign_id>/stop', methods=['POST'])
+def stop_campaign(campaign_id):
+    """Stop a campaign completely"""
+    try:
+        # Update campaign status
+        current_app.db_manager.execute_query('''
+            UPDATE campaigns
+            SET notes = COALESCE(notes, '') || ' [STOPPED]'
+            WHERE id = ?
+        ''', (campaign_id,))
+
+        logger.info(f"🛑 Campaign {campaign_id} stopped")
+        return jsonify({'success': True, 'message': 'Campaign stopped', 'campaign_id': campaign_id})
+
+    except Exception as e:
+        logger.error(f"❌ Error stopping campaign: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@messaging_bp.route('/api/campaigns/<int:campaign_id>/resume', methods=['POST'])
+def resume_campaign(campaign_id):
+    """Resume a paused campaign"""
+    try:
+        # Get campaign details
+        campaign = current_app.db_manager.execute_query('''
+            SELECT * FROM campaigns WHERE id = ?
+        ''', (campaign_id,), fetch_one=True)
+
+        if not campaign:
+            return jsonify({'success': False, 'error': 'Campaign not found'}), 404
+
+        # Update campaign notes to remove PAUSED status
+        current_app.db_manager.execute_query('''
+            UPDATE campaigns
+            SET notes = REPLACE(notes, '[PAUSED]', '[RESUMED]')
+            WHERE id = ?
+        ''', (campaign_id,))
+
+        logger.info(f"▶️ Campaign {campaign_id} resumed")
+        return jsonify({'success': True, 'message': 'Campaign resumed', 'campaign_id': campaign_id})
+
+    except Exception as e:
+        logger.error(f"❌ Error resuming campaign: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @messaging_bp.route('/api/campaigns/history', methods=['GET'])
@@ -1453,6 +1844,138 @@ def get_member_categories():
         logger.error(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@messaging_bp.route('/api/members/all', methods=['GET'])
+def get_all_members():
+    """Get all members with optional category filtering"""
+    try:
+        category = request.args.get('category')
+        limit = request.args.get('limit', type=int)
+
+        if category:
+            # Map category to status_message values (must match database exactly!)
+            category_mapping = {
+                'good_standing': ['Member is in good standing', 'In good standing'],
+                'pay_per_visit': ['Pay Per Visit Member'],
+                'past_due_6_30': ['Past Due 6-30 days'],
+                'past_due_30_plus': ['Past Due more than 30 days.'],
+                'expiring_soon': ['Member is pending cancel', 'Expiring Soon'],
+                'past_due_training': [],  # Will query training_clients table separately
+                'other_statuses': []  # Will use NOT IN query
+            }
+
+            # Special handling for past_due_training - query training_clients table
+            if category == 'past_due_training':
+                query = '''
+                    SELECT clubos_member_id as prospect_id, first_name, last_name,
+                           member_name as full_name, email, mobile_phone,
+                           payment_status as status, payment_status as status_message,
+                           total_past_due as amount_past_due, 0 as membership_fee
+                    FROM training_clients
+                    WHERE total_past_due > 0
+                '''
+                if limit:
+                    query += f' LIMIT {limit}'
+                members = current_app.db_manager.execute_query(query, fetch_all=True)
+
+            # Special handling for other_statuses - all members NOT in main categories
+            elif category == 'other_statuses':
+                excluded_statuses = [
+                    'Member is in good standing', 'In good standing',
+                    'Pay Per Visit Member',
+                    'Past Due 6-30 days',
+                    'Past Due more than 30 days.',
+                    'Member is pending cancel', 'Expiring Soon'
+                ]
+                placeholders = ','.join(['?' for _ in excluded_statuses])
+                query = f'''
+                    SELECT prospect_id, first_name, last_name, full_name, email, mobile_phone,
+                           status, status_message, amount_past_due, membership_fee
+                    FROM members
+                    WHERE status_message IS NOT NULL
+                    AND status_message NOT IN ({placeholders})
+                    AND status_message NOT LIKE '%good standing%'
+                    AND status_message NOT LIKE '%expir%'
+                '''
+                if limit:
+                    query += f' LIMIT {limit}'
+                members = current_app.db_manager.execute_query(query, tuple(excluded_statuses), fetch_all=True)
+
+            else:
+                # Regular category - filter by status_message
+                status_messages = category_mapping.get(category, [])
+
+                if status_messages:
+                    placeholders = ','.join(['?' for _ in status_messages])
+                    query = f'''
+                        SELECT prospect_id, first_name, last_name, full_name, email, mobile_phone,
+                               status, status_message, amount_past_due, membership_fee
+                        FROM members
+                        WHERE status_message IN ({placeholders})
+                    '''
+                    if limit:
+                        query += f' LIMIT {limit}'
+                    members = current_app.db_manager.execute_query(query, tuple(status_messages), fetch_all=True)
+                else:
+                    # Unknown category - return empty list instead of all members
+                    logger.warning(f"⚠️ Unknown category: {category}")
+                    members = []
+        else:
+            # No category filter - return all members
+            query = '''
+                SELECT prospect_id, first_name, last_name, full_name, email, mobile_phone,
+                       status, status_message, amount_past_due, membership_fee
+                FROM members
+            '''
+            if limit:
+                query += f' LIMIT {limit}'
+
+            members = current_app.db_manager.execute_query(query, fetch_all=True)
+
+        # Convert to list of dicts if needed
+        if members and not isinstance(members[0], dict):
+            members = [dict(m) for m in members]
+
+        logger.info(f"✅ Retrieved {len(members) if members else 0} members")
+        return jsonify({'success': True, 'members': members or []})
+
+    except Exception as e:
+        logger.error(f"❌ Error getting all members: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@messaging_bp.route('/api/prospects/all', methods=['GET'])
+def get_all_prospects():
+    """Get all prospects with optional filtering"""
+    try:
+        limit = request.args.get('limit', type=int)
+        status = request.args.get('status')
+
+        query = '''
+            SELECT prospect_id, first_name, last_name, email, mobile_phone,
+                   status, source, interest_level, created_date
+            FROM prospects
+        '''
+
+        params = []
+        if status:
+            query += ' WHERE status = ?'
+            params.append(status)
+
+        if limit:
+            query += f' LIMIT {limit}'
+
+        prospects = current_app.db_manager.execute_query(query, tuple(params) if params else None, fetch_all=True)
+
+        # Convert to list of dicts if needed
+        if prospects and not isinstance(prospects[0], dict):
+            prospects = [dict(p) for p in prospects]
+
+        logger.info(f"✅ Retrieved {len(prospects) if prospects else 0} prospects")
+        return jsonify({'success': True, 'prospects': prospects or []})
+
+    except Exception as e:
+        logger.error(f"❌ Error getting all prospects: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @messaging_bp.route('/api/messages/send', methods=['POST'])
 def send_message_route():
     """Single message sending using EXACT same logic as working campaign system"""
@@ -1488,50 +2011,88 @@ def send_message_route():
         db_manager = DatabaseManager()
         
         member_data = None
+        person_type = 'member'  # Track if this is a member or prospect
         
         # If member_name is provided, look up the full member data (same as campaign logic)
         if member_name:
             logger.info(f"🔍 Looking up member by name: {member_name}")
             
+            # First search members table
             all_members = db_manager.get_all_members()
-            logger.info(f"� Searching through {len(all_members)} members for '{member_name}'")
+            logger.info(f"📋 Searching through {len(all_members)} members for '{member_name}'")
             
             for member in all_members:
                 # EXACT same name matching logic as campaigns
                 full_name = f"{member.get('first_name', '')} {member.get('last_name', '')}".strip()
                 if full_name == member_name or member.get('full_name', '') == member_name or member.get('name', '') == member_name:
                     member_data = member
-                    member_id = member.get('member_id') or member.get('id') or member.get('guid')
+                    member_id = member.get('member_id') or member.get('id') or member.get('guid') or member.get('prospect_id')
                     logger.info(f"✅ Found member {member_name} with ID: {member_id}")
                     logger.info(f"📋 Member data: email={member.get('email')}, phone={member.get('mobile_phone')}")
                     break
             
+            # If not found in members, search prospects table
             if not member_data:
-                logger.error(f"❌ Member '{member_name}' not found in database")
+                logger.info(f"🔍 Not found in members, searching prospects for '{member_name}'")
+                all_prospects = db_manager.get_prospects()
+                prospects_list = [dict(p) for p in all_prospects] if all_prospects else []
+                logger.info(f"📋 Searching through {len(prospects_list)} prospects for '{member_name}'")
+                
+                for prospect in prospects_list:
+                    full_name = f"{prospect.get('first_name', '')} {prospect.get('last_name', '')}".strip()
+                    if full_name == member_name or prospect.get('full_name', '') == member_name:
+                        member_data = prospect
+                        member_id = prospect.get('prospect_id') or prospect.get('id')
+                        person_type = 'prospect'
+                        logger.info(f"✅ Found prospect {member_name} with ID: {member_id}")
+                        logger.info(f"📋 Prospect data: email={prospect.get('email')}, phone={prospect.get('mobile_phone')}")
+                        break
+            
+            if not member_data:
+                logger.error(f"❌ '{member_name}' not found in members or prospects database")
                 return jsonify({
                     'success': False,
-                    'error': f'Member "{member_name}" not found in database'
+                    'error': f'"{member_name}" not found in members or prospects database'
                 }), 404
                 
         elif member_id:
             # Look up member data by ID (same as campaign logic)
             logger.info(f"🔍 Looking up member by ID: {member_id}")
+            
+            # First search members table
             all_members = db_manager.get_all_members()
             for member in all_members:
                 if (str(member.get('member_id')) == str(member_id) or 
                     str(member.get('id')) == str(member_id) or 
-                    str(member.get('guid')) == str(member_id)):
+                    str(member.get('guid')) == str(member_id) or
+                    str(member.get('prospect_id')) == str(member_id)):
                     member_data = member
                     member_name = member.get('full_name') or f"{member.get('first_name', '')} {member.get('last_name', '')}".strip()
                     logger.info(f"✅ Found member ID {member_id}: {member_name}")
                     logger.info(f"📋 Member data: email={member.get('email')}, phone={member.get('mobile_phone')}")
                     break
             
+            # If not found in members, search prospects table
             if not member_data:
-                logger.error(f"❌ Member with ID '{member_id}' not found in database")
+                logger.info(f"🔍 Not found in members, searching prospects by ID: {member_id}")
+                all_prospects = db_manager.get_prospects()
+                prospects_list = [dict(p) for p in all_prospects] if all_prospects else []
+                
+                for prospect in prospects_list:
+                    if (str(prospect.get('prospect_id')) == str(member_id) or 
+                        str(prospect.get('id')) == str(member_id)):
+                        member_data = prospect
+                        member_name = prospect.get('full_name') or f"{prospect.get('first_name', '')} {prospect.get('last_name', '')}".strip()
+                        person_type = 'prospect'
+                        logger.info(f"✅ Found prospect ID {member_id}: {member_name}")
+                        logger.info(f"📋 Prospect data: email={prospect.get('email')}, phone={prospect.get('mobile_phone')}")
+                        break
+            
+            if not member_data:
+                logger.error(f"❌ ID '{member_id}' not found in members or prospects database")
                 return jsonify({
                     'success': False,
-                    'error': f'Member with ID "{member_id}" not found in database'
+                    'error': f'ID "{member_id}" not found in members or prospects database'
                 }), 404
         
         # Initialize ClubOS messaging client EXACTLY like campaigns do
@@ -1563,10 +2124,10 @@ def send_message_route():
         logger.info("✅ ClubOS authentication successful")
         
         # CRITICAL: Log the exact member data being used for messaging
-        logger.info(f"📨 FINAL CHECK - Sending to: Name='{member_name}', ID='{member_id}', Email='{member_data.get('email') if member_data else 'None'}', Phone='{member_data.get('mobile_phone') if member_data else 'None'}'")
+        logger.info(f"📨 FINAL CHECK - Sending to {person_type}: Name='{member_name}', ID='{member_id}', Email='{member_data.get('email') if member_data else 'None'}', Phone='{member_data.get('mobile_phone') if member_data else 'None'}'")
         
         # Send message using EXACT SAME method as campaigns
-        logger.info(f"📤 Sending {channel} message using campaign-tested method...")
+        logger.info(f"📤 Sending {channel} message to {person_type} using campaign-tested method...")
         
         success = client.send_message(
             member_id=member_id,
@@ -1576,7 +2137,7 @@ def send_message_route():
         )
         
         if success:
-            logger.info(f"✅ Single message sent successfully to {member_name} (ID: {member_id})")
+            logger.info(f"✅ Single message sent successfully to {person_type} {member_name} (ID: {member_id})")
             return jsonify({
                 'success': True,
                 'message': f'Message sent successfully to {member_name}',
@@ -1662,67 +2223,42 @@ def get_message_templates():
 @messaging_bp.route('/api/messaging/inbox/recent', methods=['GET'])
 # @require_auth  # Temporarily disabled for testing
 def get_recent_inbox():
-    """Get ALL recent messages - SYNCS FRESH FROM CLUBOS first"""
+    """Get recent messages from database - Real-time service handles ClubOS sync"""
     try:
         limit = request.args.get('limit', 50, type=int)
 
-        # CRITICAL FIX: Sync fresh messages from ClubOS FIRST, then query database
-        # This ensures inbox always shows the LATEST messages
-        try:
-            logger.info("🔄 Syncing fresh messages from ClubOS before loading inbox...")
+        # Get total message count for debug info
+        count_result = current_app.db_manager.execute_query('''
+            SELECT COUNT(*) as count FROM messages
+        ''', fetch_one=True)
+        total_in_db = count_result['count'] if count_result else 0
 
-            # Get messaging client
-            if not hasattr(current_app, 'messaging_client') or current_app.messaging_client is None:
-                from src.services.clubos_messaging_client_simple import ClubOSMessagingClient
-                current_app.messaging_client = ClubOSMessagingClient()
-                if not current_app.messaging_client.authenticate():
-                    logger.warning("⚠️ ClubOS authentication failed, using cached messages")
-
-            # Sync messages from ClubOS
-            if current_app.messaging_client:
-                clubos_messages = current_app.messaging_client.get_messages()
-                if clubos_messages:
-                    logger.info(f"✅ Synced {len(clubos_messages)} fresh messages from ClubOS")
-
-                    # Store in database
-                    for msg in clubos_messages:
-                        try:
-                            current_app.db_manager.execute_query('''
-                                INSERT OR REPLACE INTO messages
-                                (id, content, from_user, owner_id, created_at, channel, timestamp, status, message_type)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            ''', (
-                                msg.get('id'),
-                                msg.get('content', ''),
-                                msg.get('from_user', ''),
-                                msg.get('owner_id', ''),
-                                msg.get('created_at', ''),
-                                'clubos',
-                                msg.get('timestamp', ''),
-                                msg.get('status', 'received'),
-                                msg.get('message_type', 'text')
-                            ))
-                        except Exception as store_err:
-                            logger.debug(f"⚠️ Error storing message: {store_err}")
-
-                    logger.info("💾 Stored fresh messages in database")
-        except Exception as sync_err:
-            logger.warning(f"⚠️ ClubOS sync error (will use cached messages): {sync_err}")
-
-        # Query database for recent messages (now includes fresh synced messages)
-        # CRITICAL FIX: ORDER BY timestamp DESC to show NEWEST messages first (by message date, not sync time)
-        # CRITICAL FIX: Filter out old messages with incomplete timestamps (e.g., "Oct 13" without year)
+        # Query database for recent messages
+        # FIXED: Group by from_user only to show one conversation per member
+        # FIXED: Use subquery to ensure we get the actual latest message content
+        # FIXED: Sort by timestamp DESC to show newest first
         messages = current_app.db_manager.execute_query('''
             SELECT
-                id, content, from_user, owner_id, created_at, channel,
-                timestamp, status, message_type
-            FROM messages
-            WHERE channel = 'clubos'
-            AND from_user IS NOT NULL
-            AND from_user != ''
-            AND LENGTH(TRIM(content)) > 5
-            AND (timestamp LIKE '20%' OR timestamp LIKE '19%')
-            ORDER BY timestamp DESC
+                m.id,
+                m.content,
+                m.from_user,
+                m.owner_id,
+                m.created_at,
+                m.channel,
+                m.timestamp,
+                m.status,
+                m.message_type
+            FROM messages m
+            JOIN (
+                SELECT from_user, MAX(timestamp) as max_ts
+                FROM messages
+                WHERE channel = 'clubos'
+                AND from_user IS NOT NULL
+                AND from_user != ''
+                AND from_user != 'Unknown'
+                GROUP BY from_user
+            ) latest ON m.from_user = latest.from_user AND m.timestamp = latest.max_ts
+            ORDER BY m.timestamp DESC
             LIMIT ?
         ''', (limit,), fetch_all=True)
 
@@ -1839,6 +2375,9 @@ def get_recent_inbox():
 
             owner_id = message.get('owner_id', '')
 
+            # Use the actual message timestamp for display, fallback to created_at
+            display_time = message.get('timestamp') or message.get('created_at')
+
             # Create individual message item
             message_item = {
                 'id': message.get('id'),
@@ -1846,7 +2385,7 @@ def get_recent_inbox():
                 'owner_id': owner_id,
                 'member_name': sender_name,
                 'message_content': message.get('content', ''),
-                'created_at': message.get('created_at'),
+                'created_at': display_time,
                 'channel': message.get('channel', 'ClubOS'),
                 'status': message.get('status', 'received'),
                 'message_type': message.get('message_type', 'text')
@@ -1858,9 +2397,10 @@ def get_recent_inbox():
             'success': True,
             'messages': message_items,  # Return individual messages, not threads
             'count': len(message_items),
+            'total_in_database': total_in_db,
             'debug_info': {
-                'total_messages_found': len(messages),
-                'processed_messages': len(message_items),
+                'total_messages_in_db': total_in_db,
+                'conversations_returned': len(message_items),
                 'query_limit': limit
             }
         })
@@ -2563,6 +3103,8 @@ def get_member_message_history(member_id):
                             # We also need the full_name for database fallback queries (messages table uses names, not IDs)
                             # Database schema: prospect_id = ClubOS numeric member ID (e.g., '66082049'), full_name = "Mark Benzinger"
                             member_lookup = None
+                            
+                            # First try members table by guid or prospect_id
                             try:
                                 member_lookup = current_app.db_manager.execute_query(
                                     "SELECT prospect_id, full_name FROM members WHERE guid = ? OR prospect_id = ? LIMIT 1",
@@ -2570,18 +3112,46 @@ def get_member_message_history(member_id):
                                     fetch_one=True
                                 )
                             except Exception as e:
-                                logger.warning(f"⚠️ Primary member ID lookup failed: {e}")
-                                # Fallback: try selecting from prospects table
+                                logger.warning(f"⚠️ Members table lookup failed: {e}")
+                            
+                            # If not found in members, try prospects table
+                            if not member_lookup:
                                 try:
+                                    # Search prospects by prospect_id OR by exact full_name match
                                     member_lookup = current_app.db_manager.execute_query(
-                                        "SELECT prospect_id FROM prospects WHERE prospect_id = ? LIMIT 1",
-                                        (member_id,),
+                                        "SELECT prospect_id, full_name FROM prospects WHERE prospect_id = ? OR full_name = ? COLLATE NOCASE LIMIT 1",
+                                        (member_id, member_id),
                                         fetch_one=True
                                     )
                                     if member_lookup:
-                                        logger.info("✅ Found member ID in prospects table")
-                                except Exception:
-                                    member_lookup = None
+                                        logger.info(f"✅ Found in prospects table: {member_lookup}")
+                                except Exception as pe:
+                                    logger.warning(f"⚠️ Prospects table lookup failed: {pe}")
+                            
+                            # If still not found and member_id looks like a name, try name search
+                            if not member_lookup and ' ' in member_id:
+                                logger.info(f"🔍 member_id looks like a name, trying name search: {member_id}")
+                                try:
+                                    # Try members by name first
+                                    name_parts = member_id.rsplit(' ', 1)
+                                    if len(name_parts) == 2:
+                                        first_name, last_name = name_parts
+                                        member_lookup = current_app.db_manager.execute_query(
+                                            "SELECT prospect_id, full_name FROM members WHERE LOWER(first_name) = LOWER(?) AND LOWER(last_name) = LOWER(?) LIMIT 1",
+                                            (first_name, last_name),
+                                            fetch_one=True
+                                        )
+                                        if not member_lookup:
+                                            # Try prospects by name
+                                            member_lookup = current_app.db_manager.execute_query(
+                                                "SELECT prospect_id, full_name FROM prospects WHERE LOWER(first_name) = LOWER(?) AND LOWER(last_name) = LOWER(?) LIMIT 1",
+                                                (first_name, last_name),
+                                                fetch_one=True
+                                            )
+                                            if member_lookup:
+                                                logger.info(f"✅ Found prospect by name parts: {first_name} {last_name}")
+                                except Exception as ne:
+                                    logger.warning(f"⚠️ Name search failed: {ne}")
 
                             if member_lookup:
                                 # Extract the prospect_id AND full_name from the query result

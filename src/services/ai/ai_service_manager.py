@@ -30,8 +30,8 @@ class AIServiceManager:
         """
         self.api_key = api_key
         self.base_url = "https://api.groq.com/openai/v1/chat/completions"
-        # Using Groq's Llama model
-        self.model = "llama-3.1-70b-versatile"  # Groq Llama 3.1 70B
+        # Using Groq's Llama model - get from env or use default
+        self.model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")  # Groq Llama 3.3 70B
         self.max_tokens = 4000
         self.temperature = 0.7
 

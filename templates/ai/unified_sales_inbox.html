@@ -1,0 +1,767 @@
+{% extends "base.html" %}
+
+{% block title %}AI Sales & Messaging Center{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --primary-blue: #007bff;
+        --success-green: #28a745;
+        --warning-yellow: #ffc107;
+        --danger-red: #dc3545;
+        --sidebar-bg: #f8f9fa;
+        --card-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    body {
+        overflow-x: hidden;
+    }
+
+    /* 3-Column Grid Layout */
+    .unified-dashboard {
+        display: grid;
+        grid-template-columns: 320px 1fr 350px;
+        gap: 0;
+        height: calc(100vh - 56px);
+        overflow: hidden;
+    }
+
+    /* Left Panel - Message Inbox */
+    .inbox-panel {
+        background: var(--sidebar-bg);
+        border-right: 1px solid #dee2e6;
+        overflow-y: auto;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .inbox-header {
+        padding: 20px;
+        background: linear-gradient(135deg, var(--af-purple-primary), var(--af-purple-dark));
+        color: white;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .inbox-conversations {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px;
+    }
+
+    .inbox-conversation-item {
+        transition: all 0.15s ease;
+        border-radius: 8px;
+        margin: 4px 0;
+        cursor: pointer;
+        padding: 12px;
+        background: white;
+        border: 1px solid #e9ecef;
+    }
+
+    .inbox-conversation-item:hover {
+        background-color: #f8f9fa;
+        transform: translateX(3px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-left-color: var(--af-purple-primary);
+    }
+
+    .unread-conversation {
+        background-color: #e3f2fd;
+        border-left: 4px solid var(--af-purple-primary);
+        font-weight: 600;
+    }
+
+    .conversation-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--af-purple-primary), var(--af-purple-dark));
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 16px;
+    }
+
+    /* Center Panel - AI Conversation */
+    .ai-panel {
+        display: flex;
+        flex-direction: column;
+        background: white;
+        overflow: hidden;
+    }
+
+    .ai-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid #dee2e6;
+        background: white;
+        z-index: 10;
+    }
+
+    .ai-feed {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background: #f8f9fa;
+    }
+
+    .ai-input {
+        padding: 16px 20px;
+        border-top: 1px solid #dee2e6;
+        background: white;
+    }
+
+    /* AI Message Styles */
+    .ai-message {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: var(--card-shadow);
+    }
+
+    .ai-message.user-message {
+        background: #e3f2fd;
+        border-left: 4px solid var(--primary-blue);
+    }
+
+    .ai-message.agent-message {
+        border-left: 4px solid var(--success-green);
+    }
+
+    .ai-message.system-message {
+        border-left: 4px solid var(--af-purple-primary);
+    }
+
+    .message-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .message-timestamp {
+        font-size: 12px;
+        color: #6c757d;
+    }
+
+    /* Right Panel - Campaign Actions */
+    .actions-panel {
+        background: var(--sidebar-bg);
+        border-left: 1px solid #dee2e6;
+        overflow-y: auto;
+        padding: 20px;
+    }
+
+    .action-card {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: var(--card-shadow);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .action-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .action-card h6 {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+
+    .action-card .badge {
+        font-size: 11px;
+        padding: 4px 8px;
+    }
+
+    /* Scrollbar Styling */
+    .inbox-conversations::-webkit-scrollbar,
+    .ai-feed::-webkit-scrollbar,
+    .actions-panel::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .inbox-conversations::-webkit-scrollbar-track,
+    .ai-feed::-webkit-scrollbar-track,
+    .actions-panel::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+
+    .inbox-conversations::-webkit-scrollbar-thumb,
+    .ai-feed::-webkit-scrollbar-thumb,
+    .actions-panel::-webkit-scrollbar-thumb {
+        background: var(--af-purple-primary);
+        border-radius: 3px;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 1199px) {
+        .unified-dashboard {
+            grid-template-columns: 280px 1fr;
+        }
+        .actions-panel {
+            display: none;
+        }
+    }
+
+    @media (max-width: 767px) {
+        .unified-dashboard {
+            grid-template-columns: 1fr;
+        }
+        .inbox-panel {
+            display: none;
+        }
+    }
+
+    /* Loading States */
+    .loading-skeleton {
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: loading 1.5s ease-in-out infinite;
+        border-radius: 4px;
+        height: 60px;
+        margin-bottom: 8px;
+    }
+
+    @keyframes loading {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    /* Campaign Quick Action Styles */
+    .campaign-quick-action {
+        background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+        border-left: 4px solid transparent;
+        transition: all 0.2s;
+    }
+
+    .campaign-quick-action:hover {
+        border-left-color: var(--af-purple-primary);
+    }
+
+    .campaign-quick-action.active {
+        background: #e3f2fd;
+        border-left-color: var(--primary-blue);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="unified-dashboard">
+    <!-- Left Panel: Message Inbox -->
+    <div class="inbox-panel">
+        <div class="inbox-header">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0 fw-semibold">
+                    <i class="fas fa-inbox me-2"></i>
+                    Message Inbox
+                </h5>
+                <button class="btn btn-sm btn-light" onclick="refreshMessagingInbox()" title="Refresh Inbox">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+            <p class="mb-0 small opacity-75">Recent conversations</p>
+        </div>
+
+        <div class="inbox-conversations" id="inbox-conversations-list">
+            <!-- Loading skeleton -->
+            <div class="loading-skeleton"></div>
+            <div class="loading-skeleton"></div>
+            <div class="loading-skeleton"></div>
+        </div>
+
+        <div class="p-3 border-top bg-white">
+            <button class="btn btn-sm btn-outline-primary w-100" onclick="viewAllConversations()">
+                <i class="fas fa-comments me-1"></i>View All Conversations
+            </button>
+        </div>
+    </div>
+
+    <!-- Center Panel: AI Agent Chat -->
+    <div class="ai-panel">
+        <div class="ai-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h4 class="mb-1">AI Sales Assistant</h4>
+                    <small class="text-muted">Your intelligent sales and messaging partner</small>
+                </div>
+                <div>
+                    <span class="badge bg-success">
+                        <i class="fas fa-robot me-1"></i>AI Active
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="ai-feed" id="ai-conversation-feed">
+            <div class="ai-message system-message">
+                <div class="message-header">
+                    <span class="badge bg-primary">System</span>
+                    <span class="message-timestamp">Just now</span>
+                </div>
+                <div class="message-body">
+                    <strong>Welcome to the Unified Sales & Messaging Center</strong>
+                    <p class="mb-0 mt-2">I'm your AI assistant. I can help you with:</p>
+                    <ul class="mt-2 mb-0">
+                        <li>Managing campaigns and bulk messaging</li>
+                        <li>Responding to member conversations</li>
+                        <li>Analyzing past due accounts</li>
+                        <li>Generating revenue insights</li>
+                        <li>Automating follow-ups and collections</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="ai-input">
+            <div class="input-group mb-2">
+                <input type="text" class="form-control" id="ai-command-input"
+                       placeholder="Ask the AI anything or give it a task..."
+                       onkeypress="handleAICommandKeyPress(event)">
+                <button class="btn btn-primary" onclick="sendAICommand()" id="ai-send-button">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <button class="btn btn-sm btn-outline-secondary" onclick="sendQuickAICommand('Show me past due members')">
+                    <i class="fas fa-exclamation-triangle me-1"></i>Past Due
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="sendQuickAICommand('Create a follow-up campaign')">
+                    <i class="fas fa-bullhorn me-1"></i>New Campaign
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="sendQuickAICommand('Analyze recent conversations')">
+                    <i class="fas fa-chart-line me-1"></i>Analytics
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel: Campaign Quick Actions -->
+    <div class="actions-panel">
+        <h5 class="mb-3">Quick Actions</h5>
+
+        <!-- Campaign Categories -->
+        <div id="campaign-quick-actions">
+            <div class="action-card campaign-quick-action" onclick="openCampaignModal('good_standing')">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">
+                        <i class="fas fa-check-circle text-success me-2"></i>
+                        Good Standing
+                    </h6>
+                    <span class="badge bg-success" id="good-standing-count-quick">0</span>
+                </div>
+                <p class="text-muted small mb-0">Members in good standing</p>
+            </div>
+
+            <div class="action-card campaign-quick-action" onclick="openCampaignModal('past_due_6_30')">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">
+                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                        Past Due 6-30
+                    </h6>
+                    <span class="badge bg-warning text-dark" id="past-due-6-30-count-quick">0</span>
+                </div>
+                <p class="text-muted small mb-0">6-30 days overdue</p>
+            </div>
+
+            <div class="action-card campaign-quick-action" onclick="openCampaignModal('past_due_30_plus')">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">
+                        <i class="fas fa-times-circle text-danger me-2"></i>
+                        Past Due 30+
+                    </h6>
+                    <span class="badge bg-danger" id="past-due-30-count-quick">0</span>
+                </div>
+                <p class="text-muted small mb-0">Over 30 days overdue</p>
+            </div>
+
+            <div class="action-card campaign-quick-action" onclick="openCampaignModal('expiring_soon')">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">
+                        <i class="fas fa-clock text-warning me-2"></i>
+                        Expiring Soon
+                    </h6>
+                    <span class="badge bg-warning text-dark" id="expiring-soon-count-quick">0</span>
+                </div>
+                <p class="text-muted small mb-0">Memberships expiring</p>
+            </div>
+
+            <div class="action-card campaign-quick-action" onclick="openCampaignModal('prospects')">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">
+                        <i class="fas fa-users text-primary me-2"></i>
+                        Prospects
+                    </h6>
+                    <span class="badge bg-primary" id="prospects-count-quick">0</span>
+                </div>
+                <p class="text-muted small mb-0">Potential new members</p>
+            </div>
+        </div>
+
+        <hr class="my-3">
+
+        <!-- Additional Actions -->
+        <div class="action-card" onclick="window.location.href='/messaging'">
+            <h6 class="mb-2">
+                <i class="fas fa-cog me-2"></i>
+                Advanced Campaigns
+            </h6>
+            <p class="text-muted small mb-0">Full campaign management</p>
+        </div>
+
+        <div class="action-card" onclick="refreshAllData()">
+            <h6 class="mb-2">
+                <i class="fas fa-sync-alt me-2"></i>
+                Refresh All Data
+            </h6>
+            <p class="text-muted small mb-0">Update counts and messages</p>
+        </div>
+    </div>
+</div>
+
+<script>
+// Global state
+let currentConversationId = null;
+let aiSessionId = null;
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Initializing Unified Sales & Messaging Dashboard...');
+
+    // Load initial data
+    refreshMessagingInbox();
+    loadCampaignCounts();
+
+    // Auto-refresh every 30 seconds
+    setInterval(() => {
+        refreshMessagingInbox();
+        loadCampaignCounts();
+    }, 30000);
+});
+
+// ============================================================================
+// INBOX FUNCTIONS
+// ============================================================================
+
+async function refreshMessagingInbox() {
+    console.log('🔄 Refreshing messaging inbox...');
+    const container = document.getElementById('inbox-conversations-list');
+
+    container.innerHTML = `
+        <div class="loading-skeleton"></div>
+        <div class="loading-skeleton"></div>
+        <div class="loading-skeleton"></div>
+    `;
+
+    try {
+        // Sync from ClubOS first
+        await fetch('/api/messages/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ owner_id: window.currentOwnerId || '187032782' })
+        });
+
+        // Load messages from database
+        const response = await fetch('/api/messages/inbox');
+        const data = await response.json();
+
+        if (data.success && data.messages) {
+            displayInboxConversations(data.messages);
+        } else {
+            displayEmptyInbox();
+        }
+    } catch (error) {
+        console.error('❌ Error loading inbox:', error);
+        displayEmptyInbox();
+    }
+}
+
+function displayInboxConversations(messages) {
+    const container = document.getElementById('inbox-conversations-list');
+
+    if (!messages || messages.length === 0) {
+        displayEmptyInbox();
+        return;
+    }
+
+    const conversationsHtml = messages.slice(0, 20).map(msg => {
+        const memberName = msg.member_name || msg.from_user || 'Unknown';
+        const initials = memberName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+        const messagePreview = (msg.message_content || 'No content').substring(0, 60);
+        const timeAgo = formatTimeAgo(msg.created_at);
+        const isUnread = msg.status !== 'read';
+
+        return `
+            <div class="inbox-conversation-item ${isUnread ? 'unread-conversation' : ''}"
+                 onclick="openConversation('${msg.member_id || ''}', '${memberName}')">
+                <div class="d-flex gap-3">
+                    <div class="conversation-avatar">
+                        ${initials}
+                    </div>
+                    <div class="flex-grow-1" style="min-width: 0;">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <div class="fw-semibold text-truncate">${escapeHtml(memberName)}</div>
+                            <small class="text-muted" style="white-space: nowrap;">${timeAgo}</small>
+                        </div>
+                        <p class="mb-0 text-muted text-truncate small">
+                            ${escapeHtml(messagePreview)}
+                        </p>
+                        ${isUnread ? '<small class="badge bg-primary mt-1">New</small>' : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = conversationsHtml;
+}
+
+function displayEmptyInbox() {
+    const container = document.getElementById('inbox-conversations-list');
+    container.innerHTML = `
+        <div class="text-center py-5 px-3">
+            <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+            <h6 class="text-muted">No conversations yet</h6>
+            <p class="text-muted small">New messages will appear here</p>
+        </div>
+    `;
+}
+
+function openConversation(memberId, memberName) {
+    console.log('💬 Opening conversation with:', memberName);
+
+    // Mark as current conversation
+    currentConversationId = memberId;
+
+    // Send AI command to analyze this conversation
+    sendQuickAICommand(`Show me the conversation history with ${memberName}`);
+
+    // Optionally open in full messaging page
+    // window.location.href = `/contact/${memberId}`;
+}
+
+function viewAllConversations() {
+    window.location.href = '/messaging';
+}
+
+// ============================================================================
+// AI AGENT FUNCTIONS
+// ============================================================================
+
+async function sendAICommand() {
+    const input = document.getElementById('ai-command-input');
+    const command = input.value.trim();
+
+    if (!command) return;
+
+    // Add user message to feed
+    addMessageToAIFeed({
+        type: 'user',
+        content: command,
+        timestamp: new Date().toISOString()
+    });
+
+    input.value = '';
+
+    // Show loading
+    const sendButton = document.getElementById('ai-send-button');
+    sendButton.disabled = true;
+    sendButton.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    try {
+        const response = await fetch('/sales-ai/command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                command: command,
+                session_id: aiSessionId
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            if (data.session_id) aiSessionId = data.session_id;
+
+            addMessageToAIFeed({
+                type: 'agent',
+                content: data.result || data.response,
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            addMessageToAIFeed({
+                type: 'error',
+                content: `Error: ${data.error}`,
+                timestamp: new Date().toISOString()
+            });
+        }
+    } catch (error) {
+        console.error('❌ Error sending AI command:', error);
+        addMessageToAIFeed({
+            type: 'error',
+            content: `Error: ${error.message}`,
+            timestamp: new Date().toISOString()
+        });
+    } finally {
+        sendButton.disabled = false;
+        sendButton.innerHTML = '<i class="fas fa-paper-plane"></i>';
+    }
+}
+
+function sendQuickAICommand(command) {
+    document.getElementById('ai-command-input').value = command;
+    sendAICommand();
+}
+
+function handleAICommandKeyPress(event) {
+    if (event.key === 'Enter') {
+        sendAICommand();
+    }
+}
+
+function addMessageToAIFeed(message) {
+    const feed = document.getElementById('ai-conversation-feed');
+    const messageEl = document.createElement('div');
+
+    let messageClass = 'ai-message';
+    let badgeClass = 'bg-secondary';
+    let badgeText = 'System';
+
+    if (message.type === 'user') {
+        messageClass += ' user-message';
+        badgeClass = 'bg-info';
+        badgeText = 'You';
+    } else if (message.type === 'agent') {
+        messageClass += ' agent-message';
+        badgeClass = 'bg-success';
+        badgeText = 'AI Assistant';
+    } else if (message.type === 'error') {
+        messageClass += ' ai-message';
+        badgeClass = 'bg-danger';
+        badgeText = 'Error';
+    }
+
+    messageEl.className = messageClass;
+    messageEl.innerHTML = `
+        <div class="message-header">
+            <span class="badge ${badgeClass}">${badgeText}</span>
+            <span class="message-timestamp">${formatTimestamp(message.timestamp)}</span>
+        </div>
+        <div class="message-body">
+            ${formatMessageContent(message.content)}
+        </div>
+    `;
+
+    feed.appendChild(messageEl);
+    feed.scrollTop = feed.scrollHeight;
+}
+
+function formatMessageContent(content) {
+    if (typeof content === 'string') {
+        return `<p class="mb-0">${escapeHtml(content).replace(/\n/g, '<br>')}</p>`;
+    }
+
+    if (content && content.result) {
+        return `<p class="mb-0">${escapeHtml(content.result).replace(/\n/g, '<br>')}</p>`;
+    }
+
+    return `<pre class="mb-0" style="font-size: 12px; background: #f8f9fa; padding: 12px; border-radius: 4px;">${JSON.stringify(content, null, 2)}</pre>`;
+}
+
+// ============================================================================
+// CAMPAIGN FUNCTIONS
+// ============================================================================
+
+async function loadCampaignCounts() {
+    console.log('📊 Loading campaign counts...');
+
+    try {
+        const response = await fetch('/api/campaigns/status-counts');
+        const data = await response.json();
+
+        if (data.success && data.counts) {
+            updateCampaignCounts(data.counts);
+        }
+    } catch (error) {
+        console.error('❌ Error loading campaign counts:', error);
+    }
+}
+
+function updateCampaignCounts(counts) {
+    Object.keys(counts).forEach(category => {
+        const badge = document.getElementById(`${category}-count-quick`);
+        if (badge) {
+            badge.textContent = counts[category] || 0;
+        }
+    });
+}
+
+function openCampaignModal(category) {
+    console.log('🚀 Opening campaign modal for:', category);
+    // Redirect to full messaging page with category selected
+    window.location.href = `/messaging?category=${category}`;
+}
+
+function refreshAllData() {
+    console.log('🔄 Refreshing all data...');
+    refreshMessagingInbox();
+    loadCampaignCounts();
+
+    // Show confirmation
+    addMessageToAIFeed({
+        type: 'system',
+        content: 'All data refreshed successfully',
+        timestamp: new Date().toISOString()
+    });
+}
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+function formatTimeAgo(timestamp) {
+    if (!timestamp) return '';
+
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return date.toLocaleDateString();
+}
+
+function formatTimestamp(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function escapeHtml(text) {
+    if (typeof text !== 'string') return text;
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Debug logging
+function debugLog(...args) {
+    console.log(...args);
+}
+</script>
+{% endblock %}

@@ -496,6 +496,49 @@ def create_app():
                 db_manager=app.db_manager
             )
 
+            # Initialize Inbox AI Agent
+            try:
+                from .services.ai.inbox_ai_agent import InboxAIAgent
+                from .services.ai.inbox_db_schema import InboxDatabaseSchema
+
+                # Initialize inbox database schema
+                inbox_db_schema = InboxDatabaseSchema(app.db_manager)
+
+                app.inbox_ai_agent = InboxAIAgent(
+                    ai_service_manager=app.ai_service,
+                    clubos_client=getattr(app, 'clubos_messaging_client', None),
+                    inbox_db_schema=inbox_db_schema
+                )
+                logger.info("✅ Inbox AI Agent initialized")
+            except Exception as inbox_e:
+                logger.warning(f"⚠️ Inbox AI Agent initialization failed: {inbox_e}")
+                logger.exception("Full error:")
+                app.inbox_ai_agent = None
+
+            # Initialize Unified Gym Agent (combines Sales + Inbox AI)
+            try:
+                from .services.ai.unified_gym_agent import UnifiedGymAgent
+
+                # Only initialize if both Sales and Inbox AI agents are available
+                if hasattr(app, 'sales_ai_agent') and app.sales_ai_agent and \
+                   hasattr(app, 'inbox_ai_agent') and app.inbox_ai_agent:
+
+                    app.unified_ai_agent = UnifiedGymAgent(
+                        sales_ai_agent=app.sales_ai_agent,
+                        inbox_ai_agent=app.inbox_ai_agent,
+                        clubos_messaging_client=getattr(app, 'messaging_client', None),
+                        db_manager=app.db_manager,
+                        workflow_runner=None  # Will be connected to workflow_scheduler later
+                    )
+                    logger.info("✅ Unified AI Agent initialized - autonomous system ready")
+                    logger.info("🤖 AI system will now process inbox messages automatically")
+                else:
+                    logger.warning("⚠️ Unified AI Agent not initialized - Sales or Inbox AI unavailable")
+                    app.unified_ai_agent = None
+            except Exception as unified_e:
+                logger.warning(f"⚠️ Unified AI Agent initialization failed: {unified_e}")
+                app.unified_ai_agent = None
+
             logger.info("✅ AI services initialized successfully")
 
         except Exception as e:
@@ -508,6 +551,8 @@ def create_app():
             app.db_ai_adapter = None
             app.admin_ai_agent = None
             app.sales_ai_agent = None
+            app.inbox_ai_agent = None
+            app.unified_ai_agent = None
 
         logger.info("✅ All services initialized successfully")
         
@@ -575,22 +620,29 @@ def create_app():
         except Exception as e:
             logger.warning(f"⚠️ WebSocket handler registration failed: {e}")
         
-        # Initialize Real-Time Message Polling Service (Phase 1)
+        # Initialize Real-Time Message Polling Service (Phase 1 & 2)
         if app.messaging_client and app.db_manager:
             try:
                 from .services.real_time_message_sync import RealTimeMessageSync
-                
-                # Initialize polling service
+
+                # Initialize polling service with Unified AI Agent integration
                 app.message_poller = RealTimeMessageSync(
                     clubos_client=app.messaging_client,
                     db_manager=app.db_manager,
                     socketio=socketio,
-                    poll_interval=10  # 10 seconds
+                    poll_interval=10,  # 10 seconds
+                    unified_ai_agent=getattr(app, 'unified_ai_agent', None)  # Connect unified AI
                 )
-                
+
                 # Start polling in background
                 app.message_poller.start_polling()
-                logger.info("✅ Real-time message polling service started (10s interval)")
+
+                if hasattr(app, 'unified_ai_agent') and app.unified_ai_agent:
+                    logger.info("✅ Real-time message polling started with AI processing enabled")
+                    logger.info("🤖 Autonomous AI system is now active - monitoring inbox every 10 seconds")
+                else:
+                    logger.info("✅ Real-time message polling service started (10s interval)")
+                    logger.warning("⚠️ AI processing disabled - unified AI agent not available")
                 
             except Exception as e:
                 logger.warning(f"⚠️ Message polling service initialization failed: {e}")
@@ -610,23 +662,29 @@ def create_app():
         from .services.ai.workflow_scheduler import WorkflowScheduler
         from routes.ai_workflows import init_scheduler
         from routes.ai_conversation import init_agent
-        
+
         logger.info("🤖 Initializing Phase 2 Workflow Scheduler...")
-        
+
         # Initialize agent
         app.ai_agent = GymAgentCore()
         init_agent(app.ai_agent)
         logger.info("✅ AI Agent initialized")
-        
+
         # Initialize workflow scheduler
         app.workflow_scheduler = WorkflowScheduler()
         init_scheduler(app.workflow_scheduler)
         logger.info("✅ Workflow Scheduler initialized")
-        
+
+        # Connect workflow scheduler to Unified AI Agent
+        if hasattr(app, 'unified_ai_agent') and app.unified_ai_agent:
+            app.unified_ai_agent.workflow_runner = app.workflow_scheduler
+            logger.info("🔗 Workflow Scheduler connected to Unified AI Agent")
+            logger.info("🎯 AI can now trigger workflows automatically (collections, scheduling, retention)")
+
         # Start scheduler (schedules will run automatically)
         app.workflow_scheduler.start()
         logger.info("🚀 Workflow Scheduler started - autonomous workflows active")
-        
+
     except Exception as e:
         logger.warning(f"⚠️ Phase 2/3 AI initialization failed: {e}")
         app.ai_agent = None

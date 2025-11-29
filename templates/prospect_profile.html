@@ -695,28 +695,48 @@
     background: linear-gradient(135deg, #3742fa, #2f3542);
     color: white;
 }
+</style>
 
+<script>
 // Message History Functions
 function loadMessageHistory() {
     const prospectName = '{{ prospect.name or ((prospect.first_name or "") + " " + (prospect.last_name or "")).strip() or "Unknown Prospect" }}';
+    const prospectId = '{{ prospect.prospect_id or prospect.id or "" }}';
     
-    fetch(`/api/messages/member/${encodeURIComponent(prospectName)}`)
+    // Use the ClubOS FollowUp API which returns the complete conversation including outbound messages
+    // Try with prospect_id first, fall back to name search
+    const lookupId = prospectId || prospectName;
+    
+    console.log('📬 Loading message history for prospect:', lookupId);
+    
+    fetch(`/api/messaging/member-history/${encodeURIComponent(lookupId)}`)
         .then(response => response.json())
         .then(data => {
-            if (data.success) {
-                displayMessageHistory(data.messages);
+            console.log('📬 Message history response:', data);
+            if (data.success && data.message_history && data.message_history.length > 0) {
+                displayMessageHistory(data.message_history);
             } else {
-                document.getElementById('messageHistory').innerHTML = `
-                    <div class="text-center py-4">
-                        <i class="fas fa-exclamation-triangle fa-3x text-muted mb-3"></i>
-                        <h6 class="text-muted">Error loading messages</h6>
-                        <p class="text-muted">${data.error || 'Could not load message history'}</p>
-                    </div>
-                `;
+                // Fall back to database search by name
+                console.log('🔄 No messages from FollowUp API, trying database fallback');
+                return fetch(`/api/messages/member/${encodeURIComponent(prospectName)}`)
+                    .then(res => res.json())
+                    .then(fallbackData => {
+                        if (fallbackData.success && fallbackData.messages && fallbackData.messages.length > 0) {
+                            displayMessageHistory(fallbackData.messages);
+                        } else {
+                            document.getElementById('messageHistory').innerHTML = `
+                                <div class="text-center py-4">
+                                    <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                                    <h6 class="text-muted">No messages found</h6>
+                                    <p class="text-muted">No message history available for this prospect.</p>
+                                </div>
+                            `;
+                        }
+                    });
             }
         })
         .catch(error => {
-            debugError('Error loading messages:', error);
+            console.error('Error loading messages:', error);
             document.getElementById('messageHistory').innerHTML = `
                 <div class="text-center py-4">
                     <i class="fas fa-exclamation-triangle fa-3x text-muted mb-3"></i>
@@ -931,5 +951,5 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
-</style>
+</script>
 {% endblock %}

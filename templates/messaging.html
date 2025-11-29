@@ -3,6 +3,8 @@
 {% block title %}ClubOS Messaging Center - Anytime Fitness Dashboard{% endblock %}
 
 {% block extra_css %}
+    {{ super() }}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ai-control-center.css') }}">
 <style>
     .message-item {
         transition: background-color 0.15s ease, border-left-color 0.15s ease;
@@ -297,6 +299,31 @@
         background: linear-gradient(135deg, #f8f9fa, #e9ecef) !important;
         border-radius: 0 0 8px 8px;
     }
+    
+    /* Main Messaging Tabs Styling */
+    #messagingMainTabs {
+        border-bottom: 2px solid #e9ecef;
+        padding-bottom: 0;
+    }
+    #messagingMainTabs .nav-link {
+        border-radius: var(--border-radius-medium) var(--border-radius-medium) 0 0;
+        font-weight: 600;
+        padding: .75rem 1.5rem;
+        color: var(--af-gray-600);
+        border: 1px solid transparent;
+        margin-bottom: -2px;
+        transition: all .2s ease;
+    }
+    #messagingMainTabs .nav-link:hover {
+        background: rgba(111, 66, 193, .06);
+        color: var(--af-purple-primary);
+    }
+    #messagingMainTabs .nav-link.active {
+        background: white;
+        color: var(--af-purple-primary);
+        border-color: #e9ecef #e9ecef white #e9ecef;
+        box-shadow: var(--shadow-2);
+    }
 </style>
 {% endblock %}
 
@@ -327,32 +354,48 @@
     </div>
 </div>
 
-<!-- Main Content -->
-<div class="row g-4">
-    <!-- Inbox Section -->
-    <div class="col-12">
-        <div class="fluent-card mb-4">
-            <div class="fluent-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h5 class="mb-0 fw-semibold">
-                            <i class="fas fa-inbox me-2"></i>
-                            Message Inbox
-                        </h5>
-                        <p class="mb-0 small opacity-75">Recent conversations with members</p>
+<!-- Main Tabs: Inbox/Campaigns vs AI Control Center -->
+<ul class="nav nav-pills mb-4" id="messagingMainTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="messaging-tab" data-bs-toggle="pill" data-bs-target="#messagingPane" type="button" role="tab" aria-controls="messagingPane" aria-selected="true">
+            <i class="fas fa-envelope me-1"></i>Inbox &amp; Campaigns
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="ai-control-tab" data-bs-toggle="pill" data-bs-target="#aiControlPane" type="button" role="tab" aria-controls="aiControlPane" aria-selected="false">
+            <i class="fas fa-robot me-1"></i>AI Control Center
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="messagingMainTabContent">
+    <!-- Inbox & Campaigns Tab -->
+    <div class="tab-pane fade show active" id="messagingPane" role="tabpanel" aria-labelledby="messaging-tab">
+        <div class="row g-4">
+            <!-- Inbox Section -->
+            <div class="col-12">
+                <div class="fluent-card mb-4">
+                    <div class="fluent-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-0 fw-semibold">
+                                    <i class="fas fa-inbox me-2"></i>
+                                    Message Inbox
+                                </h5>
+                                <p class="mb-0 small opacity-75">Recent conversations with members</p>
+                            </div>
+                            <button class="btn btn-light btn-sm" onclick="refreshMessagingInbox()" title="Refresh Inbox">
+                                <i class="fas fa-sync-alt me-1"></i>
+                                Refresh
+                            </button>
+                        </div>
                     </div>
-                    <button class="btn btn-light btn-sm" onclick="refreshMessagingInbox()" title="Refresh Inbox">
-                        <i class="fas fa-sync-alt me-1"></i>
-                        Refresh
-                    </button>
-                </div>
-            </div>
-            <div class="card-body p-3">
-                <div id="messaging-inbox-container">
-                    <div class="text-center py-4">
-                        <i class="fas fa-spinner fa-spin fa-2x text-muted mb-3"></i>
-                        <p class="text-muted">Loading conversations...</p>
-                    </div>
+                    <div class="card-body p-3">
+                        <div id="messaging-inbox-container">
+                            <div class="text-center py-4">
+                                <i class="fas fa-spinner fa-spin fa-2x text-muted mb-3"></i>
+                                <p class="text-muted">Loading conversations...</p>
+                            </div>
                 </div>
             </div>
         </div>
@@ -496,7 +539,7 @@
                                             <small class="text-muted" id="good-standing-progress-text">Ready to start campaign</small>
                                         </div>
                                         <div class="d-grid gap-2">
-                                            <button class="btn btn-success" onclick="openCampaignModal('good_standing')">
+                                            <button class="btn btn-success" onclick="openCampaignModal(event, 'good_standing')">
                                                 <i class="fas fa-rocket me-2"></i>Manage Campaign
                                             </button>
                                         </div>
@@ -528,7 +571,7 @@
                                             <small class="text-muted" id="pay-per-visit-progress-text">Ready to start campaign</small>
                                         </div>
                                         <div class="d-grid gap-2">
-                                            <button class="btn btn-info" onclick="openCampaignModal('pay_per_visit')">
+                                            <button class="btn btn-info" onclick="openCampaignModal(event, 'pay_per_visit')">
                                                 <i class="fas fa-rocket me-2"></i>Manage Campaign
                                             </button>
                                         </div>
@@ -560,7 +603,7 @@
                                             <small class="text-muted" id="past-due-6-30-progress-text">Ready to start campaign</small>
                                         </div>
                                         <div class="d-grid gap-2">
-                                            <button class="btn btn-warning text-dark" onclick="openCampaignModal('past_due_6_30')">
+                                            <button class="btn btn-warning text-dark" onclick="openCampaignModal(event, 'past_due_6_30')">
                                                 <i class="fas fa-rocket me-2"></i>Manage Campaign
                                             </button>
                                         </div>
@@ -592,7 +635,7 @@
                                             <small class="text-muted" id="past-due-30-plus-progress-text">Ready to start campaign</small>
                                         </div>
                                         <div class="d-grid gap-2">
-                                            <button class="btn btn-danger" onclick="openCampaignModal('past_due_30_plus')">
+                                            <button class="btn btn-danger" onclick="openCampaignModal(event, 'past_due_30_plus')">
                                                 <i class="fas fa-rocket me-2"></i>Manage Campaign
                                             </button>
                                         </div>
@@ -624,7 +667,7 @@
                                             <small class="text-muted" id="past-due-training-progress-text">Ready to start campaign</small>
                                         </div>
                                         <div class="d-grid gap-2">
-                                            <button class="btn btn-danger" onclick="openCampaignModal('past_due_training')">
+                                            <button class="btn btn-danger" onclick="openCampaignModal(event, 'past_due_training')">
                                                 <i class="fas fa-rocket me-2"></i>Manage Campaign
                                             </button>
                                         </div>
@@ -656,7 +699,7 @@
                                             <small class="text-muted" id="expiring-soon-progress-text">Ready to start campaign</small>
                                         </div>
                                         <div class="d-grid gap-2">
-                                            <button class="btn btn-warning text-dark" onclick="openCampaignModal('expiring_soon')">
+                                            <button class="btn btn-warning text-dark" onclick="openCampaignModal(event, 'expiring_soon')">
                                                 <i class="fas fa-rocket me-2"></i>Manage Campaign
                                             </button>
                                         </div>
@@ -688,7 +731,7 @@
                                             <small class="text-muted" id="prospects-progress-text">Ready to start campaign</small>
                                         </div>
                                         <div class="d-grid gap-2">
-                                            <button class="btn btn-primary" onclick="openCampaignModal('prospects')">
+                                            <button class="btn btn-primary" onclick="openCampaignModal(event, 'prospects')">
                                                 <i class="fas fa-rocket me-2"></i>Manage Campaign
                                             </button>
                                         </div>
@@ -720,7 +763,7 @@
                                             <small class="text-muted" id="other-statuses-progress-text">Ready to start campaign</small>
                                         </div>
                                         <div class="d-grid gap-2">
-                                            <button class="btn btn-secondary" onclick="openCampaignModal('other_statuses')">
+                                            <button class="btn btn-secondary" onclick="openCampaignModal(event, 'other_statuses')">
                                                 <i class="fas fa-rocket me-2"></i>Manage Campaign
                                             </button>
                                         </div>
@@ -1016,8 +1059,13 @@
         </div>
     </div>
 </div>
+    </div><!-- End Inbox & Campaigns tab pane -->
 
-
+    <!-- AI Control Center Tab -->
+    <div class="tab-pane fade" id="aiControlPane" role="tabpanel" aria-labelledby="ai-control-tab">
+        {% include 'ai/ai_control_panel.html' %}
+    </div>
+</div><!-- End main tab content -->
 
 <!-- Enhanced Category Campaign Modal -->
 <div class="modal fade" id="categoryCampaignModal" tabindex="-1">
@@ -1322,12 +1370,14 @@
 {% endblock %}
 
 {% block extra_js %}
+    {{ super() }}
+    <script src="{{ url_for('static', filename='js/ai-control-center.js') }}" defer></script>
 <script>
         // Messaging Inbox Functions
         function loadMessagingInbox() {
             debugLog('📬 Loading messaging inbox...');
             
-            fetch('/api/messaging/inbox/recent?limit=15', {
+            fetch('/api/messaging/inbox/recent?limit=50', {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1335,7 +1385,13 @@
             })
             .then(response => response.json())
             .then(data => {
+                debugLog('📬 Inbox API response:', data);
                 if (data.success && data.messages) {
+                    // Log database stats
+                    if (data.total_in_database !== undefined) {
+                        debugLog(`📊 Total messages in database: ${data.total_in_database}`);
+                        debugLog(`📊 Conversations returned: ${data.count}`);
+                    }
                     displayMessagingInbox(data.messages);
                 } else {
                     displayEmptyMessagingInbox();
@@ -1355,10 +1411,48 @@
                 return;
             }
 
+            console.log('📬 displayMessagingInbox called with', messages.length, 'messages');
+            console.log('📬 First message:', JSON.stringify(messages[0], null, 2));
+
             const inboxHtml = messages.map((message, index) => {
                 const timeAgo = formatTimeAgo(message.created_at);
                 const memberName = message.member_name || message.from_user || 'Unknown Member';
-                const messagePreview = truncateText(message.message_content || 'No content', 60);
+                
+                // DEBUG: Log the raw message content
+                console.log(`📧 Message ${index}: memberName="${memberName}", raw_content="${message.message_content?.substring(0, 50)}..."`);
+                
+                // FIXED: Strip the sender name prefix from message content (ClubOS prefixes name to messages)
+                let rawContent = message.message_content || '';
+                let cleanContent = rawContent;
+                
+                // Remove sender name prefix if it exists at the start
+                if (rawContent.toLowerCase().startsWith(memberName.toLowerCase())) {
+                    cleanContent = rawContent.substring(memberName.length).trim();
+                }
+                
+                // Also handle case where name appears with extra spacing or capitalization variations
+                const namePatterns = [
+                    memberName,
+                    memberName.split(' ')[0], // Just first name
+                    memberName.replace(/\s+/g, '')  // Name without spaces
+                ];
+                
+                for (const pattern of namePatterns) {
+                    if (cleanContent.toLowerCase().startsWith(pattern.toLowerCase())) {
+                        cleanContent = cleanContent.substring(pattern.length).trim();
+                        break;
+                    }
+                }
+                
+                // Final cleanup: remove leading colons, dashes, or "Subject:" prefix
+                cleanContent = cleanContent.replace(/^[\s:,-]+/, '').trim();
+                cleanContent = cleanContent.replace(/^Subject:\s*/i, '').trim();
+                
+                const messagePreview = truncateText(cleanContent || 'No message content', 80);
+                
+                // DEBUG: Log the cleaned content
+                console.log(`📧 Message ${index}: cleanContent="${cleanContent?.substring(0, 50)}...", preview="${messagePreview}"`);
+                
                 const isUnread = message.status !== 'read';
 
                 // FIXED: Use member_id if valid, otherwise use search:{name} to trigger name search
@@ -1395,7 +1489,7 @@
                                 </h6>
                                 <small class="text-muted" style="font-size: 0.8rem;">${timeAgo}</small>
                             </div>
-                            <p class="mb-0 text-muted text-truncate" style="font-size: 0.9rem;">
+                            <p class="mb-0 text-dark" style="font-size: 0.9rem; line-height: 1.4; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                                 ${messagePreview}
                             </p>
                             <div class="d-flex align-items-center mt-1">
@@ -1479,17 +1573,51 @@
         }
 
         function clearMessagingInbox() {
-            debugLog('🗑️ Clearing messaging inbox...');
+            if (!confirm('Are you sure you want to clear old messages? This will remove messages older than 30 days from the local database to improve performance.')) {
+                return;
+            }
+
+            debugLog('🗑️ Clearing old messages...');
+            showAlert('info', 'Cleaning up old messages...');
+            
             const container = document.getElementById('messaging-inbox-container');
             container.innerHTML = `
                 <div class="text-center py-4">
-                    <i class="fas fa-trash fa-2x text-muted mb-3"></i>
-                    <p class="text-muted">Inbox cleared</p>
-                    <button class="btn btn-primary btn-sm mt-2" onclick="refreshMessagingInbox()">
-                        <i class="fas fa-sync-alt me-1"></i>Reload Messages
-                    </button>
+                    <i class="fas fa-broom fa-spin fa-2x text-muted mb-3"></i>
+                    <p class="text-muted">Cleaning up database...</p>
                 </div>
             `;
+
+            fetch('/api/messages/cleanup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    owner_id: window.currentOwnerId || '187032782',
+                    days: 30 // Aggressive cleanup (keep last 30 days)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    debugLog(`✅ Cleanup complete: ${data.deleted_count} messages removed`);
+                    showAlert('success', `Cleanup complete! Removed ${data.deleted_count} old messages.`);
+                    
+                    // Reload inbox after cleanup
+                    setTimeout(() => {
+                        refreshMessagingInbox();
+                    }, 1000);
+                } else {
+                    showAlert('error', `Cleanup failed: ${data.error || 'Unknown error'}`);
+                    loadMessagingInbox(); // Restore view
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error cleaning up messages:', error);
+                showAlert('error', `Error cleaning up messages: ${error.message}`);
+                loadMessagingInbox(); // Restore view
+            });
         }
 
         // Search for a person across prospects, members, then show error if not found
@@ -1991,14 +2119,20 @@
         let campaignProgressInterval = null;
         let currentCategory = null;
 
-        function openCampaignModal(categoryKey) {
+        function openCampaignModal(event, categoryKey) {
+            // Prevent default behavior and stop event propagation to avoid tab switching
+            if (event && event.preventDefault) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+
             debugLog('📝 Opening enhanced campaign modal for:', categoryKey);
             currentCategory = categoryKey;
-            
+
             // Set modal title
             const categoryTitles = {
                 'good_standing': 'Good Standing Members',
-                'pay_per_visit': 'Pay Per Visit Members', 
+                'pay_per_visit': 'Pay Per Visit Members',
                 'past_due_6_30': 'Past Due 6-30 Days',
                 'past_due_30_plus': 'Past Due 30+ Days',
                 'past_due_training': 'PT Past Due Members',
@@ -2006,15 +2140,15 @@
                 'prospects': 'Prospects',
                 'other_statuses': 'Other Status Members'
             };
-            
+
             const categoryTitle = categoryTitles[categoryKey] || categoryKey;
             document.getElementById('modalCategoryTitle').textContent = `${categoryTitle} Campaign Manager`;
             document.getElementById('modalCategoryValue').value = categoryKey;
-            
+
             // Load campaign status and member data
             loadCampaignStatus(categoryKey);
             loadCategoryMembers(categoryKey);
-            
+
             // Show modal
             const modal = new bootstrap.Modal(document.getElementById('categoryCampaignModal'));
             modal.show();
@@ -2978,30 +3112,14 @@ Note: Variables like {first_name} will be automatically replaced with actual mem
         // Initialize page data when DOM is ready
         document.addEventListener('DOMContentLoaded', async function() {
             debugLog('Messaging page loaded - initializing data...');
-            
+
             // Initialize Bootstrap tabs
             initializeBootstrapTabs();
-            
-            // CRITICAL FIX: Auto-sync from ClubOS on page load (Phase 1 requirement)
-            debugLog('🔄 AUTO-SYNC: Fetching latest messages from ClubOS...');
-            try {
-                const syncResponse = await fetch('/api/messages/sync', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        owner_id: window.currentOwnerId || '187032782'
-                    })
-                });
-                const syncData = await syncResponse.json();
-                debugLog('✅ AUTO-SYNC complete:', syncData);
-            } catch (error) {
-                console.error('❌ AUTO-SYNC error:', error);
-                // Continue even if sync fails
-            }
-            
-            // Load messaging inbox (now with fresh data)
+
+            // PERFORMANCE FIX: Removed auto-sync on page load
+            // Real-time service handles syncing every 10s, cache prevents redundant fetches
+
+            // Load messaging inbox from database (real-time service keeps it fresh)
             loadMessagingInbox();
             
             // Load all sections (with graceful fallbacks for missing APIs)
@@ -3009,42 +3127,24 @@ Note: Variables like {first_name} will be automatically replaced with actual mem
             loadInbox();
             loadCampaignProgress();
             loadSavedCampaigns();
-            
-            // CRITICAL FIX: Start background polling every 30 seconds (Phase 1 requirement)
-            debugLog('⏰ Starting background message polling (30s interval)...');
-            setInterval(async () => {
-                debugLog('🔄 BACKGROUND POLL: Checking for new ClubOS messages...');
-                try {
-                    const pollResponse = await fetch('/api/messages/sync', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            owner_id: window.currentOwnerId || '187032782'
-                        })
-                    });
-                    const pollData = await pollResponse.json();
-                    
-                    // If new messages found, auto-refresh inbox
-                    if (pollData.stored_count && pollData.stored_count > 0) {
-                        debugLog(`📬 NEW MESSAGES: ${pollData.stored_count} new messages received!`);
-                        loadMessagingInbox(); // Refresh to show new messages
-                        
-                        // Optional: Show notification
-                        if (window.Notification && Notification.permission === "granted") {
-                            new Notification('New Messages', {
-                                body: `You have ${pollData.stored_count} new messages`,
-                                icon: '/static/images/logo.png'
-                            });
-                        }
+
+            // PERFORMANCE FIX: Delay background polling to avoid overlap with initial load
+            // Real-time service syncs from ClubOS every 10s, we just refresh UI periodically
+            debugLog('⏰ Background polling will start in 30 seconds...');
+            setTimeout(() => {
+                debugLog('⏰ Starting background UI refresh (30s interval)...');
+                setInterval(async () => {
+                    debugLog('🔄 BACKGROUND REFRESH: Updating inbox UI...');
+                    try {
+                        // Just refresh the inbox UI from database (real-time service keeps it updated)
+                        loadMessagingInbox();
+                    } catch (error) {
+                        console.error('❌ Background refresh error:', error);
                     }
-                } catch (error) {
-                    console.error('❌ Background poll error:', error);
-                }
-            }, 30000); // Poll every 30 seconds
-            
-            debugLog('All messaging data loaded with auto-sync and background polling active!');
+                }, 30000); // Refresh UI every 30 seconds
+            }, 30000); // Wait 30 seconds before starting polling
+
+            debugLog('All messaging data loaded! Real-time sync service active.');
         });
 
         // Campaign Template Functions

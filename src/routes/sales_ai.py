@@ -7,7 +7,7 @@ Routes for AI-powered sales automation and revenue generation
 import logging
 import json
 from datetime import datetime
-from flask import Blueprint, render_template, request, jsonify, current_app, session
+from flask import Blueprint, render_template, request, jsonify, current_app, session, redirect
 from typing import Dict, Any
 
 from .auth import require_auth
@@ -20,25 +20,16 @@ sales_ai_bp = Blueprint('sales_ai', __name__, url_prefix='/sales-ai')
 @sales_ai_bp.route('/dashboard')
 @require_auth
 def sales_ai_dashboard():
-    """Sales AI control center - Phase 3 Version"""
-    try:
-        # Get user info
-        user_email = session.get('user_email', 'Unknown')
-        manager_id = session.get('manager_id', 'unknown')
+    """REDIRECT: Sales AI is now unified with Messaging Dashboard."""
+    logger.info("🔀 Redirecting /sales-ai/dashboard to /messaging")
+    return redirect('/messaging')
 
-        # Get AI service availability
-        ai_available = hasattr(current_app, 'ai_agent') and current_app.ai_agent is not None
-        scheduler_running = hasattr(current_app, 'workflow_scheduler') and current_app.workflow_scheduler is not None
-
-        return render_template('ai/sales_ai_dashboard_new.html',
-                             user_email=user_email,
-                             manager_id=manager_id,
-                             ai_available=ai_available,
-                             scheduler_running=scheduler_running)
-
-    except Exception as e:
-        logger.error(f"❌ Error loading sales AI dashboard: {e}")
-        return render_template('error.html', error='Failed to load sales AI dashboard')
+@sales_ai_bp.route('/unified')
+@require_auth
+def unified_sales_inbox():
+    """REDIRECT: Unified dashboard is now at /messaging."""
+    logger.info("🔀 Redirecting /sales-ai/unified to /messaging")
+    return redirect('/messaging')
 
 @sales_ai_bp.route('/command', methods=['POST'])
 @require_auth

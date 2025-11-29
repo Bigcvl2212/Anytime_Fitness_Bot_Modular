@@ -15,6 +15,7 @@ import json
 from bs4 import BeautifulSoup
 import urllib3
 import time
+import hashlib
 from urllib.parse import quote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
@@ -52,7 +53,11 @@ class ClubOSMessagingClient:
         
         # Thread safety for parallel processing
         self._lock = Lock()
-        
+
+        # Message cache to prevent redundant syncs
+        self._message_cache = {}
+        self._cache_timestamps = {}
+
     def authenticate(self) -> bool:
         """Authenticate using the unified authentication service"""
         try:
@@ -724,77 +729,119 @@ class ClubOSMessagingClient:
         
         logger.info(f"📊 Campaign completed: {results['successful']}/{results['total']} successful")
         return results
-    
+
+    def _check_cache(self, key: str, ttl: int = 10) -> Optional[List[Dict[str, Any]]]:
+        """Check if cached messages are still valid (within TTL)"""
+        if key in self._message_cache:
+            age = time.time() - self._cache_timestamps.get(key, 0)
+            if age < ttl:
+                logger.info(f"✅ Using cached messages (age: {age:.1f}s, TTL: {ttl}s)")
+                return self._message_cache[key]
+            else:
+                logger.debug(f"⏰ Cache expired (age: {age:.1f}s > TTL: {ttl}s)")
+        return None
+
+    def _store_cache(self, key: str, data: List[Dict[str, Any]]):
+        """Store messages in cache with current timestamp"""
+        self._message_cache[key] = data
+        self._cache_timestamps[key] = time.time()
+        logger.debug(f"💾 Cached {len(data)} messages for key: {key}")
+
+    def clear_message_cache(self, owner_id: str = None):
+        """Clear message cache for specific owner or all owners"""
+        if owner_id:
+            cache_key = f"messages_{owner_id}"
+            if cache_key in self._message_cache:
+                del self._message_cache[cache_key]
+                del self._cache_timestamps[cache_key]
+                logger.info(f"🗑️ Cleared message cache for owner {owner_id}")
+        else:
+            self._message_cache.clear()
+            self._cache_timestamps.clear()
+            logger.info("🗑️ Cleared all message caches")
+
     def get_messages(self, owner_id: str = None) -> List[Dict[str, Any]]:
         """Get messages from ClubOS for specific owner - ClubOS returns all messages in one response"""
-        try:
-            if not self.authenticated:
-                if not self.authenticate():
-                    logger.error("❌ Authentication failed before getting messages")
-                    return None  # Return None instead of [] to indicate auth failure
-            
-            logger.info(f"📨 Fetching ALL messages for owner {owner_id}...")
-            
-            # First get the dashboard view to ensure proper session state
-            dashboard_url = f"{self.base_url}/action/Dashboard/view"
+        # CRITICAL PERFORMANCE FIX: Use lock to prevent concurrent syncs and cache to avoid redundant fetches
+        with self._lock:
             try:
-                dashboard_response = self.session.get(dashboard_url, timeout=10, verify=False)
-                logger.info(f"📋 Dashboard view status: {dashboard_response.status_code}")
+                if not self.authenticated:
+                    if not self.authenticate():
+                        logger.error("❌ Authentication failed before getting messages")
+                        return None  # Return None instead of [] to indicate auth failure
+
+                # Check cache first - avoid redundant syncs within TTL window
+                cache_key = f"messages_{owner_id}"
+                cached = self._check_cache(cache_key, ttl=10)
+                if cached is not None:
+                    return cached
+
+                logger.info(f"📨 Fetching ALL messages for owner {owner_id}...")
+
+                # First get the dashboard view to ensure proper session state
+                dashboard_url = f"{self.base_url}/action/Dashboard/view"
+                try:
+                    dashboard_response = self.session.get(dashboard_url, timeout=10, verify=False)
+                    logger.info(f"📋 Dashboard view status: {dashboard_response.status_code}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Dashboard view failed: {e}")
+
+                # Now post to the messages endpoint
+                messages_url = f"{self.base_url}/action/Dashboard/messages"
+                headers = {
+                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                    "Accept": "text/html, */*; q=0.01",
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Referer": f"{self.base_url}/action/Dashboard/view",
+                    "Origin": self.base_url,
+                    "User-Agent": self.session.headers.get('User-Agent', 'Mozilla/5.0')
+                }
+
+                # ClubOS doesn't seem to support pagination, so just get all messages
+                post_data = {
+                    "userId": owner_id
+                }
+
+                logger.info(f"🔄 POST to {messages_url} with userId: {owner_id}")
+
+                # Add timeout to prevent hanging
+                response = self.session.post(
+                    messages_url,
+                    data=post_data,
+                    headers=headers,
+                    timeout=30,  # Increased timeout for large response
+                    allow_redirects=False,
+                    verify=False
+                )
+
+                logger.info(f"📡 Response status: {response.status_code}")
+                logger.info(f"📏 Response length: {len(response.text) if response.text else 0}")
+
+                # CRITICAL: Check for "Session Expired" in response (authentication failed)
+                if response.text and ('Session Expired' in response.text or 'session expired' in response.text.lower()):
+                    logger.error(f"❌ Session expired - authentication failed")
+                    logger.error(f"❌ ClubOS rejected credentials or session is invalid")
+                    self.authenticated = False  # Mark as not authenticated
+                    return None  # Return None to indicate auth failure
+
+                if response.status_code == 200:
+                    messages = self._parse_messages_from_html(response.text, owner_id)
+                    logger.info(f"✅ Successfully parsed {len(messages)} messages from ClubOS")
+
+                    # Store in cache for future requests
+                    self._store_cache(cache_key, messages)
+
+                    return messages
+                else:
+                    logger.error(f"❌ Failed to fetch messages: {response.status_code}")
+                    logger.error(f"Response headers: {dict(response.headers)}")
+                    if response.text:
+                        logger.error(f"Response preview: {response.text[:500]}...")
+                    return None  # Return None for error cases
+
             except Exception as e:
-                logger.warning(f"⚠️ Dashboard view failed: {e}")
-            
-            # Now post to the messages endpoint
-            messages_url = f"{self.base_url}/action/Dashboard/messages"
-            headers = {
-                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-                "Accept": "text/html, */*; q=0.01",
-                "X-Requested-With": "XMLHttpRequest",
-                "Referer": f"{self.base_url}/action/Dashboard/view",
-                "Origin": self.base_url,
-                "User-Agent": self.session.headers.get('User-Agent', 'Mozilla/5.0')
-            }
-            
-            # ClubOS doesn't seem to support pagination, so just get all messages
-            post_data = {
-                "userId": owner_id
-            }
-            
-            logger.info(f"🔄 POST to {messages_url} with userId: {owner_id}")
-            
-            # Add timeout to prevent hanging
-            response = self.session.post(
-                messages_url, 
-                data=post_data, 
-                headers=headers, 
-                timeout=30,  # Increased timeout for large response
-                allow_redirects=False,
-                verify=False
-            )
-            
-            logger.info(f"📡 Response status: {response.status_code}")
-            logger.info(f"📏 Response length: {len(response.text) if response.text else 0}")
-
-            # CRITICAL: Check for "Session Expired" in response (authentication failed)
-            if response.text and ('Session Expired' in response.text or 'session expired' in response.text.lower()):
-                logger.error(f"❌ Session expired - authentication failed")
-                logger.error(f"❌ ClubOS rejected credentials or session is invalid")
-                self.authenticated = False  # Mark as not authenticated
-                return None  # Return None to indicate auth failure
-
-            if response.status_code == 200:
-                messages = self._parse_messages_from_html(response.text, owner_id)
-                logger.info(f"✅ Successfully parsed {len(messages)} messages from ClubOS")
-                return messages
-            else:
-                logger.error(f"❌ Failed to fetch messages: {response.status_code}")
-                logger.error(f"Response headers: {dict(response.headers)}")
-                if response.text:
-                    logger.error(f"Response preview: {response.text[:500]}...")
-                return None  # Return None for error cases
-                
-        except Exception as e:
-            logger.error(f"❌ Error getting messages: {e}")
-            return None  # Return None for exceptions
+                logger.error(f"❌ Error getting messages: {e}")
+                return None  # Return None for exceptions
     
     def _parse_messages_from_html(self, html_content: str, owner_id: str) -> List[Dict[str, Any]]:
         """Parse messages from ClubOS HTML response"""
@@ -866,10 +913,24 @@ class ClubOSMessagingClient:
                     # If no timestamp found, use current time
                     if not timestamp_value:
                         timestamp_value = datetime.now().isoformat()
+
+                    # CRITICAL FIX: Generate stable content-based message ID to prevent duplicates
+                    # Use hash of ONLY (content + from_user) - ignore timestamp entirely
+                    # This ensures the same message always gets the same ID regardless of when synced
+                    # or what format the timestamp is in (9:30 AM vs Nov 25 vs 2025-11-25T09:30:00)
                     
+                    # Normalize content and sender for consistent hashing
+                    normalized_content = content_text.strip().lower()[:200]  # First 200 chars, lowercased
+                    normalized_sender = from_user.strip().lower()
+                    
+                    # Create stable ID string from content and sender ONLY
+                    id_string = f"{normalized_content}|{normalized_sender}"
+                    message_hash = hashlib.md5(id_string.encode('utf-8')).hexdigest()[:16]
+                    message_id = f"msg_{message_hash}"
+
                     # Extract message data from HTML element
                     message_data = {
-                        'id': element.get('id', f'msg_{len(messages)}'),
+                        'id': message_id,
                         'owner_id': owner_id,
                         'content': content_text,
                         'timestamp': timestamp_value,

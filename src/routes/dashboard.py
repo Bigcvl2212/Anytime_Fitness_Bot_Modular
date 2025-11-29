@@ -232,17 +232,18 @@ def dashboard(day_offset=0):
                     m.recipient_name,
                     m.content,
                     m.created_at,
+                    m.timestamp,
                     m.delivery_status,
                     m.conversation_id
                 FROM messages m
                 INNER JOIN (
-                    SELECT member_id, MAX(created_at) as latest_time
+                    SELECT member_id, MAX(timestamp) as latest_time
                     FROM messages
                     WHERE owner_id = ?
                     GROUP BY member_id
-                ) latest ON m.member_id = latest.member_id AND m.created_at = latest.latest_time
+                ) latest ON m.member_id = latest.member_id AND m.timestamp = latest.latest_time
                 WHERE m.owner_id = ?
-                ORDER BY m.created_at DESC
+                ORDER BY m.timestamp DESC
                 LIMIT 10
             """
             recent_results = db_manager.execute_query(
@@ -255,14 +256,19 @@ def dashboard(day_offset=0):
                 for row in recent_results:
                     # Calculate time ago
                     try:
-                        msg_time = datetime.fromisoformat(row['created_at'].replace('Z', '+00:00'))
-                        time_diff = datetime.now() - msg_time.replace(tzinfo=None)
-                        if time_diff.days > 0:
-                            time_ago = f"{time_diff.days}d"
-                        elif time_diff.seconds > 3600:
-                            time_ago = f"{time_diff.seconds // 3600}h"
+                        # Use timestamp if available, otherwise fallback to created_at
+                        time_str = row.get('timestamp') or row.get('created_at')
+                        if time_str:
+                            msg_time = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+                            time_diff = datetime.now() - msg_time.replace(tzinfo=None)
+                            if time_diff.days > 0:
+                                time_ago = f"{time_diff.days}d"
+                            elif time_diff.seconds > 3600:
+                                time_ago = f"{time_diff.seconds // 3600}h"
+                            else:
+                                time_ago = f"{time_diff.seconds // 60}m"
                         else:
-                            time_ago = f"{time_diff.seconds // 60}m"
+                            time_ago = 'recent'
                     except:
                         time_ago = 'recent'
 

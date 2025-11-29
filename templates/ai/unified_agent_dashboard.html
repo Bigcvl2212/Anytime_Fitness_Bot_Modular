@@ -1,0 +1,1248 @@
+{% extends "base.html" %}
+
+{% block title %}Unified AI Sales & Messaging Center - Anytime Fitness{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ============================================================
+       UNIFIED AI DASHBOARD - STATE OF THE ART UI
+       Combines: Sales AI Dashboard + Messaging/Inbox Features
+       Backend: Unified AI Agent (Sales AI + Inbox AI)
+       ============================================================ */
+
+    /* Main Grid Layout - 3 Columns */
+    .unified-grid {
+        display: grid;
+        grid-template-columns: 350px 1fr 380px;
+        gap: 16px;
+        height: calc(100vh - 64px);
+        padding: 16px;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    /* Left Panel: Inbox + Workflows */
+    .left-panel {
+        background: white;
+        border-radius: var(--border-radius-large);
+        box-shadow: var(--shadow-4);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .panel-tabs {
+        display: flex;
+        border-bottom: 1px solid var(--af-gray-200);
+        background: var(--af-gray-50);
+        border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;
+    }
+
+    .panel-tab {
+        flex: 1;
+        padding: 12px 16px;
+        text-align: center;
+        cursor: pointer;
+        border: none;
+        background: transparent;
+        color: var(--af-gray-600);
+        font-weight: 500;
+        transition: all 0.2s;
+        border-bottom: 3px solid transparent;
+    }
+
+    .panel-tab:hover {
+        background: rgba(139, 92, 246, 0.05);
+        color: var(--af-purple-primary);
+    }
+
+    .panel-tab.active {
+        color: var(--af-purple-primary);
+        background: white;
+        border-bottom-color: var(--af-purple-primary);
+    }
+
+    .panel-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+    }
+
+    /* Inbox Conversation Items */
+    .inbox-conversation {
+        padding: 12px;
+        border-radius: var(--border-radius-medium);
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all 0.15s;
+        border: 1px solid var(--af-gray-200);
+        background: white;
+    }
+
+    .inbox-conversation:hover {
+        background: var(--af-gray-50);
+        border-color: var(--af-purple-primary);
+        transform: translateX(4px);
+        box-shadow: var(--shadow-2);
+    }
+
+    .inbox-conversation.unread {
+        background: #EEF2FF;
+        border-left: 4px solid var(--af-purple-primary);
+        font-weight: 600;
+    }
+
+    .inbox-conversation.ai-processed {
+        border-left: 4px solid #10B981;
+    }
+
+    .conversation-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+
+    .conversation-name {
+        font-weight: 600;
+        color: var(--af-black-primary);
+        font-size: 14px;
+    }
+
+    .conversation-time {
+        font-size: 11px;
+        color: var(--af-gray-600);
+    }
+
+    .conversation-preview {
+        font-size: 13px;
+        color: var(--af-gray-600);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin-bottom: 4px;
+    }
+
+    .conversation-badges {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+
+    .conversation-badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-weight: 500;
+    }
+
+    /* Workflow Items */
+    .workflow-item {
+        padding: 12px;
+        border-radius: var(--border-radius-medium);
+        margin-bottom: 8px;
+        background: white;
+        border: 1px solid var(--af-gray-200);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .workflow-item:hover {
+        border-color: var(--af-purple-primary);
+        box-shadow: var(--shadow-2);
+    }
+
+    .workflow-item.running {
+        border-left: 4px solid #10B981;
+    }
+
+    .workflow-item.paused {
+        border-left: 4px solid #F59E0B;
+    }
+
+    .workflow-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    .workflow-name {
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--af-black-primary);
+    }
+
+    .workflow-status {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .workflow-status.running { background: #10B981; }
+    .workflow-status.paused { background: #F59E0B; }
+    .workflow-status.error { background: #EF4444; }
+
+    .workflow-meta {
+        font-size: 11px;
+        color: var(--af-gray-600);
+        margin-bottom: 4px;
+    }
+
+    .workflow-actions {
+        display: flex;
+        gap: 4px;
+        margin-top: 8px;
+    }
+
+    .workflow-actions .btn {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+
+    /* Center Panel: AI Chat Interface */
+    .center-panel {
+        background: white;
+        border-radius: var(--border-radius-large);
+        box-shadow: var(--shadow-4);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .ai-header {
+        padding: 16px 20px;
+        background: linear-gradient(135deg, var(--af-purple-primary), var(--af-purple-dark));
+        color: white;
+        border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;
+    }
+
+    .ai-header h1 {
+        font-size: 20px;
+        font-weight: 600;
+        margin: 0 0 4px 0;
+    }
+
+    .ai-header p {
+        margin: 0;
+        opacity: 0.9;
+        font-size: 13px;
+    }
+
+    .ai-feed {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background: var(--af-gray-50);
+    }
+
+    .ai-message {
+        margin-bottom: 16px;
+        padding: 14px;
+        border-radius: var(--border-radius-medium);
+        box-shadow: var(--shadow-2);
+        background: white;
+        border-left: 4px solid transparent;
+    }
+
+    .ai-message.user-message {
+        background: #EEF2FF;
+        border-left-color: var(--af-purple-primary);
+    }
+
+    .ai-message.agent-message {
+        border-left-color: #10B981;
+    }
+
+    .ai-message.system-message {
+        background: #F9FAFB;
+        border-left-color: var(--af-gray-300);
+    }
+
+    .ai-message.workflow-message {
+        border-left-color: #F59E0B;
+        background: #FFFBEB;
+    }
+
+    .message-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .message-timestamp {
+        font-size: 11px;
+        color: var(--af-gray-600);
+    }
+
+    .message-body {
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--af-black-primary);
+    }
+
+    .message-body ul {
+        margin: 8px 0;
+        padding-left: 20px;
+    }
+
+    .message-body li {
+        margin: 4px 0;
+    }
+
+    .ai-tools-used {
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px dashed var(--af-gray-200);
+    }
+
+    .tool-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        background: var(--af-gray-100);
+        border-radius: 4px;
+        font-size: 11px;
+        margin-right: 6px;
+        margin-bottom: 6px;
+    }
+
+    .ai-input-area {
+        padding: 16px 20px;
+        border-top: 1px solid var(--af-gray-200);
+        background: white;
+    }
+
+    .quick-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+    }
+
+    .quick-action-btn {
+        padding: 6px 12px;
+        font-size: 12px;
+        border-radius: var(--border-radius-small);
+        border: 1px solid var(--af-gray-200);
+        background: white;
+        color: var(--af-gray-800);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .quick-action-btn:hover {
+        background: var(--af-purple-primary);
+        color: white;
+        border-color: var(--af-purple-primary);
+    }
+
+    /* Right Panel: Campaigns + Analytics */
+    .right-panel {
+        background: white;
+        border-radius: var(--border-radius-large);
+        box-shadow: var(--shadow-4);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .campaign-card {
+        padding: 14px;
+        border-radius: var(--border-radius-medium);
+        margin-bottom: 12px;
+        border: 1px solid var(--af-gray-200);
+        cursor: pointer;
+        transition: all 0.2s;
+        background: white;
+    }
+
+    .campaign-card:hover {
+        border-color: var(--af-purple-primary);
+        box-shadow: var(--shadow-2);
+        transform: translateY(-2px);
+    }
+
+    .campaign-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    .campaign-card-title {
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--af-black-primary);
+    }
+
+    .campaign-count {
+        font-size: 18px;
+        font-weight: 700;
+        margin: 4px 0;
+    }
+
+    .campaign-description {
+        font-size: 12px;
+        color: var(--af-gray-600);
+        margin-bottom: 8px;
+    }
+
+    .campaign-progress {
+        height: 4px;
+        background: var(--af-gray-200);
+        border-radius: 2px;
+        overflow: hidden;
+        margin-top: 8px;
+    }
+
+    .campaign-progress-bar {
+        height: 100%;
+        background: var(--af-purple-primary);
+        transition: width 0.3s;
+    }
+
+    /* Analytics Widget */
+    .analytics-widget {
+        padding: 16px;
+        background: var(--af-gray-50);
+        border-radius: var(--border-radius-medium);
+        margin-bottom: 12px;
+    }
+
+    .analytics-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--af-gray-600);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 12px;
+    }
+
+    .stat-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--af-gray-200);
+    }
+
+    .stat-row:last-child {
+        border-bottom: none;
+    }
+
+    .stat-label {
+        font-size: 13px;
+        color: var(--af-gray-600);
+    }
+
+    .stat-value {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--af-black-primary);
+    }
+
+    /* Scrollbar Styling */
+    .panel-content::-webkit-scrollbar,
+    .ai-feed::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .panel-content::-webkit-scrollbar-track,
+    .ai-feed::-webkit-scrollbar-track {
+        background: var(--af-gray-100);
+    }
+
+    .panel-content::-webkit-scrollbar-thumb,
+    .ai-feed::-webkit-scrollbar-thumb {
+        background: var(--af-gray-300);
+        border-radius: 3px;
+    }
+
+    .panel-content::-webkit-scrollbar-thumb:hover,
+    .ai-feed::-webkit-scrollbar-thumb:hover {
+        background: var(--af-purple-primary);
+    }
+
+    /* Loading States */
+    .loading-skeleton {
+        background: linear-gradient(90deg, var(--af-gray-100) 25%, var(--af-gray-200) 50%, var(--af-gray-100) 75%);
+        background-size: 200% 100%;
+        animation: loading 1.5s ease-in-out infinite;
+        border-radius: var(--border-radius-medium);
+        height: 60px;
+        margin-bottom: 8px;
+    }
+
+    @keyframes loading {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    /* Responsive Design */
+    @media (max-width: 1400px) {
+        .unified-grid {
+            grid-template-columns: 300px 1fr 320px;
+        }
+    }
+
+    @media (max-width: 1199px) {
+        .unified-grid {
+            grid-template-columns: 280px 1fr;
+        }
+        .right-panel {
+            display: none;
+        }
+    }
+
+    @media (max-width: 767px) {
+        .unified-grid {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+        .left-panel {
+            max-height: 300px;
+        }
+    }
+
+    /* Status Indicators */
+    .status-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 500;
+    }
+
+    .status-indicator.success {
+        background: #D1FAE5;
+        color: #065F46;
+    }
+
+    .status-indicator.warning {
+        background: #FEF3C7;
+        color: #92400E;
+    }
+
+    .status-indicator.danger {
+        background: #FEE2E2;
+        color: #991B1B;
+    }
+
+    .status-indicator.info {
+        background: #DBEAFE;
+        color: #1E40AF;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="unified-grid">
+    <!-- ===== LEFT PANEL: Inbox + Workflows ===== -->
+    <div class="left-panel">
+        <div class="panel-tabs">
+            <button class="panel-tab active" onclick="switchLeftPanel('inbox')" id="tab-inbox">
+                <i class="fas fa-inbox me-1"></i> Inbox
+            </button>
+            <button class="panel-tab" onclick="switchLeftPanel('workflows')" id="tab-workflows">
+                <i class="fas fa-tasks me-1"></i> Workflows
+            </button>
+        </div>
+
+        <!-- Inbox Panel -->
+        <div class="panel-content" id="panel-inbox">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0 fw-semibold">Recent Conversations</h6>
+                <button class="btn btn-sm btn-outline-primary" onclick="refreshInbox()" title="Refresh">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+
+            <div id="inbox-conversations-list">
+                <div class="loading-skeleton"></div>
+                <div class="loading-skeleton"></div>
+                <div class="loading-skeleton"></div>
+            </div>
+        </div>
+
+        <!-- Workflows Panel -->
+        <div class="panel-content" id="panel-workflows" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0 fw-semibold">Active Workflows</h6>
+                <button class="btn btn-sm btn-outline-primary" onclick="refreshWorkflows()" title="Refresh">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+
+            <div id="workflows-list">
+                <div class="loading-skeleton"></div>
+                <div class="loading-skeleton"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== CENTER PANEL: AI Chat Interface ===== -->
+    <div class="center-panel">
+        <div class="ai-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1>
+                        <i class="fas fa-robot me-2"></i>
+                        Unified AI Assistant
+                    </h1>
+                    <p>Powered by Sales AI + Inbox AI  • Autonomous & Real-time</p>
+                </div>
+                <div>
+                    <span class="status-indicator success">
+                        <span class="spinner-grow spinner-grow-sm" role="status"></span>
+                        AI Active
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="ai-feed" id="ai-conversation-feed">
+            <!-- Welcome Message -->
+            <div class="ai-message system-message">
+                <div class="message-header">
+                    <span class="badge bg-secondary">
+                        <i class="fas fa-info-circle me-1"></i>System
+                    </span>
+                    <span class="message-timestamp">Just now</span>
+                </div>
+                <div class="message-body">
+                    <strong>Welcome to the Unified AI Sales & Messaging Center</strong>
+                    <p class="mt-2 mb-2">Your intelligent assistant is now monitoring your inbox in real-time. I can help you with:</p>
+                    <ul class="mb-0">
+                        <li><strong>Inbox Management:</strong> Automatically classify and respond to member messages</li>
+                        <li><strong>Sales Context:</strong> Inject billing and payment info for personalized responses</li>
+                        <li><strong>Campaign Management:</strong> Run targeted campaigns by member status</li>
+                        <li><strong>Workflow Automation:</strong> Trigger collections, scheduling, and retention workflows</li>
+                        <li><strong>Analytics:</strong> Real-time insights on AI performance and member engagement</li>
+                    </ul>
+                    <div class="ai-tools-used mt-3">
+                        <span class="tool-badge"><i class="fas fa-brain me-1"></i>Intent Classification</span>
+                        <span class="tool-badge"><i class="fas fa-dollar-sign me-1"></i>Sales Context</span>
+                        <span class="tool-badge"><i class="fas fa-cogs me-1"></i>Workflow Triggers</span>
+                        <span class="tool-badge"><i class="fas fa-shield-alt me-1"></i>Human Escalation</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="ai-input-area">
+            <div class="input-group mb-2">
+                <input type="text"
+                       class="form-control"
+                       id="ai-command-input"
+                       placeholder="Ask me anything or give me a command..."
+                       onkeypress="handleKeyPress(event)">
+                <button class="btn btn-primary" onclick="sendCommand()" id="send-button" style="background: var(--af-purple-primary); border-color: var(--af-purple-primary);">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+
+            <div class="quick-actions">
+                <button class="quick-action-btn" onclick="quickCommand('Show me all unread inbox messages')">
+                    <i class="fas fa-envelope me-1"></i>Unread Messages
+                </button>
+                <button class="quick-action-btn" onclick="quickCommand('Show members past due over $50')">
+                    <i class="fas fa-exclamation-triangle me-1"></i>Past Due $50+
+                </button>
+                <button class="quick-action-btn" onclick="quickCommand('Create follow-up campaign for inactive members')">
+                    <i class="fas fa-bullhorn me-1"></i>New Campaign
+                </button>
+                <button class="quick-action-btn" onclick="quickCommand('Show AI performance stats for today')">
+                    <i class="fas fa-chart-line me-1"></i>AI Stats
+                </button>
+                <button class="quick-action-btn" onclick="quickCommand('Show messages flagged for human review')">
+                    <i class="fas fa-flag me-1"></i>Review Queue
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== RIGHT PANEL: Campaigns + Analytics ===== -->
+    <div class="right-panel">
+        <div class="panel-tabs">
+            <button class="panel-tab active" onclick="switchRightPanel('campaigns')" id="tab-campaigns">
+                <i class="fas fa-bullhorn me-1"></i> Campaigns
+            </button>
+            <button class="panel-tab" onclick="switchRightPanel('analytics')" id="tab-analytics">
+                <i class="fas fa-chart-bar me-1"></i> Analytics
+            </button>
+        </div>
+
+        <!-- Campaigns Panel -->
+        <div class="panel-content" id="panel-campaigns">
+            <h6 class="mb-3 fw-semibold">Campaign Categories</h6>
+
+            <div id="campaigns-list">
+                <!-- Good Standing -->
+                <div class="campaign-card" onclick="openCampaign('good_standing')">
+                    <div class="campaign-card-header">
+                        <div class="campaign-card-title">
+                            <i class="fas fa-check-circle text-success me-2"></i>
+                            Good Standing
+                        </div>
+                        <span class="badge bg-success" id="count-good-standing">0</span>
+                    </div>
+                    <div class="campaign-count text-success" id="count-good-standing-display">0</div>
+                    <div class="campaign-description">Active members in good standing</div>
+                    <div class="campaign-progress">
+                        <div class="campaign-progress-bar" style="width: 0%" id="progress-good-standing"></div>
+                    </div>
+                </div>
+
+                <!-- Past Due 6-30 -->
+                <div class="campaign-card" onclick="openCampaign('past_due_6_30')">
+                    <div class="campaign-card-header">
+                        <div class="campaign-card-title">
+                            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                            Past Due 6-30
+                        </div>
+                        <span class="badge bg-warning text-dark" id="count-past-due-6-30">0</span>
+                    </div>
+                    <div class="campaign-count text-warning" id="count-past-due-6-30-display">0</div>
+                    <div class="campaign-description">6-30 days overdue</div>
+                    <div class="campaign-progress">
+                        <div class="campaign-progress-bar bg-warning" style="width: 0%" id="progress-past-due-6-30"></div>
+                    </div>
+                </div>
+
+                <!-- Past Due 30+ -->
+                <div class="campaign-card" onclick="openCampaign('past_due_30_plus')">
+                    <div class="campaign-card-header">
+                        <div class="campaign-card-title">
+                            <i class="fas fa-times-circle text-danger me-2"></i>
+                            Past Due 30+
+                        </div>
+                        <span class="badge bg-danger" id="count-past-due-30">0</span>
+                    </div>
+                    <div class="campaign-count text-danger" id="count-past-due-30-display">0</div>
+                    <div class="campaign-description">Over 30 days overdue</div>
+                    <div class="campaign-progress">
+                        <div class="campaign-progress-bar bg-danger" style="width: 0%" id="progress-past-due-30"></div>
+                    </div>
+                </div>
+
+                <!-- Expiring Soon -->
+                <div class="campaign-card" onclick="openCampaign('expiring_soon')">
+                    <div class="campaign-card-header">
+                        <div class="campaign-card-title">
+                            <i class="fas fa-clock text-warning me-2"></i>
+                            Expiring Soon
+                        </div>
+                        <span class="badge bg-warning text-dark" id="count-expiring-soon">0</span>
+                    </div>
+                    <div class="campaign-count text-warning" id="count-expiring-soon-display">0</div>
+                    <div class="campaign-description">Memberships expiring within 30 days</div>
+                    <div class="campaign-progress">
+                        <div class="campaign-progress-bar bg-warning" style="width: 0%" id="progress-expiring-soon"></div>
+                    </div>
+                </div>
+
+                <!-- Prospects -->
+                <div class="campaign-card" onclick="openCampaign('prospects')">
+                    <div class="campaign-card-header">
+                        <div class="campaign-card-title">
+                            <i class="fas fa-users text-primary me-2"></i>
+                            Prospects
+                        </div>
+                        <span class="badge bg-primary" id="count-prospects">0</span>
+                    </div>
+                    <div class="campaign-count text-primary" id="count-prospects-display">0</div>
+                    <div class="campaign-description">Potential new members</div>
+                    <div class="campaign-progress">
+                        <div class="campaign-progress-bar bg-primary" style="width: 0%" id="progress-prospects"></div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn btn-outline-primary w-100 mt-3" onclick="window.location.href='/messaging'">
+                <i class="fas fa-cog me-2"></i>Advanced Campaign Management
+            </button>
+        </div>
+
+        <!-- Analytics Panel -->
+        <div class="panel-content" id="panel-analytics" style="display: none;">
+            <h6 class="mb-3 fw-semibold">AI Performance Today</h6>
+
+            <div class="analytics-widget">
+                <div class="analytics-title">Message Processing</div>
+                <div class="stat-row">
+                    <span class="stat-label">Messages Processed</span>
+                    <span class="stat-value" id="stat-messages-processed">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Auto-Responses Sent</span>
+                    <span class="stat-value" id="stat-auto-responses">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Avg Confidence</span>
+                    <span class="stat-value" id="stat-avg-confidence">0%</span>
+                </div>
+            </div>
+
+            <div class="analytics-widget">
+                <div class="analytics-title">Workflows</div>
+                <div class="stat-row">
+                    <span class="stat-label">Workflows Triggered</span>
+                    <span class="stat-value" id="stat-workflows-triggered">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Collections Started</span>
+                    <span class="stat-value" id="stat-collections">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Retention Flows</span>
+                    <span class="stat-value" id="stat-retention">0</span>
+                </div>
+            </div>
+
+            <div class="analytics-widget">
+                <div class="analytics-title">Human Review</div>
+                <div class="stat-row">
+                    <span class="stat-label">Flagged for Review</span>
+                    <span class="stat-value text-warning" id="stat-flagged">0</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Escalations</span>
+                    <span class="stat-value text-danger" id="stat-escalations">0</span>
+                </div>
+            </div>
+
+            <button class="btn btn-outline-primary w-100 mt-3" onclick="refreshAnalytics()">
+                <i class="fas fa-sync-alt me-2"></i>Refresh Analytics
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================================================
+// UNIFIED AI DASHBOARD - JavaScript
+// ============================================================================
+
+let currentSessionId = null;
+let wsConnection = null;
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Initializing Unified AI Dashboard...');
+
+    // Load initial data
+    loadInbox();
+    loadWorkflows();
+    loadCampaignCounts();
+    loadAnalytics();
+
+    // Setup WebSocket for real-time updates
+    setupWebSocket();
+
+    // Auto-refresh every 30 seconds
+    setInterval(() => {
+        loadInbox();
+        loadCampaignCounts();
+        loadAnalytics();
+    }, 30000);
+});
+
+// ============================================================================
+// INBOX FUNCTIONS
+// ============================================================================
+
+async function loadInbox() {
+    try {
+        const response = await fetch('/api/messages?limit=50');
+        const data = await response.json();
+
+        if (data.success && data.messages) {
+            displayInbox(data.messages);
+        }
+    } catch (error) {
+        console.error('Error loading inbox:', error);
+    }
+}
+
+function displayInbox(messages) {
+    const container = document.getElementById('inbox-conversations-list');
+
+    if (!messages || messages.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No messages yet</p>
+            </div>
+        `;
+        return;
+    }
+
+    const html = messages.slice(0, 20).map(msg => {
+        const memberName = msg.member_name || msg.from_user || 'Unknown';
+        const preview = (msg.message_content || '').substring(0, 50);
+        const timeAgo = formatTimeAgo(msg.created_at || msg.timestamp);
+        const isUnread = msg.status !== 'read';
+        const aiProcessed = msg.ai_processed === 1;
+        const requiresReview = msg.requires_human_review === 1;
+
+        let badges = '';
+        if (isUnread) badges += '<span class="conversation-badge badge bg-primary">New</span>';
+        if (aiProcessed) badges += '<span class="conversation-badge badge bg-success">AI Processed</span>';
+        if (requiresReview) badges += '<span class="conversation-badge badge bg-warning">Review</span>';
+
+        return `
+            <div class="inbox-conversation ${isUnread ? 'unread' : ''} ${aiProcessed ? 'ai-processed' : ''}"
+                 onclick="openConversation('${msg.member_id}', '${escapeHtml(memberName)}')">
+                <div class="conversation-header">
+                    <div class="conversation-name">${escapeHtml(memberName)}</div>
+                    <div class="conversation-time">${timeAgo}</div>
+                </div>
+                <div class="conversation-preview">${escapeHtml(preview)}...</div>
+                <div class="conversation-badges">${badges}</div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = html;
+}
+
+async function refreshInbox() {
+    console.log('🔄 Syncing inbox from ClubOS...');
+
+    try {
+        await fetch('/api/messages/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ owner_id: window.currentOwnerId || '187032782' })
+        });
+
+        await loadInbox();
+
+        addSystemMessage('Inbox refreshed successfully');
+    } catch (error) {
+        console.error('Error refreshing inbox:', error);
+        addSystemMessage('Error refreshing inbox', 'error');
+    }
+}
+
+function openConversation(memberId, memberName) {
+    quickCommand(`Show me the full conversation with ${memberName}`);
+}
+
+// ============================================================================
+// WORKFLOWS FUNCTIONS
+// ============================================================================
+
+async function loadWorkflows() {
+    try {
+        const response = await fetch('/api/ai/workflows/status');
+        const data = await response.json();
+
+        if (data.success && data.workflows) {
+            displayWorkflows(data.workflows);
+        }
+    } catch (error) {
+        console.error('Error loading workflows:', error);
+    }
+}
+
+function displayWorkflows(workflows) {
+    const container = document.getElementById('workflows-list');
+
+    if (!workflows || workflows.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center">No active workflows</p>';
+        return;
+    }
+
+    const html = workflows.map(wf => {
+        const status = wf.enabled ? 'running' : 'paused';
+        const nextRun = formatNextRun(wf.next_run);
+        const lastRun = formatTimeAgo(wf.last_run?.timestamp);
+
+        return `
+            <div class="workflow-item ${status}">
+                <div class="workflow-header">
+                    <div class="workflow-name">${wf.name}</div>
+                    <span class="workflow-status ${status}"></span>
+                </div>
+                <div class="workflow-meta">
+                    <i class="fas fa-clock me-1"></i>Next: ${nextRun}
+                </div>
+                <div class="workflow-meta">
+                    <i class="fas fa-check me-1"></i>Last: ${lastRun}
+                </div>
+                <div class="workflow-actions">
+                    <button class="btn btn-sm btn-success" onclick="runWorkflow('${wf.id}')">
+                        <i class="fas fa-play"></i>
+                    </button>
+                    <button class="btn btn-sm btn-secondary" onclick="viewWorkflowDetails('${wf.id}')">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = html;
+}
+
+async function refreshWorkflows() {
+    await loadWorkflows();
+    addSystemMessage('Workflows refreshed');
+}
+
+async function runWorkflow(workflowId) {
+    try {
+        const response = await fetch(`/api/ai/workflows/${workflowId}/run`, {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            addSystemMessage(`Workflow started: ${workflowId}`, 'workflow');
+            refreshWorkflows();
+        }
+    } catch (error) {
+        console.error('Error running workflow:', error);
+    }
+}
+
+function viewWorkflowDetails(workflowId) {
+    quickCommand(`Show me details for workflow: ${workflowId}`);
+}
+
+// ============================================================================
+// AI CHAT FUNCTIONS
+// ============================================================================
+
+async function sendCommand() {
+    const input = document.getElementById('ai-command-input');
+    const command = input.value.trim();
+
+    if (!command) return;
+
+    // Add user message
+    addUserMessage(command);
+    input.value = '';
+
+    // Show loading
+    const button = document.getElementById('send-button');
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    try {
+        const response = await fetch('/sales-ai/command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                command: command,
+                session_id: currentSessionId
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            if (data.session_id) currentSessionId = data.session_id;
+            addAgentMessage(data.result || data.response);
+        } else {
+            addAgentMessage(`Error: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error sending command:', error);
+        addAgentMessage(`Error: ${error.message}`, 'error');
+    } finally {
+        button.disabled = false;
+        button.innerHTML = '<i class="fas fa-paper-plane"></i>';
+    }
+}
+
+function quickCommand(command) {
+    document.getElementById('ai-command-input').value = command;
+    sendCommand();
+}
+
+function handleKeyPress(event) {
+    if (event.key === 'Enter') {
+        sendCommand();
+    }
+}
+
+function addUserMessage(text) {
+    const feed = document.getElementById('ai-conversation-feed');
+    const messageEl = createMessageElement('user', text);
+    feed.appendChild(messageEl);
+    feed.scrollTop = feed.scrollHeight;
+}
+
+function addAgentMessage(content, type = 'agent') {
+    const feed = document.getElementById('ai-conversation-feed');
+    const messageEl = createMessageElement(type, content);
+    feed.appendChild(messageEl);
+    feed.scrollTop = feed.scrollHeight;
+}
+
+function addSystemMessage(text, type = 'system') {
+    addAgentMessage(text, type);
+}
+
+function createMessageElement(type, content) {
+    const div = document.createElement('div');
+    const messageClass = type === 'user' ? 'user-message' :
+                        type === 'workflow' ? 'workflow-message' :
+                        type === 'error' ? 'agent-message' : 'agent-message';
+
+    const badgeClass = type === 'user' ? 'bg-primary' :
+                      type === 'workflow' ? 'bg-warning' :
+                      type === 'error' ? 'bg-danger' : 'bg-success';
+
+    const badgeText = type === 'user' ? 'You' :
+                     type === 'workflow' ? 'Workflow' :
+                     type === 'error' ? 'Error' : 'AI Assistant';
+
+    div.className = `ai-message ${messageClass}`;
+    div.innerHTML = `
+        <div class="message-header">
+            <span class="badge ${badgeClass}">
+                <i class="fas fa-${type === 'user' ? 'user' : type === 'workflow' ? 'cog' : 'robot'} me-1"></i>
+                ${badgeText}
+            </span>
+            <span class="message-timestamp">${formatTimestamp(new Date())}</span>
+        </div>
+        <div class="message-body">${formatMessageContent(content)}</div>
+    `;
+
+    return div;
+}
+
+function formatMessageContent(content) {
+    if (typeof content === 'string') {
+        return escapeHtml(content).replace(/\n/g, '<br>');
+    }
+
+    if (content && content.result) {
+        return escapeHtml(content.result).replace(/\n/g, '<br>');
+    }
+
+    return `<pre style="font-size: 12px; background: var(--af-gray-100); padding: 12px; border-radius: 4px;">${JSON.stringify(content, null, 2)}</pre>`;
+}
+
+// ============================================================================
+// CAMPAIGNS FUNCTIONS
+// ============================================================================
+
+async function loadCampaignCounts() {
+    // This would call an API endpoint to get real counts
+    // For now, using mock data structure
+    const categories = ['good_standing', 'past_due_6_30', 'past_due_30_plus', 'expiring_soon', 'prospects'];
+
+    // TODO: Replace with actual API call
+    // const response = await fetch('/api/campaigns/counts');
+    // const data = await response.json();
+}
+
+function openCampaign(category) {
+    window.location.href = `/messaging?category=${category}`;
+}
+
+// ============================================================================
+// ANALYTICS FUNCTIONS
+// ============================================================================
+
+async function loadAnalytics() {
+    try {
+        // TODO: Add actual API endpoint for AI statistics
+        // const response = await fetch('/api/ai/statistics/today');
+        // const data = await response.json();
+
+        // Update UI with stats
+    } catch (error) {
+        console.error('Error loading analytics:', error);
+    }
+}
+
+async function refreshAnalytics() {
+    await loadAnalytics();
+    addSystemMessage('Analytics refreshed');
+}
+
+// ============================================================================
+// WEBSOCKET FOR REAL-TIME UPDATES
+// ============================================================================
+
+function setupWebSocket() {
+    // TODO: Setup WebSocket connection for real-time inbox updates
+    console.log('📡 WebSocket connection would be established here');
+}
+
+// ============================================================================
+// PANEL SWITCHING
+// ============================================================================
+
+function switchLeftPanel(panel) {
+    document.getElementById('panel-inbox').style.display = panel === 'inbox' ? 'block' : 'none';
+    document.getElementById('panel-workflows').style.display = panel === 'workflows' ? 'block' : 'none';
+
+    document.getElementById('tab-inbox').classList.toggle('active', panel === 'inbox');
+    document.getElementById('tab-workflows').classList.toggle('active', panel === 'workflows');
+}
+
+function switchRightPanel(panel) {
+    document.getElementById('panel-campaigns').style.display = panel === 'campaigns' ? 'block' : 'none';
+    document.getElementById('panel-analytics').style.display = panel === 'analytics' ? 'block' : 'none';
+
+    document.getElementById('tab-campaigns').classList.toggle('active', panel === 'campaigns');
+    document.getElementById('tab-analytics').classList.toggle('active', panel === 'analytics');
+}
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+function formatTimeAgo(timestamp) {
+    if (!timestamp) return '';
+
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return date.toLocaleDateString();
+}
+
+function formatTimestamp(date) {
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatNextRun(nextRun) {
+    if (!nextRun) return 'Not scheduled';
+
+    const date = new Date(nextRun);
+    const now = new Date();
+    const diff = date - now;
+
+    if (diff < 0) return 'Pending...';
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
+    return date.toLocaleDateString();
+}
+
+function escapeHtml(text) {
+    if (typeof text !== 'string') return text;
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

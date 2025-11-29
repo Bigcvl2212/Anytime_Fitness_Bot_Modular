@@ -13,9 +13,9 @@ from .messaging import messaging_bp
 from .auth import auth_bp
 from .admin import admin_bp
 from .admin_ai import admin_ai_bp
-from .sales_ai import sales_ai_bp
 from .club_selection import club_selection_bp
 from .debug_session import debug_bp
+from .ai_settings import ai_settings_bp, init_ai_settings_routes
 from ..services.progressive_loading import progressive_bp
 
 # Import Phase 3 AI routes
@@ -66,7 +66,6 @@ def register_blueprints(app):
     app.register_blueprint(club_selection_bp)  # Register club selection blueprint
     app.register_blueprint(admin_bp)  # Register admin blueprint
     app.register_blueprint(admin_ai_bp)  # Register admin AI blueprint
-    app.register_blueprint(sales_ai_bp)  # Register sales AI blueprint
     app.register_blueprint(debug_bp)  # Register debug blueprint
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(members_bp)
@@ -81,7 +80,9 @@ def register_blueprints(app):
     app.register_blueprint(ai_workflows_bp)  # /api/ai/workflows/*
     app.register_blueprint(ai_conversation_bp)  # /api/ai/conversation/*
     app.register_blueprint(settings_bp)  # /api/settings/*
+    app.register_blueprint(ai_settings_bp)  # /ai-settings page + /api/ai/* endpoints
     app.logger.info("✅ Phase 3 AI routes registered")
+    app.logger.info("✅ AI Settings routes registered")
     app.logger.info("✅ Settings API registered")
     
     # Root route is handled directly by dashboard blueprint - no redirect needed

@@ -1,0 +1,257 @@
+<div class="fluent-card ai-control-card" data-ai-control-panel>
+    <div class="fluent-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+            <h5 class="mb-1 fw-semibold">
+                <i class="fas fa-robot me-2"></i>
+                AI Control Center
+            </h5>
+            <p class="mb-0 small opacity-75">Manage automations, system prompts, and payment safeguards</p>
+        </div>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+            <div class="ai-worker-chip">
+                <span id="aiWorkerDot" class="ai-worker-dot"></span>
+                <span id="aiWorkerStatusText">Checking worker...</span>
+            </div>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-light" data-ai-action="start-worker">
+                    <i class="fas fa-play me-1"></i>Start
+                </button>
+                <button class="btn btn-outline-light" data-ai-action="stop-worker">
+                    <i class="fas fa-stop me-1"></i>Stop
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+            <div>
+                <span class="badge bg-light text-dark me-2">Selected: <span id="aiSelectedCategory">All categories</span></span>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-light btn-sm" data-ai-action="refresh-workflows">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh Data
+                </button>
+                <button class="btn btn-primary btn-sm" data-ai-action="show-add-document">
+                    <i class="fas fa-plus me-1"></i>Add Document
+                </button>
+                <button class="btn btn-outline-primary btn-sm" data-ai-action="show-add-payment-plan">
+                    <i class="fas fa-hand-holding-usd me-1"></i>Add Payment Plan
+                </button>
+            </div>
+        </div>
+
+        <ul class="nav nav-pills ai-control-tabs" id="aiControlTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="ai-workflows-tab" data-bs-toggle="pill" data-bs-target="#aiWorkflowsPane" type="button" role="tab">
+                    <i class="fas fa-project-diagram me-1"></i>Workflows
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="ai-knowledge-tab" data-bs-toggle="pill" data-bs-target="#aiKnowledgePane" type="button" role="tab">
+                    <i class="fas fa-book me-1"></i>Knowledge Base
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="ai-payment-plans-tab" data-bs-toggle="pill" data-bs-target="#aiPaymentPlansPane" type="button" role="tab">
+                    <i class="fas fa-hand-holding-usd me-1"></i>Payment Plans
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content mt-4" id="aiControlTabContent">
+            <div class="tab-pane fade show active" id="aiWorkflowsPane" role="tabpanel" aria-labelledby="ai-workflows-tab">
+                <div class="row g-3" id="aiWorkflowGrid">
+                    <div class="text-center py-4 text-muted">Loading workflows...</div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="aiKnowledgePane" role="tabpanel" aria-labelledby="ai-knowledge-tab">
+                <div class="ai-chip-group mb-3" id="aiKnowledgeCategories"></div>
+                <div id="aiKnowledgeDocuments"></div>
+            </div>
+
+            <div class="tab-pane fade" id="aiPaymentPlansPane" role="tabpanel" aria-labelledby="ai-payment-plans-tab">
+                <div class="mb-3">
+                    <p class="text-muted small mb-0">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Members on payment plans are protected from auto-lock. Track partial payments here.
+                    </p>
+                </div>
+                <div id="aiPaymentPlansList"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Document Modal -->
+<div class="modal fade ai-modal" id="aiAddDocumentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Knowledge Base Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="aiAddDocumentForm" class="vstack gap-3">
+                    <div>
+                        <label for="aiDocCategory" class="ai-form-label">Category</label>
+                        <select id="aiDocCategory" class="form-select ai-form-control" required></select>
+                    </div>
+                    <div>
+                        <label for="aiDocTitle" class="ai-form-label">Title</label>
+                        <input id="aiDocTitle" class="form-control ai-form-control" placeholder="Membership pricing 2024" required>
+                    </div>
+                    <div>
+                        <label for="aiDocContent" class="ai-form-label">Content</label>
+                        <textarea id="aiDocContent" class="form-control ai-form-control" rows="10" placeholder="Paste the full prompt or policy" required></textarea>
+                    </div>
+                    <div>
+                        <label for="aiDocPriority" class="ai-form-label">Priority (1 = highest)</label>
+                        <input id="aiDocPriority" type="number" min="1" max="10" value="1" class="form-control ai-form-control">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" type="submit" form="aiAddDocumentForm">Save Document</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Document Modal -->
+<div class="modal fade ai-modal" id="aiViewDocumentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="aiDocViewTitle">Document</h5>
+                    <small class="text-muted" id="aiDocViewMeta"></small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="ai-knowledge-body">
+                    <pre id="aiDocViewContent">Loading...</pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-light" type="button" id="aiCopyDocBtn">
+                    <i class="fas fa-copy me-1"></i>Copy
+                </button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Payment Plan Modal -->
+<div class="modal fade ai-modal" id="aiAddPaymentPlanModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Member Payment Plan</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="aiAddPaymentPlanForm" class="vstack gap-3">
+                    <div>
+                        <label for="aiPaymentPlanMemberName" class="ai-form-label">Member Name (exact match)</label>
+                        <input id="aiPaymentPlanMemberName" class="form-control ai-form-control" placeholder="John Smith" required autocomplete="off">
+                        <div id="aiMemberSearchResults" class="list-group mt-1" style="max-height: 200px; overflow-y: auto;"></div>
+                        <small class="text-muted">Start typing to search members</small>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="aiPaymentPlanTotalOwed" class="ai-form-label">Total Amount Owed ($)</label>
+                            <input id="aiPaymentPlanTotalOwed" type="number" step="0.01" min="0" class="form-control ai-form-control" placeholder="150.00" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="aiPaymentPlanInstallments" class="ai-form-label">Number of Payments</label>
+                            <input id="aiPaymentPlanInstallments" type="number" min="1" max="24" class="form-control ai-form-control" placeholder="4" required>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="aiPaymentPlanFrequency" class="ai-form-label">Payment Frequency</label>
+                            <select id="aiPaymentPlanFrequency" class="form-select ai-form-control">
+                                <option value="7">Weekly</option>
+                                <option value="14" selected>Bi-Weekly</option>
+                                <option value="30">Monthly</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="aiPaymentPlanStartDate" class="ai-form-label">Start Date</label>
+                            <input id="aiPaymentPlanStartDate" type="date" class="form-control ai-form-control" required>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="aiPaymentPlanNotes" class="ai-form-label">Notes (optional)</label>
+                        <textarea id="aiPaymentPlanNotes" class="form-control ai-form-control" rows="2" placeholder="Payment arrangement details..."></textarea>
+                    </div>
+                    <div class="alert alert-info mb-0">
+                        <i class="fas fa-shield-alt me-2"></i>
+                        <strong>Auto-Lock Protection:</strong> This member will be protected from auto-lock while on this payment plan.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" type="submit" form="aiAddPaymentPlanForm">
+                    <i class="fas fa-save me-1"></i>Create Payment Plan
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Record Payment Modal -->
+<div class="modal fade ai-modal" id="aiRecordPaymentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-md modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Record Payment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="aiRecordPaymentForm" class="vstack gap-3">
+                    <input type="hidden" id="aiRecordPaymentMemberId">
+                    <input type="hidden" id="aiRecordPaymentInstallmentId">
+                    <div class="alert alert-light">
+                        <strong id="aiRecordPaymentMemberName">Member</strong>
+                        <div class="small text-muted">Installment <span id="aiRecordPaymentInstallmentNum">#1</span> - Due: <span id="aiRecordPaymentDueAmount">$0.00</span></div>
+                    </div>
+                    <div>
+                        <label for="aiRecordPaymentAmount" class="ai-form-label">Amount Paid ($)</label>
+                        <input id="aiRecordPaymentAmount" type="number" step="0.01" min="0" class="form-control ai-form-control" required>
+                    </div>
+                    <div>
+                        <label for="aiRecordPaymentDate" class="ai-form-label">Payment Date</label>
+                        <input id="aiRecordPaymentDate" type="date" class="form-control ai-form-control" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-success" type="submit" form="aiRecordPaymentForm">
+                    <i class="fas fa-check me-1"></i>Record Payment
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Workflow Config Modal -->
+<div class="modal fade ai-modal" id="aiWorkflowConfigModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="aiWorkflowConfigTitle">Configure Workflow</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="aiWorkflowConfigBody">
+                <div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
+            </div>
+        </div>
+    </div>
+</div>

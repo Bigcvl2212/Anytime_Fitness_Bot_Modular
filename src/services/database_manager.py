@@ -14,6 +14,7 @@ import threading
 import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, Any, List, Optional, Tuple, Iterator
 from flask import current_app
 from pathlib import Path
@@ -50,9 +51,18 @@ class DatabaseManager:
         self.init_schema()
 
     def get_connection(self) -> sqlite3.Connection:
-        """Get SQLite database connection"""
-        conn = sqlite3.connect(self.db_path)
+        """Get SQLite database connection with improved concurrency settings"""
+        # Set timeout to 30 seconds to handle concurrent operations
+        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
         conn.row_factory = sqlite3.Row  # Enable column access by name
+
+        # Enable WAL mode for better concurrency (allows multiple readers with one writer)
+        conn.execute('PRAGMA journal_mode=WAL')
+        conn.execute('PRAGMA foreign_keys = ON')
+
+        # Set busy timeout for additional safety
+        conn.execute('PRAGMA busy_timeout=30000')
+
         return conn
 
     def init_schema(self) -> None:
@@ -78,21 +88,40 @@ class DatabaseManager:
                 CREATE TABLE IF NOT EXISTS members (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     prospect_id TEXT UNIQUE,
+                    guid TEXT,
                     first_name TEXT,
                     last_name TEXT,
                     full_name TEXT,
                     email TEXT,
+                    phone TEXT,
                     mobile_phone TEXT,
+                    address TEXT,
+                    city TEXT,
+                    state TEXT,
+                    zip_code TEXT,
                     status TEXT DEFAULT 'Active',
+                    status_message TEXT,
+                    member_type TEXT,
+                    user_type TEXT,
                     agreement_type TEXT,
+                    agreement_id TEXT,
+                    agreement_guid TEXT,
+                    agreement_status TEXT,
                     club_name TEXT,
                     join_date TEXT,
+                    date_of_next_payment TEXT,
                     amount_past_due REAL DEFAULT 0.0,
+                    base_amount_past_due REAL DEFAULT 0.0,
+                    late_fees REAL DEFAULT 0.0,
+                    missed_payments INTEGER DEFAULT 0,
                     billing_day INTEGER,
                     last_payment_date TEXT,
                     next_billing_date TEXT,
                     payment_method TEXT,
                     membership_fee REAL DEFAULT 0.0,
+                    agreement_recurring_cost REAL DEFAULT 0.0,
+                    payment_plan_exempt BOOLEAN DEFAULT 0,
+                    created_at TEXT,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
@@ -104,10 +133,19 @@ class DatabaseManager:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     prospect_id TEXT UNIQUE,
                     first_name TEXT,
+                    last_updated TEXT,
+                    agreement_id TEXT,
                     last_name TEXT,
+                    full_name TEXT,
                     email TEXT,
+                    phone TEXT,
                     mobile_phone TEXT,
+                    address TEXT,
+                    city TEXT,
+                    state TEXT,
+                    zip_code TEXT,
                     status TEXT,
+                    prospect_type TEXT,
                     source TEXT,
                     interest_level TEXT,
                     club_name TEXT,
@@ -120,26 +158,40 @@ class DatabaseManager:
 
             # Create training_clients table
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS training_clients (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    prospect_id TEXT,
-                    member_name TEXT,
-                    email TEXT,
-                    phone TEXT,
-                    status TEXT,
-                    trainer_name TEXT,
-                    package_type TEXT,
-                    sessions_total INTEGER DEFAULT 0,
-                    sessions_used INTEGER DEFAULT 0,
-                    sessions_remaining INTEGER DEFAULT 0,
-                    package_cost REAL DEFAULT 0.0,
-                    past_due_amount REAL DEFAULT 0.0,
-                    next_session_date TEXT,
-                    last_session_date TEXT,
-                    club_name TEXT,
-                    created_date TEXT,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+                    CREATE TABLE IF NOT EXISTS training_clients (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        prospect_id TEXT,
+                        clubos_member_id TEXT,
+                        member_name TEXT,
+                        email TEXT,
+                        phone TEXT,
+                        mobile_phone TEXT,
+                        address TEXT,
+                        city TEXT,
+                        state TEXT,
+                        zip_code TEXT,
+                        status TEXT,
+                        payment_status TEXT,
+                        trainer_name TEXT,
+                        training_package TEXT,
+                        package_type TEXT,
+                        active_packages TEXT,
+                        package_summary TEXT,
+                        package_details TEXT,
+                        sessions_total INTEGER DEFAULT 0,
+                        sessions_used INTEGER DEFAULT 0,
+                        sessions_remaining INTEGER DEFAULT 0,
+                        package_cost REAL DEFAULT 0.0,
+                        past_due_amount REAL DEFAULT 0.0,
+                        total_past_due REAL DEFAULT 0.0,
+                        next_session_date TEXT,
+                        last_session_date TEXT,
+                        club_name TEXT,
+                        created_date TEXT,
+                        last_updated TEXT,
+                        agreement_id TEXT,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
             """)
 
             # Create messages table
@@ -163,6 +215,73 @@ class DatabaseManager:
                 )
             """)
 
+            # Create invoices table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS invoices (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    member_id TEXT NOT NULL,
+                    square_invoice_id TEXT UNIQUE,
+                    amount REAL NOT NULL,
+                    status TEXT,
+                    payment_method TEXT,
+                    delivery_method TEXT,
+                    due_date TEXT,
+                    payment_date TEXT,
+                    square_payment_id TEXT,
+                    notes TEXT,
+                    metadata TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_member_id ON invoices(member_id)")
+
+            # Create payment plan tables
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS payment_plans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    member_id TEXT NOT NULL UNIQUE,
+                    plan_name TEXT,
+                    status TEXT DEFAULT 'active',
+                    total_amount REAL NOT NULL,
+                    balance_remaining REAL NOT NULL,
+                    installment_amount REAL NOT NULL,
+                    installments_total INTEGER NOT NULL,
+                    installments_paid INTEGER DEFAULT 0,
+                    frequency_days INTEGER DEFAULT 14,
+                    next_payment_due TEXT,
+                    last_payment_date TEXT,
+                    start_date TEXT,
+                    end_date TEXT,
+                    notes TEXT,
+                    created_by TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_plans_member_id ON payment_plans(member_id)")
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS payment_plan_installments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plan_id INTEGER NOT NULL,
+                    installment_number INTEGER NOT NULL,
+                    due_date TEXT,
+                    amount REAL NOT NULL,
+                    status TEXT DEFAULT 'pending',
+                    paid_date TEXT,
+                    amount_paid REAL,
+                    notes TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(plan_id) REFERENCES payment_plans(id) ON DELETE CASCADE,
+                    UNIQUE(plan_id, installment_number)
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_plan_installments_plan ON payment_plan_installments(plan_id)")
+
+            # Ensure migrations run even on fresh databases so optional columns exist
+            self._run_migrations(cursor)
             conn.commit()
             logger.info("✅ SQLite schema created successfully")
 
@@ -387,6 +506,20 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ Migration error for conversations table: {e}")
 
+        # Migration 8: Add status_message column to members table for campaign categorization
+        try:
+            cursor.execute("PRAGMA table_info(members)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            if 'status_message' not in columns:
+                logger.info("🔄 Adding status_message column to members table")
+                cursor.execute("ALTER TABLE members ADD COLUMN status_message TEXT")
+                logger.info("✅ Added status_message column to members")
+            else:
+                logger.info("✅ status_message column already exists in members")
+        except Exception as e:
+            logger.error(f"❌ Migration error for members.status_message: {e}")
+
         # Phase 3: AI Conversations table for workflow messaging
         try:
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ai_conversations'")
@@ -404,12 +537,12 @@ class DatabaseManager:
                         metadata TEXT
                     )
                 """)
-                
+
                 # Create indexes
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_conversations_timestamp ON ai_conversations(timestamp DESC)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_conversations_workflow ON ai_conversations(workflow_id)")
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_conversations_type ON ai_conversations(type)")
-                
+
                 logger.info("✅ Created ai_conversations table with indexes")
             else:
                 logger.info("✅ ai_conversations table already exists")
@@ -497,6 +630,208 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ Migration error for bulk_checkin_runs processed_members field: {e}")
 
+        # Migration 10: Add payment_plan_exempt column to members table for auto-lock exemptions
+        try:
+            cursor.execute("PRAGMA table_info(members)")
+            columns = [row[1] for row in cursor.fetchall()]
+            
+            if 'payment_plan_exempt' not in columns:
+                logger.info("🔄 Adding payment_plan_exempt column to members table")
+                cursor.execute("ALTER TABLE members ADD COLUMN payment_plan_exempt BOOLEAN DEFAULT 0")
+                logger.info("✅ Added payment_plan_exempt column to members")
+            else:
+                logger.info("✅ payment_plan_exempt column already exists in members table")
+        except Exception as e:
+            logger.error(f"❌ Migration error for members payment_plan_exempt field: {e}")
+
+        # Migration 11: Add AI knowledge base documents table (with all required columns)
+        try:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ai_knowledge_documents (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    priority INTEGER DEFAULT 1,
+                    is_active BOOLEAN DEFAULT 1,
+                    created_by TEXT,
+                    tags TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(category, title)
+                )
+            """)
+            
+            # Check if we need to add missing columns to existing table
+            cursor.execute("PRAGMA table_info(ai_knowledge_documents)")
+            columns = [row[1] for row in cursor.fetchall()]
+            
+            if 'is_active' not in columns and 'active' in columns:
+                # Rename active to is_active
+                logger.info("🔄 Migrating 'active' column to 'is_active'")
+                cursor.execute("ALTER TABLE ai_knowledge_documents RENAME COLUMN active TO is_active")
+            elif 'is_active' not in columns:
+                cursor.execute("ALTER TABLE ai_knowledge_documents ADD COLUMN is_active BOOLEAN DEFAULT 1")
+                
+            if 'created_by' not in columns:
+                logger.info("🔄 Adding 'created_by' column to ai_knowledge_documents")
+                cursor.execute("ALTER TABLE ai_knowledge_documents ADD COLUMN created_by TEXT")
+                
+            if 'tags' not in columns:
+                logger.info("🔄 Adding 'tags' column to ai_knowledge_documents")
+                cursor.execute("ALTER TABLE ai_knowledge_documents ADD COLUMN tags TEXT")
+            
+            logger.info("✅ AI knowledge documents table ready")
+        except Exception as e:
+            logger.error(f"❌ Migration error for ai_knowledge_documents table: {e}")
+
+        # Migration 12: Add AI workflow settings table
+        try:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ai_workflow_settings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    workflow_name TEXT NOT NULL UNIQUE,
+                    enabled BOOLEAN DEFAULT 0,
+                    config TEXT,
+                    last_run TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Insert default workflow settings if they don't exist
+            default_workflows = [
+                ('auto_reply_messages', 0, '{"response_delay_seconds": 30}'),
+                ('prospect_outreach', 0, '{"check_interval_minutes": 5}'),
+                ('past_due_reminders', 0, '{"reminder_hour": 9, "max_reminders_per_day": 1}'),
+                ('auto_lock_past_due', 0, '{"grace_period_days": 7, "respect_payment_plans": true}'),
+                ('square_invoice_automation', 0, '{"auto_send": false}')
+            ]
+            
+            for workflow_name, enabled, config in default_workflows:
+                cursor.execute("""
+                    INSERT OR IGNORE INTO ai_workflow_settings (workflow_name, enabled, config)
+                    VALUES (?, ?, ?)
+                """, (workflow_name, enabled, config))
+            
+            logger.info("✅ AI workflow settings table ready with defaults")
+        except Exception as e:
+            logger.error(f"❌ Migration error for ai_workflow_settings table: {e}")
+
+        # Migration 13: Ensure invoices table exists for payment tracking
+        try:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS invoices (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    member_id TEXT NOT NULL,
+                    square_invoice_id TEXT UNIQUE,
+                    amount REAL NOT NULL,
+                    status TEXT,
+                    payment_method TEXT,
+                    delivery_method TEXT,
+                    due_date TEXT,
+                    payment_date TEXT,
+                    square_payment_id TEXT,
+                    notes TEXT,
+                    metadata TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_invoices_member_id ON invoices(member_id)")
+            logger.info("✅ Invoices table verified")
+        except Exception as e:
+            logger.error(f"❌ Migration error for invoices table: {e}")
+
+        # Migration 14: Ensure payment plan tables exist
+        try:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS payment_plans (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    member_id TEXT NOT NULL UNIQUE,
+                    plan_name TEXT,
+                    status TEXT DEFAULT 'active',
+                    total_amount REAL NOT NULL,
+                    balance_remaining REAL NOT NULL,
+                    installment_amount REAL NOT NULL,
+                    installments_total INTEGER NOT NULL,
+                    installments_paid INTEGER DEFAULT 0,
+                    frequency_days INTEGER DEFAULT 14,
+                    next_payment_due TEXT,
+                    last_payment_date TEXT,
+                    start_date TEXT,
+                    end_date TEXT,
+                    notes TEXT,
+                    created_by TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_plans_member_id ON payment_plans(member_id)")
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS payment_plan_installments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plan_id INTEGER NOT NULL,
+                    installment_number INTEGER NOT NULL,
+                    due_date TEXT,
+                    amount REAL NOT NULL,
+                    status TEXT DEFAULT 'pending',
+                    paid_date TEXT,
+                    amount_paid REAL,
+                    notes TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(plan_id) REFERENCES payment_plans(id) ON DELETE CASCADE,
+                    UNIQUE(plan_id, installment_number)
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_payment_plan_installments_plan ON payment_plan_installments(plan_id)")
+            logger.info("✅ Payment plan tables verified")
+        except Exception as e:
+            logger.error(f"❌ Migration error for payment plan tables: {e}")
+
+        # Migration 15: Add member_name column to payment_plans table
+        try:
+            cursor.execute("PRAGMA table_info(payment_plans)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            if 'member_name' not in columns:
+                logger.info("🔄 Adding member_name column to payment_plans table")
+                cursor.execute("ALTER TABLE payment_plans ADD COLUMN member_name TEXT")
+                logger.info("✅ Added member_name column to payment_plans")
+            else:
+                logger.info("✅ member_name column already exists in payment_plans")
+        except Exception as e:
+            logger.error(f"❌ Migration error for payment_plans.member_name: {e}")
+
+        # Migration 16: Add ClubOS leads tracking columns to prospects table
+        try:
+            cursor.execute("PRAGMA table_info(prospects)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            missing_columns = []
+            if 'last_contact_date' not in columns:
+                missing_columns.append(('last_contact_date', 'TEXT'))
+            if 'created_date' not in columns:
+                missing_columns.append(('created_date', 'TEXT'))
+            if 'interest_level' not in columns:
+                missing_columns.append(('interest_level', 'TEXT'))
+            if 'club_name' not in columns:
+                missing_columns.append(('club_name', 'TEXT'))
+            if 'notes' not in columns:
+                missing_columns.append(('notes', 'TEXT'))
+
+            for col_name, col_type in missing_columns:
+                logger.info(f"🔄 Adding {col_name} column to prospects table")
+                cursor.execute(f"ALTER TABLE prospects ADD COLUMN {col_name} {col_type}")
+                logger.info(f"✅ Added {col_name} column to prospects")
+
+            if not missing_columns:
+                logger.info("✅ All ClubOS leads tracking columns exist in prospects table")
+        except Exception as e:
+            logger.error(f"❌ Migration error for prospects table ClubOS columns: {e}")
+
         logger.info("✅ Database migrations complete")
 
     def execute_query(
@@ -504,34 +839,58 @@ class DatabaseManager:
         query: str,
         params: Optional[Tuple] = None,
         fetch_one: bool = False,
-        fetch_all: bool = False
+        fetch_all: bool = False,
+        max_retries: int = 3
     ) -> Any:
-        """Execute a database query with proper error handling"""
+        """Execute a database query with proper error handling and retry logic for locked database"""
         logger.debug(f"💾 SQLite Query: {query}")
         logger.debug(f"💾 Parameters: {params}")
 
-        try:
-            with self.get_connection() as conn:
-                cursor = conn.cursor()
+        retry_count = 0
+        last_error = None
 
-                if params:
-                    cursor.execute(query, params)
+        while retry_count <= max_retries:
+            try:
+                with self.get_connection() as conn:
+                    cursor = conn.cursor()
+
+                    if params:
+                        cursor.execute(query, params)
+                    else:
+                        cursor.execute(query)
+
+                    if fetch_one:
+                        return cursor.fetchone()
+                    elif fetch_all:
+                        return cursor.fetchall()
+                    else:
+                        conn.commit()
+                        return cursor.rowcount
+
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e).lower() and retry_count < max_retries:
+                    retry_count += 1
+                    wait_time = 0.1 * (2 ** retry_count)  # Exponential backoff: 0.2s, 0.4s, 0.8s
+                    logger.warning(f"⚠️ Database locked, retrying in {wait_time}s (attempt {retry_count}/{max_retries})")
+                    time.sleep(wait_time)
+                    last_error = e
+                    continue
                 else:
-                    cursor.execute(query)
+                    logger.error(f"❌ Database query error after {retry_count} retries: {e}")
+                    logger.error(f"❌ Query: {query}")
+                    logger.error(f"❌ Parameters: {params}")
+                    raise
 
-                if fetch_one:
-                    return cursor.fetchone()
-                elif fetch_all:
-                    return cursor.fetchall()
-                else:
-                    conn.commit()
-                    return cursor.rowcount
+            except Exception as e:
+                logger.error(f"❌ Database query error: {e}")
+                logger.error(f"❌ Query: {query}")
+                logger.error(f"❌ Parameters: {params}")
+                raise
 
-        except Exception as e:
-            logger.error(f"❌ Database query error: {e}")
-            logger.error(f"❌ Query: {query}")
-            logger.error(f"❌ Parameters: {params}")
-            raise
+        # If we got here, all retries failed
+        if last_error:
+            logger.error(f"❌ All {max_retries} retries exhausted for database query")
+            raise last_error
 
     def save_members_to_db(self, members_data: List[Dict[str, Any]]) -> bool:
         """Save members data to SQLite database"""
@@ -1073,6 +1432,468 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ Error getting invoices for member {member_id}: {e}")
             return []
+
+    # --- Helper utilities for member profile aggregation ---
+    @staticmethod
+    def _normalize_float(value: Any) -> float:
+        """Safely convert a numeric-looking value to float."""
+        if value in (None, "", "None"):
+            return 0.0
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, Decimal):
+            return float(value)
+        try:
+            return float(Decimal(str(value)))
+        except Exception:
+            return 0.0
+
+    @staticmethod
+    def _as_datetime(value: Any) -> Optional[datetime]:
+        """Convert assorted date strings to datetime for calculations."""
+        if not value:
+            return None
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f", "%m/%d/%Y"):
+                try:
+                    return datetime.strptime(value.split("Z")[0], fmt)
+                except ValueError:
+                    continue
+        return None
+
+    @staticmethod
+    def _serialize_date(value: Any) -> Optional[str]:
+        if not value:
+            return None
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return str(value)
+
+    @staticmethod
+    def _deserialize_json(value: Any) -> Any:
+        if not value:
+            return None
+        if isinstance(value, (dict, list)):
+            return value
+        try:
+            return json.loads(value)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _resolve_member_key(member: Dict[str, Any]) -> Optional[str]:
+        for key_name in ("prospect_id", "guid", "id"):
+            if member.get(key_name):
+                return str(member[key_name])
+        return None
+
+    def _find_member_record(self, member_identifier: str) -> Optional[sqlite3.Row]:
+        """Locate a member using multiple identifier strategies."""
+        if not member_identifier:
+            return None
+
+        lookups: List[Tuple[str, Tuple[Any, ...]]] = []
+        # Try numeric primary key
+        if isinstance(member_identifier, (int, float)) or str(member_identifier).isdigit():
+            lookups.append(("SELECT * FROM members WHERE id = ? LIMIT 1", (int(member_identifier),)))
+
+        sanitized = str(member_identifier).strip()
+        lookups.extend([
+            ("SELECT * FROM members WHERE prospect_id = ? LIMIT 1", (sanitized,)),
+            ("SELECT * FROM members WHERE guid = ? LIMIT 1", (sanitized,))
+        ])
+
+        if " " in sanitized:
+            lookups.append(("SELECT * FROM members WHERE LOWER(full_name) = LOWER(?) LIMIT 1", (sanitized,)))
+
+        for query, params in lookups:
+            result = self.execute_query(query, params, fetch_one=True)
+            if result:
+                return result
+        return None
+
+    def _build_membership_summary(self, member: Dict[str, Any]) -> Dict[str, Any]:
+        """Compile membership billing metrics into a single structure."""
+        next_payment_amount = member.get('amount_of_next_payment')
+        if not next_payment_amount:
+            next_payment_amount = member.get('agreement_recurring_cost')
+
+        return {
+            'agreement_id': member.get('agreement_id'),
+            'agreement_type': member.get('agreement_type') or 'Membership',
+            'agreement_status': member.get('agreement_status') or member.get('status'),
+            'agreement_start_date': member.get('agreement_start_date') or member.get('join_date'),
+            'agreement_end_date': member.get('agreement_end_date'),
+            'amount_past_due': self._normalize_float(member.get('amount_past_due')),
+            'base_amount_past_due': self._normalize_float(member.get('base_amount_past_due')),
+            'late_fees': self._normalize_float(member.get('late_fees')),
+            'missed_payments': int(member.get('missed_payments') or 0),
+            'next_payment_date': member.get('date_of_next_payment') or member.get('next_billing_date'),
+            'next_payment_amount': self._normalize_float(next_payment_amount),
+            'billing_day': member.get('billing_day'),
+            'status_message': member.get('status_message') or member.get('status') or 'Unknown',
+            'payment_method': member.get('payment_method'),
+            'club_name': member.get('club_name'),
+            'agreement_recurring_cost': self._normalize_float(member.get('agreement_recurring_cost'))
+        }
+
+    def _build_payment_status(
+        self,
+        membership_summary: Dict[str, Any],
+        payment_plan: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        status = {
+            'text': 'Current',
+            'class': 'success',
+            'next_payment_date': membership_summary.get('next_payment_date'),
+            'next_payment_amount': membership_summary.get('next_payment_amount'),
+            'amount_past_due': membership_summary.get('amount_past_due', 0.0)
+        }
+
+        amount_past_due = membership_summary.get('amount_past_due', 0.0)
+        if amount_past_due and amount_past_due > 0:
+            status['text'] = f"Past Due (${amount_past_due:.2f})"
+            status['class'] = 'danger'
+
+        # Warn if payment due within 7 days
+        due_date = self._as_datetime(membership_summary.get('next_payment_date'))
+        if due_date and due_date >= datetime.now():
+            days_until_due = (due_date - datetime.now()).days
+            if days_until_due <= 7 and amount_past_due == 0:
+                status['text'] = 'Due Soon'
+                status['class'] = 'warning'
+
+        if payment_plan:
+            plan_status = payment_plan.get('status', 'active')
+            status['payment_plan'] = {
+                'status': plan_status,
+                'next_payment_due': payment_plan.get('next_payment_due'),
+                'balance_remaining': payment_plan.get('balance_remaining'),
+                'installments_remaining': payment_plan.get('installments_total', 0) - payment_plan.get('installments_paid', 0)
+            }
+
+            # Active payment plans downgrade severity unless they are delinquent themselves
+            if plan_status in ('active', 'pending') and amount_past_due > 0:
+                status['text'] = f"On Payment Plan (${amount_past_due:.2f} past due)"
+                status['class'] = 'warning'
+
+        return status
+
+    def _build_agreements_summary(self, member: Dict[str, Any], membership_summary: Dict[str, Any]) -> List[Dict[str, Any]]:
+        agreements: List[Dict[str, Any]] = []
+        if membership_summary.get('agreement_id') or membership_summary.get('agreement_type'):
+            agreements.append({
+                'agreement_id': membership_summary.get('agreement_id'),
+                'agreement_type': membership_summary.get('agreement_type'),
+                'start_date': membership_summary.get('agreement_start_date'),
+                'end_date': membership_summary.get('agreement_end_date'),
+                'rate': membership_summary.get('next_payment_amount') or membership_summary.get('agreement_recurring_cost'),
+                'status': membership_summary.get('agreement_status') or membership_summary.get('status_message'),
+                'member_rate': membership_summary.get('agreement_recurring_cost')
+            })
+        return agreements
+
+    def _get_training_packages_for_member(self, member: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Match training_clients rows to a member across multiple identifiers."""
+        member_key = self._resolve_member_key(member)
+        member_name = member.get('full_name') or f"{member.get('first_name', '')} {member.get('last_name', '')}".strip()
+
+        if not member_key and not member_name:
+            return []
+
+        rows = self.execute_query(
+            """
+            SELECT * FROM training_clients
+            WHERE clubos_member_id = ?
+               OR prospect_id = ?
+               OR LOWER(TRIM(member_name)) = LOWER(TRIM(?))
+            ORDER BY updated_at DESC
+            LIMIT 10
+            """,
+            (member_key or '', member_key or '', member_name or ''),
+            fetch_all=True
+        )
+
+        packages: List[Dict[str, Any]] = []
+        for row in rows or []:
+            row_dict = dict(row)
+            package_details = self._deserialize_json(row_dict.get('package_details'))
+            active_packages = self._deserialize_json(row_dict.get('active_packages'))
+            packages.append({
+                'member_name': row_dict.get('member_name'),
+                'trainer_name': row_dict.get('trainer_name'),
+                'package_type': row_dict.get('training_package') or row_dict.get('package_type'),
+                'payment_status': row_dict.get('payment_status') or row_dict.get('status'),
+                'sessions_remaining': row_dict.get('sessions_remaining'),
+                'total_past_due': self._normalize_float(row_dict.get('total_past_due') or row_dict.get('past_due_amount')),
+                'agreement_id': row_dict.get('agreement_id'),
+                'active_packages': active_packages,
+                'package_details': package_details,
+                'last_updated': row_dict.get('updated_at')
+            })
+
+        return packages
+
+    def get_payment_plan(self, member_id: str) -> Optional[Dict[str, Any]]:
+        """Return payment plan and installments for a member if it exists."""
+        if not member_id:
+            return None
+
+        plan_row = self.execute_query(
+            "SELECT * FROM payment_plans WHERE member_id = ?",
+            (str(member_id),),
+            fetch_one=True
+        )
+
+        if not plan_row:
+            return None
+
+        plan = dict(plan_row)
+        plan['total_amount'] = self._normalize_float(plan.get('total_amount'))
+        plan['balance_remaining'] = self._normalize_float(plan.get('balance_remaining'))
+        plan['installment_amount'] = self._normalize_float(plan.get('installment_amount'))
+
+        installments = self.execute_query(
+            "SELECT * FROM payment_plan_installments WHERE plan_id = ? ORDER BY installment_number",
+            (plan['id'],),
+            fetch_all=True
+        )
+
+        plan['installments'] = [
+            {
+                'id': inst['id'],
+                'installment_number': inst['installment_number'],
+                'due_date': inst['due_date'],
+                'amount': self._normalize_float(inst['amount']),
+                'status': inst['status'],
+                'paid_date': inst['paid_date'],
+                'amount_paid': self._normalize_float(inst.get('amount_paid'))
+            }
+            for inst in installments or []
+        ]
+
+        return plan
+
+    def save_payment_plan(self, member_id: str, plan_payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Create or replace a manual payment plan and its installments."""
+        if not member_id:
+            raise ValueError('member_id is required for payment plans')
+
+        total_amount = Decimal(str(plan_payload.get('total_amount', 0)))
+        installments_total = int(plan_payload.get('installments_total') or plan_payload.get('installment_count') or 0)
+        frequency_days = int(plan_payload.get('frequency_days') or 14)
+        start_date = plan_payload.get('start_date') or datetime.now().date().isoformat()
+
+        installments_input = plan_payload.get('installments') or []
+        if installments_total == 0 and installments_input:
+            installments_total = len(installments_input)
+
+        if total_amount <= 0 or installments_total <= 0:
+            raise ValueError('Total amount and installments_total must be greater than zero')
+
+        plan_name = plan_payload.get('plan_name') or 'Manual Payment Plan'
+        notes = plan_payload.get('notes')
+        created_by = plan_payload.get('created_by')
+
+        # Build installments schedule if not provided
+        installments: List[Dict[str, Any]] = []
+
+        if installments_input:
+            for idx, inst in enumerate(installments_input, start=1):
+                due_date = inst.get('due_date')
+                amount = Decimal(str(inst.get('amount', 0)))
+                installments.append({
+                    'installment_number': idx,
+                    'due_date': due_date,
+                    'amount': float(amount)
+                })
+        else:
+            start_dt = self._as_datetime(start_date) or datetime.now()
+            base_amount = (total_amount / installments_total).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            remainder = total_amount - (base_amount * installments_total)
+
+            for i in range(installments_total):
+                due_dt = start_dt + timedelta(days=frequency_days * i)
+                amount = base_amount
+                if i == installments_total - 1:
+                    amount += remainder
+                installments.append({
+                    'installment_number': i + 1,
+                    'due_date': due_dt.date().isoformat(),
+                    'amount': float(amount)
+                })
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT id FROM payment_plans WHERE member_id = ?", (str(member_id),))
+            existing = cursor.fetchone()
+
+            plan_fields = (
+                plan_name,
+                'active',
+                float(total_amount),
+                float(total_amount),  # reset balance when plan is created
+                float(total_amount / installments_total),
+                installments_total,
+                0,
+                frequency_days,
+                installments[0]['due_date'] if installments else None,
+                None,
+                start_date,
+                installments[-1]['due_date'] if installments else None,
+                notes,
+                created_by
+            )
+
+            if existing:
+                plan_id = existing['id'] if isinstance(existing, sqlite3.Row) else existing[0]
+                cursor.execute(
+                    """
+                    UPDATE payment_plans
+                    SET plan_name = ?, status = ?, total_amount = ?, balance_remaining = ?,
+                        installment_amount = ?, installments_total = ?, installments_paid = ?,
+                        frequency_days = ?, next_payment_due = ?, last_payment_date = ?,
+                        start_date = ?, end_date = ?, notes = ?, created_by = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    plan_fields + (plan_id,)
+                )
+                cursor.execute("DELETE FROM payment_plan_installments WHERE plan_id = ?", (plan_id,))
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO payment_plans (
+                        member_id, plan_name, status, total_amount, balance_remaining,
+                        installment_amount, installments_total, installments_paid,
+                        frequency_days, next_payment_due, last_payment_date,
+                        start_date, end_date, notes, created_by
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (str(member_id),) + plan_fields
+                )
+                plan_id = cursor.lastrowid
+
+            for inst in installments:
+                cursor.execute(
+                    """
+                    INSERT INTO payment_plan_installments (
+                        plan_id, installment_number, due_date, amount, status
+                    ) VALUES (?, ?, ?, ?, 'pending')
+                    """,
+                    (plan_id, inst['installment_number'], inst['due_date'], inst['amount'])
+                )
+
+            # Flag member as exempt from auto-lock routines
+            cursor.execute(
+                "UPDATE members SET payment_plan_exempt = 1, updated_at = CURRENT_TIMESTAMP WHERE prospect_id = ? OR guid = ?",
+                (str(member_id), str(member_id))
+            )
+
+            conn.commit()
+
+        return self.get_payment_plan(member_id)
+
+    def mark_payment_plan_installment_paid(
+        self,
+        member_id: str,
+        installment_id: int,
+        paid_amount: Optional[float] = None,
+        paid_date: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Mark a payment plan installment as paid and update plan rollups."""
+        paid_date = paid_date or datetime.now().isoformat()
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT * FROM payment_plan_installments WHERE id = ?", (installment_id,))
+            installment = cursor.fetchone()
+            if not installment:
+                raise ValueError('Installment not found')
+
+            plan_id = installment['plan_id']
+            amount_due = self._normalize_float(installment['amount'])
+            amount_to_apply = self._normalize_float(paid_amount) or amount_due
+
+            cursor.execute(
+                """
+                UPDATE payment_plan_installments
+                SET status = 'paid', paid_date = ?, amount_paid = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (paid_date, amount_to_apply, installment_id)
+            )
+
+            # Update plan rollups
+            cursor.execute("SELECT * FROM payment_plans WHERE id = ?", (plan_id,))
+            plan_row = cursor.fetchone()
+            if not plan_row:
+                raise ValueError('Payment plan not found for installment')
+
+            new_balance = max(0.0, self._normalize_float(plan_row['balance_remaining']) - amount_to_apply)
+            installments_paid = int(plan_row['installments_paid'] or 0) + 1
+
+            cursor.execute(
+                """
+                UPDATE payment_plans
+                SET balance_remaining = ?, installments_paid = ?, last_payment_date = ?,
+                    next_payment_due = (
+                        SELECT due_date FROM payment_plan_installments
+                        WHERE plan_id = ? AND status != 'paid'
+                        ORDER BY installment_number LIMIT 1
+                    ),
+                    status = CASE WHEN ? >= installments_total THEN 'completed' ELSE status END,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (new_balance, installments_paid, paid_date, plan_id, installments_paid, plan_id)
+            )
+
+            # If plan completed, remove exemption flag
+            cursor.execute(
+                "SELECT status FROM payment_plans WHERE id = ?",
+                (plan_id,)
+            )
+            status_row = cursor.fetchone()
+            if status_row and status_row['status'] == 'completed':
+                cursor.execute(
+                    "UPDATE members SET payment_plan_exempt = 0, updated_at = CURRENT_TIMESTAMP WHERE prospect_id = ? OR guid = ?",
+                    (str(member_id), str(member_id))
+                )
+
+            conn.commit()
+
+        return self.get_payment_plan(member_id)
+
+    def get_member_profile_context(self, member_identifier: str) -> Optional[Dict[str, Any]]:
+        """Aggregate membership, training, invoices, and payment plan data for UI/API."""
+        member_row = self._find_member_record(member_identifier)
+        if not member_row:
+            return None
+
+        member = dict(member_row)
+        member_key = self._resolve_member_key(member)
+
+        membership_summary = self._build_membership_summary(member)
+        payment_plan = self.get_payment_plan(member_key)
+        payment_status = self._build_payment_status(membership_summary, payment_plan)
+        agreements = self._build_agreements_summary(member, membership_summary)
+        invoices = self.get_member_invoices(member_key) if member_key else []
+        training_packages = self._get_training_packages_for_member(member)
+
+        return {
+            'member': member,
+            'membership_summary': membership_summary,
+            'payment_status': payment_status,
+            'agreements': agreements,
+            'payments': invoices,
+            'invoices': invoices,
+            'training_packages': training_packages,
+            'payment_plan': payment_plan
+        }
 
 
 

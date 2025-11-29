@@ -1,0 +1,2282 @@
+{% extends "base.html" %}
+
+{% block title %}AI Sales & Messaging Command Center - Anytime Fitness{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ============================================================
+       UNIFIED AI SALES & MESSAGING DASHBOARD
+       Combines: Sales AI Dashboard + Messaging/Inbox Page
+       ALL Features Preserved and Integrated
+       ============================================================ */
+
+    :root {
+        --af-sidebar-bg: #f8f9fa;
+        --af-card-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        --af-card-shadow-hover: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    body {
+        overflow-x: hidden;
+    }
+
+    /* Main 3-Column Grid Layout */
+    .unified-dashboard {
+        display: grid;
+        grid-template-columns: 280px 1fr 320px;
+        gap: 0;
+        height: calc(100vh - 56px);
+        overflow: hidden;
+    }
+
+    /* ============================================================
+       LEFT PANEL - Control Center Sidebar
+       ============================================================ */
+    .left-control-panel {
+        background: var(--af-sidebar-bg);
+        border-right: 1px solid var(--af-gray-200);
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .control-section {
+        padding: 16px;
+        border-bottom: 1px solid var(--af-gray-200);
+    }
+
+    .control-section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .control-section-header h6 {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--af-gray-600);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .section-collapse-icon {
+        transition: transform 0.2s;
+    }
+
+    .section-collapse-icon.collapsed {
+        transform: rotate(-90deg);
+    }
+
+    .section-content {
+        max-height: 500px;
+        overflow-y: auto;
+        transition: max-height 0.3s ease;
+    }
+
+    .section-content.collapsed {
+        max-height: 0;
+        overflow: hidden;
+    }
+
+    /* Workflow Cards */
+    .workflow-card {
+        background: white;
+        border-radius: var(--border-radius-medium);
+        padding: 12px;
+        margin-bottom: 8px;
+        box-shadow: var(--af-card-shadow);
+        cursor: pointer;
+        transition: all 0.2s;
+        border-left: 4px solid transparent;
+    }
+
+    .workflow-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--af-card-shadow-hover);
+    }
+
+    .workflow-card.active {
+        border-left-color: var(--af-purple-primary);
+        background: #F3F0FF;
+    }
+
+    .workflow-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    .workflow-name {
+        font-weight: 600;
+        font-size: 13px;
+        margin: 0;
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+    }
+
+    .status-dot.running { background: #28a745; }
+    .status-dot.paused { background: #ffc107; }
+    .status-dot.error { background: #dc3545; }
+
+    .workflow-meta {
+        font-size: 11px;
+        color: var(--af-gray-600);
+        margin-bottom: 3px;
+    }
+
+    .workflow-actions {
+        display: flex;
+        gap: 4px;
+        margin-top: 8px;
+    }
+
+    .workflow-actions button {
+        flex: 1;
+        font-size: 10px;
+        padding: 4px 6px;
+    }
+
+    /* Campaign Category Buttons */
+    .category-button {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 12px;
+        margin-bottom: 6px;
+        background: white;
+        border: 1px solid var(--af-gray-200);
+        border-radius: var(--border-radius-medium);
+        border-left: 4px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s;
+        width: 100%;
+        text-align: left;
+    }
+
+    .category-button:hover {
+        background: var(--af-gray-50);
+        border-left-color: var(--af-purple-primary);
+        transform: translateX(3px);
+    }
+
+    .category-button.active {
+        background: #F3F0FF;
+        border-left-color: var(--af-purple-primary);
+        font-weight: 600;
+    }
+
+    .category-button-text {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+    }
+
+    .category-button-text i {
+        width: 16px;
+        text-align: center;
+    }
+
+    /* ============================================================
+       CENTER PANEL - Tabbed Workspace
+       ============================================================ */
+    .center-workspace {
+        display: flex;
+        flex-direction: column;
+        background: white;
+        overflow: hidden;
+    }
+
+    .workspace-tabs {
+        display: flex;
+        border-bottom: 2px solid var(--af-gray-200);
+        background: white;
+        padding: 0 20px;
+    }
+
+    .workspace-tab {
+        padding: 14px 24px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-weight: 500;
+        color: var(--af-gray-600);
+        border-bottom: 3px solid transparent;
+        margin-bottom: -2px;
+        transition: all 0.2s;
+        font-size: 14px;
+    }
+
+    .workspace-tab:hover {
+        color: var(--af-purple-primary);
+        background: rgba(139, 92, 246, 0.05);
+    }
+
+    .workspace-tab.active {
+        color: var(--af-purple-primary);
+        border-bottom-color: var(--af-purple-primary);
+        font-weight: 600;
+    }
+
+    .workspace-tab i {
+        margin-right: 6px;
+    }
+
+    .workspace-content {
+        flex: 1;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .tab-pane {
+        display: none;
+        flex: 1;
+        overflow: hidden;
+        flex-direction: column;
+    }
+
+    .tab-pane.active {
+        display: flex;
+    }
+
+    /* AI Assistant Tab */
+    .ai-conversation-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--af-gray-200);
+        background: linear-gradient(135deg, var(--af-purple-primary), var(--af-purple-dark));
+        color: white;
+    }
+
+    .ai-conversation-feed {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background: var(--af-gray-50);
+    }
+
+    .ai-message {
+        background: white;
+        border-radius: var(--border-radius-medium);
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: var(--af-card-shadow);
+        border-left: 4px solid transparent;
+    }
+
+    .ai-message.workflow-notification { border-left-color: #007bff; }
+    .ai-message.approval-request { border-left-color: #ffc107; background: #fffbf0; }
+    .ai-message.tool-result { border-left-color: #28a745; }
+    .ai-message.error { border-left-color: #dc3545; background: #fff5f5; }
+
+    .message-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .message-timestamp {
+        font-size: 11px;
+        color: var(--af-gray-600);
+    }
+
+    .message-body {
+        font-size: 14px;
+        line-height: 1.6;
+    }
+
+    .tool-calls-section {
+        border-top: 1px dashed var(--af-gray-200);
+        padding-top: 12px;
+        margin-top: 12px;
+    }
+
+    .tool-call-card {
+        background: var(--af-gray-50);
+        border-radius: var(--border-radius-small);
+        padding: 10px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .tool-call-card:hover {
+        box-shadow: var(--shadow-2);
+        transform: translateX(2px);
+    }
+
+    .ai-input-area {
+        padding: 16px 20px;
+        border-top: 1px solid var(--af-gray-200);
+        background: white;
+    }
+
+    .quick-commands {
+        display: flex;
+        gap: 6px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+    }
+
+    .quick-command-btn {
+        padding: 5px 10px;
+        font-size: 11px;
+        border: 1px solid var(--af-gray-300);
+        background: white;
+        border-radius: var(--border-radius-small);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .quick-command-btn:hover {
+        background: var(--af-purple-primary);
+        color: white;
+        border-color: var(--af-purple-primary);
+    }
+
+    /* Inbox Tab */
+    .inbox-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--af-gray-200);
+        background: white;
+    }
+
+    .inbox-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px 20px;
+    }
+
+    .inbox-search {
+        margin-bottom: 16px;
+    }
+
+    .conversation-item {
+        display: flex;
+        gap: 12px;
+        padding: 12px;
+        background: white;
+        border: 1px solid var(--af-gray-200);
+        border-radius: var(--border-radius-medium);
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .conversation-item:hover {
+        background: var(--af-gray-50);
+        border-color: var(--af-purple-primary);
+        transform: translateX(4px);
+    }
+
+    .conversation-item.unread {
+        background: #EEF2FF;
+        border-left: 4px solid var(--af-purple-primary);
+        font-weight: 600;
+    }
+
+    .conversation-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--af-purple-primary), var(--af-purple-dark));
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 14px;
+        flex-shrink: 0;
+    }
+
+    .conversation-details {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .conversation-details-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+    }
+
+    .conversation-name {
+        font-weight: 600;
+        font-size: 13px;
+        color: var(--af-black-primary);
+    }
+
+    .conversation-time {
+        font-size: 11px;
+        color: var(--af-gray-600);
+        white-space: nowrap;
+    }
+
+    .conversation-preview {
+        font-size: 12px;
+        color: var(--af-gray-600);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .conversation-badges {
+        display: flex;
+        gap: 4px;
+        margin-top: 4px;
+    }
+
+    .conversation-badge {
+        font-size: 9px;
+        padding: 2px 6px;
+        border-radius: 3px;
+    }
+
+    /* Campaigns Tab */
+    .campaigns-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--af-gray-200);
+        background: white;
+    }
+
+    .campaigns-content {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .campaign-status-tabs {
+        display: flex;
+        overflow-x: auto;
+        border-bottom: 1px solid var(--af-gray-200);
+        background: var(--af-gray-50);
+    }
+
+    .campaign-status-tab {
+        padding: 10px 16px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-size: 12px;
+        white-space: nowrap;
+        color: var(--af-gray-600);
+        border-bottom: 3px solid transparent;
+        margin-bottom: -1px;
+        transition: all 0.2s;
+    }
+
+    .campaign-status-tab:hover {
+        background: rgba(139, 92, 246, 0.05);
+        color: var(--af-purple-primary);
+    }
+
+    .campaign-status-tab.active {
+        color: var(--af-purple-primary);
+        border-bottom-color: var(--af-purple-primary);
+        font-weight: 600;
+        background: white;
+    }
+
+    .campaign-pane {
+        display: none;
+        padding: 20px;
+    }
+
+    .campaign-pane.active {
+        display: block;
+    }
+
+    .campaign-card {
+        background: white;
+        border-radius: var(--border-radius-large);
+        padding: 20px;
+        box-shadow: var(--af-card-shadow);
+        margin-bottom: 16px;
+    }
+
+    .campaign-card-header {
+        text-align: center;
+        padding: 16px;
+        border-radius: var(--border-radius-medium) var(--border-radius-medium) 0 0;
+        color: white;
+        margin: -20px -20px 16px -20px;
+    }
+
+    .campaign-card-header.good-standing { background: #28a745; }
+    .campaign-card-header.ppv { background: #17a2b8; }
+    .campaign-card-header.past-due-6-30 { background: #ffc107; color: #000; }
+    .campaign-card-header.past-due-30 { background: #dc3545; }
+    .campaign-card-header.pt-past-due { background: #dc3545; }
+    .campaign-card-header.expiring { background: #ffc107; color: #000; }
+    .campaign-card-header.prospects { background: #007bff; }
+    .campaign-card-header.other { background: #6c757d; }
+
+    .campaign-card-header h5 {
+        margin: 0 0 4px 0;
+        font-size: 18px;
+    }
+
+    .campaign-card-header small {
+        opacity: 0.9;
+    }
+
+    .campaign-progress {
+        margin: 16px 0;
+    }
+
+    .campaign-progress-bar-container {
+        height: 6px;
+        background: var(--af-gray-200);
+        border-radius: 3px;
+        overflow: hidden;
+        margin: 8px 0;
+    }
+
+    .campaign-progress-bar {
+        height: 100%;
+        background: var(--af-purple-primary);
+        transition: width 0.3s;
+    }
+
+    /* ============================================================
+       RIGHT PANEL - Smart Context Panel
+       ============================================================ */
+    .right-context-panel {
+        background: var(--af-sidebar-bg);
+        border-left: 1px solid var(--af-gray-200);
+        overflow-y: auto;
+        padding: 20px;
+    }
+
+    .context-card {
+        background: white;
+        border-radius: var(--border-radius-medium);
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: var(--af-card-shadow);
+    }
+
+    .context-card h6 {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: var(--af-gray-600);
+        margin-bottom: 12px;
+        letter-spacing: 0.5px;
+    }
+
+    .context-metric {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--af-gray-100);
+    }
+
+    .context-metric:last-child {
+        border-bottom: none;
+    }
+
+    .context-metric-label {
+        font-size: 13px;
+        color: var(--af-gray-600);
+    }
+
+    .context-metric-value {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--af-black-primary);
+    }
+
+    .context-empty {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--af-gray-600);
+    }
+
+    .context-empty i {
+        font-size: 48px;
+        margin-bottom: 16px;
+        opacity: 0.3;
+    }
+
+    /* Member Preview List */
+    .member-preview-list {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .member-preview-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        border-radius: var(--border-radius-small);
+        margin-bottom: 4px;
+        font-size: 12px;
+    }
+
+    .member-preview-item:hover {
+        background: var(--af-gray-50);
+    }
+
+    .member-preview-checkbox {
+        width: 16px;
+        height: 16px;
+    }
+
+    /* Scrollbar Styling */
+    .left-control-panel::-webkit-scrollbar,
+    .ai-conversation-feed::-webkit-scrollbar,
+    .inbox-content::-webkit-scrollbar,
+    .campaigns-content::-webkit-scrollbar,
+    .right-context-panel::-webkit-scrollbar,
+    .section-content::-webkit-scrollbar,
+    .member-preview-list::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .left-control-panel::-webkit-scrollbar-track,
+    .ai-conversation-feed::-webkit-scrollbar-track,
+    .inbox-content::-webkit-scrollbar-track,
+    .campaigns-content::-webkit-scrollbar-track,
+    .right-context-panel::-webkit-scrollbar-track,
+    .section-content::-webkit-scrollbar-track,
+    .member-preview-list::-webkit-scrollbar-track {
+        background: var(--af-gray-100);
+    }
+
+    .left-control-panel::-webkit-scrollbar-thumb,
+    .ai-conversation-feed::-webkit-scrollbar-thumb,
+    .inbox-content::-webkit-scrollbar-thumb,
+    .campaigns-content::-webkit-scrollbar-thumb,
+    .right-context-panel::-webkit-scrollbar-thumb,
+    .section-content::-webkit-scrollbar-thumb,
+    .member-preview-list::-webkit-scrollbar-thumb {
+        background: var(--af-gray-300);
+        border-radius: 3px;
+    }
+
+    .left-control-panel::-webkit-scrollbar-thumb:hover,
+    .ai-conversation-feed::-webkit-scrollbar-thumb:hover,
+    .inbox-content::-webkit-scrollbar-thumb:hover,
+    .campaigns-content::-webkit-scrollbar-thumb:hover,
+    .right-context-panel::-webkit-scrollbar-thumb:hover,
+    .section-content::-webkit-scrollbar-thumb:hover,
+    .member-preview-list::-webkit-scrollbar-thumb:hover {
+        background: var(--af-purple-primary);
+    }
+
+    /* AI Toggle Switch */
+    .ai-control-section {
+        background: linear-gradient(135deg, var(--af-purple-primary) 0%, #6d28d9 100%);
+        color: white;
+        padding: 20px 16px;
+        border-bottom: 1px solid var(--af-gray-200);
+    }
+
+    .ai-status-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+    }
+
+    .ai-status-title {
+        font-size: 14px;
+        font-weight: 600;
+        margin: 0;
+    }
+
+    .ai-status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .ai-status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        animation: pulse 2s ease-in-out infinite;
+    }
+
+    .ai-status-dot.enabled {
+        background: #10b981;
+    }
+
+    .ai-status-dot.disabled {
+        background: #ef4444;
+        animation: none;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 52px;
+        height: 28px;
+    }
+
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(255, 255, 255, 0.3);
+        transition: .3s;
+        border-radius: 28px;
+    }
+
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 20px;
+        width: 20px;
+        left: 4px;
+        bottom: 4px;
+        background-color: white;
+        transition: .3s;
+        border-radius: 50%;
+    }
+
+    input:checked + .toggle-slider {
+        background-color: #10b981;
+    }
+
+    input:checked + .toggle-slider:before {
+        transform: translateX(24px);
+    }
+
+    /* Loading States */
+    .loading-skeleton {
+        background: linear-gradient(90deg, var(--af-gray-100) 25%, var(--af-gray-200) 50%, var(--af-gray-100) 75%);
+        background-size: 200% 100%;
+        animation: loading 1.5s ease-in-out infinite;
+        border-radius: var(--border-radius-medium);
+        height: 60px;
+        margin-bottom: 8px;
+    }
+
+    @keyframes loading {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+
+    /* Responsive Design */
+    @media (max-width: 1199px) {
+        .unified-dashboard {
+            grid-template-columns: 260px 1fr;
+        }
+        .right-context-panel {
+            display: none;
+        }
+    }
+
+    @media (max-width: 767px) {
+        .unified-dashboard {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+        .left-control-panel {
+            display: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="unified-dashboard">
+    <!-- ===== LEFT PANEL: Control Center ===== -->
+    <div class="left-control-panel">
+        <!-- AI Control Section -->
+        <div class="ai-control-section">
+            <div class="ai-status-header">
+                <h6 class="ai-status-title">
+                    <i class="fas fa-robot me-2"></i>AI Auto-Processing
+                </h6>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="ai-toggle" onchange="toggleAI()">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="ai-status-indicator" id="ai-status">
+                <span class="ai-status-dot disabled"></span>
+                <span id="ai-status-text">DISABLED</span>
+            </div>
+        </div>
+
+        <!-- Workflows Section -->
+        <div class="control-section">
+            <div class="control-section-header" onclick="toggleSection('workflows')">
+                <h6><i class="fas fa-tasks me-2"></i>AI Workflows</h6>
+                <i class="fas fa-chevron-down section-collapse-icon" id="workflows-icon"></i>
+            </div>
+            <div class="section-content" id="workflows-content">
+                <div id="workflows-list">
+                    <div class="loading-skeleton"></div>
+                    <div class="loading-skeleton"></div>
+                </div>
+                <button class="btn btn-sm btn-outline-primary w-100 mt-2" onclick="showManualCommand()">
+                    <i class="fas fa-plus me-1"></i>Manual Task
+                </button>
+            </div>
+        </div>
+
+        <!-- Campaign Categories Section -->
+        <div class="control-section">
+            <div class="control-section-header" onclick="toggleSection('categories')">
+                <h6><i class="fas fa-bullhorn me-2"></i>Campaign Categories</h6>
+                <i class="fas fa-chevron-down section-collapse-icon" id="categories-icon"></i>
+            </div>
+            <div class="section-content" id="categories-content">
+                <button class="category-button" data-category="good_standing" onclick="selectCategory('good_standing')">
+                    <span class="category-button-text">
+                        <i class="fas fa-check-circle text-success"></i>
+                        <span>Good Standing</span>
+                    </span>
+                    <span class="badge bg-success" id="count-good-standing">0</span>
+                </button>
+
+                <button class="category-button" data-category="pay_per_visit" onclick="selectCategory('pay_per_visit')">
+                    <span class="category-button-text">
+                        <i class="fas fa-credit-card text-info"></i>
+                        <span>Pay Per Visit</span>
+                    </span>
+                    <span class="badge bg-info" id="count-ppv">0</span>
+                </button>
+
+                <button class="category-button" data-category="past_due_6_30" onclick="selectCategory('past_due_6_30')">
+                    <span class="category-button-text">
+                        <i class="fas fa-exclamation-triangle text-warning"></i>
+                        <span>Past Due 6-30</span>
+                    </span>
+                    <span class="badge bg-warning text-dark" id="count-past-due-6-30">0</span>
+                </button>
+
+                <button class="category-button" data-category="past_due_30_plus" onclick="selectCategory('past_due_30_plus')">
+                    <span class="category-button-text">
+                        <i class="fas fa-times-circle text-danger"></i>
+                        <span>Past Due 30+</span>
+                    </span>
+                    <span class="badge bg-danger" id="count-past-due-30">0</span>
+                </button>
+
+                <button class="category-button" data-category="past_due_training" onclick="selectCategory('past_due_training')">
+                    <span class="category-button-text">
+                        <i class="fas fa-dumbbell text-danger"></i>
+                        <span>PT Past Due</span>
+                    </span>
+                    <span class="badge bg-danger" id="count-pt-past-due">0</span>
+                </button>
+
+                <button class="category-button" data-category="expiring_soon" onclick="selectCategory('expiring_soon')">
+                    <span class="category-button-text">
+                        <i class="fas fa-clock text-warning"></i>
+                        <span>Expiring Soon</span>
+                    </span>
+                    <span class="badge bg-warning text-dark" id="count-expiring">0</span>
+                </button>
+
+                <button class="category-button" data-category="prospects" onclick="selectCategory('prospects')">
+                    <span class="category-button-text">
+                        <i class="fas fa-users text-primary"></i>
+                        <span>Prospects</span>
+                    </span>
+                    <span class="badge bg-primary" id="count-prospects">0</span>
+                </button>
+
+                <button class="category-button" data-category="other_statuses" onclick="selectCategory('other_statuses')">
+                    <span class="category-button-text">
+                        <i class="fas fa-ellipsis-h text-secondary"></i>
+                        <span>Other Status</span>
+                    </span>
+                    <span class="badge bg-secondary" id="count-other">0</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Quick Actions Section -->
+        <div class="control-section" style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end;">
+            <button class="btn btn-primary btn-sm w-100 mb-2" onclick="refreshAll()" style="background: var(--af-purple-primary); border-color: var(--af-purple-primary);">
+                <i class="fas fa-sync-alt me-1"></i>Refresh All
+            </button>
+            <button class="btn btn-outline-primary btn-sm w-100" onclick="openNewCampaignModal()">
+                <i class="fas fa-rocket me-1"></i>New Campaign
+            </button>
+        </div>
+    </div>
+
+    <!-- ===== CENTER PANEL: Tabbed Workspace ===== -->
+    <div class="center-workspace">
+        <!-- Workspace Tabs -->
+        <div class="workspace-tabs">
+            <button class="workspace-tab active" onclick="switchTab('ai-assistant')" id="tab-ai-assistant">
+                <i class="fas fa-robot"></i>AI Assistant
+            </button>
+            <button class="workspace-tab" onclick="switchTab('inbox')" id="tab-inbox">
+                <i class="fas fa-inbox"></i>Inbox <span class="badge bg-danger ms-1" id="inbox-unread-badge" style="display: none;">0</span>
+            </button>
+            <button class="workspace-tab" onclick="switchTab('campaigns')" id="tab-campaigns">
+                <i class="fas fa-bullhorn"></i>Campaigns
+            </button>
+        </div>
+
+        <!-- Workspace Content -->
+        <div class="workspace-content">
+            <!-- AI Assistant Tab -->
+            <div class="tab-pane active" id="pane-ai-assistant">
+                <div class="ai-conversation-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-1">AI Sales Assistant</h4>
+                            <small>Autonomous workflow management & intelligent insights</small>
+                        </div>
+                        <span class="badge bg-success">
+                            <i class="fas fa-robot me-1"></i>AI Active
+                        </span>
+                    </div>
+                </div>
+
+                <div class="ai-conversation-feed" id="ai-feed">
+                    <div class="ai-message workflow-notification">
+                        <div class="message-header">
+                            <span class="badge bg-primary">System</span>
+                            <span class="message-timestamp">Just now</span>
+                        </div>
+                        <div class="message-body">
+                            <strong>Welcome to the Unified AI Sales & Messaging Command Center</strong>
+                            <p class="mb-0 mt-2">Your complete sales and messaging solution. All workflows, inbox, and campaigns in one powerful interface.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ai-input-area">
+                    <div class="input-group mb-2">
+                        <input type="text" class="form-control" id="ai-command-input"
+                               placeholder="Ask the AI anything or give it a task..."
+                               onkeypress="handleAIKeyPress(event)">
+                        <button class="btn btn-primary" onclick="sendAICommand()" id="ai-send-btn" style="background: var(--af-purple-primary); border-color: var(--af-purple-primary);">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                    <div class="quick-commands">
+                        <button class="quick-command-btn" onclick="sendQuickAICommand('Show past due summary')">
+                            <i class="fas fa-exclamation-triangle me-1"></i>Past Due Summary
+                        </button>
+                        <button class="quick-command-btn" onclick="sendQuickAICommand('Run daily campaigns')">
+                            <i class="fas fa-rocket me-1"></i>Run Campaigns
+                        </button>
+                        <button class="quick-command-btn" onclick="sendQuickAICommand('Show unread messages')">
+                            <i class="fas fa-envelope me-1"></i>Unread Messages
+                        </button>
+                        <button class="quick-command-btn" onclick="sendQuickAICommand('Analyze revenue trends')">
+                            <i class="fas fa-chart-line me-1"></i>Revenue Analysis
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inbox Tab -->
+            <div class="tab-pane" id="pane-inbox">
+                <div class="inbox-header">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h4 class="mb-1">ClubOS Inbox</h4>
+                            <small class="text-muted">Recent member conversations</small>
+                        </div>
+                        <button class="btn btn-sm btn-primary" onclick="refreshInbox()" style="background: var(--af-purple-primary); border-color: var(--af-purple-primary);">
+                            <i class="fas fa-sync-alt me-1"></i>Sync
+                        </button>
+                    </div>
+
+                    <div class="inbox-search">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="inbox-search-input" placeholder="Search conversations...">
+                            <button class="btn btn-outline-secondary" onclick="searchInbox()">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="inbox-content" id="inbox-conversations">
+                    <div class="loading-skeleton"></div>
+                    <div class="loading-skeleton"></div>
+                    <div class="loading-skeleton"></div>
+                </div>
+            </div>
+
+            <!-- Campaigns Tab -->
+            <div class="tab-pane" id="pane-campaigns">
+                <div class="campaigns-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h4 class="mb-1">Campaign Management</h4>
+                            <small class="text-muted">Manage campaigns by status category</small>
+                        </div>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" onclick="switchCampaignView('categories')">
+                                <i class="fas fa-th-large"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="switchCampaignView('templates')">
+                                <i class="fas fa-file-alt"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="switchCampaignView('history')">
+                                <i class="fas fa-history"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campaign Status Tabs -->
+                <div class="campaign-status-tabs" id="campaign-status-tabs">
+                    <button class="campaign-status-tab active" onclick="selectCampaignTab('good_standing')">
+                        <i class="fas fa-check-circle text-success me-1"></i>Good Standing
+                    </button>
+                    <button class="campaign-status-tab" onclick="selectCampaignTab('ppv')">
+                        <i class="fas fa-credit-card text-info me-1"></i>PPV
+                    </button>
+                    <button class="campaign-status-tab" onclick="selectCampaignTab('past_due_6_30')">
+                        <i class="fas fa-exclamation-triangle text-warning me-1"></i>6-30 Days
+                    </button>
+                    <button class="campaign-status-tab" onclick="selectCampaignTab('past_due_30')">
+                        <i class="fas fa-times-circle text-danger me-1"></i>30+ Days
+                    </button>
+                    <button class="campaign-status-tab" onclick="selectCampaignTab('pt_past_due')">
+                        <i class="fas fa-dumbbell text-danger me-1"></i>PT Past Due
+                    </button>
+                    <button class="campaign-status-tab" onclick="selectCampaignTab('expiring')">
+                        <i class="fas fa-clock text-warning me-1"></i>Expiring
+                    </button>
+                    <button class="campaign-status-tab" onclick="selectCampaignTab('prospects')">
+                        <i class="fas fa-users text-primary me-1"></i>Prospects
+                    </button>
+                    <button class="campaign-status-tab" onclick="selectCampaignTab('other')">
+                        <i class="fas fa-ellipsis-h text-secondary me-1"></i>Other
+                    </button>
+                    <button class="campaign-status-tab" onclick="selectCampaignTab('templates')">
+                        <i class="fas fa-file-alt text-info me-1"></i>Templates
+                    </button>
+                </div>
+
+                <div class="campaigns-content" id="campaigns-panes">
+                    <!-- Campaign panes will be dynamically loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== RIGHT PANEL: Smart Context ===== -->
+    <div class="right-context-panel" id="context-panel">
+        <div class="context-empty">
+            <i class="fas fa-mouse-pointer"></i>
+            <p class="mb-0">Select a workflow, campaign, or conversation to view details</p>
+        </div>
+    </div>
+</div>
+
+<!-- Campaign Management Modal -->
+<div class="modal fade" id="categoryCampaignModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content" style="border-radius: var(--border-radius-large);">
+            <div class="modal-header" style="background: var(--af-purple-primary); color: white; border-radius: var(--border-radius-large) var(--border-radius-large) 0 0;">
+                <h5 class="modal-title">
+                    <i class="fas fa-bullhorn me-2"></i>
+                    <span id="modalCategoryTitle">Campaign Manager</span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close Modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-4">
+                    <!-- Campaign Controls -->
+                    <div class="col-lg-8">
+                        <!-- Campaign Status Section -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0 fw-semibold">
+                                    <i class="fas fa-chart-line me-2"></i>
+                                    Current Campaign Status
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="campaignStatusSection">
+                                    <div class="alert alert-info">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        <strong>Ready to start:</strong> No active campaign for this category
+                                    </div>
+                                </div>
+
+                                <!-- Progress Tracking -->
+                                <div id="campaignProgressSection" style="display: none;">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="fw-medium">Sending Progress:</span>
+                                        <span class="badge bg-primary" id="campaignProgressBadge">In Progress</span>
+                                    </div>
+                                    <div class="progress mb-2" style="height: 12px;">
+                                        <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                             id="campaignProgressBar" style="width: 0%"></div>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <small class="text-muted" id="campaignProgressText">Starting campaign...</small>
+                                        <small class="text-muted" id="campaignProgressCount">0 / 0 sent</small>
+                                    </div>
+                                    <div class="d-flex gap-2 mt-3">
+                                        <button class="btn btn-sm btn-warning" id="pauseCampaignBtn" onclick="pauseCampaign()">
+                                            <i class="fas fa-pause"></i> Pause
+                                        </button>
+                                        <button class="btn btn-sm btn-success" id="resumeCampaignBtn" onclick="resumeCampaign()" style="display: none;">
+                                            <i class="fas fa-play"></i> Resume
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" onclick="stopCampaign()">
+                                            <i class="fas fa-stop"></i> Stop
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Campaign Options -->
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0 fw-semibold">
+                                    <i class="fas fa-cogs me-2"></i>
+                                    Campaign Options
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="d-grid gap-2 d-md-block mb-3" id="campaignActionButtons">
+                                    <button class="btn btn-success me-2" id="continueCampaignBtn" onclick="continueCampaign()" style="display: none;">
+                                        <i class="fas fa-play me-2"></i>Continue from Where Left Off
+                                    </button>
+                                    <button class="btn btn-primary me-2" onclick="showCampaignEditor('template')">
+                                        <i class="fas fa-edit me-2"></i>Edit with Template
+                                    </button>
+                                    <button class="btn btn-outline-primary" onclick="showCampaignEditor('fresh')">
+                                        <i class="fas fa-plus me-2"></i>Create Fresh Campaign
+                                    </button>
+                                </div>
+
+                                <!-- Campaign Editor -->
+                                <div id="campaignEditor" style="display: none;">
+                                    <hr class="mb-3">
+                                    <form id="categoryCampaignForm">
+                                        <input type="hidden" id="modalCategoryValue" value="">
+                                        <input type="hidden" id="editorMode" value="">
+
+                                        <div class="row g-3">
+                                            <div class="col-md-6">
+                                                <label for="campaignName" class="form-label fw-medium">Campaign Name</label>
+                                                <input type="text" class="form-control" id="campaignName" required placeholder="Enter campaign name">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label for="campaignTemplate" class="form-label fw-medium">Use Template</label>
+                                                <select class="form-select" id="campaignTemplate" onchange="loadCampaignTemplate()">
+                                                    <option value="">Select a template...</option>
+                                                    <option value="welcome">Welcome New Members</option>
+                                                    <option value="payment_reminder">Payment Reminder</option>
+                                                    <option value="check_in">Check-in Reminder</option>
+                                                    <option value="promotion">Special Promotion</option>
+                                                    <option value="followup">Member Follow-up</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-12">
+                                                <label for="campaignMessage" class="form-label fw-medium">Message Content</label>
+                                                <textarea class="form-control" id="campaignMessage" rows="4" required placeholder="Enter your message here..."></textarea>
+                                                <div class="form-text">
+                                                    <small class="text-muted">You can use variables: {name}, {first_name}, {email}, {phone}</small>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label for="messageType" class="form-label fw-medium">Message Type</label>
+                                                <select class="form-select" id="messageType" required>
+                                                    <option value="sms">SMS Text Message</option>
+                                                    <option value="email">Email Message</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label for="maxRecipients" class="form-label fw-medium">Max Recipients (Unlimited)</label>
+                                                <input type="number" class="form-control" id="maxRecipients" value="999999" min="1" max="999999" placeholder="Unlimited" disabled>
+                                            </div>
+                                            <div class="col-12" id="emailSubjectDiv" style="display: none;">
+                                                <label for="emailSubject" class="form-label fw-medium">Email Subject</label>
+                                                <input type="text" class="form-control" id="emailSubject">
+                                            </div>
+                                            <div class="col-12">
+                                                <label for="campaignNotes" class="form-label fw-medium">Campaign Notes (Optional)</label>
+                                                <textarea class="form-control" id="campaignNotes" rows="2" placeholder="Add notes about this campaign..."></textarea>
+                                            </div>
+                                            <div class="col-12">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="saveAsTemplate">
+                                                    <label class="form-check-label" for="saveAsTemplate">
+                                                        Save as reusable template
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Member Preview & Stats -->
+                    <div class="col-lg-4">
+                        <div class="card h-100">
+                            <div class="card-header bg-light">
+                                <h6 class="mb-0 fw-semibold">
+                                    <i class="fas fa-users me-2"></i>
+                                    Target Members
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-info mb-3" id="memberCountAlert">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-medium">Total Members:</span>
+                                        <span class="badge bg-primary" id="totalMemberCount">0</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-2">
+                                        <span>Selected:</span>
+                                        <span class="badge bg-success" id="selectedMemberCount">0</span>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex gap-2 mb-2">
+                                    <button class="btn btn-sm btn-outline-primary flex-fill" onclick="selectAllMembers()">
+                                        <i class="fas fa-check-square me-1"></i>Select All
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary flex-fill" onclick="deselectAllMembers()">
+                                        <i class="fas fa-square me-1"></i>Deselect All
+                                    </button>
+                                </div>
+
+                                <div class="member-preview" style="max-height: 400px; overflow-y: auto;">
+                                    <div id="memberPreviewList">
+                                        <div class="text-center py-4">
+                                            <div class="spinner-border spinner-border-sm" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                            <p class="text-muted mt-2">Loading members...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-outline-info me-2" onclick="previewCampaign()">
+                    <i class="fas fa-eye me-1"></i>Preview
+                </button>
+                <button type="button" class="btn btn-success" id="launchCampaignBtn" onclick="launchCampaign()">
+                    <i class="fas fa-rocket me-1"></i>Launch Campaign
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============================================================================
+// UNIFIED DASHBOARD - JavaScript
+// Combines ALL features from Sales AI Dashboard + Messaging Page
+// ============================================================================
+
+// Global State
+const AppState = {
+    selectedWorkflow: null,
+    selectedCategory: null,
+    selectedConversation: null,
+    activeTab: 'ai-assistant',
+    activeCampaignTab: 'good_standing',
+    workflows: [],
+    conversations: [],
+    campaigns: {},
+    aiSessionId: null
+};
+
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 Initializing Unified AI Sales & Messaging Dashboard...');
+
+    // Check AI status first
+    checkAIStatus();
+
+    // Load all initial data
+    loadWorkflows();
+    loadInbox();
+    loadCampaignCounts();
+
+    // Auto-sync inbox on first load
+    setTimeout(() => refreshInbox(true), 2000);
+
+    // Auto-refresh
+    setInterval(() => {
+        loadWorkflows();
+        refreshInbox(true);  // Auto-sync inbox every interval
+        loadInbox();
+        loadCampaignCounts();
+    }, 30000);
+});
+
+// ============================================================================
+// TAB MANAGEMENT
+// ============================================================================
+
+function switchTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.workspace-tab').forEach(tab => tab.classList.remove('active'));
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+
+    // Update panes
+    document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+    document.getElementById(`pane-${tabName}`).classList.add('active');
+
+    AppState.activeTab = tabName;
+
+    // Load tab-specific data if needed
+    if (tabName === 'inbox') loadInbox();
+    if (tabName === 'campaigns') loadCampaignData();
+}
+
+function toggleSection(sectionName) {
+    const content = document.getElementById(`${sectionName}-content`);
+    const icon = document.getElementById(`${sectionName}-icon`);
+
+    content.classList.toggle('collapsed');
+    icon.classList.toggle('collapsed');
+}
+
+// ============================================================================
+// AI CONTROL (Toggle Auto-Processing)
+// ============================================================================
+
+async function checkAIStatus() {
+    try {
+        const response = await fetch('/api/ai/status');
+        const data = await response.json();
+
+        if (data.success) {
+            updateAIStatus(data.ai_enabled);
+        }
+    } catch (error) {
+        console.error('❌ Error checking AI status:', error);
+    }
+}
+
+async function toggleAI() {
+    const toggle = document.getElementById('ai-toggle');
+    const isEnabled = toggle.checked;
+
+    try {
+        const endpoint = isEnabled ? '/api/ai/enable' : '/api/ai/disable';
+        const response = await fetch(endpoint, { method: 'POST' });
+        const data = await response.json();
+
+        if (data.success) {
+            updateAIStatus(data.ai_enabled);
+            showNotification(
+                isEnabled ? '✅ AI Auto-Processing ENABLED' : '⛔ AI Auto-Processing DISABLED',
+                isEnabled ? 'success' : 'warning'
+            );
+        } else {
+            // Revert toggle on error
+            toggle.checked = !isEnabled;
+            showNotification('❌ Failed to toggle AI: ' + data.error, 'error');
+        }
+    } catch (error) {
+        console.error('❌ Error toggling AI:', error);
+        // Revert toggle on error
+        toggle.checked = !isEnabled;
+        showNotification('❌ Error toggling AI: ' + error.message, 'error');
+    }
+}
+
+function updateAIStatus(isEnabled) {
+    const toggle = document.getElementById('ai-toggle');
+    const statusText = document.getElementById('ai-status-text');
+    const statusDot = document.querySelector('.ai-status-dot');
+
+    toggle.checked = isEnabled;
+    statusText.textContent = isEnabled ? 'ENABLED' : 'DISABLED';
+
+    if (isEnabled) {
+        statusDot.classList.remove('disabled');
+        statusDot.classList.add('enabled');
+    } else {
+        statusDot.classList.remove('enabled');
+        statusDot.classList.add('disabled');
+    }
+}
+
+function showNotification(message, type = 'info') {
+    // Simple notification - you can enhance this
+    console.log(`[${type.toUpperCase()}] ${message}`);
+    alert(message);
+}
+
+// ============================================================================
+// WORKFLOWS MANAGEMENT (from Sales AI Dashboard)
+// ============================================================================
+
+async function loadWorkflows() {
+    try {
+        const response = await fetch('/api/ai/workflows/status');
+        const data = await response.json();
+
+        if (data.success && data.workflows) {
+            AppState.workflows = data.workflows;
+            renderWorkflows(data.workflows);
+        }
+    } catch (error) {
+        console.error('Error loading workflows:', error);
+    }
+}
+
+function renderWorkflows(workflows) {
+    const container = document.getElementById('workflows-list');
+
+    if (!workflows || workflows.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center small">No workflows available</p>';
+        return;
+    }
+
+    // Workflow descriptions
+    const descriptions = {
+        'past_due_followup': 'Auto-reach out to members with past due balances',
+        'good_standing_engagement': 'Check in with active members',
+        'expiring_soon': 'Contact members with expiring memberships',
+        'cancellation_retention': 'Retain members who want to cancel',
+        'new_member_onboarding': 'Welcome and onboard new members',
+        'inactive_reengagement': 'Re-engage inactive members'
+    };
+
+    const html = workflows.map(wf => {
+        const desc = descriptions[wf.id] || wf.description || 'Automated AI workflow';
+        return `
+        <div class="workflow-card ${AppState.selectedWorkflow === wf.id ? 'active' : ''}"
+             onclick="selectWorkflow('${wf.id}')"
+             title="${desc}">
+            <div class="workflow-card-header">
+                <h6 class="workflow-name">${wf.name}</h6>
+                <span class="status-dot ${wf.enabled ? 'running' : 'paused'}"></span>
+            </div>
+            <p class="text-muted small mb-2" style="font-size: 11px; margin-top: 4px;">${desc}</p>
+            <div class="workflow-meta">
+                <i class="fas fa-clock me-1"></i>Next: ${formatNextRun(wf.next_run)}
+            </div>
+            <div class="workflow-meta">
+                <i class="fas fa-check me-1"></i>Last: ${formatTimeAgo(wf.last_run?.timestamp)}
+            </div>
+            <div class="workflow-actions">
+                <button class="btn btn-success btn-sm" onclick="runWorkflow('${wf.id}'); event.stopPropagation();">
+                    <i class="fas fa-play"></i>
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="viewWorkflowHistory('${wf.id}'); event.stopPropagation();">
+                    <i class="fas fa-history"></i>
+                </button>
+            </div>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = html;
+}
+
+function selectWorkflow(workflowId) {
+    AppState.selectedWorkflow = workflowId;
+    renderWorkflows(AppState.workflows);
+    loadWorkflowDetails(workflowId);
+}
+
+async function runWorkflow(workflowId) {
+    try {
+        const response = await fetch(`/api/ai/workflows/${workflowId}/run`, {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            addAIMessage(`Workflow "${workflowId}" started successfully`, 'workflow-notification');
+            loadWorkflows();
+        }
+    } catch (error) {
+        console.error('Error running workflow:', error);
+    }
+}
+
+async function loadWorkflowDetails(workflowId) {
+    const contextPanel = document.getElementById('context-panel');
+
+    // Show loading
+    contextPanel.innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Loading workflow details...</p>
+        </div>
+    `;
+
+    try {
+        const response = await fetch(`/api/ai/workflows/${workflowId}/config`);
+        const data = await response.json();
+
+        if (data.success) {
+            contextPanel.innerHTML = `
+                <div class="context-card">
+                    <h6>Workflow Configuration</h6>
+                    <div class="context-metric">
+                        <span class="context-metric-label">Name</span>
+                        <span class="context-metric-value">${data.config.name}</span>
+                    </div>
+                    <div class="context-metric">
+                        <span class="context-metric-label">Status</span>
+                        <span class="context-metric-value">${data.config.enabled ? 'Enabled' : 'Disabled'}</span>
+                    </div>
+                    <div class="context-metric">
+                        <span class="context-metric-label">Schedule</span>
+                        <span class="context-metric-value">${data.config.schedule || 'Manual'}</span>
+                    </div>
+                </div>
+
+                <div class="context-card">
+                    <h6>Quick Actions</h6>
+                    <button class="btn btn-success btn-sm w-100 mb-2" onclick="runWorkflow('${workflowId}')">
+                        <i class="fas fa-play me-1"></i>Run Now
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm w-100" onclick="viewWorkflowHistory('${workflowId}')">
+                        <i class="fas fa-history me-1"></i>View History
+                    </button>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading workflow details:', error);
+    }
+}
+
+function viewWorkflowHistory(workflowId) {
+    // Open history in AI feed
+    switchTab('ai-assistant');
+    sendQuickAICommand(`Show execution history for workflow: ${workflowId}`);
+}
+
+// ============================================================================
+// AI ASSISTANT (from Sales AI Dashboard)
+// ============================================================================
+
+async function sendAICommand() {
+    const input = document.getElementById('ai-command-input');
+    const command = input.value.trim();
+
+    if (!command) return;
+
+    // Add user message
+    addAIMessage(command, 'user-message');
+    input.value = '';
+
+    // Show loading
+    const btn = document.getElementById('ai-send-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    try {
+        const response = await fetch('/sales-ai/command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                command: command,
+                session_id: AppState.aiSessionId
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            if (data.session_id) AppState.aiSessionId = data.session_id;
+            addAIMessage(data.result || data.response, 'tool-result');
+        } else {
+            addAIMessage(`Error: ${data.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error sending AI command:', error);
+        addAIMessage(`Error: ${error.message}`, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+    }
+}
+
+function sendQuickAICommand(command) {
+    document.getElementById('ai-command-input').value = command;
+    sendAICommand();
+}
+
+function handleAIKeyPress(event) {
+    if (event.key === 'Enter') {
+        sendAICommand();
+    }
+}
+
+function addAIMessage(content, type) {
+    const feed = document.getElementById('ai-feed');
+    const messageEl = document.createElement('div');
+
+    let messageClass = type || 'tool-result';
+    let badgeClass = type === 'user-message' ? 'bg-info' : type === 'error' ? 'bg-danger' : 'bg-success';
+    let badgeText = type === 'user-message' ? 'You' : type === 'error' ? 'Error' : 'AI Assistant';
+
+    messageEl.className = `ai-message ${messageClass}`;
+    messageEl.innerHTML = `
+        <div class="message-header">
+            <span class="badge ${badgeClass}">${badgeText}</span>
+            <span class="message-timestamp">${formatTimestamp(new Date())}</span>
+        </div>
+        <div class="message-body">${formatMessageContent(content)}</div>
+    `;
+
+    feed.appendChild(messageEl);
+    feed.scrollTop = feed.scrollHeight;
+}
+
+function showManualCommand() {
+    switchTab('ai-assistant');
+    document.getElementById('ai-command-input').focus();
+}
+
+// ============================================================================
+// INBOX MANAGEMENT (from Messaging Page)
+// ============================================================================
+
+async function loadInbox() {
+    try {
+        // Fetch all messages (no limit) to ensure we get the newest ones
+        const response = await fetch('/api/messages');
+        const data = await response.json();
+
+        if (data.success && data.messages) {
+            // Sort messages by timestamp descending (newest first) to ensure correct order
+            const sortedMessages = data.messages.sort((a, b) => {
+                const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
+                const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
+                return timeB - timeA;  // Descending order
+            });
+
+            AppState.conversations = sortedMessages;
+            renderInbox(sortedMessages);
+            updateInboxBadge(sortedMessages);
+        }
+    } catch (error) {
+        console.error('Error loading inbox:', error);
+    }
+}
+
+function renderInbox(messages) {
+    const container = document.getElementById('inbox-conversations');
+
+    if (!messages || messages.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No conversations yet</h5>
+                <p class="text-muted">New messages will appear here</p>
+            </div>
+        `;
+        return;
+    }
+
+    const html = messages.slice(0, 30).map(msg => {
+        const memberName = msg.member_name || msg.from_user || 'Unknown';
+        const initials = memberName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+        
+        // FIX: API returns 'content', not 'message_content'
+        let rawContent = msg.content || msg.message_content || '';
+        
+        // Strip sender name prefix from message content (ClubOS prefixes name to messages)
+        let cleanContent = rawContent;
+        if (rawContent.toLowerCase().startsWith(memberName.toLowerCase())) {
+            cleanContent = rawContent.substring(memberName.length).trim();
+        }
+        // Also try just first name
+        const firstName = memberName.split(' ')[0];
+        if (cleanContent.toLowerCase().startsWith(firstName.toLowerCase())) {
+            cleanContent = cleanContent.substring(firstName.length).trim();
+        }
+        // Remove leading punctuation/whitespace
+        cleanContent = cleanContent.replace(/^[\s:,-]+/, '').trim();
+        
+        const preview = cleanContent.substring(0, 80) || 'No content';
+        const timeAgo = formatTimeAgo(msg.created_at || msg.timestamp);
+        const isUnread = msg.status !== 'read';
+
+        let badges = '';
+        if (isUnread) badges += '<span class="conversation-badge badge bg-primary">New</span>';
+        if (msg.ai_processed) badges += '<span class="conversation-badge badge bg-success">AI</span>';
+        if (msg.requires_human_review) badges += '<span class="conversation-badge badge bg-warning">Review</span>';
+
+        // Use member_id if available and valid, otherwise use the member name for lookup
+        // Check for null, undefined, empty string, and the literal string "null"
+        const hasValidMemberId = msg.member_id && msg.member_id !== 'null' && msg.member_id !== 'undefined';
+        const lookupId = hasValidMemberId ? msg.member_id : memberName;
+
+        return `
+            <div class="conversation-item ${isUnread ? 'unread' : ''}"
+                 onclick="selectConversation('${escapeHtml(lookupId)}', '${escapeHtml(memberName)}')">
+                <div class="conversation-avatar">${initials}</div>
+                <div class="conversation-details">
+                    <div class="conversation-details-header">
+                        <div class="conversation-name">${escapeHtml(memberName)}</div>
+                        <div class="conversation-time">${timeAgo}</div>
+                    </div>
+                    <div class="conversation-preview">${escapeHtml(preview)}</div>
+                    <div class="conversation-badges">${badges}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    container.innerHTML = html;
+}
+
+function updateInboxBadge(messages) {
+    const unreadCount = messages.filter(m => m.status !== 'read').length;
+    const badge = document.getElementById('inbox-unread-badge');
+
+    if (unreadCount > 0) {
+        badge.textContent = unreadCount;
+        badge.style.display = 'inline-block';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+async function refreshInbox(autoSync = false) {
+    const syncBtn = document.querySelector('.btn-primary i.fa-sync-alt');
+
+    try {
+        // Show loading state
+        if (syncBtn) {
+            syncBtn.classList.add('fa-spin');
+        }
+
+        if (!autoSync) {
+            console.log('🔄 Manually syncing messages from ClubOS...');
+        }
+
+        const response = await fetch('/api/messages/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ owner_id: window.currentOwnerId || '187032782' })
+        });
+
+        const data = await response.json();
+
+        // Reload inbox to show new messages
+        await loadInbox();
+
+        if (!autoSync && data.success) {
+            console.log(`✅ Synced ${data.stored_count || 0} messages`);
+        }
+    } catch (error) {
+        console.error('❌ Error refreshing inbox:', error);
+    } finally {
+        // Remove loading state
+        if (syncBtn) {
+            syncBtn.classList.remove('fa-spin');
+        }
+    }
+}
+
+function selectConversation(memberId, memberName) {
+    // Navigate directly to member profile page with full message history
+    if (memberId) {
+        window.location.href = `/member/${encodeURIComponent(memberId)}`;
+    } else if (memberName) {
+        // Fallback: use name if no member ID
+        window.location.href = `/member/${encodeURIComponent(memberName)}`;
+    }
+}
+
+function loadConversationDetails(memberId, memberName) {
+    const contextPanel = document.getElementById('context-panel');
+
+    contextPanel.innerHTML = `
+        <div class="context-card">
+            <h6>Member Profile</h6>
+            <div class="text-center mb-3">
+                <div class="conversation-avatar" style="width: 60px; height: 60px; font-size: 24px; margin: 0 auto;">
+                    ${memberName.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                </div>
+                <h5 class="mt-2 mb-0">${memberName}</h5>
+            </div>
+            <div class="context-metric">
+                <span class="context-metric-label">Member ID</span>
+                <span class="context-metric-value">${memberId || 'N/A'}</span>
+            </div>
+        </div>
+
+        <div class="context-card">
+            <h6>Quick Actions</h6>
+            <button class="btn btn-primary btn-sm w-100 mb-2" style="background: var(--af-purple-primary); border-color: var(--af-purple-primary);">
+                <i class="fas fa-paper-plane me-1"></i>Send Message
+            </button>
+            <button class="btn btn-outline-secondary btn-sm w-100" onclick="viewFullProfile('${memberId}')">
+                <i class="fas fa-user me-1"></i>View Full Profile
+            </button>
+        </div>
+    `;
+}
+
+function searchInbox() {
+    const searchTerm = document.getElementById('inbox-search-input').value.toLowerCase();
+    const filtered = AppState.conversations.filter(msg => {
+        const name = (msg.member_name || '').toLowerCase();
+        const content = (msg.message_content || '').toLowerCase();
+        return name.includes(searchTerm) || content.includes(searchTerm);
+    });
+    renderInbox(filtered);
+}
+
+function viewFullProfile(memberId) {
+    window.location.href = `/member/${encodeURIComponent(memberId)}`;
+}
+
+// ============================================================================
+// CAMPAIGN MANAGEMENT (from Messaging Page)
+// ============================================================================
+
+function selectCategory(categoryKey) {
+    AppState.selectedCategory = categoryKey;
+
+    // Update button states
+    document.querySelectorAll('.category-button').forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`[data-category="${categoryKey}"]`).classList.add('active');
+
+    // Switch to campaigns tab and select category
+    switchTab('campaigns');
+    selectCampaignTab(categoryKey);
+}
+
+function selectCampaignTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.campaign-status-tab').forEach(tab => tab.classList.remove('active'));
+    event?.target?.classList.add('active');
+
+    AppState.activeCampaignTab = tabName;
+
+    // Load campaign data for this category
+    loadCampaignPane(tabName);
+}
+
+function loadCampaignPane(categoryKey) {
+    const container = document.getElementById('campaigns-panes');
+
+    // Show loading
+    container.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">Loading campaign data...</p>
+        </div>
+    `;
+
+    // Load campaign for this category
+    // In a real implementation, this would call an API
+    setTimeout(() => {
+        container.innerHTML = `
+            <div class="campaign-pane active">
+                <div class="campaign-card">
+                    <div class="campaign-card-header ${categoryKey}">
+                        <h5>${getCategoryTitle(categoryKey)}</h5>
+                        <small>${getCategoryDescription(categoryKey)}</small>
+                    </div>
+                    <div class="campaign-progress">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="fw-medium">Campaign Progress:</span>
+                            <span class="badge bg-secondary">Not Started</span>
+                        </div>
+                        <div class="campaign-progress-bar-container">
+                            <div class="campaign-progress-bar" style="width: 0%"></div>
+                        </div>
+                        <small class="text-muted">Ready to start campaign</small>
+                    </div>
+                    <div class="d-grid gap-2 mt-3">
+                        <button class="btn btn-primary" onclick="openCampaignModal('${categoryKey}')" style="background: var(--af-purple-primary); border-color: var(--af-purple-primary);">
+                            <i class="fas fa-rocket me-2"></i>Manage Campaign
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }, 300);
+}
+
+async function loadCampaignCounts() {
+    try {
+        const response = await fetch('/api/campaigns/counts');
+        const data = await response.json();
+
+        if (data.success && data.counts) {
+            // Update badges with real counts
+            Object.keys(data.counts).forEach(key => {
+                const badge = document.getElementById(`count-${key.replace(/_/g, '-')}`);
+                if (badge) badge.textContent = data.counts[key] || 0;
+            });
+        }
+    } catch (error) {
+        console.error('Error loading campaign counts:', error);
+    }
+}
+
+function loadCampaignData() {
+    loadCampaignPane(AppState.activeCampaignTab);
+}
+
+function openCampaignModal(categoryKey) {
+    console.log('Opening campaign modal for:', categoryKey);
+
+    // Set modal title based on category
+    const categoryTitles = {
+        'good_standing': 'Good Standing Members',
+        'pay_per_visit': 'Pay Per Visit Members',
+        'past_due_6_30': 'Past Due 6-30 Days',
+        'past_due_30_plus': 'Past Due 30+ Days',
+        'past_due_training': 'PT Past Due Members',
+        'expiring_soon': 'Expiring Soon Members',
+        'prospects': 'Prospects',
+        'other_statuses': 'Other Status Members'
+    };
+
+    const categoryTitle = categoryTitles[categoryKey] || categoryKey;
+    document.getElementById('modalCategoryTitle').textContent = `${categoryTitle} Campaign Manager`;
+    document.getElementById('modalCategoryValue').value = categoryKey;
+
+    // Load campaign status and member data
+    loadCampaignStatus(categoryKey);
+    loadCategoryMembers(categoryKey);
+
+    // Show the modal using Bootstrap 5 API
+    const modal = new bootstrap.Modal(document.getElementById('categoryCampaignModal'));
+    modal.show();
+}
+
+function loadCampaignStatus(categoryKey) {
+    console.log('Loading campaign status for:', categoryKey);
+    fetch(`/api/campaigns/status/${categoryKey}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.exists) {
+                const campaign = data.campaign;
+                document.getElementById('campaignStatusSection').innerHTML = `
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>Campaign Active:</strong> ${campaign.progress_percentage}% complete
+                    </div>
+                `;
+            }
+        })
+        .catch(error => console.error('Error loading campaign status:', error));
+}
+
+// Global variable to store all members for the current campaign
+let campaignMembers = [];
+
+function loadCategoryMembers(categoryKey) {
+    console.log('Loading members for:', categoryKey);
+
+    const endpoint = categoryKey === 'prospects' ? '/api/prospects/all' : `/api/members/all?category=${categoryKey}`;
+
+    fetch(endpoint)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                campaignMembers = data.members || data.prospects || [];
+                document.getElementById('totalMemberCount').textContent = campaignMembers.length;
+
+                // Display all members with checkboxes
+                const memberList = campaignMembers.map((member, index) => {
+                    const memberId = member.prospect_id || member.id || `member_${index}`;
+                    const name = member.full_name || `${member.first_name || ''} ${member.last_name || ''}`.trim();
+                    const email = member.email || 'No email';
+                    const phone = member.mobile_phone || member.phone || 'No phone';
+                    return `
+                        <div class="member-item p-2 border-bottom d-flex align-items-start">
+                            <input type="checkbox" class="form-check-input me-2 mt-1 member-checkbox"
+                                   data-member-id="${memberId}"
+                                   data-member-index="${index}"
+                                   onchange="updateSelectedCount()" checked>
+                            <div class="flex-grow-1">
+                                <div class="fw-medium">${name}</div>
+                                <small class="text-muted d-block">${email}</small>
+                                <small class="text-muted">${phone}</small>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                document.getElementById('memberPreviewList').innerHTML = memberList || '<p class="text-muted">No members found</p>';
+                updateSelectedCount();
+            }
+        })
+        .catch(error => {
+            console.error('Error loading members:', error);
+            document.getElementById('memberPreviewList').innerHTML = '<p class="text-danger">Error loading members</p>';
+        });
+}
+
+function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.member-checkbox:checked');
+    document.getElementById('selectedMemberCount').textContent = checkboxes.length;
+}
+
+function selectAllMembers() {
+    document.querySelectorAll('.member-checkbox').forEach(cb => cb.checked = true);
+    updateSelectedCount();
+}
+
+function deselectAllMembers() {
+    document.querySelectorAll('.member-checkbox').forEach(cb => cb.checked = false);
+    updateSelectedCount();
+}
+
+function showCampaignEditor(mode) {
+    document.getElementById('editorMode').value = mode;
+    document.getElementById('campaignEditor').style.display = 'block';
+}
+
+function loadCampaignTemplate() {
+    const template = document.getElementById('campaignTemplate').value;
+    const templates = {
+        'welcome': 'Welcome to our gym, {first_name}! We\'re excited to have you as a member.',
+        'payment_reminder': 'Hi {first_name}, this is a friendly reminder about your upcoming payment.',
+        'check_in': 'Hey {first_name}! Haven\'t seen you in a while. Come visit us soon!',
+        'promotion': 'Special offer for {first_name}! Check out our latest promotion.',
+        'followup': 'Hi {first_name}, following up on our recent conversation.'
+    };
+
+    if (templates[template]) {
+        document.getElementById('campaignMessage').value = templates[template];
+    }
+}
+
+function launchCampaign() {
+    const categoryKey = document.getElementById('modalCategoryValue').value;
+    const campaignName = document.getElementById('campaignName').value;
+    const campaignMessage = document.getElementById('campaignMessage').value;
+    const messageType = document.getElementById('messageType').value;
+
+    if (!campaignName || !campaignMessage) {
+        alert('Please fill in all required fields');
+        return;
+    }
+
+    // Get selected member IDs from checkboxes
+    const selectedCheckboxes = document.querySelectorAll('.member-checkbox:checked');
+
+    if (selectedCheckboxes.length === 0) {
+        alert('Please select at least one member to send the campaign to');
+        return;
+    }
+
+    // Get the actual member IDs from the selected checkboxes
+    const selectedMemberIds = Array.from(selectedCheckboxes).map(cb => {
+        const index = parseInt(cb.dataset.memberIndex);
+        const member = campaignMembers[index];
+        return member.prospect_id || member.id;
+    }).filter(id => id); // Remove any undefined/null values
+
+    console.log(`Launching campaign to ${selectedMemberIds.length} selected members`);
+
+    const payload = {
+        selected_member_ids: selectedMemberIds,  // Send specific member IDs instead of category
+        campaign_name: campaignName,
+        message: campaignMessage,
+        channel: messageType,
+        campaign_mode: 'fresh'
+    };
+
+    fetch('/api/campaigns/send', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`Campaign launched successfully to ${selectedMemberIds.length} members!`);
+            bootstrap.Modal.getInstance(document.getElementById('categoryCampaignModal')).hide();
+            refreshAll();
+        } else {
+            alert('Error launching campaign: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Error launching campaign:', error);
+        alert('Error launching campaign');
+    });
+}
+
+function previewCampaign() {
+    const message = document.getElementById('campaignMessage').value;
+    alert('Campaign Preview:\n\n' + message);
+}
+
+function continueCampaign() {
+    alert('Continue campaign functionality - resume from last processed member');
+}
+
+function pauseCampaign() {
+    alert('Pause campaign functionality');
+}
+
+function resumeCampaign() {
+    alert('Resume campaign functionality');
+}
+
+function stopCampaign() {
+    if (confirm('Are you sure you want to stop this campaign?')) {
+        alert('Stop campaign functionality');
+    }
+}
+
+function openNewCampaignModal() {
+    window.location.href = '/messaging';
+}
+
+function switchCampaignView(view) {
+    if (view === 'categories') {
+        document.getElementById('campaign-status-tabs').style.display = 'flex';
+    } else if (view === 'templates') {
+        window.location.href = '/messaging#campaign-templates-panel';
+    } else if (view === 'history') {
+        sendQuickAICommand('Show campaign history');
+    }
+}
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+function formatTimeAgo(timestamp) {
+    if (!timestamp) return '';
+
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return date.toLocaleDateString();
+}
+
+function formatTimestamp(date) {
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatNextRun(nextRun) {
+    if (!nextRun) return 'Not scheduled';
+    return formatTimeAgo(nextRun);
+}
+
+function formatMessageContent(content) {
+    if (typeof content === 'string') {
+        return escapeHtml(content).replace(/\n/g, '<br>');
+    }
+    if (content && content.result) {
+        return escapeHtml(content.result).replace(/\n/g, '<br>');
+    }
+    return `<pre style="font-size: 12px; background: var(--af-gray-100); padding: 12px; border-radius: 4px;">${JSON.stringify(content, null, 2)}</pre>`;
+}
+
+function escapeHtml(text) {
+    if (typeof text !== 'string') return text;
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function getCategoryTitle(categoryKey) {
+    const titles = {
+        'good_standing': 'Good Standing',
+        'pay_per_visit': 'Pay Per Visit',
+        'ppv': 'Pay Per Visit',
+        'past_due_6_30': 'Past Due 6-30 Days',
+        'past_due_30': 'Past Due 30+ Days',
+        'past_due_30_plus': 'Past Due 30+ Days',
+        'pt_past_due': 'PT Past Due',
+        'past_due_training': 'PT Past Due',
+        'expiring': 'Expiring Soon',
+        'expiring_soon': 'Expiring Soon',
+        'prospects': 'Prospects',
+        'other': 'Other Status',
+        'other_statuses': 'Other Status',
+        'templates': 'Campaign Templates'
+    };
+    return titles[categoryKey] || categoryKey;
+}
+
+function getCategoryDescription(categoryKey) {
+    const descriptions = {
+        'good_standing': 'Active members in good standing',
+        'pay_per_visit': 'Members on pay-per-visit plans',
+        'ppv': 'Members on pay-per-visit plans',
+        'past_due_6_30': 'Members with payments 6-30 days overdue',
+        'past_due_30': 'Members with payments over 30 days overdue',
+        'past_due_30_plus': 'Members with payments over 30 days overdue',
+        'pt_past_due': 'Personal training accounts past due',
+        'past_due_training': 'Personal training accounts past due',
+        'expiring': 'Memberships expiring within 30 days',
+        'expiring_soon': 'Memberships expiring within 30 days',
+        'prospects': 'Potential new members and leads',
+        'other': 'Members with other status types',
+        'other_statuses': 'Members with other status types'
+    };
+    return descriptions[categoryKey] || '';
+}
+
+function refreshAll() {
+    loadWorkflows();
+    loadInbox();
+    loadCampaignCounts();
+    addAIMessage('All data refreshed', 'tool-result');
+}
+</script>
+{% endblock %}

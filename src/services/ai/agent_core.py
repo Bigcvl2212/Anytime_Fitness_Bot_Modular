@@ -26,28 +26,35 @@ class GymAgentCore:
     
     def __init__(self, api_key: str = None):
         """Initialize the agent
-        
+
         Args:
             api_key: Anthropic API key (or set CLAUDE_API_KEY / ANTHROPIC_API_KEY env var)
         """
         # Try CLAUDE_API_KEY first (existing app uses this), then ANTHROPIC_API_KEY
         self.api_key = api_key or os.getenv('CLAUDE_API_KEY') or os.getenv('ANTHROPIC_API_KEY')
-        
-        if not self.api_key:
-            logger.warning("⚠️ CLAUDE_API_KEY or ANTHROPIC_API_KEY not found - agent will not be able to make decisions")
-        
+
+        # Check if we're using Groq instead (main AI system)
+        groq_key = os.getenv('GROQ_API_KEY')
+
+        if not self.api_key and not groq_key:
+            logger.warning("⚠️ No AI API key found - Claude-based agent tools will be unavailable")
+            logger.info("ℹ️ Using Groq for main AI services (this is OK)")
+        elif groq_key and not self.api_key:
+            logger.info("ℹ️ Using Groq for AI services - Claude agent core in fallback mode")
+
         # Initialize Anthropic client
         if Anthropic:
             self.client = Anthropic(api_key=self.api_key) if self.api_key else None
         else:
             self.client = None
-            logger.warning("⚠️ Anthropic package not installed - run: pip install anthropic")
-        
+            if self.api_key:
+                logger.warning("⚠️ Anthropic package not installed - run: pip install anthropic")
+
         # Initialize tools registry
         self.registry = ToolsRegistry()
         self._register_all_tools()
-        
-        logger.info(f"✅ Gym AI Agent initialized with {len(self.registry.list_tools())} tools")
+
+        logger.info(f"✅ Gym AI Agent Core initialized with {len(self.registry.list_tools())} tools")
     
     def _register_all_tools(self):
         """Register all available tools"""

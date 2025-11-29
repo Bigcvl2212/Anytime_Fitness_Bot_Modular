@@ -595,27 +595,49 @@ class ClubOSIntegration:
             
             # Create thread-local storage for ClubOS sessions
             import threading
+            import requests
             from concurrent.futures import ThreadPoolExecutor, as_completed
             
             # Thread-local storage for ClubOS sessions
             thread_local = threading.local()
             
+            # Get parent session cookies for copying to thread-local sessions
+            parent_cookies = {}
+            parent_headers = {}
+            if hasattr(self, 'training_api') and hasattr(self.training_api, 'auth_session'):
+                if hasattr(self.training_api.auth_session, 'session'):
+                    parent_cookies = dict(self.training_api.auth_session.session.cookies)
+                    parent_headers = dict(self.training_api.auth_session.session.headers)
+            
             def get_thread_safe_training_api():
-                """Get a thread-local training API instance using SHARED authentication session"""
+                """Get a thread-local training API instance with its OWN requests.Session (thread-safe)"""
                 if not hasattr(thread_local, 'training_api'):
                     # Create fresh training API for this thread
                     from clubos_training_api_fixed import ClubOSTrainingPackageAPI
                     thread_local.training_api = ClubOSTrainingPackageAPI()
-
-                    # CRITICAL FIX: Reuse the parent's authenticated session instead of authenticating again
-                    # This prevents 6 concurrent authentication attempts (one per worker thread)
+                    
+                    # CRITICAL FIX: Create a NEW session for this thread and COPY cookies/headers
+                    # This ensures each thread has its own requests.Session (thread-safe)
+                    thread_local.training_api.session = requests.Session()
+                    thread_local.training_api.session.cookies.update(parent_cookies)
+                    thread_local.training_api.session.headers.update(parent_headers)
+                    
+                    # Copy auth state
                     if hasattr(self, 'training_api') and hasattr(self.training_api, 'auth_session'):
-                        thread_local.training_api.auth_session = self.training_api.auth_session
+                        # Create a lightweight auth wrapper for the thread
+                        class ThreadAuthSession:
+                            def __init__(self, session, cookies):
+                                self.session = session
+                                self.cookies = cookies
+                        
+                        thread_local.training_api.auth_session = ThreadAuthSession(
+                            thread_local.training_api.session,
+                            parent_cookies
+                        )
                         thread_local.training_api.authenticated = True
-                        thread_local.training_api.session = self.training_api.auth_session.session
                         thread_local.training_api.username = self.username
                         thread_local.training_api.password = self.password
-                        logger.debug(f"🔐 Thread {threading.get_ident()} using shared authenticated training API (no duplicate auth)")
+                        logger.debug(f"🔐 Thread {threading.get_ident()} created its own session with copied auth cookies")
                     else:
                         # Fallback: authenticate if parent session not available (shouldn't happen)
                         logger.warning(f"⚠️ Thread {threading.get_ident()} parent session not available, authenticating independently")
@@ -793,7 +815,22 @@ class ClubOSIntegration:
                                         })
                                         
                                         # Debug: Log all invoice statuses to understand what we're working with
-                                        logger.info(f"🔍 Invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
+                                        logger.debug(f"🔍 Invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
+                                        
+                                        # CLUBOS INVOICE STATUS CODES (from API meta):
+                                        # 1 = paid
+                                        # 2 = pending payment
+                                        # 3 = payment rejected (PAST DUE)
+                                        # 4 = not set (PAST DUE if date is in past, otherwise scheduled future)
+                                        # 5 = delinquent (PAST DUE)
+                                        # 6 = processing
+                                        # 7 = waiting settlement
+                                        # 8 = charge back (PAST DUE)
+                                        # 9 = refunded
+                                        # 10 = body workz conversion
+                                        # 11 = comped
+                                        # 12 = voided
+                                        # 13 = in queue
                                         
                                         # CAPTURE PAID INVOICES FOR REVENUE ANALYSIS
                                         if invoice_status == 1 and invoice_amount > 0:  # Status 1 = Paid
@@ -805,11 +842,10 @@ class ClubOSIntegration:
                                                 'paid_date': paid_date,
                                                 'payment_month': self._extract_payment_month(paid_date or invoice_date)
                                             })
-                                            logger.info(f"💰 PAID invoice {invoice_id}: ${invoice_amount} (paid: {paid_date or invoice_date})")
+                                            logger.debug(f"💰 PAID invoice {invoice_id}: ${invoice_amount} (paid: {paid_date or invoice_date})")
                                         
-                                        # CRITICAL FIX: Capture ALL past due invoice statuses
-                                        # Past due invoices - Status 4=Overdue, 5=Past Due, 6+=Unknown overdue
-                                        elif invoice_status >= 4 and invoice_amount > 0:  # All overdue statuses
+                                        # PAST DUE INVOICES - ONLY status 5 (delinquent) and 8 (charge back)
+                                        elif invoice_status == 5 and invoice_amount > 0:  # Status 5 = Delinquent (ACTUAL PAST DUE)
                                             agreement_past_due += invoice_amount
                                             past_due_invoices.append({
                                                 'id': invoice_id,
@@ -818,13 +854,32 @@ class ClubOSIntegration:
                                                 'invoice_date': invoice_date,
                                                 'due_date': invoice.get('dueDate')
                                             })
-                                            if invoice_status in [4, 5]:
-                                                logger.info(f"� Past due invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
-                                            else:
-                                                logger.warning(f"� Past due invoice {invoice_id}: ${invoice_amount} (UNKNOWN status: {invoice_status}) - treating as past due")
+                                            logger.info(f"🚨 PAST DUE invoice {invoice_id}: ${invoice_amount} (status: 5 = delinquent)")
                                         
-                                        # Current unpaid invoices
-                                        elif invoice_status in [2, 3] and invoice_amount > 0:  # Unpaid/Partial
+                                        elif invoice_status == 8 and invoice_amount > 0:  # Status 8 = Charge back (PAST DUE)
+                                            agreement_past_due += invoice_amount
+                                            past_due_invoices.append({
+                                                'id': invoice_id,
+                                                'amount': invoice_amount,
+                                                'status': invoice_status,
+                                                'invoice_date': invoice_date,
+                                                'due_date': invoice.get('dueDate')
+                                            })
+                                            logger.info(f"🚨 CHARGEBACK invoice {invoice_id}: ${invoice_amount} (status: 8 = charge back)")
+                                        
+                                        elif invoice_status == 3 and invoice_amount > 0:  # Status 3 = Payment Rejected (PAST DUE)
+                                            agreement_past_due += invoice_amount
+                                            past_due_invoices.append({
+                                                'id': invoice_id,
+                                                'amount': invoice_amount,
+                                                'status': invoice_status,
+                                                'invoice_date': invoice_date,
+                                                'due_date': invoice.get('dueDate')
+                                            })
+                                            logger.info(f"🚨 REJECTED PAYMENT invoice {invoice_id}: ${invoice_amount} (status: 3 = payment rejected)")
+                                        
+                                        # PENDING/SCHEDULED invoices (NOT past due)
+                                        elif invoice_status == 2 and invoice_amount > 0:  # Status 2 = Pending payment
                                             unpaid_invoices.append({
                                                 'id': invoice_id,
                                                 'amount': invoice_amount,
@@ -832,7 +887,41 @@ class ClubOSIntegration:
                                                 'invoice_date': invoice_date,
                                                 'due_date': invoice.get('dueDate')
                                             })
-                                            logger.debug(f"� Unpaid invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
+                                            logger.debug(f"⏳ PENDING invoice {invoice_id}: ${invoice_amount} (status: 2 = pending payment)")
+                                        
+                                        elif invoice_status == 4 and invoice_amount > 0:  # Status 4 = Not set
+                                            # Status 4 with PAST dates means payment was never collected = PAST DUE!
+                                            # Status 4 with FUTURE dates means scheduled future payment = NOT past due
+                                            is_past_due = False
+                                            try:
+                                                billing_date = invoice.get('billingDate') or invoice.get('invoiceDate') or invoice_date
+                                                if billing_date:
+                                                    invoice_dt = datetime.strptime(billing_date, '%Y-%m-%d')
+                                                    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+                                                    is_past_due = invoice_dt < today
+                                            except (ValueError, TypeError):
+                                                # If we can't parse the date, check if it looks like a past date string
+                                                if billing_date and billing_date < datetime.now().strftime('%Y-%m-%d'):
+                                                    is_past_due = True
+                                            
+                                            if is_past_due:
+                                                agreement_past_due += invoice_amount
+                                                past_due_invoices.append({
+                                                    'id': invoice_id,
+                                                    'amount': invoice_amount,
+                                                    'status': invoice_status,
+                                                    'invoice_date': invoice_date,
+                                                    'due_date': invoice.get('dueDate')
+                                                })
+                                                logger.info(f"🚨 UNPAID invoice {invoice_id}: ${invoice_amount} (status: 4, date: {billing_date} - PAST DUE)")
+                                            else:
+                                                logger.debug(f"📅 SCHEDULED invoice {invoice_id}: ${invoice_amount} (status: 4, date: {billing_date} - future)")
+                                        
+                                        elif invoice_status in [6, 7, 13] and invoice_amount > 0:  # Processing/Settlement/Queue
+                                            logger.debug(f"🔄 PROCESSING invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
+                                        
+                                        elif invoice_status in [9, 11, 12] and invoice_amount > 0:  # Refunded/Comped/Voided
+                                            logger.debug(f"↩️ RESOLVED invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
                                         
                                         else:
                                             logger.debug(f"❓ Other invoice {invoice_id}: ${invoice_amount} (status: {invoice_status})")
@@ -964,7 +1053,7 @@ class ClubOSIntegration:
                     return None
             
             # Process assignees in parallel with thread-safe sessions
-            with ThreadPoolExecutor(max_workers=6) as executor:  # Reduced workers for better stability
+            with ThreadPoolExecutor(max_workers=1) as executor:  # Single-threaded for consistency - parallel has race conditions
                 # Submit all assignee processing tasks
                 future_to_assignee = {executor.submit(process_assignee_thread_safe, assignee): assignee for assignee in assignees}
                 

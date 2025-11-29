@@ -20,35 +20,41 @@ class RealTimeMessageSync:
     Similar to how ClubOS web interface works
     """
     
-    def __init__(self, clubos_client, db_manager, socketio=None, poll_interval=10):
+    def __init__(self, clubos_client, db_manager, socketio=None, poll_interval=10, unified_ai_agent=None):
         """
         Initialize real-time message sync service
-        
+
         Args:
             clubos_client: ClubOS messaging client instance
-            db_manager: Database manager instance  
+            db_manager: Database manager instance
             socketio: Flask-SocketIO instance for broadcasting updates
             poll_interval: Polling interval in seconds (default: 10)
+            unified_ai_agent: UnifiedGymAgent instance for AI processing (optional)
         """
         self.clubos_client = clubos_client
         self.db_manager = db_manager
         self.socketio = socketio
         self.poll_interval = poll_interval
+        self.unified_ai_agent = unified_ai_agent
         
         self.running = False
         self.stop_event = Event()
         self.thread = None
-        
+
+        # AI Processing Control - DISABLED BY DEFAULT
+        self.ai_enabled = False
+
         # Track last seen message IDs per owner to detect new messages
         self.last_message_ids = {}
-        
+
         # Track owner IDs to poll - will be populated dynamically
         self.owner_ids = set()
-        
+
         # Auto-detect and add logged-in manager's user ID
         self._auto_configure_polling()
-        
+
         logger.info(f"🔄 Real-Time Message Sync initialized (poll interval: {poll_interval}s)")
+        logger.info(f"🤖 AI Auto-Processing: {'ENABLED' if self.ai_enabled else 'DISABLED (use enable_ai() to activate)'}")
     
     def _auto_configure_polling(self) -> None:
         """
@@ -132,13 +138,13 @@ class RealTimeMessageSync:
                         if new_messages:
                             # Store in database
                             self._store_messages(new_messages)
-                            
+
                             # Broadcast to web UI
                             self._broadcast_to_ui(new_messages)
-                            
-                            # Trigger AI processing (Phase 2 integration point)
-                            # self._trigger_ai_processing(new_messages)
-                            
+
+                            # PHASE 2: Trigger AI processing with Unified Agent
+                            self._trigger_ai_processing(new_messages)
+
                             logger.info(f"📨 Processed {len(new_messages)} new messages for owner {owner_id}")
                     
                     except Exception as e:
@@ -162,91 +168,72 @@ class RealTimeMessageSync:
         try:
             # Get all messages from ClubOS
             all_messages = self.clubos_client.get_messages(owner_id=owner_id)
-            
+
             if not all_messages:
                 return []
-            
-            # Get last seen message ID for this owner
-            last_seen_id = self.last_message_ids.get(owner_id)
-            
-            # Filter to only new messages
+
+            # IMPROVED LOGIC: Check database for existing message IDs to avoid duplicates
+            try:
+                existing_rows = self.db_manager.execute_query("""
+                    SELECT id FROM messages WHERE owner_id = ?
+                """, (owner_id,), fetch_all=True)
+                
+                existing_ids = set()
+                if existing_rows:
+                    for row in existing_rows:
+                        if isinstance(row, dict):
+                            existing_ids.add(row.get('id'))
+                        else:
+                            existing_ids.add(row[0])
+            except Exception as e:
+                logger.warning(f"⚠️ Could not check existing messages: {e}")
+                existing_ids = set()
+
+            # Filter to only messages not yet in database
             new_messages = []
-            latest_message_id = None
-            
+
             for msg in all_messages:
                 msg_id = msg.get('id') or msg.get('message_id')
-                
-                # Track latest message ID
-                if not latest_message_id:
-                    latest_message_id = msg_id
-                
-                # If we haven't seen this message before, it's new
-                if last_seen_id is None or msg_id != last_seen_id:
+
+                # If this message ID is not in our database, it's new
+                if msg_id and msg_id not in existing_ids:
                     new_messages.append(msg)
-                else:
-                    # We've reached messages we've already seen
-                    break
-            
-            # Update last seen message ID
-            if latest_message_id:
-                self.last_message_ids[owner_id] = latest_message_id
-            
+
+            if new_messages:
+                logger.info(f"📨 Found {len(new_messages)} new messages for owner {owner_id}")
+
             return new_messages
-            
+
         except Exception as e:
             logger.error(f"❌ Error fetching new messages for owner {owner_id}: {e}")
             return []
     
     def _store_messages(self, messages: List[Dict]) -> None:
-        """Store new messages in database"""
+        """Store new messages in database using the same schema as messaging.py"""
         try:
             for msg in messages:
-                # Convert message to database format
-                db_message = {
-                    'message_id': msg.get('id') or msg.get('message_id'),
-                    'content': msg.get('content', ''),
-                    'subject': msg.get('subject', ''),
-                    'from_user': msg.get('from_user', ''),
-                    'recipient_name': msg.get('to_user', ''),
-                    'timestamp': msg.get('timestamp', datetime.now().isoformat()),
-                    'status': msg.get('status', 'unread'),
-                    'message_type': msg.get('message_type', 'clubos_message'),
-                    'owner_id': msg.get('owner_id', ''),
-                    'member_id': msg.get('member_id', ''),
-                    'conversation_id': msg.get('conversation_id', ''),
-                    'channel': 'clubos',
-                    'delivery_status': 'received',
-                    'created_at': datetime.now().isoformat()
-                }
+                # Use the same ID from the message (already generated by clubos_messaging_client)
+                message_id = msg.get('id') or msg.get('message_id')
                 
-                # Store in database (upsert)
-                with self.db_manager.get_connection() as conn:
-                    cursor = conn.cursor()
-                    
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO messages (
-                            clubos_message_id, content, subject, from_user, recipient_name,
-                            timestamp, status, message_type, owner_id, member_id,
-                            conversation_id, channel, delivery_status, created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        db_message['message_id'],
-                        db_message['content'],
-                        db_message['subject'],
-                        db_message['from_user'],
-                        db_message['recipient_name'],
-                        db_message['timestamp'],
-                        db_message['status'],
-                        db_message['message_type'],
-                        db_message['owner_id'],
-                        db_message['member_id'],
-                        db_message['conversation_id'],
-                        db_message['channel'],
-                        db_message['delivery_status'],
-                        db_message['created_at']
-                    ))
-                    
-                    conn.commit()
+                # Store in database using INSERT OR REPLACE (same as store_messages_in_database)
+                self.db_manager.execute_query('''
+                    INSERT OR REPLACE INTO messages
+                    (id, message_type, content, timestamp, from_user, to_user, status, owner_id,
+                     delivery_status, channel, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    message_id,
+                    msg.get('message_type', 'clubos_message'),
+                    msg.get('content', ''),
+                    msg.get('timestamp', datetime.now().isoformat()),
+                    msg.get('from_user', ''),
+                    msg.get('to_user', ''),
+                    msg.get('status', 'received'),
+                    msg.get('owner_id', ''),
+                    'received',
+                    'clubos',
+                    datetime.now().isoformat()
+                ))
             
             logger.info(f"💾 Stored {len(messages)} messages in database")
             
@@ -283,16 +270,63 @@ class RealTimeMessageSync:
         except Exception as e:
             logger.error(f"❌ Error broadcasting to UI: {e}")
     
+    def enable_ai(self) -> None:
+        """Enable automatic AI processing of new messages"""
+        self.ai_enabled = True
+        logger.info("✅ AI Auto-Processing ENABLED")
+
+    def disable_ai(self) -> None:
+        """Disable automatic AI processing of new messages"""
+        self.ai_enabled = False
+        logger.info("⛔ AI Auto-Processing DISABLED")
+
     def _trigger_ai_processing(self, messages: List[Dict]) -> None:
         """
-        Automatically send new messages to AI agent
-        PHASE 2 INTEGRATION POINT - Currently placeholder
+        Automatically send new messages to Unified AI Agent
+        PHASE 2 INTEGRATION - Now connected to unified_gym_agent.py
         """
-        # This will be implemented in Phase 2
-        # For now, just log that we would process these
+        # Check if AI processing is enabled
+        if not self.ai_enabled:
+            logger.debug("⏸️ AI processing disabled - skipping")
+            return
+
+        if not hasattr(self, 'unified_ai_agent') or not self.unified_ai_agent:
+            logger.debug("⚠️ No unified AI agent configured - skipping AI processing")
+            return
+
         for msg in messages:
-            if self._should_ai_respond(msg):
-                logger.info(f"🤖 [PHASE 2] Would process message with AI: {msg.get('from_user')} -> {msg.get('content', '')[:50]}...")
+            try:
+                # Check if AI should process this message
+                if not self._should_ai_respond(msg):
+                    continue
+
+                logger.info(f"🤖 Triggering AI processing for message from {msg.get('from_user')}")
+
+                # Process message asynchronously with unified AI agent
+                import asyncio
+
+                # Create event loop for async AI processing
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+                result = loop.run_until_complete(
+                    self.unified_ai_agent.process_new_message(msg)
+                )
+
+                loop.close()
+
+                if result.get('success'):
+                    if result.get('responded'):
+                        logger.info(f"✅ AI responded to {msg.get('from_user')}: {result.get('intent')}")
+                    elif result.get('flagged_for_review'):
+                        logger.info(f"🚩 Message flagged for human review: {result.get('reason')}")
+                    if result.get('workflow_triggered'):
+                        logger.info(f"🎯 Triggered workflow: {result.get('workflow_name')}")
+                else:
+                    logger.error(f"❌ AI processing failed: {result.get('error')}")
+
+            except Exception as e:
+                logger.error(f"❌ Error in AI processing: {e}", exc_info=True)
     
     def _should_ai_respond(self, message: Dict) -> bool:
         """

@@ -3,6 +3,8 @@
 {% block title %}{{ member.full_name or ((member.first_name or '') + ' ' + (member.last_name or '')).strip() or 'Unknown Member' }} - Member Profile{% endblock %}
 
 {% block content %}
+{% set summary = membership_summary or {} %}
+{% set plan = payment_plan %}
 <div class="container-fluid">
     <!-- Header Section -->
     <div class="row mb-4">
@@ -149,78 +151,232 @@
             <div class="card mb-4">
                 <div class="card-header bg-warning text-dark">
                     <h5 class="mb-0">
-                        <i class="fas fa-credit-card me-2"></i>Payment Status & Billing
+                        <i class="fas fa-credit-card me-2"></i>Billing Overview
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label text-muted">Current Status</label>
-                                <p><span class="badge bg-{{ payment_status.class if payment_status else 'secondary' }}">{{ payment_status.text if payment_status else 'Unknown' }}</span></p>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <div class="border rounded p-3 h-100">
+                                <small class="text-muted">Payment Status</small>
+                                <div class="mt-1">
+                                    <span class="badge bg-{{ payment_status.class if payment_status else 'secondary' }}">
+                                        {{ payment_status.text if payment_status else 'Unknown' }}
+                                    </span>
+                                </div>
+                                <div class="mt-3">
+                                    <small class="text-muted">Next Payment</small>
+                                    <p class="fw-bold mb-1">{{ summary.next_payment_date or 'N/A' }}</p>
+                                    <p class="fs-5 mb-0">${{ "%.2f"|format(summary.next_payment_amount or 0) }}</p>
+                                </div>
                             </div>
-                            {% if payment_status and payment_status.next_payment_date %}
-                            <div class="mb-3">
-                                <label class="form-label text-muted">Next Payment Date</label>
-                                <p>{{ payment_status.next_payment_date }}</p>
-                            </div>
-                            {% endif %}
                         </div>
-                        <div class="col-md-6">
-                            {% if payment_status and payment_status.next_payment_amount %}
-                            <div class="mb-3">
-                                <label class="form-label text-muted">Next Payment Amount</label>
-                                <p class="fw-bold">${{ "%.2f"|format(payment_status.next_payment_amount) }}</p>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3 h-100">
+                                <small class="text-muted">Past Due Breakdown</small>
+                                <h3 class="text-danger my-2">${{ "%.2f"|format(summary.amount_past_due or 0) }}</h3>
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <small class="text-muted">Base</small>
+                                        <p class="fw-bold mb-0">${{ "%.2f"|format(summary.base_amount_past_due or 0) }}</p>
+                                    </div>
+                                    <div>
+                                        <small class="text-muted">Late Fees</small>
+                                        <p class="fw-bold mb-0">${{ "%.2f"|format(summary.late_fees or 0) }}</p>
+                                    </div>
+                                    <div>
+                                        <small class="text-muted">Missed</small>
+                                        <p class="fw-bold mb-0">{{ summary.missed_payments or 0 }}</p>
+                                    </div>
+                                </div>
                             </div>
-                            {% endif %}
-                            <div class="mb-3">
-                                <label class="form-label text-muted">Last Visit</label>
-                                <p>{{ member.last_visit[:10] if member.last_visit else 'N/A' }}</p>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="border rounded p-3 h-100">
+                                <small class="text-muted">Payment Plan</small>
+                                {% if plan %}
+                                <p class="fw-bold mb-1">{{ plan.plan_name or 'Manual Plan' }}</p>
+                                <p class="text-muted mb-1">Next Due: {{ plan.next_payment_due or '—' }}</p>
+                                <h4 class="mb-1">${{ "%.2f"|format(plan.balance_remaining or 0) }}</h4>
+                                <p class="text-muted mb-0">{{ plan.installments_paid or 0 }} of {{ plan.installments_total or 0 }} installments paid</p>
+                                {% else %}
+                                <div class="text-muted">No payment plan on file.</div>
+                                <button class="btn btn-sm btn-outline-primary mt-2" onclick="document.getElementById('paymentPlanFormCard').scrollIntoView({behavior:'smooth'});">
+                                    Create Plan
+                                </button>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Training Information (if applicable) -->
-            {% if training_info %}
+            <!-- Training Information -->
             <div class="card mb-4">
                 <div class="card-header bg-success text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-dumbbell me-2"></i>Personal Training
+                        <i class="fas fa-dumbbell me-2"></i>Training Agreements
                     </h5>
                 </div>
                 <div class="card-body">
+                    {% if training_packages %}
                     <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label text-muted">Primary Trainer</label>
-                                <p class="fw-bold">{{ training_info.trainer_name or 'N/A' }}</p>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label text-muted">Sessions Remaining</label>
-                                <p><span class="badge bg-info">{{ training_info.sessions_remaining or 0 }} sessions</span></p>
+                        {% for pkg in training_packages %}
+                        <div class="col-md-6 mb-3">
+                            <div class="border rounded p-3 h-100">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <div>
+                                        <h6 class="mb-1">{{ pkg.package_type or 'Training Package' }}</h6>
+                                        <small class="text-muted">Trainer: {{ pkg.trainer_name or 'Unassigned' }}</small>
+                                    </div>
+                                    <span class="badge bg-{{ 'success' if pkg.payment_status and 'current' in pkg.payment_status|lower else 'warning' }}">
+                                        {{ pkg.payment_status or 'Unknown' }}
+                                    </span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <div>
+                                        <small class="text-muted">Sessions Remaining</small>
+                                        <p class="fw-bold mb-0">{{ pkg.sessions_remaining or 0 }}</p>
+                                    </div>
+                                    <div>
+                                        <small class="text-muted">Past Due</small>
+                                        <p class="fw-bold text-danger mb-0">${{ "%.2f"|format(pkg.total_past_due or 0) }}</p>
+                                    </div>
+                                </div>
+                                {% if pkg.active_packages %}
+                                <hr class="my-2">
+                                <small class="text-muted d-block">Active Packages</small>
+                                <ul class="mb-0">
+                                    {% for active in pkg.active_packages %}
+                                    <li>{{ active.package_name or active.name }} - {{ active.sessions_remaining or 0 }} sessions left</li>
+                                    {% endfor %}
+                                </ul>
+                                {% endif %}
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label text-muted">Last Session</label>
-                                <p>{{ training_info.last_session or 'Never' }}</p>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label text-muted">Training Payment Status</label>
-                                <p><span class="badge bg-{{ 'success' if training_info.payment_status == 'Current' else 'warning' }}">{{ training_info.payment_status or 'Unknown' }}</span></p>
-                            </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-dumbbell fa-3x text-muted mb-3"></i>
+                        <h6 class="text-muted">No training agreements on file</h6>
+                        <p class="text-muted">Link ClubOS training clients to see package utilization and past-due status.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Agreements/Memberships Card -->
+            <div class="card mb-4" id="paymentPlanFormCard">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-handshake me-2"></i>Payment Plan Tracker
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="paymentPlanAlert" class="alert d-none" role="alert"></div>
+
+                    {% if plan %}
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <small class="text-muted">Plan Name</small>
+                            <p class="fw-bold mb-0">{{ plan.plan_name or 'Manual Plan' }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Balance Remaining</small>
+                            <p class="fw-bold mb-0">${{ "%.2f"|format(plan.balance_remaining or 0) }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Installments</small>
+                            <p class="fw-bold mb-0">{{ plan.installments_paid or 0 }} / {{ plan.installments_total or 0 }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Next Due</small>
+                            <p class="fw-bold mb-0">{{ plan.next_payment_due or 'Scheduled' }}</p>
                         </div>
                     </div>
-                    <div class="text-center">
-                        <a href="/training-client/{{ member.id }}" class="btn btn-success">
-                            <i class="fas fa-dumbbell me-1"></i>View Training Details
-                        </a>
+
+                    <div class="table-responsive mb-4">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Due Date</th>
+                                    <th>Amount</th>
+                                    <th>Status</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for installment in plan.installments %}
+                                <tr>
+                                    <td>{{ installment.installment_number }}</td>
+                                    <td>{{ installment.due_date or 'N/A' }}</td>
+                                    <td>${{ "%.2f"|format(installment.amount or 0) }}</td>
+                                    <td>
+                                        {% if installment.status == 'paid' %}
+                                        <span class="badge bg-success">Paid {{ installment.paid_date or '' }}</span>
+                                        {% else %}
+                                        <span class="badge bg-warning text-dark">Pending</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        {% if installment.status != 'paid' %}
+                                        <button class="btn btn-sm btn-outline-success" onclick="markInstallmentPaid({{ installment.id }})">
+                                            Mark Paid
+                                        </button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-3">
+                        <i class="fas fa-hand-holding-usd fa-2x text-muted mb-2"></i>
+                        <p class="text-muted mb-0">No payment plan on file. Use the form below to create one.</p>
+                    </div>
+                    {% endif %}
+
+                    <div class="border rounded p-3">
+                        <h6 class="mb-3">Create / Update Payment Plan</h6>
+                        <form id="paymentPlanForm" onsubmit="submitPaymentPlan(event)">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Plan Name</label>
+                                    <input type="text" class="form-control" id="planName" placeholder="Manual Plan" value="{{ plan.plan_name if plan else '' }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Total Amount ($)</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" id="planTotalAmount" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Installments</label>
+                                    <input type="number" min="1" class="form-control" id="planInstallments" value="4" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Frequency (days)</label>
+                                    <input type="number" min="1" class="form-control" id="planFrequency" value="14" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Start Date</label>
+                                    <input type="date" class="form-control" id="planStartDate" value="{{ summary.next_payment_date[:10] if summary.next_payment_date else '' }}" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Notes</label>
+                                    <input type="text" class="form-control" id="planNotes" placeholder="Include plan context">
+                                </div>
+                            </div>
+                            <div class="text-end mt-3">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save me-1"></i>Save Payment Plan
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
-            {% endif %}
 
             <!-- Agreements/Memberships Card -->
             <div class="card mb-4">
@@ -233,6 +389,25 @@
                     </h5>
                 </div>
                 <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <small class="text-muted">Agreement Type</small>
+                            <p class="fw-bold mb-0">{{ summary.agreement_type or 'Membership' }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Status</small>
+                            <p class="fw-bold mb-0">{{ summary.status_message or 'Unknown' }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Start Date</small>
+                            <p class="fw-bold mb-0">{{ summary.agreement_start_date or 'N/A' }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted">Recurring Rate</small>
+                            <p class="fw-bold mb-0">${{ "%.2f"|format(summary.agreement_recurring_cost or 0) }}</p>
+                        </div>
+                    </div>
+                    <hr>
                     {% if agreements and agreements|length > 0 %}
                     <div class="row">
                         {% for agreement in agreements %}
@@ -266,36 +441,38 @@
                 </div>
             </div>
 
-            <!-- Payment History Card -->
+            <!-- Invoice History Card -->
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">
-                        <i class="fas fa-history me-2"></i>Payment History
+                        <i class="fas fa-file-invoice-dollar me-2"></i>Invoice History
                     </h5>
                 </div>
                 <div class="card-body">
-                    {% if payments and payments|length > 0 %}
+                    {% if invoices %}
                     <div class="table-responsive">
-                        <table class="table table-hover">
+                        <table class="table table-striped align-middle">
                             <thead>
                                 <tr>
-                                    <th>Date</th>
+                                    <th>Invoice #</th>
+                                    <th>Due Date</th>
                                     <th>Amount</th>
-                                    <th>Type</th>
                                     <th>Status</th>
+                                    <th>Paid Date</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for payment in payments %}
+                                {% for invoice in invoices %}
                                 <tr>
-                                    <td>{{ payment.payment_date[:10] if payment.payment_date else 'N/A' }}</td>
-                                    <td>${{ "%.2f"|format(payment.amount) if payment.amount else '0.00' }}</td>
-                                    <td>{{ payment.payment_type or 'N/A' }}</td>
+                                    <td>{{ invoice.square_invoice_id or invoice.id }}</td>
+                                    <td>{{ invoice.due_date or 'N/A' }}</td>
+                                    <td>${{ "%.2f"|format(invoice.amount or 0) }}</td>
                                     <td>
-                                        <span class="badge bg-{{ 'success' if payment.status == 'completed' else 'warning' }}">
-                                            {{ payment.status or 'Unknown' }}
+                                        <span class="badge bg-{{ 'success' if invoice.status and 'paid' in invoice.status|lower else 'warning' }}">
+                                            {{ invoice.status or 'Pending' }}
                                         </span>
                                     </td>
+                                    <td>{{ invoice.payment_date or '—' }}</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -303,9 +480,9 @@
                     </div>
                     {% else %}
                     <div class="text-center py-4">
-                        <i class="fas fa-credit-card fa-3x text-muted mb-3"></i>
-                        <h6 class="text-muted">No payment history available</h6>
-                        <p class="text-muted">Payment history will appear here once available from the API.</p>
+                        <i class="fas fa-file-invoice-dollar fa-3x text-muted mb-3"></i>
+                        <h6 class="text-muted">No invoices recorded</h6>
+                        <p class="text-muted">Create invoices from this page or sync from Square to see payment history.</p>
                     </div>
                     {% endif %}
                 </div>
@@ -379,6 +556,8 @@
 
 {% block extra_js %}
 <script>
+const memberId = {{ (member.guid or member.prospect_id or member_id)|tojson }};
+const memberName = {{ (member.full_name or ((member.first_name or '') ~ ' ' ~ (member.last_name or '')).strip() or 'Unknown Member')|tojson }};
 function showInvoiceModal() {
     const modal = new bootstrap.Modal(document.getElementById('invoiceModal'));
     modal.show();
@@ -392,8 +571,6 @@ function createInvoice() {
         alert('Please fill in all fields');
         return;
     }
-    
-    const memberName = '{{ member.full_name or ((member.first_name or "") + " " + (member.last_name or "")).strip() or "Unknown Member" }}';
     
     fetch('/api/create-invoice', {
         method: 'POST',
@@ -433,12 +610,97 @@ function refreshMemberData() {
     window.location.reload();
 }
 
+function showPlanAlert(message, variant = 'success') {
+    const alertBox = document.getElementById('paymentPlanAlert');
+    if (!alertBox) {
+        alert(message);
+        return;
+    }
+    alertBox.className = `alert alert-${variant}`;
+    alertBox.textContent = message;
+    alertBox.classList.remove('d-none');
+    setTimeout(() => alertBox.classList.add('d-none'), 5000);
+}
+
+function submitPaymentPlan(event) {
+    event.preventDefault();
+    const totalAmount = parseFloat(document.getElementById('planTotalAmount').value || '0');
+    const installments = parseInt(document.getElementById('planInstallments').value || '0', 10);
+    const frequency = parseInt(document.getElementById('planFrequency').value || '14', 10);
+    const startDate = document.getElementById('planStartDate').value;
+    const planNameValue = document.getElementById('planName').value.trim();
+    const notes = document.getElementById('planNotes').value.trim();
+
+    if (!totalAmount || totalAmount <= 0 || !installments || installments <= 0 || !startDate) {
+        showPlanAlert('Total amount, installments, and start date are required.', 'danger');
+        return;
+    }
+
+    const payload = {
+        plan_name: planNameValue,
+        total_amount: totalAmount,
+        installments_total: installments,
+        frequency_days: frequency,
+        start_date: startDate,
+        notes: notes
+    };
+
+    fetch(`/api/members/${encodeURIComponent(memberId)}/payment-plan`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showPlanAlert('Payment plan saved successfully.', 'success');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showPlanAlert(data.error || 'Unable to save payment plan.', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error saving payment plan:', error);
+        showPlanAlert('Unexpected error saving payment plan.', 'danger');
+    });
+}
+
+function markInstallmentPaid(installmentId) {
+    const amountInput = prompt('Enter payment amount (leave blank to use scheduled amount):');
+    let amountValue = null;
+    if (amountInput && amountInput.trim() !== '') {
+        const parsed = parseFloat(amountInput);
+        if (!isNaN(parsed) && parsed > 0) {
+            amountValue = parsed;
+        }
+    }
+
+    fetch(`/api/members/${encodeURIComponent(memberId)}/payment-plan/installments/${installmentId}`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ amount_paid: amountValue })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showPlanAlert('Installment marked as paid.', 'success');
+            setTimeout(() => window.location.reload(), 800);
+        } else {
+            showPlanAlert(data.error || 'Unable to update installment.', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error updating installment:', error);
+        showPlanAlert('Unexpected error updating installment.', 'danger');
+    });
+}
+
 // Message History Functions
 function loadMessageHistory() {
-    // Get member ID from the template - use guid or prospect_id
-    const memberId = '{{ member.guid or member.prospect_id or member_id }}';
-    const memberName = '{{ member.full_name or ((member.first_name or "") + " " + (member.last_name or "")).strip() or "Unknown Member" }}';
-    
     console.log('📬 Loading message history for member ID:', memberId, 'Name:', memberName);
     
     // Try ClubOS FollowUp API first for real-time message history
@@ -581,8 +843,6 @@ function displayMessageHistory(messages, source = 'unknown') {
 }
 
 function sendMessage() {
-    const memberName = '{{ member.full_name or ((member.first_name or "") + " " + (member.last_name or "")).strip() or "Unknown Member" }}';
-    
     // Create a modal for message input
     const modalHtml = `
         <div class="modal fade" id="sendMessageModal" tabindex="-1">
@@ -650,7 +910,6 @@ function sendMessage() {
 }
 
 function submitMessage() {
-    const memberName = '{{ member.full_name or ((member.first_name or "") + " " + (member.last_name or "")).strip() or "Unknown Member" }}';
     const messageType = document.getElementById('messageType').value;
     const messageContent = document.getElementById('messageContent').value.trim();
     const emailSubject = document.getElementById('emailSubject').value.trim();
