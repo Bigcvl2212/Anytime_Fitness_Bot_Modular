@@ -2,7 +2,7 @@
 ; This creates a Windows installer for the application
 
 #define MyAppName "Gym Bot"
-#define MyAppVersion "2.1.6"
+#define MyAppVersion "2.2.0"
 #define MyAppPublisher "Anytime Fitness"
 #define MyAppURL "https://www.anytimefitness.com"
 #define MyAppExeName "GymBot.exe"
