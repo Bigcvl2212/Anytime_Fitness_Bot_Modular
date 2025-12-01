@@ -1,0 +1,538 @@
+/* Member Page Specific Styles */
+
+/* Header styles */
+.member-page-title {
+    color: var(--af-purple-primary);
+}
+
+/* Member card styles */
+.member-card {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.member-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-8);
+}
+
+.member-card .outlook-icon-circle {
+    background: var(--af-purple-light);
+}
+
+.member-card .outlook-icon-circle i {
+    color: var(--af-purple-primary);
+}
+
+.member-card .member-name {
+    color: var(--af-purple-primary);
+}
+
+/* Past due member cards */
+.past-due-card-red {
+    border-left: 5px solid #dc3545;
+}
+
+.past-due-card-yellow {
+    border-left: 5px solid #ffc107;
+}
+
+.past-due-icon-red {
+    background: #f8d7da;
+}
+
+.past-due-icon-yellow {
+    background: #fff3cd;
+}
+
+.past-due-icon-red i {
+    color: #721c24;
+}
+
+.past-due-icon-yellow i {
+    color: #856404;
+}
+
+/* Modal header */
+.modal-header-purple {
+    background: var(--af-purple-primary);
+    color: white;
+}
+
+/* Form styles */
+.form-label-muted {
+    color: var(--af-gray-600);
+    font-size: 0.875rem;
+}
+
+.member-detail-value {
+    font-weight: 600;
+}
+
+/* Tab content */
+.tab-content-header {
+    font-weight: 600;
+    color: var(--af-purple-primary);
+    margin-bottom: 1rem;
+}
+
+
+
+/* Loading states */
+.loading-spinner {
+    font-size: 3rem;
+    color: var(--af-gray-300);
+    margin-bottom: 1rem;
+}
+
+/* Empty states */
+.empty-state-icon {
+    font-size: 3rem;
+    color: var(--af-gray-300);
+    margin-bottom: 1rem;
+}
+
+.empty-state-text {
+    color: var(--af-gray-600);
+}
+
+/* Accessibility improvements */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Focus indicators */
+.member-card:focus,
+.member-card:focus-visible {
+    outline: 3px solid var(--af-purple-primary);
+    outline-offset: 2px;
+}
+
+/* High contrast support */
+@media (prefers-contrast: high) {
+    .member-card {
+        border: 2px solid var(--af-purple-primary);
+    }
+    
+    .outlook-badge {
+        border: 1px solid currentColor;
+    }
+}
+
+/* Member detail styles */
+.member-detail-value {
+    font-weight: 600;
+    color: #212529;
+}
+
+.form-label-muted {
+    color: #6c757d;
+    font-weight: 500;
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+}
+
+/* Navigation tabs styles */
+.nav-tabs .nav-link.active {
+    font-weight: 600;
+    color: #0d6efd !important;
+    border-bottom: 2px solid #0d6efd;
+    background-color: transparent;
+}
+
+.nav-tabs .nav-link {
+    color: #6c757d;
+    border: none;
+    border-radius: 0;
+    padding: 1rem 1.5rem;
+}
+
+.nav-tabs .nav-link:hover {
+    color: #0d6efd;
+    border-color: transparent;
+}
+
+.tab-content {
+    padding: 0.25rem 0;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+/* Fix top spacing issues */
+.container-fluid > .row:first-child {
+    margin-top: 0 !important;
+}
+
+.member-management-content {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+}
+
+/* Stats and cards */
+.stats-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+}
+
+.count-display {
+    font-size: 2.5rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+/* Loading spinner */
+.loading-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Empty state styles */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #6c757d;
+}
+
+.empty-state i {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+/* Search section */
+.search-section {
+    background-color: #f8f9fa;
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.search-input {
+    border-radius: 25px;
+    border: 1px solid #dee2e6;
+    padding: 0.75rem 1.5rem;
+}
+
+.search-input:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Conversation styles */
+
+.conversation-message {
+    margin-bottom: 1rem;
+}
+
+.message-bubble {
+    max-width: 80%;
+    padding: 0.75rem;
+    border-radius: 1rem;
+    position: relative;
+}
+
+.member-message .message-bubble {
+    background: #e3f2fd;
+    border: 1px solid #bbdefb;
+    margin-right: auto;
+}
+
+.user-message .message-bubble {
+    background: #0d6efd;
+    color: white;
+    margin-left: auto;
+}
+
+.message-content {
+    word-wrap: break-word;
+}
+
+.message-content p {
+    margin-bottom: 0.25rem;
+}
+
+.message-content small {
+    opacity: 0.8;
+}
+
+.message-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.message-action-btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.message-action-btn:hover {
+    transform: scale(1.05);
+}
+
+/* Outlook badges */
+.outlook-badge {
+    display: inline-block;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.375rem;
+}
+
+.outlook-badge-success {
+    color: #ffffff;
+    background-color: #198754;
+}
+
+.outlook-badge-warning {
+    color: #000000;
+    background-color: #ffc107;
+}
+
+.outlook-badge-danger {
+    color: #ffffff;
+    background-color: #dc3545;
+}
+
+.outlook-badge-info {
+    color: #ffffff;
+    background-color: #0dcaf0;
+}
+
+.outlook-badge-secondary {
+    color: #ffffff;
+    background-color: #6c757d;
+}
+
+/* Prospect card styling */
+.prospect-card {
+    border: 2px solid #28a745;
+    background: linear-gradient(135deg, #d4edda 0%, #f8fff9 100%);
+}
+
+/* Cursor utilities */
+.cursor-pointer {
+    cursor: pointer;
+}
+
+/* Display utilities */
+.hidden {
+    display: none !important;
+}
+
+.members-hidden {
+    display: none !important;
+}
+
+/* Container sizing */
+.member-inbox-container {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.conversation-container {
+    background: #f8f9fa;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.conversation-container-scrollable {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* Text sizing */
+.payment-summary {
+    font-size: 0.7rem;
+}
+
+.payment-summary-small {
+    font-size: 0.7rem;
+}
+
+/* Visually hidden for accessibility */
+.visually-hidden {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+/* Force visibility for past due content when active */
+#past-due.show.active,
+#past-due.show,
+#past-due.active {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+#past-due-content {
+    display: block !important;
+}
+
+#past-due-content.hidden {
+    display: none !important;
+}
+
+/* Ensure member cards in past due are visible */
+#past-due .member-card {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* Message Conversation Styles */
+.conversation-history {
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.conversation-date-separator {
+    text-align: center;
+    margin: 1.5rem 0 1rem;
+    position: relative;
+}
+
+.conversation-date-separator::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: #dee2e6;
+}
+
+.date-badge {
+    background: #f8f9fa;
+    padding: 0 1rem;
+    display: inline-block;
+    position: relative;
+    z-index: 1;
+}
+
+.conversation-message {
+    margin-bottom: 1rem;
+}
+
+.message-bubble {
+    max-width: 70%;
+    padding: 0.75rem 1rem;
+    border-radius: 18px;
+    position: relative;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.member-bubble {
+    background: #e3f2fd;
+    border-bottom-left-radius: 6px;
+}
+
+.staff-bubble {
+    background: var(--af-purple-primary);
+    color: white;
+    border-bottom-right-radius: 6px;
+}
+
+.message-header {
+    margin-bottom: 0.25rem;
+}
+
+.sender-name {
+    font-size: 0.85rem;
+}
+
+.message-time {
+    font-size: 0.75rem;
+}
+
+.staff-bubble .message-time {
+    color: rgba(255,255,255,0.8);
+}
+
+.message-text {
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
+.message-actions .badge {
+    margin-right: 0.25rem;
+    margin-top: 0.25rem;
+    display: inline-block;
+}
+
+.emoji-reaction {
+    font-size: 1.1rem;
+    margin: 0 0.15rem;
+}
+
+.conversation-actions {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+/* Scrollbar styling for conversation history */
+.conversation-history::-webkit-scrollbar {
+    width: 6px;
+}
+
+.conversation-history::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.conversation-history::-webkit-scrollbar-thumb {
+    background: var(--af-purple-primary);
+    border-radius: 3px;
+}
+
+.conversation-history::-webkit-scrollbar-thumb:hover {
+    background: var(--af-purple-dark);
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .member-card {
+        transition: none;
+    }
+    
+    .member-card:hover {
+        transform: none;
+    }
+}

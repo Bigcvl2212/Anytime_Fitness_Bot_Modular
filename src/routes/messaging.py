@@ -2233,10 +2233,9 @@ def get_recent_inbox():
         ''', fetch_one=True)
         total_in_db = count_result['count'] if count_result else 0
 
-        # Query database for recent messages
-        # FIXED: Group by from_user only to show one conversation per member
-        # FIXED: Use subquery to ensure we get the actual latest message content
-        # FIXED: Sort by timestamp DESC to show newest first
+        # SIMPLIFIED QUERY: Get recent messages ordered by timestamp
+        # This includes ALL messages including those with 'Unknown' from_user
+        # The frontend will handle grouping and name extraction
         messages = current_app.db_manager.execute_query('''
             SELECT
                 m.id,
@@ -2249,18 +2248,10 @@ def get_recent_inbox():
                 m.status,
                 m.message_type
             FROM messages m
-            JOIN (
-                SELECT from_user, MAX(timestamp) as max_ts
-                FROM messages
-                WHERE channel = 'clubos'
-                AND from_user IS NOT NULL
-                AND from_user != ''
-                AND from_user != 'Unknown'
-                GROUP BY from_user
-            ) latest ON m.from_user = latest.from_user AND m.timestamp = latest.max_ts
+            WHERE m.channel = 'clubos'
             ORDER BY m.timestamp DESC
             LIMIT ?
-        ''', (limit,), fetch_all=True)
+        ''', (limit * 3,), fetch_all=True)  # Get extra to account for duplicates after grouping
 
         # Handle None result from execute_query
         if messages is None:
@@ -2353,16 +2344,75 @@ def get_recent_inbox():
                 member_lookup = {}
                 prospect_lookup = {}
 
+        # Build set of known full names for content extraction
+        known_names = set()
+        try:
+            all_members = current_app.db_manager.execute_query('''
+                SELECT full_name FROM members WHERE full_name IS NOT NULL
+            ''', fetch_all=True)
+            if all_members:
+                for m in all_members:
+                    name = m.get('full_name', '').strip().lower() if isinstance(m, dict) else str(m[0]).strip().lower()
+                    if name:
+                        known_names.add(name)
+            
+            all_prospects = current_app.db_manager.execute_query('''
+                SELECT full_name FROM prospects WHERE full_name IS NOT NULL  
+            ''', fetch_all=True)
+            if all_prospects:
+                for p in all_prospects:
+                    name = p.get('full_name', '').strip().lower() if isinstance(p, dict) else str(p[0]).strip().lower()
+                    if name:
+                        known_names.add(name)
+            logger.debug(f"📋 Loaded {len(known_names)} known names for content extraction")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not load known names: {e}")
+
         # Convert messages to individual message items using prebuilt lookups (FAST!)
+        # Also extract sender name from content for 'Unknown' messages
         message_items = []
+        seen_senders = set()  # Track senders to show only latest message per sender
+        
+        import re
         for message in messages:
             sender_name = message.get('from_user', 'Unknown')
+            content = message.get('content', '')
+
+            # CRITICAL FIX: For 'Unknown' senders, try to extract name from content
+            # ClubOS prefixes the sender name to the message content like "Jeremy MayoHello there"
+            if sender_name == 'Unknown' and content:
+                # Strategy: Check progressively shorter prefixes against known names database
+                best_match = None
+                for end_pos in range(min(40, len(content)), 5, -1):
+                    prefix = content[:end_pos].strip()
+                    words = prefix.split()
+                    if len(words) >= 2:
+                        potential_name = ' '.join(words[:2])
+                        if potential_name.lower() in known_names:
+                            best_match = potential_name
+                            break
+                
+                if best_match:
+                    sender_name = best_match
+                    logger.debug(f"📧 Matched known name from content: '{sender_name}'")
+                else:
+                    # Fallback: Just extract first two capitalized words
+                    name_match = re.match(r'^([A-Z][a-z]+)\s+([A-Z][a-z]+)', content)
+                    if name_match:
+                        sender_name = f"{name_match.group(1)} {name_match.group(2)}"
+                        logger.debug(f"📧 Extracted name pattern from content: '{sender_name}'")
 
             # Skip completely invalid senders
-            if not sender_name or sender_name.strip() == '':
+            if not sender_name or sender_name.strip() == '' or sender_name == 'Unknown':
                 continue
 
             sender_name = sender_name.strip()
+            
+            # Group by sender - only show the most recent message per sender
+            sender_key = sender_name.lower()
+            if sender_key in seen_senders:
+                continue  # Skip older messages from same sender
+            seen_senders.add(sender_key)
 
             # Use prebuilt lookup dictionaries (instant lookup, no database query)
             member_id = member_lookup.get(sender_name.lower())

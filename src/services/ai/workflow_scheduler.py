@@ -171,6 +171,7 @@ class WorkflowScheduler:
         """Manually trigger a workflow to run immediately"""
         logger.info(f"🔥 Manually triggering workflow: {workflow_name}")
         
+        # Built-in scheduled workflows
         workflow_methods = {
             'daily_campaigns': self.runner.run_daily_campaigns_workflow,
             'past_due_monitoring': self.runner.run_past_due_monitoring_workflow,
@@ -184,9 +185,23 @@ class WorkflowScheduler:
             result = workflow_methods[workflow_name]()
             logger.info(f"   Result: {result.get('success', False)}")
             return result
-        else:
-            logger.error(f"❌ Unknown workflow: {workflow_name}")
-            return {"success": False, "error": f"Unknown workflow: {workflow_name}"}
+        
+        # Check UnifiedWorkflowManager for additional workflows
+        try:
+            from .unified_workflow_manager import get_workflow_manager
+            unified_manager = get_workflow_manager()
+            if unified_manager and workflow_name in unified_manager._workflows:
+                logger.info(f"   Running via UnifiedWorkflowManager: {workflow_name}")
+                result = unified_manager.run_workflow(workflow_name, force=True)
+                return result
+        except ImportError:
+            logger.warning("UnifiedWorkflowManager not available")
+        except Exception as e:
+            logger.error(f"Error running unified workflow: {e}")
+            return {"success": False, "error": str(e)}
+        
+        logger.error(f"❌ Unknown workflow: {workflow_name}")
+        return {"success": False, "error": f"Unknown workflow: {workflow_name}"}
     
     def get_scheduled_jobs(self):
         """Get list of all scheduled jobs"""

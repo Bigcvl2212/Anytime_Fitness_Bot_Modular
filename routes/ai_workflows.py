@@ -208,16 +208,28 @@ def run_workflow_now(workflow_id: str):
         }
     """
     try:
-        if not _scheduler:
+        logger.info(f"🔥 Manually triggering workflow: {workflow_id}")
+        
+        result = None
+        
+        # First try the UnifiedWorkflowManager (handles auto_reply_messages, prospect_outreach, etc.)
+        try:
+            from src.services.ai.unified_workflow_manager import get_workflow_manager
+            unified_manager = get_workflow_manager()
+            if unified_manager and workflow_id in unified_manager._workflows:
+                logger.info(f"   Running via UnifiedWorkflowManager: {workflow_id}")
+                result = unified_manager.run_workflow(workflow_id, force=True)
+        except Exception as e:
+            logger.warning(f"UnifiedWorkflowManager not available: {e}")
+        
+        # Fall back to scheduler for scheduled workflows (daily_campaigns, etc.)
+        if result is None and _scheduler:
+            result = _scheduler.run_workflow_now(workflow_id)
+        elif result is None:
             return jsonify({
                 "success": False,
                 "error": "Workflow scheduler not initialized"
             }), 503
-        
-        logger.info(f"🔥 Manually triggering workflow: {workflow_id}")
-        
-        # Run workflow
-        result = _scheduler.run_workflow_now(workflow_id)
         
         if result.get('success'):
             return jsonify({
@@ -225,7 +237,7 @@ def run_workflow_now(workflow_id: str):
                 "workflow_id": workflow_id,
                 "execution": {
                     "started_at": datetime.now().isoformat(),
-                    "duration": result.get('duration'),
+                    "duration": result.get('duration_seconds') or result.get('duration'),
                     "success": result.get('success'),
                     "result": result.get('result')
                 }

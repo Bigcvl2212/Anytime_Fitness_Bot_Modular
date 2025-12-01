@@ -9,12 +9,21 @@ import os
 import json
 import logging
 from typing import Dict, Optional, Any
-from google.cloud import secretmanager
-from google.api_core import exceptions as gcp_exceptions
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Try to import Google Cloud dependencies - optional for local/build environments
+try:
+    from google.cloud import secretmanager
+    from google.api_core import exceptions as gcp_exceptions
+    GOOGLE_CLOUD_AVAILABLE = True
+except ImportError:
+    secretmanager = None
+    gcp_exceptions = None
+    GOOGLE_CLOUD_AVAILABLE = False
+    logger.warning("⚠️ Google Cloud SDK not available - using local credentials only")
 
 class SecureSecretsManager:
     """

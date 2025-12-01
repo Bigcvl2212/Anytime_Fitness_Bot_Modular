@@ -4752,10 +4752,11 @@ def init_ai_modules():
     
     try:
         from src.services.ai.knowledge_base import AIKnowledgeBase
-        from src.services.ai.unified_workflow_manager import UnifiedWorkflowManager
+        from src.services.ai.unified_workflow_manager import init_workflow_manager
         
         _ai_knowledge_base = AIKnowledgeBase(db_manager)
-        _ai_workflow_manager = UnifiedWorkflowManager(db_manager, _ai_knowledge_base)
+        # Use init_workflow_manager to set the singleton so other code can access it
+        _ai_workflow_manager = init_workflow_manager(db_manager, _ai_knowledge_base)
         
         logger.info("✅ AI modules initialized (Knowledge Base + Workflow Manager)")
     except Exception as e:
