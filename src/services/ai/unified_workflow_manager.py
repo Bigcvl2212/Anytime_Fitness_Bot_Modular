@@ -401,32 +401,105 @@ class UnifiedWorkflowManager:
         """
         Auto-reply to incoming messages using AI.
         
-        Steps:
-        1. Get unread/unresponded messages from inbox
-        2. For each message, build AI context from knowledge base
-        3. Generate response using Groq/AI
-        4. Send response via ClubOS FollowUp API
+        This workflow controls the real-time message sync's AI auto-processing.
+        When enabled, new incoming messages are automatically:
+        1. Classified by intent (billing, appointment, question, etc.)
+        2. Responded to using the knowledge base context
+        3. Flagged for human review if needed (complaints, refunds, etc.)
+        
+        The actual processing happens in real_timemessage_poller._trigger_ai_processing()
         """
         logger.info("📨 Running auto-reply workflow...")
         
         use_knowledge_base = config.get("use_knowledge_base", True)
         max_replies = config.get("max_replies_per_hour", 20)
+        require_approval = config.get("require_approval", False)
         
         # Get AI context from knowledge base
         ai_context = ""
         if use_knowledge_base and self.knowledge_base:
             ai_context = self.knowledge_base.build_ai_context()
         
-        # TODO: Integrate with messaging API to:
-        # 1. Fetch unread messages
-        # 2. Generate AI responses
-        # 3. Send responses
+        # Get the real-time message sync service and enable AI processing
+        from flask import current_app
+        message_sync = getattr(current_app, 'message_poller', None)
+        
+        messages_processed = 0
+        replies_sent = 0
+        errors = []
+        
+        if message_sync:
+            # Enable AI auto-processing on the message sync service
+            message_sync.enable_ai()
+            logger.info("✅ AI Auto-Reply ENABLED on real-time message sync")
+            
+            # Process any pending unread messages in database
+            try:
+                # Get recent unread messages that haven't been responded to
+                unread_messages = self.db.execute_query('''
+                    SELECT m.id, m.content, m.from_user, m.owner_id, m.timestamp, m.member_id
+                    FROM messages m
+                    LEFT JOIN ai_response_log a ON m.id = a.message_id
+                    WHERE m.channel = 'clubos'
+                    AND m.status IN ('received', 'unread')
+                    AND a.id IS NULL
+                    ORDER BY m.timestamp DESC
+                    LIMIT ?
+                ''', (max_replies,), fetch_all=True)
+                
+                if unread_messages:
+                    logger.info(f"📬 Found {len(unread_messages)} unread messages to process")
+                    
+                    # Get the unified AI agent
+                    unified_agent = getattr(message_sync, 'unified_ai_agent', None)
+                    
+                    if unified_agent:
+                        import asyncio
+                        
+                        for msg in unread_messages:
+                            try:
+                                msg_dict = dict(msg) if hasattr(msg, 'keys') else {
+                                    'id': msg[0], 'content': msg[1], 'from_user': msg[2],
+                                    'owner_id': msg[3], 'timestamp': msg[4], 'member_id': msg[5]
+                                }
+                                
+                                # Check if AI should respond to this message
+                                if message_sync._should_ai_respond(msg_dict):
+                                    loop = asyncio.new_event_loop()
+                                    asyncio.set_event_loop(loop)
+                                    
+                                    result = loop.run_until_complete(
+                                        unified_agent.process_new_message(msg_dict)
+                                    )
+                                    loop.close()
+                                    
+                                    messages_processed += 1
+                                    if result.get('responded'):
+                                        replies_sent += 1
+                                        logger.info(f"✅ Replied to {msg_dict.get('from_user')}")
+                                    
+                            except Exception as e:
+                                logger.error(f"❌ Error processing message {msg_dict.get('id')}: {e}")
+                                errors.append(str(e))
+                    else:
+                        logger.warning("⚠️ No unified AI agent available for processing")
+                else:
+                    logger.info("📭 No unread messages to process")
+                    
+            except Exception as e:
+                logger.error(f"❌ Error fetching unread messages: {e}")
+                errors.append(str(e))
+        else:
+            logger.warning("⚠️ Real-time message sync not available")
+            errors.append("Message sync service not available")
         
         return {
-            "messages_processed": 0,
-            "replies_sent": 0,
+            "messages_processed": messages_processed,
+            "replies_sent": replies_sent,
+            "ai_enabled": message_sync.ai_enabled if message_sync else False,
             "context_used": bool(ai_context),
-            "status": "ready_for_integration"
+            "errors": errors if errors else None,
+            "status": "active" if (message_sync and message_sync.ai_enabled) else "inactive"
         }
     
     def _workflow_prospect_outreach(self, config: Dict[str, Any]) -> Dict[str, Any]:

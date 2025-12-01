@@ -23,9 +23,6 @@ bleach>=6.0.0
 # Database dependencies
 # SQLite is used (built into Python standard library)
 
-# Google Cloud dependencies
-google-cloud-secret-manager>=2.16.0
-
 # AI Service dependencies
 anthropic>=0.18.0
 aiohttp>=3.9.0

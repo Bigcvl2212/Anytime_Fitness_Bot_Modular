@@ -7,10 +7,19 @@ Handles secure credential retrieval from Google Cloud Secret Manager
 import os
 import logging
 from typing import Optional
-from google.cloud import secretmanager
-from google.api_core import exceptions
 
 logger = logging.getLogger(__name__)
+
+# Try to import Google Cloud dependencies - optional for local/build environments
+try:
+    from google.cloud import secretmanager
+    from google.api_core import exceptions as google_exceptions
+    GOOGLE_CLOUD_AVAILABLE = True
+except ImportError:
+    GOOGLE_CLOUD_AVAILABLE = False
+    secretmanager = None
+    google_exceptions = None
+    logger.info("Google Cloud libraries not available - using local secrets only")
 
 class GoogleSecretManager:
     """Google Secret Manager client for secure credential management"""
@@ -22,6 +31,13 @@ class GoogleSecretManager:
             project_id: Google Cloud Project ID. If None, will use GOOGLE_CLOUD_PROJECT env var
         """
         self.project_id = project_id or os.environ.get('GOOGLE_CLOUD_PROJECT')
+        
+        # Check if Google Cloud libraries are available
+        if not GOOGLE_CLOUD_AVAILABLE:
+            logger.info("Google Cloud libraries not installed - using local secrets only")
+            self.client = None
+            return
+            
         if not self.project_id:
             logger.warning("Google Cloud Project ID not found. Set GOOGLE_CLOUD_PROJECT environment variable for production.")
             logger.info("Will fall back to local secrets. Set up GSM for production deployment.")
@@ -65,10 +81,10 @@ class GoogleSecretManager:
             logger.info(f"✅ Successfully retrieved secret from GSM: {secret_name}")
             return secret_value
             
-        except exceptions.NotFound:
+        except google_exceptions.NotFound:
             logger.warning(f"⚠️ Secret not found in GSM: {secret_name}")
             return None
-        except exceptions.PermissionDenied:
+        except google_exceptions.PermissionDenied:
             logger.error(f"❌ Permission denied accessing secret: {secret_name}")
             return None
         except Exception as e:
@@ -93,7 +109,7 @@ class GoogleSecretManager:
             name = f"projects/{self.project_id}/secrets/{secret_name}"
             self.client.get_secret(request={"name": name})
             return True
-        except exceptions.NotFound:
+        except google_exceptions.NotFound:
             return False
         except Exception as e:
             logger.error(f"❌ Error checking secret existence {secret_name}: {e}")

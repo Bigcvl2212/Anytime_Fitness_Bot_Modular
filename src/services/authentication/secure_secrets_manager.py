@@ -39,6 +39,11 @@ class SecureSecretsManager:
         """
         self.project_id = project_id or os.getenv('GCP_PROJECT_ID', 'round-device-460522-g8')
         
+        if not GOOGLE_CLOUD_AVAILABLE:
+            logger.info("Google Cloud libraries not installed - using local credentials only")
+            self.client = None
+            return
+            
         try:
             self.client = secretmanager.SecretManagerServiceClient()
             logger.info("✅ SecretManager client initialized successfully")

@@ -445,3 +445,209 @@ def health_check():
             "success": False,
             "error": str(e)
         }), 500
+
+
+# ============================================
+# AUTO-REPLY CONTROL
+# ============================================
+
+@blueprint.route('/auto-reply/status', methods=['GET'])
+def get_auto_reply_status():
+    """Get the current status of AI auto-reply
+    
+    Returns:
+        {
+            "success": True,
+            "enabled": True,
+            "stats": {
+                "messages_processed": 150,
+                "auto_responses_sent": 45,
+                "last_response_time": "2025-12-01T10:30:00"
+            }
+        }
+    """
+    try:
+        from flask import current_app
+        
+        message_sync = getattr(current_app, 'message_poller', None)
+        unified_agent = None
+        
+        if message_sync:
+            unified_agent = getattr(message_sync, 'unified_ai_agent', None)
+        
+        stats = {}
+        if unified_agent:
+            stats = unified_agent.stats
+        
+        return jsonify({
+            "success": True,
+            "enabled": message_sync.ai_enabled if message_sync else False,
+            "message_sync_running": message_sync.running if message_sync else False,
+            "poll_interval": message_sync.poll_interval if message_sync else 0,
+            "stats": stats
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error getting auto-reply status: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@blueprint.route('/auto-reply/enable', methods=['POST'])
+def enable_auto_reply():
+    """Enable AI auto-reply for incoming messages
+    
+    Returns:
+        {
+            "success": True,
+            "message": "AI auto-reply enabled"
+        }
+    """
+    try:
+        from flask import current_app
+        
+        message_sync = getattr(current_app, 'message_poller', None)
+        
+        if not message_sync:
+            return jsonify({
+                "success": False,
+                "error": "Message sync service not available"
+            }), 503
+        
+        message_sync.enable_ai()
+        
+        return jsonify({
+            "success": True,
+            "message": "AI auto-reply enabled",
+            "enabled": True
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error enabling auto-reply: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@blueprint.route('/auto-reply/disable', methods=['POST'])
+def disable_auto_reply():
+    """Disable AI auto-reply for incoming messages
+    
+    Returns:
+        {
+            "success": True,
+            "message": "AI auto-reply disabled"
+        }
+    """
+    try:
+        from flask import current_app
+        
+        message_sync = getattr(current_app, 'message_poller', None)
+        
+        if not message_sync:
+            return jsonify({
+                "success": False,
+                "error": "Message sync service not available"
+            }), 503
+        
+        message_sync.disable_ai()
+        
+        return jsonify({
+            "success": True,
+            "message": "AI auto-reply disabled",
+            "enabled": False
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error disabling auto-reply: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@blueprint.route('/auto-reply/test', methods=['POST'])
+def test_auto_reply():
+    """Test auto-reply with a specific message (doesn't actually send)
+    
+    Request body:
+        {
+            "message": "What are your hours?",
+            "from_user": "Test User"
+        }
+    
+    Returns:
+        {
+            "success": True,
+            "intent": "business_hours",
+            "confidence": 0.92,
+            "would_respond": True,
+            "draft_response": "Our gym is open 24/7 for members..."
+        }
+    """
+    try:
+        from flask import current_app
+        import asyncio
+        
+        data = request.get_json() or {}
+        test_message = data.get('message', 'What are your hours?')
+        from_user = data.get('from_user', 'Test User')
+        
+        message_sync = getattr(current_app, 'message_poller', None)
+        
+        if not message_sync:
+            return jsonify({
+                "success": False,
+                "error": "Message sync service not available"
+            }), 503
+        
+        unified_agent = getattr(message_sync, 'unified_ai_agent', None)
+        
+        if not unified_agent:
+            return jsonify({
+                "success": False,
+                "error": "AI agent not available"
+            }), 503
+        
+        # Create test message
+        test_msg = {
+            'id': f'test_{int(datetime.now().timestamp())}',
+            'content': test_message,
+            'from_user': from_user,
+            'owner_id': '187032782',
+            'timestamp': datetime.now().isoformat(),
+            'member_id': 'test_member'
+        }
+        
+        # Check if AI would respond
+        would_respond = message_sync._should_ai_respond(test_msg)
+        
+        # Get intent classification
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        intent, confidence = loop.run_until_complete(
+            unified_agent.inbox_ai.classify_intent(test_message)
+        )
+        
+        loop.close()
+        
+        return jsonify({
+            "success": True,
+            "test_message": test_message,
+            "from_user": from_user,
+            "intent": intent,
+            "confidence": confidence,
+            "would_respond": would_respond,
+            "note": "This is a test - no message was sent"
+        })
+        
+    except Exception as e:
+        logger.error(f"❌ Error testing auto-reply: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
