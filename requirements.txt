@@ -33,5 +33,8 @@ squareup==21.0.0.20220817
 # System monitoring
 psutil>=5.9.0
 
+# Scheduler for background jobs
+APScheduler>=3.10.0
+
 # Application specific (add extras as needed)
 # sqlite3 is in stdlib for development

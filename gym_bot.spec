@@ -34,7 +34,7 @@ if os.path.exists('gym_bot.db'):
 if os.path.exists('email_config_example.env'):
     datas += [('email_config_example.env', '.')]
 
-# Collect all submodules
+# Collect all submodules - but filter out test modules to reduce bloat
 hiddenimports = []
 hiddenimports += collect_submodules('flask')
 hiddenimports += collect_submodules('jinja2')
@@ -44,19 +44,38 @@ hiddenimports += collect_submodules('bs4')
 hiddenimports += collect_submodules('cryptography')
 hiddenimports += collect_submodules('anthropic')
 hiddenimports += collect_submodules('aiohttp')
-# CRITICAL: Include pandas and numpy (database_manager uses them)
-hiddenimports += collect_submodules('pandas')
-hiddenimports += collect_submodules('numpy')
+
+# Include pandas and numpy core modules only (NOT tests)
+hiddenimports += [
+    'pandas', 'pandas.core', 'pandas.io', 'pandas.api',
+    'pandas._libs', 'pandas._config', 'pandas.compat',
+    'numpy', 'numpy.core', 'numpy.lib', 'numpy.linalg',
+    'numpy.fft', 'numpy.random', 'numpy.ma', 'numpy._typing',
+]
+
 # CRITICAL: Include socketio dependencies (used for real-time messaging)
 hiddenimports += collect_submodules('flask_socketio')
 hiddenimports += collect_submodules('socketio')
 hiddenimports += collect_submodules('python_socketio')
-hiddenimports += collect_submodules('eventlet')
+
+# Include eventlet core only (NOT all submodules with tests)
+hiddenimports += [
+    'eventlet', 'eventlet.green', 'eventlet.green.socket',
+    'eventlet.green.ssl', 'eventlet.green.threading',
+    'eventlet.hubs', 'eventlet.hubs.hub', 'eventlet.hubs.poll',
+    'eventlet.hubs.selects', 'eventlet.queue', 'eventlet.timeout',
+    'eventlet.semaphore', 'eventlet.event', 'eventlet.greenpool',
+    'eventlet.greenthread', 'eventlet.patcher', 'eventlet.support',
+]
+
 # CRITICAL: Include dotenv for environment loading
 hiddenimports += ['dotenv']
-# CRITICAL: Include all src submodules explicitly
-hiddenimports += collect_submodules('src')
-hiddenimports += ['src.main_app', 'src.config', 'src.routes', 'src.services', 'src.utils', 'src.monitoring']
+
+# Include src submodules - filter to only needed ones
+hiddenimports += [
+    'src', 'src.main_app', 'src.config', 'src.routes', 'src.services', 
+    'src.utils', 'src.monitoring', 'src.config.environment_setup',
+]
 
 a = Analysis(
     ['launcher.py'],
@@ -67,7 +86,15 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['matplotlib', 'scipy', 'pytest', 'IPython'],  # REMOVED numpy and pandas from excludes!
+    excludes=[
+        'matplotlib', 'scipy', 'pytest', 'IPython',
+        # Exclude all test modules to reduce build size
+        'pandas.tests', 'numpy.tests', 'numpy.f2py.tests',
+        'eventlet.tests', 'aiohttp.test_utils',
+        # Exclude other large optional modules
+        'tkinter', 'PIL', 'cv2', 'pyautogui',
+        'google.cloud', 'google.api_core',
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
