@@ -92,7 +92,7 @@ a = Analysis(
         'pandas.tests', 'numpy.tests', 'numpy.f2py.tests',
         'eventlet.tests', 'aiohttp.test_utils',
         # Exclude other large optional modules
-        'tkinter', 'PIL', 'cv2', 'pyautogui',
+        'PIL', 'cv2', 'pyautogui',
         'google.cloud', 'google.api_core',
     ],
     win_no_prefer_redirects=False,
