@@ -737,25 +737,25 @@ def get_messages():
         date_threshold = (datetime.now() - timedelta(days=int(days))).isoformat()
 
         # Fetch from database using database manager with date filter
-        # IMPORTANT: Order by created_at first since timestamp parsing from ClubOS is unreliable
-        # created_at = when message was synced to our DB (recent syncs = recent messages)
+        # IMPORTANT: Order by rowid DESC - SQLite's built-in row ID is auto-incrementing
+        # Messages are inserted in order during sync, so higher rowid = more recently synced
         if limit:
             # If limit is specified, use it
             limit = int(limit)
             messages = current_app.db_manager.execute_query('''
-                SELECT * FROM messages
+                SELECT *, rowid FROM messages
                 WHERE owner_id = ?
                 AND created_at >= ?
-                ORDER BY created_at DESC, id DESC
+                ORDER BY rowid DESC
                 LIMIT ?
             ''', (owner_id, date_threshold, limit), fetch_all=True)
         else:
             # If no limit, get messages from last N days
             messages = current_app.db_manager.execute_query('''
-                SELECT * FROM messages
+                SELECT *, rowid FROM messages
                 WHERE owner_id = ?
                 AND created_at >= ?
-                ORDER BY created_at DESC, id DESC
+                ORDER BY rowid DESC
             ''', (owner_id, date_threshold), fetch_all=True)
         
         # Handle None result and ensure we have dictionaries
