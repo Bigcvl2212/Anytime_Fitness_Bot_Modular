@@ -601,16 +601,20 @@ def create_app():
     try:
         from flask_socketio import SocketIO
         
+        # ALWAYS use threading mode - most compatible with PyInstaller and Windows
+        # eventlet causes "Invalid async_mode" errors in bundled apps
+        async_mode = 'threading'
+        
         # Initialize SocketIO with CORS support
         socketio = SocketIO(
             app,
             cors_allowed_origins="*",
-            async_mode='threading',
+            async_mode=async_mode,
             logger=True,
             engineio_logger=False
         )
         app.socketio = socketio
-        logger.info("✅ Flask-SocketIO initialized for real-time messaging")
+        logger.info(f"✅ Flask-SocketIO initialized (async_mode={async_mode})")
         
         # Register WebSocket handlers
         try:
