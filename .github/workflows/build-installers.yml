@@ -51,12 +51,15 @@ jobs:
         Remove-Item -Path "dist" -Recurse -Force -ErrorAction SilentlyContinue
         Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
         Get-ChildItem -Path . -Recurse -Filter "*.pyc" | Remove-Item -Force -ErrorAction SilentlyContinue
+        # Remove any .spec files to force fresh generation
+        Remove-Item -Path "*.spec" -Force -ErrorAction SilentlyContinue
+        # Clear PyInstaller work directory
+        $pyiWork = Join-Path $env:TEMP "pyinstaller"
+        if (Test-Path $pyiWork) { Remove-Item -Path $pyiWork -Recurse -Force -ErrorAction SilentlyContinue }
 
-    - name: Generate fresh spec file
-      run: python generate_spec.py
-
-    - name: Build with PyInstaller
-      run: python -m PyInstaller gym_bot_fresh.spec --clean --noconfirm
+    - name: Build directly without spec file
+      run: |
+        python -m PyInstaller launcher.py --name GymBot --onedir --console --clean --noconfirm --add-data "templates;templates" --add-data "static;static" --add-data "run_dashboard.py;." --add-data "setup_wizard.py;." --add-data "VERSION;." --add-data "src;src" --add-data "config;config" --hidden-import flask --hidden-import jinja2 --hidden-import werkzeug --hidden-import requests --hidden-import flask_socketio --hidden-import socketio --hidden-import dotenv
 
     - name: Verify exe contains expected strings
       run: python verify_exe.py dist/GymBot/GymBot.exe
