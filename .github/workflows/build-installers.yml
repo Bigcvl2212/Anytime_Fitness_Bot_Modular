@@ -43,8 +43,18 @@ jobs:
         Get-Content VERSION
         Write-Host "=== LAUNCHER.PY Check Updates button ==="
         Select-String -Path "launcher.py" -Pattern "Check Updates"
+        Write-Host "=== LAUNCHER.PY options_frame ==="
+        Select-String -Path "launcher.py" -Pattern "options_frame"
         Write-Host "=== SETUP_WIZARD.PY username field ==="
         Select-String -Path "setup_wizard.py" -Pattern "'username'"
+      shell: pwsh
+
+    - name: Clear Python cache before build
+      run: |
+        Write-Host "Clearing __pycache__ and .pyc files..."
+        Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -Path . -Recurse -Filter "*.pyc" | Remove-Item -Force -ErrorAction SilentlyContinue
+        Write-Host "Cache cleared"
       shell: pwsh
 
     - name: Build with PyInstaller
@@ -61,6 +71,13 @@ jobs:
           Write-Error "❌ Build failed: GymBot.exe not found"
           exit 1
         }
+        Write-Host "=== Verifying _internal files ==="
+        Write-Host "VERSION in _internal:"
+        Get-Content "dist\GymBot\_internal\VERSION" -ErrorAction SilentlyContinue
+        Write-Host "launcher.py buttons in _internal:"
+        Select-String -Path "dist\GymBot\_internal\launcher.py" -Pattern "Check Updates|options_frame" -ErrorAction SilentlyContinue
+        Write-Host "setup_wizard.py auth in _internal:"
+        Select-String -Path "dist\GymBot\_internal\setup_wizard.py" -Pattern "'username'" -ErrorAction SilentlyContinue
       shell: pwsh
 
     - name: Install Inno Setup
