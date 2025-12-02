@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['entry_v2.py'],
+    ['gymbot_main.py'],
     pathex=[],
     binaries=[],
     datas=[('templates', 'templates'), ('static', 'static'), ('run_dashboard.py', '.'), ('gymbot_setup_wizard.py', '.'), ('VERSION', '.'), ('src', 'src'), ('config', 'config')],
