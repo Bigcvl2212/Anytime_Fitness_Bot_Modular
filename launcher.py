@@ -479,6 +479,13 @@ For more help, visit the documentation or contact support.
     def check_updates(self):
         """Check for and apply updates from GitHub"""
         try:
+            # Handle import for both frozen (PyInstaller) and development environments
+            if getattr(sys, 'frozen', False):
+                # Running as compiled exe - add the app dir to path
+                app_dir = Path(sys.executable).parent
+                if str(app_dir) not in sys.path:
+                    sys.path.insert(0, str(app_dir))
+            
             from src.utils.auto_updater import AutoUpdater
             
             # Show checking message

@@ -23,6 +23,12 @@ datas += [('static', 'static')]
 # CRITICAL: Add run_dashboard.py so launcher can start Flask server
 datas += [('run_dashboard.py', '.')]
 
+# CRITICAL: Add setup_wizard.py for first-time setup
+datas += [('setup_wizard.py', '.')]
+
+# CRITICAL: Add launcher.py itself as data (for reference/updates)
+datas += [('launcher.py', '.')]
+
 # Add VERSION file
 if os.path.exists('VERSION'):
     datas += [('VERSION', '.')]  
