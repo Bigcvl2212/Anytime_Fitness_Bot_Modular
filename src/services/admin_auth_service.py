@@ -65,22 +65,29 @@ class AdminAuthService:
 
             # Create default admin from environment or use hardcoded values
             import os
+            from werkzeug.security import generate_password_hash
+            
             default_username = os.getenv('DEFAULT_ADMIN_USERNAME', 'admin')
             default_email = os.getenv('DEFAULT_ADMIN_EMAIL', 'admin@gym-bot.local')
+            default_password = os.getenv('DEFAULT_ADMIN_PASSWORD', 'admin123')
 
             # Generate manager ID for default admin
             manager_id = self._generate_manager_id(default_username, default_email)
+            
+            # Generate password hash
+            password_hash = generate_password_hash(default_password)
 
-            # Add default super admin
+            # Add default super admin with password
             success = self.admin_schema.add_admin_user(
                 manager_id=manager_id,
                 username=default_username,
                 email=default_email,
-                is_super_admin=True
+                is_super_admin=True,
+                password_hash=password_hash
             )
 
             if success:
-                logger.info(f"✅ Default super admin created: {default_username}")
+                logger.info(f"✅ Default super admin created: {default_username} (password: {default_password})")
             else:
                 logger.error("❌ Failed to create default super admin")
 

@@ -132,7 +132,7 @@ and manage your gym operations. Enter your ClubOS login credentials below.
 
         desc = ttk.Label(frame, text="""
 ClubHub is the new API system for accessing club data.
-Enter your ClubHub email and password below.
+Enter your ClubHub username and password below.
         """, justify='left', wraplength=600)
         desc.pack(pady=10)
 

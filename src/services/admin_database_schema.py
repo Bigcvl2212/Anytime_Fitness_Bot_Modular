@@ -287,7 +287,7 @@ class AdminDatabaseSchema:
             cursor.connection.commit()
         logger.info("✅ Admin settings table created")
 
-    def add_admin_user(self, manager_id: str, username: str, email: str, is_super_admin: bool = False) -> bool:
+    def add_admin_user(self, manager_id: str, username: str, email: str, is_super_admin: bool = False, password_hash: str = None) -> bool:
         """
         Add a new admin user to the system
 
@@ -296,6 +296,7 @@ class AdminDatabaseSchema:
             username: Username
             email: Email address
             is_super_admin: Whether user is a super admin
+            password_hash: Hashed password (optional)
 
         Returns:
             True if successful, False otherwise
@@ -304,20 +305,21 @@ class AdminDatabaseSchema:
             with self.db_manager.get_cursor() as cursor:
                 if self.db_manager.db_type == 'postgresql':
                     cursor.execute("""
-                        INSERT INTO admin_users (manager_id, username, email, is_admin, is_super_admin)
-                        VALUES (%s, %s, %s, %s, %s)
+                        INSERT INTO admin_users (manager_id, username, email, is_admin, is_super_admin, password_hash)
+                        VALUES (%s, %s, %s, %s, %s, %s)
                         ON CONFLICT (manager_id) DO UPDATE SET
                             username = EXCLUDED.username,
                             email = EXCLUDED.email,
                             is_admin = TRUE,
                             is_super_admin = EXCLUDED.is_super_admin,
+                            password_hash = COALESCE(EXCLUDED.password_hash, admin_users.password_hash),
                             updated_at = CURRENT_TIMESTAMP
-                    """, (manager_id, username, email, True, is_super_admin))
+                    """, (manager_id, username, email, True, is_super_admin, password_hash))
                 else:  # SQLite
                     cursor.execute("""
-                        INSERT OR REPLACE INTO admin_users (manager_id, username, email, is_admin, is_super_admin)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (manager_id, username, email, 1, 1 if is_super_admin else 0))
+                        INSERT OR REPLACE INTO admin_users (manager_id, username, email, is_admin, is_super_admin, password_hash)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (manager_id, username, email, 1, 1 if is_super_admin else 0, password_hash))
 
                 cursor.connection.commit()
 
