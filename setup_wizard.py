@@ -404,22 +404,26 @@ This is optional - you can skip and add it later.
         def test_in_thread():
             try:
                 # Use the REAL ClubHub iOS API endpoint
+                # IMPORTANT: The API expects 'username' not 'email' in the JSON body
                 response = requests.post(
                     'https://clubhub-ios-api.anytimefitness.com/api/login',
                     json={
-                        'email': email,
+                        'username': email,  # ClubHub API uses 'username' field for email
                         'password': password
                     },
                     headers={
                         'Content-Type': 'application/json',
-                        'User-Agent': 'ClubHub/3.0 iOS/17.0'
+                        'API-version': '1',
+                        'Accept': 'application/json',
+                        'User-Agent': 'ClubHub Store/2.15.1 (com.anytimefitness.Club-Hub; build:1007; iOS 18.5.0) Alamofire/5.6.4'
                     },
                     timeout=15
                 )
 
                 if response.status_code == 200:
                     data = response.json()
-                    if data.get('data', {}).get('token'):
+                    # Check for accessToken (iOS API format) or token (alternate format)
+                    if data.get('accessToken') or data.get('data', {}).get('token'):
                         self.clubhub_status.config(text="✓ ClubHub connection successful!",
                                                    foreground='green')
                     else:

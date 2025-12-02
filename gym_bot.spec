@@ -25,7 +25,15 @@ datas += [('run_dashboard.py', '.')]
 
 # Add VERSION file
 if os.path.exists('VERSION'):
-    datas += [('VERSION', '.')]
+    datas += [('VERSION', '.')]  
+
+# CRITICAL: Add src folder for auto-updater and other modules
+if os.path.exists('src'):
+    datas += [('src', 'src')]
+
+# Add config folder for credentials
+if os.path.exists('config'):
+    datas += [('config', 'config')]
 
 # Add optional files only if they exist
 if os.path.exists('gym_bot.db'):
