@@ -49,17 +49,124 @@ jobs:
         Select-String -Path "setup_wizard.py" -Pattern "'username'"
       shell: pwsh
 
-    - name: Clear Python cache before build
+    - name: Clear ALL build artifacts before build
       run: |
-        Write-Host "Clearing __pycache__ and .pyc files..."
+        Write-Host "Removing build, dist, and cache folders..."
+        Remove-Item -Path "build" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "dist" -Recurse -Force -ErrorAction SilentlyContinue
         Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
         Get-ChildItem -Path . -Recurse -Filter "*.pyc" | Remove-Item -Force -ErrorAction SilentlyContinue
-        Write-Host "Cache cleared"
+        # Also clear PyInstaller cache
+        $pyiCache = "$env:LOCALAPPDATA\pyinstaller"
+        if (Test-Path $pyiCache) { Remove-Item -Path $pyiCache -Recurse -Force -ErrorAction SilentlyContinue }
+        Write-Host "All caches cleared"
       shell: pwsh
 
-    - name: Build with PyInstaller
+    - name: Print launcher.py content to verify
       run: |
-        python -m PyInstaller gym_bot.spec --clean --noconfirm
+        Write-Host "=== FULL setup_ui function from launcher.py ==="
+        $content = Get-Content "launcher.py" -Raw
+        $match = [regex]::Match($content, 'def setup_ui\(self\):.*?def \w+\(self\):', [System.Text.RegularExpressions.RegexOptions]::Singleline)
+        if ($match.Success) { Write-Host $match.Value.Substring(0, [Math]::Min(2000, $match.Value.Length)) }
+      shell: pwsh
+
+    - name: Generate fresh spec file
+      run: |
+        Write-Host "Generating fresh spec file to avoid any caching issues..."
+        python -c "
+import PyInstaller.__main__
+import os
+
+# Generate a fresh spec
+spec_content = '''# -*- mode: python ; coding: utf-8 -*-
+import sys
+import os
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
+block_cipher = None
+
+datas = []
+datas += collect_data_files('flask')
+datas += collect_data_files('jinja2')
+datas += collect_data_files('werkzeug')
+datas += [('templates', 'templates')]
+datas += [('static', 'static')]
+datas += [('run_dashboard.py', '.')]
+datas += [('setup_wizard.py', '.')]
+datas += [('launcher.py', '.')]
+datas += [('VERSION', '.')]
+if os.path.exists('src'):
+    datas += [('src', 'src')]
+if os.path.exists('config'):
+    datas += [('config', 'config')]
+
+hiddenimports = []
+hiddenimports += collect_submodules('flask')
+hiddenimports += collect_submodules('jinja2')
+hiddenimports += collect_submodules('werkzeug')
+hiddenimports += collect_submodules('requests')
+hiddenimports += collect_submodules('flask_socketio')
+hiddenimports += collect_submodules('socketio')
+hiddenimports += ['dotenv', 'src', 'src.main_app', 'src.config', 'src.routes', 'src.services', 'src.utils']
+
+a = Analysis(
+    ['launcher.py'],
+    pathex=[os.getcwd()],
+    binaries=[],
+    datas=datas,
+    hiddenimports=hiddenimports,
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=['matplotlib', 'scipy', 'pytest', 'IPython', 'pandas.tests', 'numpy.tests'],
+    win_no_prefer_redirects=False,
+    win_private_assemblies=False,
+    cipher=block_cipher,
+    noarchive=False,
+)
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name='GymBot',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    console=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='GymBot',
+)
+'''
+
+with open('gym_bot_fresh.spec', 'w') as f:
+    f.write(spec_content)
+
+print('Fresh spec file generated')
+"
+      shell: pwsh
+
+    - name: Build with PyInstaller using fresh spec
+      run: |
+        python -m PyInstaller gym_bot_fresh.spec --clean --noconfirm
 
     - name: Verify build output
       run: |
@@ -78,6 +185,22 @@ jobs:
         Select-String -Path "dist\GymBot\_internal\launcher.py" -Pattern "Check Updates|options_frame" -ErrorAction SilentlyContinue
         Write-Host "setup_wizard.py auth in _internal:"
         Select-String -Path "dist\GymBot\_internal\setup_wizard.py" -Pattern "'username'" -ErrorAction SilentlyContinue
+      shell: pwsh
+
+    - name: Verify strings in compiled EXE
+      run: |
+        Write-Host "=== Checking if button strings are in compiled exe ==="
+        python -c "
+exe_path = 'dist/GymBot/GymBot.exe'
+with open(exe_path, 'rb') as f:
+    content = f.read()
+strings = [b'Check Updates', b'options_frame', b'View Logs', b'open_settings', b'check_updates']
+for s in strings:
+    if s in content:
+        print(f'FOUND in exe: {s.decode()}')
+    else:
+        print(f'NOT FOUND in exe: {s.decode()}')
+"
       shell: pwsh
 
     - name: Install Inno Setup
