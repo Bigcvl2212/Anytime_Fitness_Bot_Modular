@@ -41,8 +41,8 @@ jobs:
       run: |
         Write-Host "=== VERSION ==="
         Get-Content VERSION
-        Write-Host "=== launcher.py buttons ==="
-        Select-String -Path "launcher.py" -Pattern "Check Updates|options_frame|View Logs"
+        Write-Host "=== gymbot_launcher.py buttons ==="
+        Select-String -Path "gymbot_launcher.py" -Pattern "Check Updates|options_frame|View Logs"
 
     - name: Clear all caches
       shell: pwsh
@@ -57,18 +57,18 @@ jobs:
         $pyiWork = Join-Path $env:TEMP "pyinstaller"
         if (Test-Path $pyiWork) { Remove-Item -Path $pyiWork -Recurse -Force -ErrorAction SilentlyContinue }
 
-    - name: Debug launcher.py before build
+    - name: Debug gymbot_launcher.py before build
       run: |
         python -c "
 import os
 print('=== Current directory ===')
 print(os.getcwd())
-print('=== launcher.py location ===')
-print(os.path.abspath('launcher.py'))
-print('=== launcher.py size ===')
-print(os.path.getsize('launcher.py'))
-print('=== Checking for options_frame in launcher.py ===')
-with open('launcher.py', 'r', encoding='utf-8') as f:
+print('=== gymbot_launcher.py location ===')
+print(os.path.abspath('gymbot_launcher.py'))
+print('=== gymbot_launcher.py size ===')
+print(os.path.getsize('gymbot_launcher.py'))
+print('=== Checking for options_frame in gymbot_launcher.py ===')
+with open('gymbot_launcher.py', 'r', encoding='utf-8') as f:
     content = f.read()
     if 'options_frame' in content:
         print('YES - options_frame found')
@@ -86,10 +86,10 @@ with open('launcher.py', 'r', encoding='utf-8') as f:
 
     - name: Build directly without spec file
       run: |
-        python -m PyInstaller launcher.py --name GymBot --onedir --console --clean --noconfirm --add-data "templates;templates" --add-data "static;static" --add-data "run_dashboard.py;." --add-data "setup_wizard.py;." --add-data "VERSION;." --add-data "src;src" --add-data "config;config" --hidden-import flask --hidden-import jinja2 --hidden-import werkzeug --hidden-import requests --hidden-import flask_socketio --hidden-import socketio --hidden-import dotenv
+        python -m PyInstaller gymbot_launcher.py --name GymBot --onedir --console --clean --noconfirm --add-data "templates;templates" --add-data "static;static" --add-data "run_dashboard.py;." --add-data "gymbot_setup_wizard.py;." --add-data "VERSION;." --add-data "src;src" --add-data "config;config" --hidden-import flask --hidden-import jinja2 --hidden-import werkzeug --hidden-import requests --hidden-import flask_socketio --hidden-import socketio --hidden-import dotenv
 
     - name: Verify exe contains expected strings
-      run: python verify_exe.py dist/GymBot/GymBot.exe
+      run: python verify_exe.py dist/GymBot
 
     - name: Verify build output
       shell: pwsh

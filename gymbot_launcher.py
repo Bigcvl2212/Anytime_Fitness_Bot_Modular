@@ -144,8 +144,8 @@ class GymBotLauncher:
     def run_setup_wizard(self):
         """Run the setup wizard"""
         try:
-            import setup_wizard
-            setup_wizard.main()
+            import gymbot_setup_wizard
+            gymbot_setup_wizard.main()
         except Exception as e:
             messagebox.showerror("Setup Error",
                                f"Failed to run setup wizard:\n{str(e)}")

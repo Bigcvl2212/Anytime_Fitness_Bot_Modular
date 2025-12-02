@@ -17,8 +17,8 @@ datas += collect_data_files('werkzeug')
 datas += [('templates', 'templates')]
 datas += [('static', 'static')]
 datas += [('run_dashboard.py', '.')]
-datas += [('setup_wizard.py', '.')]
-datas += [('launcher.py', '.')]
+datas += [('gymbot_setup_wizard.py', '.')]
+datas += [('gymbot_launcher.py', '.')]
 datas += [('VERSION', '.')]
 if os.path.exists('src'):
     datas += [('src', 'src')]
@@ -35,7 +35,7 @@ hiddenimports += collect_submodules('socketio')
 hiddenimports += ['dotenv', 'src', 'src.main_app', 'src.config', 'src.routes', 'src.services', 'src.utils']
 
 a = Analysis(
-    ['launcher.py'],
+    ['gymbot_launcher.py'],
     pathex=[os.getcwd()],
     binaries=[],
     datas=datas,
