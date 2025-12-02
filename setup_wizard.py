@@ -403,14 +403,17 @@ This is optional - you can skip and add it later.
 
         def test_in_thread():
             try:
-                # Use the REAL ClubHub authentication
+                # Use the REAL ClubHub iOS API endpoint
                 response = requests.post(
-                    'https://clubhubapi.com/api/authentication/login',
+                    'https://clubhub-ios-api.anytimefitness.com/api/login',
                     json={
                         'email': email,
                         'password': password
                     },
-                    headers={'Content-Type': 'application/json'},
+                    headers={
+                        'Content-Type': 'application/json',
+                        'User-Agent': 'ClubHub/3.0 iOS/17.0'
+                    },
                     timeout=15
                 )
 
