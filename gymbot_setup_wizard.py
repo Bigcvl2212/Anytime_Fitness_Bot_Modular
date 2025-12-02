@@ -140,7 +140,7 @@ Enter your ClubHub email and password below.
         input_frame = ttk.Frame(frame)
         input_frame.pack(pady=20, fill='x')
 
-        ttk.Label(input_frame, text="ClubHub Email:").grid(row=0, column=0, sticky='w', pady=5)
+        ttk.Label(input_frame, text="ClubHub Username:").grid(row=0, column=0, sticky='w', pady=5)
         self.clubhub_email = ttk.Entry(input_frame, width=40)
         self.clubhub_email.grid(row=0, column=1, pady=5, padx=10)
 

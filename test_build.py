@@ -40,7 +40,7 @@ else:
 print("[CHECK] Required Files Check...")
 required_files = [
     'run_dashboard.py',
-    'gymbot_launcher.py',
+    'entry_v2.py',
     'gym_bot.spec',
     'requirements.txt',
     'src/__init__.py',

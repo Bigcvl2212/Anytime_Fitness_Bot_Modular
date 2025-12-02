@@ -6,7 +6,7 @@ import os
 
 target_path = sys.argv[1] if len(sys.argv) > 1 else 'dist/GymBot'
 
-strings = [b'Check Updates', b'options_frame', b'View Logs', b'open_settings', b'check_updates']
+strings = [b'Check Updates', b'options_frame', b'View Logs', b'open_settings', b'check_updates', b'STARTING ENTRY_V2']
 found_status = {s: False for s in strings}
 
 print(f"Scanning {target_path} for strings...")
