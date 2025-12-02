@@ -39,6 +39,16 @@ jobs:
         Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
         Get-ChildItem -Path . -Recurse -Filter "*.pyc" | Remove-Item -Force -ErrorAction SilentlyContinue
 
+    - name: Generate build info
+      shell: pwsh
+      run: |
+        $content = @()
+        $content += "Build Time: $(Get-Date -Format o)"
+        $content += "Runner OS: $env:RUNNER_OS"
+        $content += "Git SHA: $env:GITHUB_SHA"
+        $content += "Workflow Run: $env:GITHUB_RUN_ID"
+        Set-Content -Path build_info.txt -Value $content
+
     - name: Build executable
       run: python -m PyInstaller ${{ env.SPEC_FILE }} --clean --noconfirm
 
@@ -99,6 +109,15 @@ jobs:
         rm -rf build dist __pycache__
         find . -name "*.pyc" -delete
         find . -name "__pycache__" -type d -delete
+
+    - name: Generate build info
+      run: |
+        {
+          echo "Build Time: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "Runner OS: $RUNNER_OS"
+          echo "Git SHA: $GITHUB_SHA"
+          echo "Workflow Run: $GITHUB_RUN_ID"
+        } > build_info.txt
 
     - name: Build app bundle
       run: python3 -m PyInstaller ${{ env.SPEC_FILE }} --clean --noconfirm
