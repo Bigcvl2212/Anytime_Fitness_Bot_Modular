@@ -37,6 +37,16 @@ jobs:
         python test_build.py
       continue-on-error: false
 
+    - name: Verify source files before build
+      run: |
+        Write-Host "=== VERSION FILE ==="
+        Get-Content VERSION
+        Write-Host "=== LAUNCHER.PY Check Updates button ==="
+        Select-String -Path "launcher.py" -Pattern "Check Updates"
+        Write-Host "=== SETUP_WIZARD.PY username field ==="
+        Select-String -Path "setup_wizard.py" -Pattern "'username'"
+      shell: pwsh
+
     - name: Build with PyInstaller
       run: |
         python -m PyInstaller gym_bot.spec --clean --noconfirm
