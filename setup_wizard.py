@@ -390,7 +390,7 @@ This is optional - you can skip and add it later.
 
     def test_clubhub_connection(self):
         """Test ClubHub credentials using the real ClubHub API"""
-        email = self.clubhub_email.get()
+        email = self.clubhub_email.get().strip()
         password = self.clubhub_password.get()
 
         if not email or not password:
@@ -400,6 +400,10 @@ This is optional - you can skip and add it later.
 
         self.clubhub_status.config(text="Testing ClubHub connection...", foreground='blue')
         self.root.update()
+
+        def update_status(text, color):
+            """Thread-safe status update"""
+            self.root.after(0, lambda: self.clubhub_status.config(text=text, foreground=color))
 
         def test_in_thread():
             try:
@@ -424,30 +428,22 @@ This is optional - you can skip and add it later.
                     data = response.json()
                     # Check for accessToken (iOS API format) or token (alternate format)
                     if data.get('accessToken') or data.get('data', {}).get('token'):
-                        self.clubhub_status.config(text="✓ ClubHub connection successful!",
-                                                   foreground='green')
+                        update_status("✓ ClubHub connection successful!", 'green')
                     else:
-                        self.clubhub_status.config(text="✗ Invalid response from ClubHub",
-                                                   foreground='red')
+                        update_status(f"✗ Invalid response (no token in response)", 'red')
                 elif response.status_code == 401:
-                    self.clubhub_status.config(text="✗ Invalid ClubHub credentials",
-                                              foreground='red')
+                    update_status("✗ Invalid ClubHub credentials", 'red')
                 else:
-                    self.clubhub_status.config(text=f"✗ ClubHub error: {response.status_code}",
-                                              foreground='red')
+                    update_status(f"✗ ClubHub error: {response.status_code}", 'red')
 
-            except requests.exceptions.SSLError:
-                self.clubhub_status.config(text="✗ SSL error - check internet connection",
-                                          foreground='red')
+            except requests.exceptions.SSLError as e:
+                update_status(f"✗ SSL error: {str(e)[:50]}", 'red')
             except requests.exceptions.Timeout:
-                self.clubhub_status.config(text="✗ Connection timeout - check internet",
-                                          foreground='red')
-            except requests.exceptions.ConnectionError:
-                self.clubhub_status.config(text="✗ Cannot reach ClubHub server",
-                                          foreground='red')
+                update_status("✗ Connection timeout - check internet", 'red')
+            except requests.exceptions.ConnectionError as e:
+                update_status(f"✗ Cannot reach server: {str(e)[:50]}", 'red')
             except Exception as e:
-                self.clubhub_status.config(text=f"✗ Connection failed: {str(e)}",
-                                          foreground='red')
+                update_status(f"✗ Error: {str(e)[:50]}", 'red')
 
         threading.Thread(target=test_in_thread, daemon=True).start()
 
