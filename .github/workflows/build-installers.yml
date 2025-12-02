@@ -58,31 +58,30 @@ jobs:
         if (Test-Path $pyiWork) { Remove-Item -Path $pyiWork -Recurse -Force -ErrorAction SilentlyContinue }
 
     - name: Debug gymbot_launcher.py before build
+      shell: python
       run: |
-        python -c "
-import os
-print('=== Current directory ===')
-print(os.getcwd())
-print('=== gymbot_launcher.py location ===')
-print(os.path.abspath('gymbot_launcher.py'))
-print('=== gymbot_launcher.py size ===')
-print(os.path.getsize('gymbot_launcher.py'))
-print('=== Checking for options_frame in gymbot_launcher.py ===')
-with open('gymbot_launcher.py', 'r', encoding='utf-8') as f:
-    content = f.read()
-    if 'options_frame' in content:
-        print('YES - options_frame found')
-        # Print the line
-        for i, line in enumerate(content.split('\n')):
-            if 'options_frame' in line:
-                print(f'Line {i+1}: {line}')
-    else:
-        print('NO - options_frame NOT found')
-    if 'Check Updates' in content:
-        print('YES - Check Updates found')
-    else:
-        print('NO - Check Updates NOT found')
-"
+        import os
+        print('=== Current directory ===')
+        print(os.getcwd())
+        print('=== gymbot_launcher.py location ===')
+        print(os.path.abspath('gymbot_launcher.py'))
+        print('=== gymbot_launcher.py size ===')
+        print(os.path.getsize('gymbot_launcher.py'))
+        print('=== Checking for options_frame in gymbot_launcher.py ===')
+        with open('gymbot_launcher.py', 'r', encoding='utf-8') as f:
+            content = f.read()
+            if 'options_frame' in content:
+                print('YES - options_frame found')
+                # Print the line
+                for i, line in enumerate(content.split('\n')):
+                    if 'options_frame' in line:
+                        print(f'Line {i+1}: {line}')
+            else:
+                print('NO - options_frame NOT found')
+            if 'Check Updates' in content:
+                print('YES - Check Updates found')
+            else:
+                print('NO - Check Updates NOT found')
 
     - name: Build directly without spec file
       run: |
