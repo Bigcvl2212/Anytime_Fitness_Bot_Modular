@@ -2,15 +2,15 @@ name: Build Gym Bot Installers
 
 on:
   push:
-    branches: [ main, master, restore/2025-08-29-15-21 ]
+    branches: [ main, master ]
     tags:
       - 'v*'
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:  # Allow manual triggering
+  workflow_dispatch:
 
 permissions:
-  contents: write  # Required for creating releases
+  contents: write
 
 jobs:
   build-windows:
@@ -33,185 +33,54 @@ jobs:
         pip install pyinstaller
 
     - name: Run pre-flight checks
-      run: |
-        python test_build.py
+      run: python test_build.py
       continue-on-error: false
 
     - name: Verify source files before build
-      run: |
-        Write-Host "=== VERSION FILE ==="
-        Get-Content VERSION
-        Write-Host "=== LAUNCHER.PY Check Updates button ==="
-        Select-String -Path "launcher.py" -Pattern "Check Updates"
-        Write-Host "=== LAUNCHER.PY options_frame ==="
-        Select-String -Path "launcher.py" -Pattern "options_frame"
-        Write-Host "=== SETUP_WIZARD.PY username field ==="
-        Select-String -Path "setup_wizard.py" -Pattern "'username'"
       shell: pwsh
-
-    - name: Clear ALL build artifacts before build
       run: |
-        Write-Host "Removing build, dist, and cache folders..."
+        Write-Host "=== VERSION ==="
+        Get-Content VERSION
+        Write-Host "=== launcher.py buttons ==="
+        Select-String -Path "launcher.py" -Pattern "Check Updates|options_frame|View Logs"
+
+    - name: Clear all caches
+      shell: pwsh
+      run: |
         Remove-Item -Path "build" -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -Path "dist" -Recurse -Force -ErrorAction SilentlyContinue
         Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
         Get-ChildItem -Path . -Recurse -Filter "*.pyc" | Remove-Item -Force -ErrorAction SilentlyContinue
-        # Also clear PyInstaller cache
-        $pyiCache = "$env:LOCALAPPDATA\pyinstaller"
-        if (Test-Path $pyiCache) { Remove-Item -Path $pyiCache -Recurse -Force -ErrorAction SilentlyContinue }
-        Write-Host "All caches cleared"
-      shell: pwsh
-
-    - name: Print launcher.py content to verify
-      run: |
-        Write-Host "=== FULL setup_ui function from launcher.py ==="
-        $content = Get-Content "launcher.py" -Raw
-        $match = [regex]::Match($content, 'def setup_ui\(self\):.*?def \w+\(self\):', [System.Text.RegularExpressions.RegexOptions]::Singleline)
-        if ($match.Success) { Write-Host $match.Value.Substring(0, [Math]::Min(2000, $match.Value.Length)) }
-      shell: pwsh
 
     - name: Generate fresh spec file
-      run: |
-        Write-Host "Generating fresh spec file to avoid any caching issues..."
-        python -c "
-import PyInstaller.__main__
-import os
+      run: python generate_spec.py
 
-# Generate a fresh spec
-spec_content = '''# -*- mode: python ; coding: utf-8 -*-
-import sys
-import os
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+    - name: Build with PyInstaller
+      run: python -m PyInstaller gym_bot_fresh.spec --clean --noconfirm
 
-block_cipher = None
-
-datas = []
-datas += collect_data_files('flask')
-datas += collect_data_files('jinja2')
-datas += collect_data_files('werkzeug')
-datas += [('templates', 'templates')]
-datas += [('static', 'static')]
-datas += [('run_dashboard.py', '.')]
-datas += [('setup_wizard.py', '.')]
-datas += [('launcher.py', '.')]
-datas += [('VERSION', '.')]
-if os.path.exists('src'):
-    datas += [('src', 'src')]
-if os.path.exists('config'):
-    datas += [('config', 'config')]
-
-hiddenimports = []
-hiddenimports += collect_submodules('flask')
-hiddenimports += collect_submodules('jinja2')
-hiddenimports += collect_submodules('werkzeug')
-hiddenimports += collect_submodules('requests')
-hiddenimports += collect_submodules('flask_socketio')
-hiddenimports += collect_submodules('socketio')
-hiddenimports += ['dotenv', 'src', 'src.main_app', 'src.config', 'src.routes', 'src.services', 'src.utils']
-
-a = Analysis(
-    ['launcher.py'],
-    pathex=[os.getcwd()],
-    binaries=[],
-    datas=datas,
-    hiddenimports=hiddenimports,
-    hookspath=[],
-    hooksconfig={},
-    runtime_hooks=[],
-    excludes=['matplotlib', 'scipy', 'pytest', 'IPython', 'pandas.tests', 'numpy.tests'],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
-    noarchive=False,
-)
-
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
-
-exe = EXE(
-    pyz,
-    a.scripts,
-    [],
-    exclude_binaries=True,
-    name='GymBot',
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=True,
-    console=True,
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-)
-
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='GymBot',
-)
-'''
-
-with open('gym_bot_fresh.spec', 'w') as f:
-    f.write(spec_content)
-
-print('Fresh spec file generated')
-"
-      shell: pwsh
-
-    - name: Build with PyInstaller using fresh spec
-      run: |
-        python -m PyInstaller gym_bot_fresh.spec --clean --noconfirm
+    - name: Verify exe contains expected strings
+      run: python verify_exe.py dist/GymBot/GymBot.exe
 
     - name: Verify build output
+      shell: pwsh
       run: |
         if (Test-Path "dist\GymBot\GymBot.exe") {
-          Write-Host "✅ Build successful: GymBot.exe created"
+          Write-Host "Build successful"
           $size = (Get-Item "dist\GymBot\GymBot.exe").Length / 1MB
-          Write-Host "📦 Size: $([math]::Round($size, 2)) MB"
+          Write-Host "Size: $([math]::Round($size, 2)) MB"
+          Get-Content "dist\GymBot\_internal\VERSION" -ErrorAction SilentlyContinue
         } else {
-          Write-Error "❌ Build failed: GymBot.exe not found"
+          Write-Error "Build failed"
           exit 1
         }
-        Write-Host "=== Verifying _internal files ==="
-        Write-Host "VERSION in _internal:"
-        Get-Content "dist\GymBot\_internal\VERSION" -ErrorAction SilentlyContinue
-        Write-Host "launcher.py buttons in _internal:"
-        Select-String -Path "dist\GymBot\_internal\launcher.py" -Pattern "Check Updates|options_frame" -ErrorAction SilentlyContinue
-        Write-Host "setup_wizard.py auth in _internal:"
-        Select-String -Path "dist\GymBot\_internal\setup_wizard.py" -Pattern "'username'" -ErrorAction SilentlyContinue
-      shell: pwsh
-
-    - name: Verify strings in compiled EXE
-      run: |
-        Write-Host "=== Checking if button strings are in compiled exe ==="
-        python -c "
-exe_path = 'dist/GymBot/GymBot.exe'
-with open(exe_path, 'rb') as f:
-    content = f.read()
-strings = [b'Check Updates', b'options_frame', b'View Logs', b'open_settings', b'check_updates']
-for s in strings:
-    if s in content:
-        print(f'FOUND in exe: {s.decode()}')
-    else:
-        print(f'NOT FOUND in exe: {s.decode()}')
-"
-      shell: pwsh
 
     - name: Install Inno Setup
-      run: |
-        choco install innosetup -y
       shell: pwsh
+      run: choco install innosetup -y
 
     - name: Create Windows Installer
-      run: |
-        iscc installer_windows.iss
       shell: pwsh
+      run: iscc installer_windows.iss
 
     - name: Upload Windows Installer
       uses: actions/upload-artifact@v4
@@ -259,50 +128,49 @@ for s in strings:
         pip3 install pyinstaller
 
     - name: Run pre-flight checks
-      run: |
-        python3 test_build.py
+      run: python3 test_build.py
       continue-on-error: false
 
     - name: Install create-dmg
+      run: brew install create-dmg
+
+    - name: Clear caches
       run: |
-        brew install create-dmg
+        rm -rf build dist __pycache__
+        find . -name "*.pyc" -delete
+        find . -name "__pycache__" -type d -delete
+
+    - name: Generate fresh spec file
+      run: python3 generate_spec.py
 
     - name: Build with PyInstaller
-      run: |
-        python3 -m PyInstaller gym_bot.spec --clean --noconfirm
+      run: python3 -m PyInstaller gym_bot_fresh.spec --clean --noconfirm
 
     - name: Verify build output
       run: |
-        if [ -f "dist/GymBot.app/Contents/MacOS/GymBot" ]; then
-          echo "✅ Build successful: GymBot.app created"
-          du -sh "dist/GymBot.app"
+        if [ -d "dist/GymBot" ]; then
+          echo "Build successful"
+          cat dist/GymBot/_internal/VERSION 2>/dev/null || echo "No VERSION file"
         else
-          echo "❌ Build failed: GymBot.app not found"
+          echo "Build failed"
           exit 1
         fi
 
     - name: Create DMG Installer
       run: |
-        # Create DMG from the app bundle (without custom icon)
-        create-dmg \
-          --volname "Gym Bot Installer" \
-          --window-pos 200 120 \
-          --window-size 800 400 \
-          --icon-size 100 \
-          --icon "GymBot.app" 200 190 \
-          --hide-extension "GymBot.app" \
-          --app-drop-link 600 185 \
-          --no-internet-enable \
-          "dist/GymBotInstaller.dmg" \
-          "dist/GymBot.app" || true
-
-        # Fallback: If create-dmg fails, create simple DMG
-        if [ ! -f "dist/GymBotInstaller.dmg" ]; then
-          echo "Creating simple DMG as fallback..."
-          hdiutil create -volname "Gym Bot Installer" \
-            -srcfolder "dist/GymBot.app" \
-            -ov -format UDZO \
-            "dist/GymBotInstaller.dmg"
+        if [ -d "dist/GymBot.app" ]; then
+          create-dmg \
+            --volname "Gym Bot Installer" \
+            --window-pos 200 120 \
+            --window-size 800 400 \
+            --icon-size 100 \
+            --app-drop-link 600 185 \
+            --no-internet-enable \
+            "dist/GymBotInstaller.dmg" \
+            "dist/GymBot.app" || true
+        fi
+        if [ ! -f "dist/GymBotInstaller.dmg" ] && [ -d "dist/GymBot" ]; then
+          hdiutil create -volname "Gym Bot" -srcfolder "dist/GymBot" -ov -format UDZO "dist/GymBotInstaller.dmg"
         fi
 
     - name: Upload macOS Installer
@@ -311,17 +179,7 @@ for s in strings:
         name: GymBot-macOS-Installer
         path: dist/GymBotInstaller.dmg
         retention-days: 30
-
-    - name: Upload build logs on failure
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: macOS-Build-Logs
-        path: |
-          build/GymBot/warn-GymBot.txt
-          build/GymBot/*.log
-        retention-days: 7
-        if-no-files-found: ignore
+        if-no-files-found: warn
 
     - name: Create Release (if tag)
       if: startsWith(github.ref, 'refs/tags/')
@@ -335,20 +193,10 @@ for s in strings:
     name: Build Information
     runs-on: ubuntu-latest
     needs: [build-windows, build-macos]
+    if: always()
 
     steps:
     - name: Print build info
       run: |
-        echo "✅ Windows and macOS installers built successfully!"
-        echo ""
-        echo "📦 Artifacts available for download in Actions tab"
-        echo ""
-        echo "To download:"
-        echo "1. Go to Actions tab in GitHub"
-        echo "2. Click on this workflow run"
-        echo "3. Scroll down to Artifacts section"
-        echo "4. Download GymBot-Windows-Installer.exe or GymBot-macOS-Installer.dmg"
-        echo ""
-        echo "To create a release:"
-        echo "1. Create and push a tag: git tag v1.0.0 && git push origin v1.0.0"
-        echo "2. Installers will be automatically attached to the release"
+        echo "Build complete"
+        echo "Download artifacts from the Actions tab"
