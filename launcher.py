@@ -117,6 +117,8 @@ class GymBotLauncher:
                   command=self.open_settings).pack(side='left', padx=5)
         ttk.Button(options_frame, text="View Logs",
                   command=self.view_logs).pack(side='left', padx=5)
+        ttk.Button(options_frame, text="Check Updates",
+                  command=self.check_updates).pack(side='left', padx=5)
         ttk.Button(options_frame, text="Help",
                   command=self.show_help).pack(side='left', padx=5)
 
@@ -473,6 +475,70 @@ For more help, visit the documentation or contact support.
         """
 
         messagebox.showinfo("Help", help_text)
+
+    def check_updates(self):
+        """Check for and apply updates from GitHub"""
+        try:
+            from src.utils.auto_updater import AutoUpdater
+            
+            # Show checking message
+            self.status_label.config(text="Checking for updates...")
+            self.root.update()
+            
+            updater = AutoUpdater()
+            update_available, local_ver, remote_ver = updater.check_for_updates()
+            
+            if not update_available:
+                messagebox.showinfo("Up to Date", 
+                                   f"You have the latest version (v{local_ver})")
+                self.status_label.config(text="Server is stopped" if not self.is_running else "Server is running")
+                return
+            
+            # Ask user if they want to update
+            if messagebox.askyesno("Update Available",
+                                   f"A new version is available!\n\n"
+                                   f"Current: v{local_ver}\n"
+                                   f"Latest: v{remote_ver}\n\n"
+                                   f"Do you want to update now?\n\n"
+                                   f"Note: The server will be restarted if running."):
+                
+                # Stop server if running
+                was_running = self.is_running
+                if was_running:
+                    self.stop_server()
+                    time.sleep(2)
+                
+                # Show progress
+                self.status_label.config(text="Downloading update...")
+                self.root.update()
+                
+                # Perform update
+                success, message = updater.perform_update()
+                
+                if success:
+                    messagebox.showinfo("Update Complete", 
+                                       f"{message}\n\nPlease restart the application.")
+                    # Update version display
+                    self.version = updater.get_local_version()
+                    self.root.title(f"Gym Bot Launcher v{self.version}")
+                else:
+                    messagebox.showerror("Update Failed", message)
+                
+                # Restart server if it was running
+                if was_running:
+                    self.start_server()
+                else:
+                    self.status_label.config(text="Server is stopped")
+            else:
+                self.status_label.config(text="Server is stopped" if not self.is_running else "Server is running")
+                
+        except ImportError:
+            messagebox.showerror("Error", 
+                               "Auto-updater not available.\n"
+                               "Please download the latest installer from GitHub.")
+        except Exception as e:
+            messagebox.showerror("Update Error", f"Failed to check for updates:\n{str(e)}")
+            self.status_label.config(text="Server is stopped" if not self.is_running else "Server is running")
 
     def exit_app(self):
         """Exit the application"""
