@@ -57,6 +57,33 @@ jobs:
         $pyiWork = Join-Path $env:TEMP "pyinstaller"
         if (Test-Path $pyiWork) { Remove-Item -Path $pyiWork -Recurse -Force -ErrorAction SilentlyContinue }
 
+    - name: Debug launcher.py before build
+      run: |
+        python -c "
+import os
+print('=== Current directory ===')
+print(os.getcwd())
+print('=== launcher.py location ===')
+print(os.path.abspath('launcher.py'))
+print('=== launcher.py size ===')
+print(os.path.getsize('launcher.py'))
+print('=== Checking for options_frame in launcher.py ===')
+with open('launcher.py', 'r', encoding='utf-8') as f:
+    content = f.read()
+    if 'options_frame' in content:
+        print('YES - options_frame found')
+        # Print the line
+        for i, line in enumerate(content.split('\n')):
+            if 'options_frame' in line:
+                print(f'Line {i+1}: {line}')
+    else:
+        print('NO - options_frame NOT found')
+    if 'Check Updates' in content:
+        print('YES - Check Updates found')
+    else:
+        print('NO - Check Updates NOT found')
+"
+
     - name: Build directly without spec file
       run: |
         python -m PyInstaller launcher.py --name GymBot --onedir --console --clean --noconfirm --add-data "templates;templates" --add-data "static;static" --add-data "run_dashboard.py;." --add-data "setup_wizard.py;." --add-data "VERSION;." --add-data "src;src" --add-data "config;config" --hidden-import flask --hidden-import jinja2 --hidden-import werkzeug --hidden-import requests --hidden-import flask_socketio --hidden-import socketio --hidden-import dotenv
