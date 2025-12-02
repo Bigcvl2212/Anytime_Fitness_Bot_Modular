@@ -15,6 +15,8 @@ import time
 from pathlib import Path
 import logging
 
+import requests
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

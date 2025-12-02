@@ -131,8 +131,8 @@ and manage your gym operations. Enter your ClubOS login credentials below.
         title.pack(pady=10)
 
         desc = ttk.Label(frame, text="""
-ClubHub is the new API system for accessing club data.
-Enter your ClubHub username and password below.
+    ClubHub is the new API system for accessing club data.
+    Enter the SAME email and password you use to log into the ClubHub app/website.
         """, justify='left', wraplength=600)
         desc.pack(pady=10)
 
@@ -140,7 +140,7 @@ Enter your ClubHub username and password below.
         input_frame = ttk.Frame(frame)
         input_frame.pack(pady=20, fill='x')
 
-        ttk.Label(input_frame, text="ClubHub Username:").grid(row=0, column=0, sticky='w', pady=5)
+        ttk.Label(input_frame, text="ClubHub Email (exact login email):").grid(row=0, column=0, sticky='w', pady=5)
         self.clubhub_email = ttk.Entry(input_frame, width=40)
         self.clubhub_email.grid(row=0, column=1, pady=5, padx=10)
 
@@ -432,7 +432,16 @@ This is optional - you can skip and add it later.
                     else:
                         update_status(f"✗ Invalid response (no token in response)", 'red')
                 elif response.status_code == 401:
-                    update_status("✗ Invalid ClubHub credentials", 'red')
+                    error_hint = ''
+                    try:
+                        error_json = response.json()
+                        if isinstance(error_json, dict):
+                            error_hint = error_json.get('message') or error_json.get('error') or ''
+                    except ValueError:
+                        error_hint = response.text[:80]
+
+                    hint_suffix = f" ({error_hint})" if error_hint else ''
+                    update_status("✗ Invalid ClubHub credentials. Make sure you paste the exact ClubHub login email and password." + hint_suffix, 'red')
                 else:
                     update_status(f"✗ ClubHub error: {response.status_code}", 'red')
 

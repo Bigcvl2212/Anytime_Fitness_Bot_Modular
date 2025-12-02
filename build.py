@@ -4,13 +4,22 @@ import os
 import sys
 import datetime
 
+def _handle_remove_readonly(func, path, exc_info):
+    """Allow shutil.rmtree to remove read-only files on Windows."""
+    import stat
+    exc_type, _, _ = exc_info
+    if exc_type is PermissionError:
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+
+
 def clean_build_artifacts():
     """Remove previous build artifacts to ensure a clean build."""
     dirs_to_remove = ['build', 'dist', '__pycache__']
     for d in dirs_to_remove:
         if os.path.exists(d):
             print(f"Removing {d}...")
-            shutil.rmtree(d)
+            shutil.rmtree(d, onerror=_handle_remove_readonly)
     
     # Remove any .spec files
     for f in os.listdir('.'):
