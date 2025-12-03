@@ -12,6 +12,32 @@ import threading
 import requests
 from pathlib import Path
 
+try:
+    from dotenv import dotenv_values
+except ImportError:  # pragma: no cover - optional dependency
+    dotenv_values = None
+
+
+def resolve_config_dir() -> Path:
+    """Determine persistent config directory for wizard data"""
+    override = os.environ.get('GYMBOT_CONFIG_DIR')
+    if override:
+        target = Path(override).expanduser()
+    elif getattr(sys, 'frozen', False):
+        if sys.platform == 'win32':
+            base = Path(os.environ.get('LOCALAPPDATA', Path.home()))
+            target = base / 'GymBot'
+        elif sys.platform == 'darwin':
+            target = Path.home() / 'Library' / 'Application Support' / 'GymBot'
+        else:
+            base = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config'))
+            target = Path(base) / 'gymbot'
+    else:
+        target = Path(__file__).parent
+
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
 
 class SetupWizard:
     def __init__(self):
@@ -19,6 +45,10 @@ class SetupWizard:
         self.root.title("Gym Bot - First Time Setup")
         self.root.geometry("700x600")
         self.root.resizable(False, False)
+
+        self.config_dir = resolve_config_dir()
+        self.env_path = self.config_dir / '.env'
+        self.setup_complete_path = self.config_dir / '.setup_complete'
 
         # Configuration values
         self.config = {
@@ -33,6 +63,8 @@ class SetupWizard:
             'OPENAI_API_KEY': ''
         }
 
+        self._load_existing_config()
+
         self.current_page = 0
         self.pages = []
 
@@ -46,6 +78,26 @@ class SetupWizard:
 
         # Show first page
         self.show_page(0)
+
+    def _load_existing_config(self):
+        """Populate config defaults from existing .env if available"""
+        if not dotenv_values or not self.env_path.exists():
+            return
+
+        try:
+            env_values = dotenv_values(self.env_path)
+        except Exception:
+            return
+
+        for key in self.config:
+            value = env_values.get(key)
+            if value:
+                self.config[key] = value
+
+    def _prefill_entry(self, entry_widget: ttk.Entry, value: str):
+        if value:
+            entry_widget.delete(0, tk.END)
+            entry_widget.insert(0, value)
 
     def create_welcome_page(self):
         """Welcome and introduction page"""
@@ -101,10 +153,12 @@ and manage your gym operations. Enter your ClubOS login credentials below.
         ttk.Label(input_frame, text="ClubOS Username:").grid(row=0, column=0, sticky='w', pady=5)
         self.clubos_username = ttk.Entry(input_frame, width=40)
         self.clubos_username.grid(row=0, column=1, pady=5, padx=10)
+        self._prefill_entry(self.clubos_username, self.config['CLUBOS_USERNAME'])
 
         ttk.Label(input_frame, text="ClubOS Password:").grid(row=1, column=0, sticky='w', pady=5)
         self.clubos_password = ttk.Entry(input_frame, width=40, show='*')
         self.clubos_password.grid(row=1, column=1, pady=5, padx=10)
+        self._prefill_entry(self.clubos_password, self.config['CLUBOS_PASSWORD'])
 
         # Test connection button
         ttk.Button(input_frame, text="Test Connection",
@@ -143,10 +197,12 @@ and manage your gym operations. Enter your ClubOS login credentials below.
         ttk.Label(input_frame, text="ClubHub Email (exact login email):").grid(row=0, column=0, sticky='w', pady=5)
         self.clubhub_email = ttk.Entry(input_frame, width=40)
         self.clubhub_email.grid(row=0, column=1, pady=5, padx=10)
+        self._prefill_entry(self.clubhub_email, self.config['CLUBHUB_EMAIL'])
 
         ttk.Label(input_frame, text="ClubHub Password:").grid(row=1, column=0, sticky='w', pady=5)
         self.clubhub_password = ttk.Entry(input_frame, width=40, show='*')
         self.clubhub_password.grid(row=1, column=1, pady=5, padx=10)
+        self._prefill_entry(self.clubhub_password, self.config['CLUBHUB_PASSWORD'])
 
         # Test connection button
         ttk.Button(input_frame, text="Test Connection",
@@ -190,10 +246,12 @@ To get your Square credentials:
         ttk.Label(input_frame, text="Square Access Token:").grid(row=0, column=0, sticky='w', pady=5)
         self.square_token = ttk.Entry(input_frame, width=40, show='*')
         self.square_token.grid(row=0, column=1, pady=5, padx=10)
+        self._prefill_entry(self.square_token, self.config['SQUARE_ACCESS_TOKEN'])
 
         ttk.Label(input_frame, text="Square Location ID:").grid(row=1, column=0, sticky='w', pady=5)
         self.square_location = ttk.Entry(input_frame, width=40)
         self.square_location.grid(row=1, column=1, pady=5, padx=10)
+        self._prefill_entry(self.square_location, self.config['SQUARE_LOCATION_ID'])
 
         # Navigation
         nav_frame = ttk.Frame(frame)
@@ -233,6 +291,7 @@ This is optional - you can skip and add it later.
         ttk.Label(input_frame, text="OpenAI API Key:").grid(row=0, column=0, sticky='w', pady=5)
         self.openai_key = ttk.Entry(input_frame, width=40, show='*')
         self.openai_key.grid(row=0, column=1, pady=5, padx=10)
+        self._prefill_entry(self.openai_key, self.config['OPENAI_API_KEY'])
 
         # Navigation
         nav_frame = ttk.Frame(frame)
@@ -483,6 +542,9 @@ This is optional - you can skip and add it later.
         summary += f"  OpenAI API Key: {'*' * 20 if self.config['OPENAI_API_KEY'] else 'Not configured'}\n"
         summary += f"  Status: {'Configured' if self.config['OPENAI_API_KEY'] else 'Not configured'}\n\n"
 
+        summary += "Configuration file path:\n"
+        summary += f"  {self.env_path}\n\n"
+
         summary += "\n" + "=" * 50 + "\n"
         summary += "\nClick 'Save & Launch' to save this configuration and start Gym Bot."
 
@@ -493,13 +555,15 @@ This is optional - you can skip and add it later.
         """Save configuration and close wizard"""
         # Generate secure Flask secret key
         import secrets
-        self.config['FLASK_SECRET_KEY'] = secrets.token_urlsafe(32)
+        if not self.config['FLASK_SECRET_KEY']:
+            self.config['FLASK_SECRET_KEY'] = secrets.token_urlsafe(32)
 
         # Set default GCP project ID
-        self.config['GCP_PROJECT_ID'] = 'gym-bot-local'
+        if not self.config['GCP_PROJECT_ID']:
+            self.config['GCP_PROJECT_ID'] = 'gym-bot-local'
 
-        # Create .env file
-        env_path = Path(__file__).parent / '.env'
+        # Create .env file in persistent config directory
+        env_path = self.env_path
 
         try:
             with open(env_path, 'w') as f:
@@ -535,8 +599,7 @@ This is optional - you can skip and add it later.
                               "Gym Bot will now launch.")
 
             # Mark setup as complete
-            setup_complete_path = Path(__file__).parent / '.setup_complete'
-            setup_complete_path.touch()
+            self.setup_complete_path.touch()
 
             self.root.destroy()
 
@@ -558,7 +621,7 @@ This is optional - you can skip and add it later.
 def main():
     """Main entry point"""
     # Check if setup is already complete
-    setup_complete = Path(__file__).parent / '.setup_complete'
+    setup_complete = resolve_config_dir() / '.setup_complete'
 
     if setup_complete.exists():
         # Setup already done, skip wizard

@@ -7,11 +7,32 @@ and ensures secure credential management.
 """
 
 import os
+import sys
 import logging
 from pathlib import Path
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+def _get_user_config_env_path() -> Optional[Path]:
+    """Return user-specific config directory (aligned with launcher/wizard)"""
+    override = os.environ.get('GYMBOT_CONFIG_DIR')
+    if override:
+        return Path(override).expanduser() / '.env'
+
+    if sys.platform == 'win32':
+        local_appdata = os.environ.get('LOCALAPPDATA')
+        if local_appdata:
+            return Path(local_appdata) / 'GymBot' / '.env'
+    elif sys.platform == 'darwin':
+        return Path.home() / 'Library' / 'Application Support' / 'GymBot' / '.env'
+    else:
+        xdg_home = os.environ.get('XDG_CONFIG_HOME')
+        base = Path(xdg_home) if xdg_home else Path.home() / '.config'
+        return base / 'gymbot' / '.env'
+
+    return None
+
 
 def load_environment_variables() -> bool:
     """
@@ -24,17 +45,47 @@ def load_environment_variables() -> bool:
         # Try to import python-dotenv
         from dotenv import load_dotenv
         
-        # Look for .env file in project root
         project_root = Path(__file__).parent.parent.parent
-        env_file = project_root / '.env'
-        
-        if env_file.exists():
-            load_dotenv(env_file)
-            logger.info(f"✅ Environment variables loaded from {env_file}")
-            return True
-        else:
+        default_env = project_root / '.env'
+
+        env_candidates: list[Path] = [default_env]
+
+        meipass = getattr(sys, '_MEIPASS', None)
+        if meipass:
+            env_candidates.append(Path(meipass) / '.env')
+
+        if getattr(sys, 'frozen', False):
+            env_candidates.append(Path(sys.executable).resolve().parent / '.env')
+
+        user_env = _get_user_config_env_path()
+        if user_env:
+            env_candidates.append(user_env)
+
+        custom_env = os.environ.get('GYMBOT_ENV_FILE')
+        if custom_env:
+            env_candidates.append(Path(custom_env).expanduser())
+
+        loaded_any = False
+        seen: set[str] = set()
+
+        for env_path in env_candidates:
+            if not env_path:
+                continue
+
+            env_key = str(env_path)
+            if env_key in seen:
+                continue
+            seen.add(env_key)
+
+            if env_path.exists():
+                load_dotenv(env_path, override=True)
+                logger.info(f"✅ Environment variables loaded from {env_path}")
+                loaded_any = True
+
+        if not loaded_any:
             logger.info("ℹ️ No .env file found - using system environment variables")
-            return False
+
+        return loaded_any
             
     except ImportError:
         logger.warning("⚠️ python-dotenv not installed. Install it with: pip install python-dotenv")

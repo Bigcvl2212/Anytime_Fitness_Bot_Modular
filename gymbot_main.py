@@ -14,6 +14,7 @@ import socket
 import time
 from pathlib import Path
 import logging
+import shutil
 
 import requests
 
@@ -40,6 +41,12 @@ class GymBotLauncher:
         self.style.configure('TButton', padding=10, font=('Arial', 10))
         self.style.configure('Success.TButton', foreground='green')
         
+        # Determine persistent configuration directory (project dir for source runs,
+        # AppData/Application Support/etc when running from an installer)
+        self.config_dir = self.get_config_dir()
+        self.migrate_legacy_config()
+        os.environ.setdefault('GYMBOT_CONFIG_DIR', str(self.config_dir))
+
         self.server_process = None
         self.is_running = False
         self.server_url = "http://localhost:5000"
@@ -130,10 +137,47 @@ class GymBotLauncher:
         # Setup window close handler
         self.root.protocol("WM_DELETE_WINDOW", self.exit_app)
 
+    def get_config_dir(self) -> Path:
+        """Return directory for user config/log files, creating it if needed"""
+        override = os.environ.get('GYMBOT_CONFIG_DIR')
+        if override:
+            target = Path(override).expanduser()
+        elif getattr(sys, 'frozen', False):
+            if sys.platform == 'win32':
+                base = Path(os.environ.get('LOCALAPPDATA', Path.home()))
+                target = base / 'GymBot'
+            elif sys.platform == 'darwin':
+                target = Path.home() / 'Library' / 'Application Support' / 'GymBot'
+            else:
+                base = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config'))
+                target = Path(base) / 'gymbot'
+        else:
+            target = Path(__file__).parent
+
+        target.mkdir(parents=True, exist_ok=True)
+        return target
+
+    def migrate_legacy_config(self):
+        """Copy old .env/.setup files from app dir into persistent config dir"""
+        legacy_dir = Path(__file__).parent
+        if legacy_dir == self.config_dir:
+            return
+
+        for filename in ('.env', '.setup_complete'):
+            legacy_file = legacy_dir / filename
+            target_file = self.config_dir / filename
+
+            if legacy_file.exists() and not target_file.exists():
+                try:
+                    shutil.copy2(legacy_file, target_file)
+                    logger.info(f"Migrated legacy {filename} to {target_file}")
+                except Exception as exc:
+                    logger.warning(f"Failed to migrate {filename}: {exc}")
+
     def check_first_time_setup(self):
         """Check if first-time setup is needed"""
-        setup_complete = Path(__file__).parent / '.setup_complete'
-        env_file = Path(__file__).parent / '.env'
+        setup_complete = self.config_dir / '.setup_complete'
+        env_file = self.config_dir / '.env'
 
         if not setup_complete.exists() and not env_file.exists():
             # Run setup wizard
@@ -174,11 +218,7 @@ class GymBotLauncher:
                 run_script = os.path.join(app_dir, 'run_dashboard.py')
 
             # Setup logging directory
-            if getattr(sys, 'frozen', False):
-                # Use AppData for logs in frozen mode
-                log_dir = Path.home() / 'AppData' / 'Local' / 'GymBot' / 'logs'
-            else:
-                log_dir = Path(app_dir) / 'logs'
+            log_dir = self.config_dir / 'logs'
             
             log_dir.mkdir(parents=True, exist_ok=True)
             log_file = log_dir / 'launcher_flask.log'
@@ -259,6 +299,9 @@ class GymBotLauncher:
                 
             else:
                 # SCRIPT MODE: Use subprocess with python.exe
+                env_vars = os.environ.copy()
+                env_vars.setdefault('GYMBOT_CONFIG_DIR', str(self.config_dir))
+
                 if sys.platform == 'win32':
                     # Windows: hide console window but write to log file
                     startupinfo = subprocess.STARTUPINFO()
@@ -270,7 +313,8 @@ class GymBotLauncher:
                         stderr=subprocess.STDOUT,
                         startupinfo=startupinfo,
                         cwd=str(app_dir),
-                        creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+                        creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0,
+                        env=env_vars
                     )
                 else:
                     # Unix/Mac
@@ -278,7 +322,8 @@ class GymBotLauncher:
                         [python_exe, str(run_script)],
                         stdout=log_handle,
                         stderr=subprocess.STDOUT,
-                        cwd=str(app_dir)
+                        cwd=str(app_dir),
+                        env=env_vars
                     )
 
             # Wait a bit for server to start
@@ -377,8 +422,8 @@ class GymBotLauncher:
         if messagebox.askyesno("Settings",
                               "This will open the setup wizard to modify your settings.\n\n"
                               "Do you want to continue?"):
-            # Delete setup complete marker
-            setup_complete = Path(__file__).parent / '.setup_complete'
+            # Delete setup complete marker so wizard will rerun
+            setup_complete = self.config_dir / '.setup_complete'
             if setup_complete.exists():
                 setup_complete.unlink()
 
@@ -386,15 +431,9 @@ class GymBotLauncher:
 
     def view_logs(self):
         """Open log file"""
-        # CRITICAL: Check user's AppData for compiled exe, project dir for script
-        if getattr(sys, 'frozen', False):
-            # Running as compiled executable - logs in user's AppData
-            launcher_log = Path.home() / 'AppData' / 'Local' / 'GymBot' / 'logs' / 'launcher_flask.log'
-            dashboard_log = Path.home() / 'AppData' / 'Local' / 'GymBot' / 'logs' / 'dashboard.log'
-        else:
-            # Running as script - logs in project directory
-            launcher_log = Path(__file__).parent / 'logs' / 'launcher_flask.log'
-            dashboard_log = Path(__file__).parent / 'logs' / 'dashboard.log'
+        log_base = self.config_dir / 'logs'
+        launcher_log = log_base / 'launcher_flask.log'
+        dashboard_log = log_base / 'dashboard.log'
         
         log_file = launcher_log if launcher_log.exists() else dashboard_log
 
@@ -418,23 +457,30 @@ class GymBotLauncher:
     def check_updates(self):
         """Check for updates"""
         try:
-            response = requests.get("https://api.github.com/repos/Bigcvl2212/Anytime_Fitness_Bot_Modular/releases/latest", timeout=5)
+            url = "https://api.github.com/repos/Bigcvl2212/Anytime_Fitness_Bot_Modular/releases/latest"
+            response = requests.get(url, timeout=5)
+
             if response.status_code == 200:
                 latest = response.json().get('tag_name', '').replace('v', '')
                 current = self.get_version()
-                
-                if latest > current:
-                    if messagebox.askyesno("Update Available", 
-                                         f"New version {latest} is available!\n"
-                                         f"Current version: {current}\n\n"
-                                         "Do you want to download it now?"):
+
+                if latest and latest > current:
+                    if messagebox.askyesno("Update Available",
+                                           f"New version {latest} is available!\n"
+                                           f"Current version: {current}\n\n"
+                                           "Do you want to download it now?"):
                         webbrowser.open("https://github.com/Bigcvl2212/Anytime_Fitness_Bot_Modular/releases/latest")
                 else:
                     messagebox.showinfo("Up to Date", f"You are running the latest version ({current}).")
+            elif response.status_code == 404:
+                messagebox.showinfo("No Releases Found",
+                                   "No GitHub releases have been published yet.\n"
+                                   "Check the repository directly for updates.")
             else:
-                messagebox.showerror("Error", "Failed to check for updates.")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to check for updates:\n{str(e)}")
+                messagebox.showerror("Error",
+                                     f"Update check failed (HTTP {response.status_code}).")
+        except requests.exceptions.RequestException as e:
+            messagebox.showerror("Network Error", f"Failed to check for updates:\n{e}")
 
     def show_help(self):
         """Show help information"""
