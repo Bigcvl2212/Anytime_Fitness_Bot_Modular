@@ -53,14 +53,13 @@ class SetupWizard:
         # Configuration values
         self.config = {
             'FLASK_SECRET_KEY': '',
-            'GCP_PROJECT_ID': '',
             'CLUBOS_USERNAME': '',
             'CLUBOS_PASSWORD': '',
             'CLUBHUB_EMAIL': '',
             'CLUBHUB_PASSWORD': '',
             'SQUARE_ACCESS_TOKEN': '',
             'SQUARE_LOCATION_ID': '',
-            'OPENAI_API_KEY': ''
+            'GROQ_API_KEY': ''
         }
 
         self._load_existing_config()
@@ -114,8 +113,9 @@ This wizard will help you configure Gym Bot for your gym.
 
 You'll need the following information:
 • ClubOS credentials (username and password)
+• ClubHub credentials (email and password)
 • Square API credentials (optional - for invoicing)
-• OpenAI API key (optional - for AI features)
+• Groq API key (optional - for AI features, FREE)
 
 The setup will take approximately 5-10 minutes.
 
@@ -264,21 +264,22 @@ To get your Square credentials:
         self.pages.append(frame)
 
     def create_ai_page(self):
-        """AI/OpenAI credentials page (optional)"""
+        """Groq AI credentials page (optional)"""
         frame = ttk.Frame(self.root, padding="20")
 
-        title = ttk.Label(frame, text="AI Features (Optional)",
+        title = ttk.Label(frame, text="AI Features (Optional - FREE)",
                          font=('Arial', 16, 'bold'))
         title.pack(pady=10)
 
         desc = ttk.Label(frame, text="""
 AI features provide intelligent insights, automated messaging,
-and sales assistance. This requires an OpenAI API key.
+and sales assistance. This uses Groq API which is FREE!
 
-To get your OpenAI API key:
-1. Go to https://platform.openai.com/api-keys
-2. Create a new API key
-3. Copy and paste it below
+To get your Groq API key:
+1. Go to https://console.groq.com/
+2. Sign up or log in (free account)
+3. Go to API Keys and create a new key
+4. Copy and paste it below
 
 This is optional - you can skip and add it later.
         """, justify='left', wraplength=600)
@@ -288,10 +289,10 @@ This is optional - you can skip and add it later.
         input_frame = ttk.Frame(frame)
         input_frame.pack(pady=20, fill='x')
 
-        ttk.Label(input_frame, text="OpenAI API Key:").grid(row=0, column=0, sticky='w', pady=5)
-        self.openai_key = ttk.Entry(input_frame, width=40, show='*')
-        self.openai_key.grid(row=0, column=1, pady=5, padx=10)
-        self._prefill_entry(self.openai_key, self.config['OPENAI_API_KEY'])
+        ttk.Label(input_frame, text="Groq API Key:").grid(row=0, column=0, sticky='w', pady=5)
+        self.groq_key = ttk.Entry(input_frame, width=40, show='*')
+        self.groq_key.grid(row=0, column=1, pady=5, padx=10)
+        self._prefill_entry(self.groq_key, self.config['GROQ_API_KEY'])
 
         # Navigation
         nav_frame = ttk.Frame(frame)
@@ -357,7 +358,7 @@ This is optional - you can skip and add it later.
             self.config['SQUARE_ACCESS_TOKEN'] = self.square_token.get()
             self.config['SQUARE_LOCATION_ID'] = self.square_location.get()
         elif self.current_page == 4:  # AI page
-            self.config['OPENAI_API_KEY'] = self.openai_key.get()
+            self.config['GROQ_API_KEY'] = self.groq_key.get()
 
         if self.current_page < len(self.pages) - 1:
             self.show_page(self.current_page + 1)
@@ -575,10 +576,6 @@ This is optional - you can skip and add it later.
         if not self.config['FLASK_SECRET_KEY']:
             self.config['FLASK_SECRET_KEY'] = secrets.token_urlsafe(32)
 
-        # Set default GCP project ID
-        if not self.config['GCP_PROJECT_ID']:
-            self.config['GCP_PROJECT_ID'] = 'gym-bot-local'
-
         # Create .env file in persistent config directory
         env_path = self.env_path
 
@@ -589,7 +586,6 @@ This is optional - you can skip and add it later.
 
                 f.write("# Flask Configuration\n")
                 f.write(f"FLASK_SECRET_KEY={self.config['FLASK_SECRET_KEY']}\n")
-                f.write(f"GCP_PROJECT_ID={self.config['GCP_PROJECT_ID']}\n")
                 f.write("FLASK_ENV=production\n\n")
 
                 if self.config['CLUBOS_USERNAME']:
@@ -607,9 +603,10 @@ This is optional - you can skip and add it later.
                     f.write(f"SQUARE_ACCESS_TOKEN={self.config['SQUARE_ACCESS_TOKEN']}\n")
                     f.write(f"SQUARE_LOCATION_ID={self.config['SQUARE_LOCATION_ID']}\n\n")
 
-                if self.config['OPENAI_API_KEY']:
-                    f.write("# AI Features\n")
-                    f.write(f"OPENAI_API_KEY={self.config['OPENAI_API_KEY']}\n\n")
+                if self.config['GROQ_API_KEY']:
+                    f.write("# AI Features (Groq - FREE)\n")
+                    f.write(f"GROQ_API_KEY={self.config['GROQ_API_KEY']}\n")
+                    f.write("GROQ_MODEL=llama-3.3-70b-versatile\n\n")
 
             messagebox.showinfo("Success",
                               "Configuration saved successfully!\n\n"

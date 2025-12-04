@@ -102,14 +102,17 @@ def validate_environment_setup() -> tuple[bool, list[str]]:
     Returns:
         tuple: (is_valid, missing_variables)
     """
+    # Only FLASK_SECRET_KEY is truly required - can be auto-generated if missing
     required_vars = [
-        'FLASK_SECRET_KEY',
-        'GCP_PROJECT_ID'
+        'FLASK_SECRET_KEY'
     ]
     
     optional_vars = [
         'FLASK_ENV',
-        'LOG_LEVEL'
+        'LOG_LEVEL',
+        'GROQ_API_KEY',  # Optional - for AI features
+        'CLUBOS_USERNAME',
+        'CLUBHUB_EMAIL'
     ]
     
     missing = []

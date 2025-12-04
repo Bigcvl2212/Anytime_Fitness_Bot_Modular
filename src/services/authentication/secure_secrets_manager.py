@@ -1,8 +1,9 @@
 """
 Secure Secrets Management Service
 
-This service provides secure storage and retrieval of credentials using Google Secret Manager.
-It replaces hardcoded credentials with cloud-based secret storage.
+This service provides secure storage and retrieval of credentials.
+Primarily uses local database/environment variables.
+Google Secret Manager support is optional and only used if explicitly configured.
 """
 
 import os
@@ -23,11 +24,13 @@ except ImportError:
     secretmanager = None
     gcp_exceptions = None
     GOOGLE_CLOUD_AVAILABLE = False
-    logger.warning("⚠️ Google Cloud SDK not available - using local credentials only")
+    # Only log at debug level - this is expected for local installations
+    logger.debug("Google Cloud SDK not installed - using local credentials (this is normal)")
 
 class SecureSecretsManager:
     """
-    Secure secrets management using Google Cloud Secret Manager
+    Secure secrets management - prioritizes local storage (database + environment variables)
+    Google Cloud Secret Manager is optional and only used for cloud deployments.
     """
     
     def __init__(self, project_id: str = None):
@@ -35,21 +38,21 @@ class SecureSecretsManager:
         Initialize the secrets manager
         
         Args:
-            project_id: GCP project ID. If None, will try to get from environment
+            project_id: GCP project ID (optional, only needed for cloud deployments)
         """
-        self.project_id = project_id or os.getenv('GCP_PROJECT_ID', 'round-device-460522-g8')
+        self.project_id = project_id or os.getenv('GCP_PROJECT_ID')
+        self.client = None
         
-        if not GOOGLE_CLOUD_AVAILABLE:
-            logger.info("Google Cloud libraries not installed - using local credentials only")
-            self.client = None
-            return
-            
-        try:
-            self.client = secretmanager.SecretManagerServiceClient()
-            logger.info("✅ SecretManager client initialized successfully")
-        except Exception as e:
-            logger.error(f"❌ Failed to initialize SecretManager client: {e}")
-            self.client = None
+        # Only try to initialize GCP client if we have a project ID and libs available
+        if GOOGLE_CLOUD_AVAILABLE and self.project_id:
+            try:
+                self.client = secretmanager.SecretManagerServiceClient()
+                logger.debug("SecretManager client initialized (cloud mode)")
+            except Exception as e:
+                logger.debug(f"GCP SecretManager not available: {e} - using local mode")
+                self.client = None
+        else:
+            logger.debug("Using local credentials mode (no GCP)")
     
     def store_credentials(self, manager_id: str, clubos_username: str, clubos_password: str,
                          clubhub_email: str, clubhub_password: str) -> bool:
