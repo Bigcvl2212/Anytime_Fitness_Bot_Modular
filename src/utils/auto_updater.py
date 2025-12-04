@@ -69,44 +69,87 @@ class AutoUpdater:
         self.github_raw_base = f"https://raw.githubusercontent.com/{GITHUB_OWNER}/{GITHUB_REPO}/{GITHUB_BRANCH}"
     
     def get_local_version(self) -> str:
-        """Get the current local version"""
+        """Get the current local version from VERSION file"""
         version_file = self.app_dir / 'VERSION'
         if version_file.exists():
             return version_file.read_text().strip()
+        # Fall back to checking repo root VERSION
+        repo_version = Path(__file__).parent.parent.parent / 'VERSION'
+        if repo_version.exists():
+            return repo_version.read_text().strip()
         return "0.0.0"
     
-    def get_remote_version(self) -> Optional[str]:
-        """Get the latest version from GitHub"""
+    def get_latest_release(self) -> Optional[Dict]:
+        """Get the latest release info from GitHub releases API"""
         try:
-            url = f"{self.github_raw_base}/VERSION"
-            with urllib.request.urlopen(url, timeout=10) as response:
-                return response.read().decode('utf-8').strip()
+            url = f"{self.github_api_base}/releases/latest"
+            request = urllib.request.Request(url)
+            request.add_header('Accept', 'application/vnd.github.v3+json')
+            request.add_header('User-Agent', 'GymBot-AutoUpdater')
+            
+            with urllib.request.urlopen(request, timeout=15) as response:
+                return json.loads(response.read().decode('utf-8'))
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                logger.info("No releases found on GitHub yet")
+            else:
+                logger.error(f"GitHub API error: {e.code} {e.reason}")
+            return None
         except Exception as e:
-            logger.error(f"Failed to get remote version: {e}")
+            logger.error(f"Failed to get latest release: {e}")
             return None
     
+    def get_remote_version(self) -> Optional[str]:
+        """Get the latest version from GitHub releases"""
+        release = self.get_latest_release()
+        if release:
+            # Release tag is like "v1.0.202506121234"
+            tag = release.get('tag_name', '')
+            # Strip leading 'v' if present
+            return tag.lstrip('v') if tag else None
+        return None
+    
     def check_for_updates(self) -> Tuple[bool, str, str]:
-        """Check if updates are available
+        """Check if updates are available by comparing against GitHub releases
         
         Returns:
             Tuple of (update_available, local_version, remote_version)
         """
         local = self.get_local_version()
-        remote = self.get_remote_version()
+        release = self.get_latest_release()
         
-        if remote is None:
+        if release is None:
+            return False, local, "no releases on GitHub"
+        
+        remote_tag = release.get('tag_name', '')
+        remote = remote_tag.lstrip('v') if remote_tag else "unknown"
+        
+        if not remote or remote == "unknown":
             return False, local, "unknown"
         
-        # Parse versions
+        # Store release info for download
+        self._latest_release = release
+        
+        # Compare versions - handle different formats
         try:
+            # Try semantic version comparison (2.3.12 format)
             local_parts = [int(x) for x in local.split('.')]
             remote_parts = [int(x) for x in remote.split('.')]
-            
-            # Compare versions
             update_available = remote_parts > local_parts
             return update_available, local, remote
         except ValueError:
-            # If parsing fails, compare as strings
+            # If parsing fails, compare timestamps if remote is timestamp-based (1.0.YYYYMMDDHHMM)
+            try:
+                if '.' in remote:
+                    remote_parts = remote.split('.')
+                    if len(remote_parts) >= 3 and len(remote_parts[2]) >= 12:
+                        # Remote is timestamp-based like "1.0.202506121234"
+                        # Local is semantic like "2.3.12"
+                        # In this case, timestamp versions are newer builds
+                        return True, local, remote
+            except:
+                pass
+            # Fall back to string comparison (different = update available)
             return remote != local, local, remote
     
     def download_file(self, remote_path: str, local_path: Path) -> bool:
@@ -181,11 +224,12 @@ class AutoUpdater:
             logger.error(f"Failed to create backup: {e}")
             return None
     
-    def apply_update(self, zip_path: Path) -> bool:
+    def apply_update(self, zip_path: Path, remote_version: str = None) -> bool:
         """Apply update from ZIP file
         
         Args:
             zip_path: Path to downloaded ZIP
+            remote_version: Version string to write to VERSION file
             
         Returns:
             True if successful
@@ -232,6 +276,12 @@ class AutoUpdater:
                     shutil.copy2(src, dst)
                 
                 logger.info(f"Updated: {update_path}")
+            
+            # Write the new version to VERSION file
+            if remote_version:
+                version_file = self.app_dir / 'VERSION'
+                version_file.write_text(remote_version + '\n')
+                logger.info(f"Updated VERSION file to: {remote_version}")
             
             # Cleanup
             shutil.rmtree(zip_path.parent)
@@ -315,7 +365,7 @@ class AutoUpdater:
         
         # Apply update
         report("Applying update...", 80)
-        if not self.apply_update(zip_path):
+        if not self.apply_update(zip_path, remote_ver):
             report("Update failed, rolling back...", 90)
             self.rollback(backup_path)
             return False, "Update failed, rolled back to previous version"
