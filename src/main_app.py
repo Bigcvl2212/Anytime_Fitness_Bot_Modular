@@ -594,8 +594,12 @@ def create_app():
         except Exception as e:
             logger.warning(f"⚠️ Startup health check failed: {e}")
         
-        # Don't run startup sync automatically - wait for user authentication
-        # Startup sync will be triggered manually via the enhanced multi-club sync
+        # Run startup sync to pull initial data from ClubOS/ClubHub
+        logger.info("🚀 Starting initial data sync from ClubOS/ClubHub...")
+        try:
+            enhanced_startup_sync(app)
+        except Exception as sync_error:
+            logger.error(f"❌ Initial startup sync failed: {sync_error}")
     
     # Initialize Flask-SocketIO for real-time messaging (Phase 1)
     try:

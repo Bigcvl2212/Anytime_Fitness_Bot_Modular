@@ -450,7 +450,10 @@ This is optional - you can skip and add it later.
     def test_clubhub_connection(self):
         """Test ClubHub credentials using the real ClubHub API"""
         email = self.clubhub_email.get().strip()
-        password = self.clubhub_password.get()
+        password = self.clubhub_password.get()  # Don't strip password - may have intentional spaces
+        
+        # Debug log the credential lengths (not the values themselves)
+        print(f"[DEBUG] ClubHub test - email length: {len(email)}, password length: {len(password)}")
 
         if not email or not password:
             self.clubhub_status.config(text="Please enter both email and password",
@@ -466,6 +469,7 @@ This is optional - you can skip and add it later.
 
         def test_in_thread():
             try:
+                print(f"[DEBUG] Starting ClubHub API test...")
                 # Use the REAL ClubHub iOS API endpoint
                 # IMPORTANT: The API expects 'username' not 'email' in the JSON body
                 response = requests.post(
@@ -482,6 +486,9 @@ This is optional - you can skip and add it later.
                     },
                     timeout=15
                 )
+                
+                print(f"[DEBUG] ClubHub API response status: {response.status_code}")
+                print(f"[DEBUG] ClubHub API response body: {response.text[:200]}")
 
                 if response.status_code == 200:
                     data = response.json()
@@ -489,18 +496,28 @@ This is optional - you can skip and add it later.
                     if data.get('accessToken') or data.get('data', {}).get('token'):
                         update_status("✓ ClubHub connection successful!", 'green')
                     else:
+                        print(f"[DEBUG] Response data keys: {list(data.keys())}")
                         update_status(f"✗ Invalid response (no token in response)", 'red')
                 elif response.status_code == 401:
                     error_hint = ''
                     try:
                         error_json = response.json()
                         if isinstance(error_json, dict):
-                            error_hint = error_json.get('message') or error_json.get('error') or ''
+                            # Try to extract the detailed error message
+                            exceptions = error_json.get('exceptions', [])
+                            if exceptions and isinstance(exceptions, list):
+                                for exc in exceptions:
+                                    info = exc.get('info', {})
+                                    if info.get('login'):
+                                        error_hint = info.get('login')
+                                        break
+                            if not error_hint:
+                                error_hint = error_json.get('message') or error_json.get('error') or ''
                     except ValueError:
                         error_hint = response.text[:80]
 
                     hint_suffix = f" ({error_hint})" if error_hint else ''
-                    update_status("✗ Invalid ClubHub credentials. Make sure you paste the exact ClubHub login email and password." + hint_suffix, 'red')
+                    update_status("✗ Invalid ClubHub credentials" + hint_suffix, 'red')
                 else:
                     update_status(f"✗ ClubHub error: {response.status_code}", 'red')
 

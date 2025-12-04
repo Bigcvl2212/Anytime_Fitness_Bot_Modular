@@ -394,19 +394,29 @@ class GymBotLauncher:
                                    f"Failed to stop server:\n{str(e)}")
 
     def update_ui_state(self, running):
-        """Update UI based on server state"""
-        if running:
-            self.status_label.config(text="Server is running")
-            self.status_indicator.itemconfig(self.status_circle, fill='green')
-            self.start_btn.config(state='disabled')
-            self.stop_btn.config(state='normal')
-            self.open_btn.config(state='normal')
-        else:
-            self.status_label.config(text="Server is stopped")
-            self.status_indicator.itemconfig(self.status_circle, fill='red')
-            self.start_btn.config(state='normal')
-            self.stop_btn.config(state='disabled')
-            self.open_btn.config(state='disabled')
+        """Update UI based on server state (thread-safe via root.after)"""
+        def do_update():
+            try:
+                if running:
+                    self.status_label.config(text="Server is running")
+                    self.status_indicator.itemconfig(self.status_circle, fill='green')
+                    self.start_btn.config(state='disabled')
+                    self.stop_btn.config(state='normal')
+                    self.open_btn.config(state='normal')
+                else:
+                    self.status_label.config(text="Server is stopped")
+                    self.status_indicator.itemconfig(self.status_circle, fill='red')
+                    self.start_btn.config(state='normal')
+                    self.stop_btn.config(state='disabled')
+                    self.open_btn.config(state='disabled')
+            except tk.TclError:
+                pass  # Widget destroyed
+
+        # Schedule on main thread to avoid Tkinter threading errors
+        try:
+            self.root.after(0, do_update)
+        except tk.TclError:
+            pass  # Root destroyed
 
     def open_browser(self):
         """Open the dashboard in the default browser"""
