@@ -129,38 +129,64 @@ def store_messages_in_database(messages: List[Dict], owner_id: str) -> int:
                     recipient_name = from_user     # Same as from_user for member messages
 
                 # Use database manager for cross-platform compatibility
-                current_app.db_manager.execute_query('''
-                    INSERT OR REPLACE INTO messages
-                    (id, message_type, content, timestamp, from_user, to_user, status, owner_id,
-                     delivery_status, campaign_id, channel, member_id, message_actions,
-                     is_confirmation, is_opt_in, is_opt_out, has_emoji, emoji_reactions,
-                     conversation_id, thread_id, from_member_name, to_staff_name, recipient_name)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    message.get('id'),
-                    message.get('message_type', message.get('type')),
-                    content,
-                    message.get('timestamp'),
-                    from_user,
-                    to_user,
-                    status,
-                    owner_id,
-                    message.get('delivery_status', 'received'),
-                    message.get('campaign_id'),
-                    'clubos',  # Always ClubOS channel
-                    member_id,
-                    json.dumps(message_actions),
-                    message_actions.get('is_confirmation', False),
-                    message_actions.get('is_opt_in', False),
-                    message_actions.get('is_opt_out', False),
-                    message_actions.get('has_emoji', False),
-                    json.dumps(message_actions.get('emojis', [])),
-                    conversation_id,
-                    message.get('thread_id'),
-                    from_member_name,
-                    to_staff_name,
-                    recipient_name
-                ))
+                # CRITICAL: Use INSERT OR IGNORE to preserve existing ai_processed status
+                # First check if message exists
+                existing = current_app.db_manager.execute_query('''
+                    SELECT id, ai_processed FROM messages WHERE id = ?
+                ''', (message.get('id'),), fetch_one=True)
+                
+                if existing:
+                    # Message exists - only update content/timestamp, preserve ai_processed
+                    current_app.db_manager.execute_query('''
+                        UPDATE messages SET
+                            content = ?, timestamp = ?, from_user = ?, to_user = ?,
+                            from_member_name = ?, to_staff_name = ?, recipient_name = ?
+                        WHERE id = ?
+                    ''', (
+                        content,
+                        message.get('timestamp'),
+                        from_user,
+                        to_user,
+                        from_member_name,
+                        to_staff_name,
+                        recipient_name,
+                        message.get('id')
+                    ))
+                else:
+                    # New message - insert with ai_processed = 0
+                    current_app.db_manager.execute_query('''
+                        INSERT INTO messages
+                        (id, message_type, content, timestamp, from_user, to_user, status, owner_id,
+                         delivery_status, campaign_id, channel, member_id, message_actions,
+                         is_confirmation, is_opt_in, is_opt_out, has_emoji, emoji_reactions,
+                         conversation_id, thread_id, from_member_name, to_staff_name, recipient_name,
+                         ai_processed)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                    ''', (
+                        message.get('id'),
+                        message.get('message_type', message.get('type')),
+                        content,
+                        message.get('timestamp'),
+                        from_user,
+                        to_user,
+                        status,
+                        owner_id,
+                        message.get('delivery_status', 'received'),
+                        message.get('campaign_id'),
+                        'clubos',  # Always ClubOS channel
+                        member_id,
+                        json.dumps(message_actions),
+                        message_actions.get('is_confirmation', False),
+                        message_actions.get('is_opt_in', False),
+                        message_actions.get('is_opt_out', False),
+                        message_actions.get('has_emoji', False),
+                        json.dumps(message_actions.get('emojis', [])),
+                        conversation_id,
+                        message.get('thread_id'),
+                        from_member_name,
+                        to_staff_name,
+                        recipient_name
+                    ))
                 stored_count += 1
             except Exception as e:
                 failed_count += 1
@@ -709,17 +735,23 @@ def get_ai_status():
         if message_sync and hasattr(message_sync, 'ai_enabled'):
             return jsonify({
                 'success': True,
-                'ai_enabled': message_sync.ai_enabled
+                'ai_enabled': message_sync.ai_enabled,
+                'polling_running': getattr(message_sync, 'running', False),
+                'poll_interval': getattr(message_sync, 'poll_interval', None),
+                'owner_ids': list(getattr(message_sync, 'owner_ids', [])),
+                'has_unified_agent': hasattr(message_sync, 'unified_ai_agent') and message_sync.unified_ai_agent is not None
             })
         else:
             # Return default state instead of 503 error
             return jsonify({
                 'success': True,
-                'ai_enabled': False
+                'ai_enabled': False,
+                'polling_running': False,
+                'error': 'Message sync service not found'
             })
     except Exception as e:
         logger.error(f"❌ Error getting AI status: {e}")
-        return jsonify({'success': True, 'ai_enabled': False})
+        return jsonify({'success': True, 'ai_enabled': False, 'error': str(e)})
 
 @messaging_bp.route('/api/messages', methods=['GET'])
 def get_messages():
@@ -737,8 +769,11 @@ def get_messages():
         date_threshold = (datetime.now() - timedelta(days=int(days))).isoformat()
 
         # Fetch from database using database manager with date filter
-        # IMPORTANT: Order by rowid DESC - SQLite's built-in row ID is auto-incrementing
-        # Messages are inserted in order during sync, so higher rowid = more recently synced
+        # IMPORTANT: Order by rowid DESC for proper chronological order (newest messages first)
+        # ClubOS returns messages in reverse chronological order (newest first), and SQLite assigns
+        # rowids in insertion order. So the highest rowid = most recently synced = newest message.
+        # Note: timestamp field from ClubOS parsing is unreliable (wrong year/format)
+        # Note: created_at doesn't help because bulk syncs insert thousands at same timestamp
         if limit:
             # If limit is specified, use it
             limit = int(limit)
@@ -921,11 +956,12 @@ def send_campaign():
             # User manually selected specific members - use those IDs directly
             logger.info(f"👥 Using {len(selected_member_ids)} manually selected member IDs")
             
-            # Fetch member details for the selected IDs
+            # Fetch member details for the selected IDs - INCLUDING FINANCIAL DATA
             for member_id in selected_member_ids:
                 try:
                     member = current_app.db_manager.execute_query('''
-                        SELECT id, prospect_id, email, mobile_phone, full_name, status_message
+                        SELECT id, prospect_id, email, mobile_phone, full_name, status_message,
+                               amount_past_due, late_fees, missed_payments
                         FROM members 
                         WHERE prospect_id = ? OR id = ?
                         LIMIT 1
@@ -1049,7 +1085,8 @@ def send_campaign():
                 logger.info("📊 Selecting all members from all categories")
                 if start_after_member_id:
                     category_members = current_app.db_manager.execute_query('''
-                        SELECT id, prospect_id, email, mobile_phone, full_name, status_message
+                        SELECT id, prospect_id, email, mobile_phone, full_name, status_message,
+                               amount_past_due, late_fees, missed_payments
                         FROM members 
                         WHERE id > (SELECT id FROM members WHERE prospect_id = ? OR id = ? LIMIT 1)
                         ORDER BY id
@@ -1057,7 +1094,8 @@ def send_campaign():
                     ''', (start_after_member_id, start_after_member_id, max_recipients), fetch_all=True)
                 else:
                     category_members = current_app.db_manager.execute_query('''
-                        SELECT id, prospect_id, email, mobile_phone, full_name, status_message
+                        SELECT id, prospect_id, email, mobile_phone, full_name, status_message,
+                               amount_past_due, late_fees, missed_payments
                         FROM members 
                         ORDER BY id
                         LIMIT ?
@@ -1142,7 +1180,8 @@ def send_campaign():
                 
                 if start_after_member_id:
                     category_members = current_app.db_manager.execute_query('''
-                        SELECT id, prospect_id, email, mobile_phone, full_name, status_message
+                        SELECT id, prospect_id, email, mobile_phone, full_name, status_message,
+                               amount_past_due, late_fees, missed_payments
                         FROM members 
                         WHERE (status_message LIKE '%expire%' OR status_message = 'Expired') 
                         AND id > (SELECT id FROM members WHERE prospect_id = ? OR id = ? LIMIT 1)
@@ -1151,7 +1190,8 @@ def send_campaign():
                     ''', (start_after_member_id, start_after_member_id, max_recipients), fetch_all=True)
                 else:
                     category_members = current_app.db_manager.execute_query('''
-                        SELECT id, prospect_id, email, mobile_phone, full_name, status_message
+                        SELECT id, prospect_id, email, mobile_phone, full_name, status_message,
+                               amount_past_due, late_fees, missed_payments
                         FROM members 
                         WHERE status_message LIKE '%expire%' OR status_message = 'Expired'
                         ORDER BY id
@@ -1163,7 +1203,8 @@ def send_campaign():
                 
                 if start_after_member_id:
                     category_members = current_app.db_manager.execute_query('''
-                        SELECT id, prospect_id, email, mobile_phone, full_name, status_message
+                        SELECT id, prospect_id, email, mobile_phone, full_name, status_message,
+                               amount_past_due, late_fees, missed_payments
                         FROM members 
                         WHERE status_message LIKE ? AND id > (SELECT id FROM members WHERE prospect_id = ? OR id = ? LIMIT 1)
                         ORDER BY id
@@ -1171,7 +1212,8 @@ def send_campaign():
                     ''', (f'%{category_to_use}%', start_after_member_id, start_after_member_id, max_recipients), fetch_all=True)
                 else:
                     category_members = current_app.db_manager.execute_query('''
-                        SELECT id, prospect_id, email, mobile_phone, full_name, status_message
+                        SELECT id, prospect_id, email, mobile_phone, full_name, status_message,
+                               amount_past_due, late_fees, missed_payments
                         FROM members 
                         WHERE status_message LIKE ?
                         ORDER BY id
@@ -1187,14 +1229,17 @@ def send_campaign():
                 if len(member_ids) >= max_recipients:
                     break
                     
-                # Convert row to dict for validation
+                # Convert row to dict for validation - INCLUDING FINANCIAL DATA
                 member_dict = {
                     'member_id': member['prospect_id'] or str(member['id']),
                     'prospect_id': member['prospect_id'],
                     'email': member['email'],
                     'mobile_phone': member['mobile_phone'],
                     'full_name': member['full_name'],
-                    'status_message': member['status_message']
+                    'status_message': member['status_message'],
+                    'amount_past_due': member.get('amount_past_due', 0),
+                    'late_fees': member.get('late_fees', 0),
+                    'missed_payments': member.get('missed_payments', 0)
                 }
                 
                 # Basic validation for SMS campaigns with email fallback
@@ -1711,7 +1756,7 @@ def get_member_messages(member_name):
         # ENHANCED: Search all possible name fields to capture FULL conversation (both directions)
         # This matches the main endpoint's comprehensive search including staff replies
         messages = current_app.db_manager.execute_query('''
-            SELECT * FROM messages
+            SELECT *, rowid FROM messages
             WHERE LOWER(from_user) = LOWER(?)
                OR LOWER(to_user) = LOWER(?)
                OR LOWER(recipient_name) = LOWER(?)
@@ -1720,7 +1765,7 @@ def get_member_messages(member_name):
                OR (LOWER(recipient_name) = LOWER(?) AND status = 'sent')
                OR (LOWER(recipient_name) = LOWER(?) AND delivery_status = 'sent')
                OR LOWER(content) LIKE LOWER(?)
-            ORDER BY timestamp DESC, created_at DESC
+            ORDER BY rowid DESC
             LIMIT 100
         ''', (member_name, member_name, member_name, member_name, member_name, member_name, member_name, f'%{member_name}%'), fetch_all=True)
 
@@ -1777,7 +1822,7 @@ def search_messages():
             elif action_type == 'emoji':
                 sql += ' AND has_emoji = 1'
         
-        sql += ' ORDER BY timestamp DESC, created_at DESC LIMIT ?'
+        sql += ' ORDER BY rowid DESC LIMIT ?'
         params.append(limit)
         
         messages = current_app.db_manager.execute_query(sql, params)
@@ -2233,9 +2278,11 @@ def get_recent_inbox():
         ''', fetch_one=True)
         total_in_db = count_result['count'] if count_result else 0
 
-        # SIMPLIFIED QUERY: Get recent messages ordered by timestamp
-        # This includes ALL messages including those with 'Unknown' from_user
-        # The frontend will handle grouping and name extraction
+        # SIMPLIFIED QUERY: Get recent messages ordered by timestamp (message time)
+        # ClubOS timestamp parsing WORKS for today's messages (9:03 AM → 2025-12-05T09:03:00)
+        # For older messages with dates like "Nov 21", the year may be wrong but order is still correct
+        # Use timestamp DESC to show most recent messages first (today's messages at top)
+        # Also fetch ai_processed and read_at for read/unread status
         messages = current_app.db_manager.execute_query('''
             SELECT
                 m.id,
@@ -2246,7 +2293,10 @@ def get_recent_inbox():
                 m.channel,
                 m.timestamp,
                 m.status,
-                m.message_type
+                m.message_type,
+                m.rowid,
+                COALESCE(m.ai_processed, 0) as ai_processed,
+                m.read_at
             FROM messages m
             WHERE m.channel = 'clubos'
             ORDER BY m.timestamp DESC
@@ -2428,6 +2478,12 @@ def get_recent_inbox():
             # Use the actual message timestamp for display, fallback to created_at
             display_time = message.get('timestamp') or message.get('created_at')
 
+            # Determine read/unread status
+            # Message is READ if: ai_processed=1 OR read_at is set
+            ai_processed = message.get('ai_processed', 0)
+            read_at = message.get('read_at')
+            is_read = (ai_processed == 1) or (read_at is not None)
+
             # Create individual message item
             message_item = {
                 'id': message.get('id'),
@@ -2437,8 +2493,9 @@ def get_recent_inbox():
                 'message_content': message.get('content', ''),
                 'created_at': display_time,
                 'channel': message.get('channel', 'ClubOS'),
-                'status': message.get('status', 'received'),
-                'message_type': message.get('message_type', 'text')
+                'status': 'read' if is_read else 'unread',
+                'message_type': message.get('message_type', 'text'),
+                'is_new': not is_read  # Convenience flag for UI
             }
 
             message_items.append(message_item)
@@ -2461,6 +2518,78 @@ def get_recent_inbox():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@messaging_bp.route('/api/messaging/mark-all-read', methods=['POST'])
+def mark_all_messages_read():
+    """
+    Mark all existing messages as read/processed.
+    This is used to prevent AI from responding to historical messages
+    when first enabling auto-reply.
+    """
+    try:
+        # Mark all messages as ai_processed = 1 and set read_at
+        current_app.db_manager.execute_query('''
+            UPDATE messages
+            SET ai_processed = 1, read_at = ?
+            WHERE ai_processed IS NULL OR ai_processed = 0
+        ''', (datetime.now().isoformat(),))
+
+        # Get count of all read messages
+        affected = current_app.db_manager.execute_query('''
+            SELECT COUNT(*) as count FROM messages WHERE ai_processed = 1
+        ''', fetch_one=True)
+
+        # Handle both dict and Row objects
+        if affected:
+            if isinstance(affected, dict):
+                count = affected.get('count', 0)
+            else:
+                count = affected[0] if affected else 0
+        else:
+            count = 0
+
+        logger.info(f"✅ Marked all existing messages as read ({count} total)")
+
+        return jsonify({
+            'success': True,
+            'message': f'Marked {count} messages as read',
+            'count': count
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Error marking messages as read: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@messaging_bp.route('/api/messaging/message/<message_id>/read', methods=['POST'])
+def mark_message_read(message_id: str):
+    """Mark a specific message as read"""
+    try:
+        current_app.db_manager.execute_query('''
+            UPDATE messages
+            SET read_at = ?, status = 'read'
+            WHERE id = ?
+        ''', (datetime.now().isoformat(), message_id))
+
+        logger.info(f"✅ Marked message {message_id} as read")
+
+        return jsonify({
+            'success': True,
+            'message_id': message_id,
+            'status': 'read'
+        })
+
+    except Exception as e:
+        logger.error(f"❌ Error marking message as read: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 
 @messaging_bp.route('/api/debug/raw-messages', methods=['GET'])
 def debug_raw_messages():

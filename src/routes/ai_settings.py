@@ -92,6 +92,47 @@ def api_disable_workflow(workflow_name):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@ai_settings_bp.route('/api/ai/debug/unread-messages', methods=['GET'])
+def api_debug_unread_messages():
+    """Debug endpoint to test the unread messages query."""
+    try:
+        if not _db_manager:
+            _init_workflow_manager()
+        
+        # Run the exact same query used in the workflow
+        result = _db_manager.execute_query('''
+            SELECT m.id, m.content, m.from_user, m.status, m.ai_processed, m.channel
+            FROM messages m
+            WHERE m.channel = 'clubos'
+            AND m.status IN ('received', 'unread')
+            AND COALESCE(m.ai_processed, 0) = 0
+            ORDER BY m.timestamp DESC
+            LIMIT 20
+        ''', fetch_all=True)
+        
+        messages = []
+        if result:
+            for row in result:
+                messages.append({
+                    'id': row[0],
+                    'content': row[1][:100] if row[1] else '',
+                    'from_user': row[2],
+                    'status': row[3],
+                    'ai_processed': row[4],
+                    'channel': row[5]
+                })
+        
+        return jsonify({
+            "success": True,
+            "db_path": _db_manager.db_path,
+            "message_count": len(messages),
+            "messages": messages
+        })
+    except Exception as e:
+        logger.error(f"Error in debug endpoint: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @ai_settings_bp.route('/api/ai/workflows/<workflow_name>/run', methods=['POST'])
 def api_run_workflow(workflow_name):
     """Manually trigger a workflow to run."""
@@ -711,11 +752,11 @@ def api_stop_worker():
 
 
 def _init_workflow_manager():
-    """Lazy initialization of workflow manager"""
+    """Lazy initialization of workflow manager - uses global singleton"""
     global _workflow_manager, _knowledge_base, _db_manager
     try:
         from src.services.ai.knowledge_base import AIKnowledgeBase
-        from src.services.ai.unified_workflow_manager import UnifiedWorkflowManager
+        from src.services.ai.unified_workflow_manager import get_workflow_manager, init_workflow_manager
         from src.services.database_manager import DatabaseManager
         
         if not _db_manager:
@@ -724,8 +765,10 @@ def _init_workflow_manager():
         if not _knowledge_base:
             _knowledge_base = AIKnowledgeBase(_db_manager)
         
+        # Use the global singleton - initialize if needed
+        _workflow_manager = get_workflow_manager(db_manager=_db_manager, knowledge_base=_knowledge_base)
         if not _workflow_manager:
-            _workflow_manager = UnifiedWorkflowManager(_db_manager, _knowledge_base)
+            _workflow_manager = init_workflow_manager(_db_manager, _knowledge_base)
         
         logger.info("✅ AI modules lazy-initialized")
     except Exception as e:

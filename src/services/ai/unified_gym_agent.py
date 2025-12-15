@@ -94,6 +94,170 @@ class UnifiedGymAgent:
         logger.info(f"🎯 Workflow triggers: {list(self.workflow_trigger_intents.keys())}")
         logger.info(f"👤 Human review intents: {self.human_review_intents}")
 
+    def _extract_name_from_content(self, content: str) -> Optional[str]:
+        """
+        Extract sender name from message content.
+        ClubOS prepends sender name to content like "Jeremy MayoCan I setup an appointment?"
+        The name typically appears at the start before the actual message.
+        """
+        if not content or len(content) < 5:
+            return None
+            
+        import re
+        
+        # ClubOS format: "FirstName LastName" followed immediately by message (no space)
+        # Examples:
+        #   "Jeremy Mayocan I setup..." -> FirstName="Jeremy", LastName="Mayo"
+        #   "Mary SiegmannOk otherwise" -> FirstName="Mary", LastName="Siegmann"
+        
+        # Strategy: Extract potential first word as first name,
+        # then try different lengths for the last name
+        words = content.split()
+        if not words:
+            return None
+        
+        first_word = words[0]
+        
+        # If first word is all lowercase or very short, not a name
+        if first_word.islower() or len(first_word) < 2:
+            return None
+            
+        # The second "word" might contain LastNameMessage (no space)
+        # e.g., "Mayocan" = "Mayo" + "can"
+        if len(words) >= 2:
+            second_word = words[1]
+            
+            # Find where uppercase/titlecase ends and lowercase begins
+            # This indicates where LastName ends and message begins
+            # e.g., "Mayocan" -> split at transition from "o" to "c"? No...
+            # Better: "MayoCan" -> split before "C"
+            # But also: "Mayocan" -> need to find "Mayo" somehow
+            
+            # Try progressively longer substrings of second word as last name
+            # Check each against database
+            for last_name_len in range(len(second_word), 1, -1):
+                potential_last_name = second_word[:last_name_len]
+                potential_full_name = f"{first_word} {potential_last_name}"
+                
+                member_id = self._lookup_member_id_by_name_internal(potential_full_name)
+                if member_id:
+                    logger.info(f"📝 Extracted name '{potential_full_name}' from content")
+                    return potential_full_name
+            
+            # Also try exact second word as last name (if there was a space)
+            potential_full_name = f"{first_word} {second_word}"
+            member_id = self._lookup_member_id_by_name_internal(potential_full_name)
+            if member_id:
+                logger.info(f"📝 Extracted name '{potential_full_name}' from content (exact)")
+                return potential_full_name
+        
+        # Try just first word (single name)
+        member_id = self._lookup_member_id_by_name_internal(first_word)
+        if member_id:
+            logger.info(f"📝 Extracted single name '{first_word}' from content")
+            return first_word
+            
+        return None
+
+    def _lookup_member_id_by_name_internal(self, name: str) -> Optional[str]:
+        """Internal lookup - just checks database, no logging for failed lookups."""
+        if not name or len(name) < 3:
+            return None
+            
+        try:
+            clean_name = name.strip()
+            
+            # Try members table - exact match on full_name
+            result = self.db_manager.execute_query('''
+                SELECT prospect_id, guid FROM members 
+                WHERE LOWER(full_name) = LOWER(?) 
+                   OR LOWER(first_name || ' ' || last_name) = LOWER(?)
+                LIMIT 1
+            ''', (clean_name, clean_name), fetch_one=True)
+            
+            if result:
+                return result[0] or result[1]
+            
+            # Try partial match (first name + last name)
+            name_parts = clean_name.split()
+            if len(name_parts) >= 2:
+                first_name = name_parts[0]
+                last_name = name_parts[-1]
+                
+                result = self.db_manager.execute_query('''
+                    SELECT prospect_id, guid FROM members 
+                    WHERE LOWER(first_name) = LOWER(?) 
+                      AND LOWER(last_name) = LOWER(?)
+                    LIMIT 1
+                ''', (first_name, last_name), fetch_one=True)
+                
+                if result:
+                    return result[0] or result[1]
+            
+            # Try training_clients table
+            result = self.db_manager.execute_query('''
+                SELECT member_id FROM training_clients 
+                WHERE LOWER(member_name) = LOWER(?)
+                   OR LOWER(member_name) LIKE LOWER(?)
+                LIMIT 1
+            ''', (clean_name, f'%{clean_name}%'), fetch_one=True)
+            
+            if result and result[0]:
+                return result[0]
+            
+            # Try prospects table
+            result = self.db_manager.execute_query('''
+                SELECT prospect_id FROM prospects 
+                WHERE LOWER(full_name) = LOWER(?)
+                   OR LOWER(first_name || ' ' || last_name) = LOWER(?)
+                LIMIT 1
+            ''', (clean_name, clean_name), fetch_one=True)
+            
+            if result and result[0]:
+                return result[0]
+                
+            return None
+            
+        except Exception:
+            return None
+
+    def _lookup_member_id_by_name(self, sender_name: str, content: str = None) -> Optional[str]:
+        """
+        Look up member_id from sender's name in database.
+        ClubOS messages often have sender name but no member_id.
+        
+        Args:
+            sender_name: The from_user field from the message
+            content: Message content (used to extract name if sender_name is Unknown)
+            
+        Returns:
+            member_id (prospect_id) or None
+        """
+        member_id = None
+        
+        # Try direct lookup first if we have a valid name
+        if sender_name and sender_name.lower() not in ['unknown', 'staff', 'admin', 'system', '']:
+            member_id = self._lookup_member_id_by_name_internal(sender_name)
+            if member_id:
+                logger.info(f"✅ Found member_id {member_id} for '{sender_name}'")
+                return member_id
+        
+        # If sender is Unknown or lookup failed, try extracting name from content
+        if content and not member_id:
+            extracted_name = self._extract_name_from_content(content)
+            if extracted_name:
+                member_id = self._lookup_member_id_by_name_internal(extracted_name)
+                if member_id:
+                    logger.info(f"✅ Found member_id {member_id} from content extraction '{extracted_name}'")
+                    return member_id
+        
+        if sender_name and sender_name.lower() != 'unknown':
+            logger.warning(f"⚠️ Could not find member_id for sender: '{sender_name}'")
+        elif content:
+            logger.warning(f"⚠️ Could not extract/find member from content: '{content[:50]}...'")
+            
+        return None
+
     async def process_new_message(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """
         Main entry point - process new inbox message with full AI pipeline
@@ -110,6 +274,28 @@ class UnifiedGymAgent:
             content = message.get('content', '')
 
             logger.info(f"🤖 Processing message from {sender}: {content[:60]}...")
+
+            # CRITICAL: Ensure we have a member_id for sending responses
+            # ClubOS messages often have sender name but no member_id
+            # Pass BOTH sender and content so we can extract name from content if sender is Unknown
+            member_id = message.get('member_id') or message.get('prospect_id')
+            
+            if not member_id:
+                # Log what we're about to look up
+                logger.info(f"🔍 Looking up member_id - sender='{sender}', content starts with: '{content[:30]}...'")
+                member_id = self._lookup_member_id_by_name(sender, content)
+                if member_id:
+                    message['member_id'] = member_id  # Add to message for downstream use
+                    # Log the resolved member for debugging
+                    logger.info(f"📝 Resolved member_id: {member_id}")
+                    # Verify this is the RIGHT member by checking the name
+                    verify_result = self.db_manager.execute_query(
+                        'SELECT full_name FROM members WHERE prospect_id = ? LIMIT 1',
+                        (member_id,), fetch_one=True
+                    )
+                    if verify_result:
+                        resolved_name = verify_result[0] if not isinstance(verify_result, dict) else verify_result.get('full_name')
+                        logger.info(f"✅ WILL SEND RESPONSE TO: {resolved_name} (ID: {member_id})")
 
             # Step 1: Classify message intent (Inbox AI)
             intent, confidence = await self.inbox_ai.classify_intent(content)
@@ -163,15 +349,16 @@ class UnifiedGymAgent:
                 logger.debug("⚠️ No member ID found in message")
                 return {}
 
-            # Get member data from database
+            # Get member data from database (using actual columns that exist)
             member_data = self.db_manager.execute_query('''
                 SELECT
                     prospect_id, full_name, email, mobile_phone,
-                    status_message, payment_status
+                    status_message, status, amount_past_due,
+                    date_of_next_payment, agreement_type
                 FROM members
                 WHERE prospect_id = ? OR guid = ?
                 LIMIT 1
-            ''', (member_id, member_id), fetch_all=False)
+            ''', (member_id, member_id), fetch_one=True)  # FIXED: use fetch_one=True
 
             if not member_data:
                 logger.debug(f"⚠️ No member data found for ID: {member_id}")
@@ -181,15 +368,19 @@ class UnifiedGymAgent:
             if not isinstance(member_data, dict):
                 member_data = dict(member_data)
 
+            # Derive payment_status from amount_past_due
+            past_due = float(member_data.get('amount_past_due') or 0)
+            member_data['payment_status'] = 'Past Due' if past_due > 0 else 'Current'
+            member_data['past_due_amount'] = past_due
+
             # Get training client data if exists
             training_data = self.db_manager.execute_query('''
                 SELECT
-                    payment_status, past_due_amount, monthly_revenue,
-                    last_session_date, status_message
+                    status_message, last_session_date
                 FROM training_clients
                 WHERE clubos_member_id = ?
                 LIMIT 1
-            ''', (member_id,), fetch_all=False)
+            ''', (member_id,), fetch_one=True)  # FIXED: use fetch_one=True
 
             if training_data:
                 member_data['training'] = dict(training_data) if not isinstance(training_data, dict) else training_data
@@ -198,8 +389,7 @@ class UnifiedGymAgent:
 
             # Add financial context if billing-related intent
             if intent in self.sales_ai_intents:
-                member_data['is_past_due'] = member_data.get('payment_status') != 'Current'
-                member_data['past_due_amount'] = member_data.get('training', {}).get('past_due_amount', 0)
+                member_data['is_past_due'] = past_due > 0
 
             return member_data
 
@@ -282,7 +472,8 @@ class UnifiedGymAgent:
             # Send response via ClubOS
             if self.auto_respond_enabled:
                 member_id = message.get('member_id') or message.get('prospect_id')
-                send_result = await self._send_response(member_id, response_text)
+                # CRITICAL: Pass member_context for proper ClubOS delegation
+                send_result = await self._send_response(member_id, response_text, member_context)
 
                 if send_result:
                     logger.info(f"✅ Sent billing response to {sender}")
@@ -356,11 +547,20 @@ Guidelines:
         try:
             # Use Inbox AI to generate response
             content = message.get('content', '')
-            response = await self.inbox_ai.generate_response(content, intent, message)
+            
+            # CRITICAL: Add resolved member name to message data for AI personalization
+            # This ensures the AI addresses the RIGHT person, not someone mentioned in the message
+            message_with_context = message.copy()
+            if member_context and member_context.get('full_name'):
+                message_with_context['resolved_member_name'] = member_context.get('full_name')
+                logger.info(f"📝 Using resolved member name for AI: {member_context.get('full_name')}")
+            
+            response = await self.inbox_ai.generate_response(content, intent, message_with_context)
 
             if response and self.auto_respond_enabled:
                 member_id = message.get('member_id') or message.get('prospect_id')
-                send_result = await self._send_response(member_id, response)
+                # CRITICAL: Pass member_context to _send_response for proper ClubOS delegation
+                send_result = await self._send_response(member_id, response, member_context)
 
                 return {
                     'success': True,
@@ -481,15 +681,40 @@ Guidelines:
             logger.error(f"❌ Error flagging for review: {e}")
             return {'success': False, 'error': str(e)}
 
-    async def _send_response(self, member_id: str, response_text: str) -> bool:
-        """Send response to member via ClubOS"""
+    async def _send_response(self, member_id: str, response_text: str, member_data: Dict[str, Any] = None) -> bool:
+        """Send response to member via ClubOS
+        
+        Args:
+            member_id: The prospect/member ID
+            response_text: The message to send
+            member_data: Member context dict with full_name etc. for proper ClubOS delegation
+        """
         try:
-            result = self.clubos_client.send_sms_message(
+            if not member_id:
+                logger.error("❌ Cannot send response - no member_id provided")
+                return False
+                
+            if not response_text:
+                logger.error("❌ Cannot send response - no response text provided")
+                return False
+            
+            # CRITICAL: Pass member_data so send_message can properly delegate
+            # This matches the campaign code that works correctly
+            logger.info(f"📤 Sending response to member_id={member_id}, name={member_data.get('full_name') if member_data else 'Unknown'}")
+            
+            result = self.clubos_client.send_message(
                 member_id=member_id,
-                message=response_text
+                message_text=response_text,
+                channel="sms",
+                member_data=member_data  # CRITICAL: Pass member data for proper delegation
             )
+            
+            if result:
+                logger.info(f"✅ Successfully sent response to member {member_id}")
+            else:
+                logger.error(f"❌ Failed to send response to member {member_id}")
 
-            return result.get('success', False)
+            return result
 
         except Exception as e:
             logger.error(f"❌ Error sending response: {e}")

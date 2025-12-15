@@ -223,7 +223,23 @@ Example response:
             Generated response text or None if failed
         """
         try:
-            sender_name = message_data.get('sender_name', 'Member')
+            # CRITICAL: Use resolved_member_name from database lookup (most reliable)
+            # Fall back to from_user, then sender_name, then generic "Member"
+            sender_name = (
+                message_data.get('resolved_member_name') or  # From database lookup
+                message_data.get('from_user') or             # ClubOS field
+                message_data.get('sender_name') or           # Legacy field
+                'Member'
+            )
+            
+            # Clean up name - extract first name for personalization
+            # If name is 'Unknown', use generic greeting
+            if sender_name.lower() == 'unknown':
+                first_name = 'there'
+            else:
+                first_name = sender_name.split()[0].title() if sender_name else 'there'
+            
+            logger.info(f"📝 AI will address member as: {first_name} (full: {sender_name})")
 
             system_prompt = f"""You are a helpful AI assistant for a gym/fitness center.
 You're responding to a member message on behalf of the gym staff.
@@ -231,13 +247,17 @@ You're responding to a member message on behalf of the gym staff.
 Guidelines:
 - Be friendly, professional, and helpful
 - Keep responses concise (2-3 sentences max)
-- Address the member by name when possible
+- ALWAYS address the member as "{first_name}" - this is their verified name
+- Do NOT use any other names that might appear in the message content
 - For billing/account issues, acknowledge and say a staff member will follow up
 - For appointments, provide general guidance but say staff will confirm
 - Never make promises or commitments without human approval
 
-Member's name: {sender_name}
+Member's verified name: {first_name}
 Message intent: {intent}
+
+IMPORTANT: The message content might contain other names (like previous conversation history). 
+ONLY address this member as "{first_name}". Ignore any other names in the message.
 """
 
             messages = [{

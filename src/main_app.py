@@ -646,6 +646,8 @@ def create_app():
                 app.message_poller.start_polling()
 
                 if hasattr(app, 'unified_ai_agent') and app.unified_ai_agent:
+                    # CRITICAL: Enable AI auto-processing
+                    app.message_poller.enable_ai()
                     logger.info("✅ Real-time message polling started with AI processing enabled")
                     logger.info("🤖 Autonomous AI system is now active - monitoring inbox every 10 seconds")
                 else:

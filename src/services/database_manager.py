@@ -2022,12 +2022,19 @@ class DatabaseManager:
         """Calculate monthly revenue from memberships and training clients (deduplicated)."""
         try:
             # Get membership revenue
+            # Note: ClubHub API returns numeric status codes:
+            #   '0' = typically current/active members
+            #   '1' = also active (varies by setup)
+            #   '7' = may be frozen/hold
+            # We check for '0' and '1' as active, and also 'Active' string for backwards compatibility
             members_query = """
                 SELECT
                     COUNT(DISTINCT prospect_id) as active_members,
                     SUM(CAST(agreement_recurring_cost AS REAL)) as total_membership_revenue
                 FROM members
-                WHERE status = 'Active'
+                WHERE (status IN ('0', '1', 'Active', 'active') 
+                       OR status_message LIKE '%good standing%'
+                       OR status_message LIKE '%In good standing%')
                     AND agreement_recurring_cost IS NOT NULL
                     AND agreement_recurring_cost > 0
             """

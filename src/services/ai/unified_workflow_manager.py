@@ -409,16 +409,30 @@ class UnifiedWorkflowManager:
         
         The actual processing happens in real_timemessage_poller._trigger_ai_processing()
         """
+        # CRITICAL DEBUG - First line of method
+        print(f"🔍🔍🔍 _workflow_auto_reply_messages CALLED! config={config}")
         logger.info("📨 Running auto-reply workflow...")
         
         use_knowledge_base = config.get("use_knowledge_base", True)
         max_replies = config.get("max_replies_per_hour", 20)
         require_approval = config.get("require_approval", False)
         
+        # Validate db_manager is available
+        if not self.db:
+            logger.error("❌ Auto-reply workflow requires db_manager - call init_workflow_manager() first")
+            return {
+                "messages_processed": 0,
+                "replies_sent": 0,
+                "ai_enabled": False,
+                "context_used": False,
+                "errors": ["Database manager not configured - workflow manager not properly initialized"],
+                "status": "error"
+            }
+        
         # Get AI context from knowledge base
         ai_context = ""
         if use_knowledge_base and self.knowledge_base:
-            ai_context = self.knowledge_base.build_ai_context()
+            ai_context = self.knowledge_base.get_context_for_agent()
         
         # Get the real-time message sync service and enable AI processing
         from flask import current_app
@@ -435,17 +449,31 @@ class UnifiedWorkflowManager:
             
             # Process any pending unread messages in database
             try:
+                # DEBUG: Log database path being used
+                logger.info(f"🔍 DEBUG: Using database at: {self.db.db_path}")
+                logger.info(f"🔍 DEBUG: self.db type: {type(self.db)}")
+                
+                # Test direct query first
+                test_count = self.db.execute_query(
+                    "SELECT COUNT(*) FROM messages WHERE channel = 'clubos'",
+                    fetch_one=True
+                )
+                logger.info(f"🔍 DEBUG: Total clubos messages: {test_count}")
+                
                 # Get recent unread messages that haven't been responded to
+                # Uses ai_processed column to track which messages have been handled
                 unread_messages = self.db.execute_query('''
                     SELECT m.id, m.content, m.from_user, m.owner_id, m.timestamp, m.member_id
                     FROM messages m
-                    LEFT JOIN ai_response_log a ON m.id = a.message_id
                     WHERE m.channel = 'clubos'
                     AND m.status IN ('received', 'unread')
-                    AND a.id IS NULL
+                    AND COALESCE(m.ai_processed, 0) = 0
                     ORDER BY m.timestamp DESC
                     LIMIT ?
                 ''', (max_replies,), fetch_all=True)
+                
+                # DEBUG: Log query result
+                logger.info(f"🔍 DEBUG: Query returned {len(unread_messages) if unread_messages else 0} messages")
                 
                 if unread_messages:
                     logger.info(f"📬 Found {len(unread_messages)} unread messages to process")
@@ -474,6 +502,13 @@ class UnifiedWorkflowManager:
                                     loop.close()
                                     
                                     messages_processed += 1
+                                    
+                                    # Mark message as AI processed regardless of response
+                                    self.db.execute_query(
+                                        "UPDATE messages SET ai_processed = 1 WHERE id = ?",
+                                        (msg_dict.get('id'),)
+                                    )
+                                    
                                     if result.get('responded'):
                                         replies_sent += 1
                                         logger.info(f"✅ Replied to {msg_dict.get('from_user')}")
@@ -1164,16 +1199,39 @@ class UnifiedWorkflowManager:
 _workflow_manager: Optional[UnifiedWorkflowManager] = None
 
 
-def get_workflow_manager() -> UnifiedWorkflowManager:
-    """Get or create the singleton workflow manager"""
+def get_workflow_manager(db_manager=None, knowledge_base=None) -> Optional[UnifiedWorkflowManager]:
+    """
+    Get the singleton workflow manager.
+    
+    IMPORTANT: If the manager hasn't been initialized with init_workflow_manager(),
+    this will return None to prevent creating a broken instance without db_manager.
+    
+    Args:
+        db_manager: Optional - if provided and no manager exists, will initialize one
+        knowledge_base: Optional - knowledge base for AI context
+    
+    Returns:
+        UnifiedWorkflowManager instance or None if not initialized
+    """
     global _workflow_manager
-    if _workflow_manager is None:
-        _workflow_manager = UnifiedWorkflowManager()
-    return _workflow_manager
+    
+    # If manager exists, return it
+    if _workflow_manager is not None:
+        return _workflow_manager
+    
+    # If db_manager provided, initialize a new manager
+    if db_manager is not None:
+        _workflow_manager = UnifiedWorkflowManager(db_manager, knowledge_base)
+        return _workflow_manager
+    
+    # Don't create a broken manager without db_manager
+    logger.warning("⚠️ get_workflow_manager() called but no manager initialized - call init_workflow_manager() first")
+    return None
 
 
 def init_workflow_manager(db_manager, knowledge_base=None) -> UnifiedWorkflowManager:
     """Initialize the workflow manager with dependencies"""
     global _workflow_manager
     _workflow_manager = UnifiedWorkflowManager(db_manager, knowledge_base)
+    logger.info(f"✅ Workflow manager initialized with db_manager: {db_manager is not None}")
     return _workflow_manager

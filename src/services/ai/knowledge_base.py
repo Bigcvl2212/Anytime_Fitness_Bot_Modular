@@ -825,6 +825,10 @@ A: [Provide class schedule or link]
     # Context Generation for AI
     # ==========================================================================
     
+    def build_ai_context(self, categories: List[str] = None, max_tokens: int = 8000) -> str:
+        """Alias for get_context_for_agent for backwards compatibility"""
+        return self.get_context_for_agent(categories=categories, max_tokens=max_tokens)
+    
     def get_context_for_agent(self, categories: List[str] = None, 
                               max_tokens: int = 8000) -> str:
         """

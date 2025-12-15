@@ -1,28 +1,21 @@
 import sqlite3
-from datetime import datetime
+import os
 
-conn = sqlite3.connect('gym_bot.db')
-cursor = conn.cursor()
+db_path = r'C:\Users\mayoj\OneDrive\Documents\Gym-Bot\gym-bot\gym-bot-modular\gym_bot.db'
 
-print('\n=== TESTING ROWID ASC (What inbox will show now) ===\n')
+conn = sqlite3.connect(db_path)
+cur = conn.cursor()
 
-# Get most recent 15 messages with ROWID ASC (new query)
-messages = cursor.execute('''
-    SELECT from_user, timestamp, created_at, content 
+# Check most recent messages
+print("--- Most recent 10 messages ---")
+cur.execute('''
+    SELECT id, from_user, timestamp, substr(content,1,60), ai_processed
     FROM messages 
-    WHERE channel = "clubos"
-    AND from_user IS NOT NULL
-    AND from_user != ''
-    AND LENGTH(TRIM(content)) > 5
-    ORDER BY ROWID ASC 
-    LIMIT 15
-''').fetchall()
-
-for i, msg in enumerate(messages, 1):
-    from_user, timestamp, created_at, content = msg
-    print(f'{i}. FROM: {from_user}')
-    print(f'   TIMESTAMP FROM CLUBOS: {timestamp}')
-    print(f'   CONTENT: {content[:60]}...')
-    print()
+    WHERE channel = 'clubos'
+    ORDER BY timestamp DESC
+    LIMIT 10
+''')
+for row in cur.fetchall():
+    print(f"ai_proc={row[4]} | {row[2]} | {row[1]} | {row[3]}")
 
 conn.close()

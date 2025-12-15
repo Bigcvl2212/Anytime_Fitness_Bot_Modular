@@ -98,9 +98,17 @@ class ClubOSMessagingClient:
         """
         CRITICAL: Delegate to member to get DELEGATED Bearer token
         This is what the working cURL has that we're missing!
+        
+        IMPORTANT: Always sets self.delegated_user_id to the member_id we're delegating to,
+        not relying on cookies which may be stale from a previous delegation.
         """
         try:
             logger.info(f"🔄 Delegating to member {member_id} to get delegated Bearer token")
+            
+            # CRITICAL FIX: Set delegated_user_id BEFORE making API call
+            # This ensures we use the correct member even if ClubOS doesn't return updated cookies
+            self.delegated_user_id = member_id
+            logger.info(f"📝 Set delegated_user_id to {member_id} for this message")
             
             # Step 1: Call delegation endpoint that should give us new Bearer token
             timestamp = int(time.time() * 1000)
@@ -118,11 +126,11 @@ class ClubOSMessagingClient:
             
             # Step 2: Check if we got new Bearer token or delegation cookies
             new_bearer_token = self.session.cookies.get('apiV3AccessToken')
-            delegated_user_id = self.session.cookies.get('delegatedUserId')
+            delegated_user_id_cookie = self.session.cookies.get('delegatedUserId')
             
-            if delegated_user_id:
-                self.delegated_user_id = delegated_user_id
-                logger.info(f"🎯 Delegation successful - delegatedUserId: {delegated_user_id}")
+            # Log if cookie differs from what we set (informational only)
+            if delegated_user_id_cookie and delegated_user_id_cookie != member_id:
+                logger.warning(f"⚠️ Cookie delegatedUserId={delegated_user_id_cookie} differs from target member_id={member_id}")
             
             if new_bearer_token:
                 self.delegated_bearer_token = new_bearer_token
@@ -532,6 +540,9 @@ class ClubOSMessagingClient:
         
         logger.info(f"🚀 Starting PARALLEL bulk campaign to {total_count} members with {max_workers} workers")
         
+        # Store reference to self for personalization
+        parent_client = self
+        
         def send_single_message(member_data):
             """Send a single message - designed for parallel execution"""
             try:
@@ -545,6 +556,9 @@ class ClubOSMessagingClient:
                         'member_name': member_name,
                         'error': 'No member ID found'
                     }
+                
+                # Personalize the message with member-specific data
+                personalized_message = parent_client._personalize_message(message, member_data)
                 
                 # Determine actual channel to use (SMS with email fallback)
                 actual_channel = message_type
@@ -563,7 +577,7 @@ class ClubOSMessagingClient:
                 
                 success = thread_client.send_message(
                     member_id=member_id,
-                    message_text=message,
+                    message_text=personalized_message,
                     channel=actual_channel,
                     member_data=member_data
                 )
@@ -573,7 +587,7 @@ class ClubOSMessagingClient:
                         'success': True,
                         'member_id': member_id,
                         'member_name': member_name,
-                        'message_text': message,
+                        'message_text': personalized_message,
                         'timestamp': datetime.now().isoformat(),
                         'channel': message_type
                     }
@@ -627,6 +641,52 @@ class ClubOSMessagingClient:
         logger.info(f"📊 PARALLEL Campaign completed: {results['successful']}/{results['total']} successful")
         return results
 
+    def _personalize_message(self, message_template: str, member_data: Dict[str, Any]) -> str:
+        """
+        Personalize message template with member data.
+        
+        Supports variables:
+        - {first_name} - Member's first name
+        - {name} - Full name
+        - {amount} - Amount past due (base amount without late fees)
+        - {late_fees} - Calculated late fees (missed_payments * 19.50)
+        - {total} - Total amount owed (amount + late_fees)
+        - {email} - Member email
+        - {phone} - Member phone
+        """
+        personalized = message_template
+        
+        # Get member name
+        full_name = member_data.get('full_name') or member_data.get('name', '')
+        first_name = full_name.split()[0] if full_name else 'Member'
+        
+        # Get financial data
+        amount_past_due = float(member_data.get('amount_past_due', 0) or 0)
+        missed_payments = int(member_data.get('missed_payments', 0) or 0)
+        late_fees = float(member_data.get('late_fees', 0) or 0)
+        
+        # Calculate late fees if not provided but missed_payments is available
+        if late_fees == 0 and missed_payments > 0:
+            late_fees = missed_payments * 19.50
+        
+        # Calculate total with late fees
+        total_amount = amount_past_due + late_fees
+        
+        # Replace variables
+        personalized = personalized.replace('{first_name}', first_name)
+        personalized = personalized.replace('{name}', full_name)
+        personalized = personalized.replace('{email}', str(member_data.get('email', '')))
+        personalized = personalized.replace('{phone}', str(member_data.get('mobile_phone', member_data.get('phone', ''))))
+        
+        # Financial variables - format with 2 decimal places
+        personalized = personalized.replace('{amount}', f'{amount_past_due:.2f}')
+        personalized = personalized.replace('{late_fees}', f'{late_fees:.2f}')
+        personalized = personalized.replace('{total}', f'{total_amount:.2f}')
+        
+        logger.debug(f"📝 Personalized message for {full_name}: {personalized[:100]}...")
+        
+        return personalized
+
     def send_bulk_campaign(self, member_data_list: List[Dict[str, Any]] = None, member_ids: List[str] = None, message: str = "", message_type: str = "sms") -> Dict[str, Any]:
         """Send bulk campaign using the corrected messaging workflow"""
         # Handle both parameter styles
@@ -669,17 +729,20 @@ class ClubOSMessagingClient:
                     results['errors'].append(f"No member ID found for {member_name}")
                     continue
                 
+                # Personalize the message with member-specific data
+                personalized_message = self._personalize_message(message, member_data)
+                
                 # Determine actual channel to use (SMS with email fallback)
                 actual_channel = message_type
                 if message_type == 'sms' and member_data.get('fallback_to_email'):
                     actual_channel = 'email'
-                    logger.info(f"� Using email fallback for {member_name} (no phone number)")
+                    logger.info(f"📧 Using email fallback for {member_name} (no phone number)")
                 
-                logger.info(f"�📨 Sending {actual_channel} message {i+1}/{total_count} to {member_name} (ID: {member_id})")
+                logger.info(f"📨 Sending {actual_channel} message {i+1}/{total_count} to {member_name} (ID: {member_id})")
                 
                 success = self.send_message(
                     member_id=member_id,
-                    message_text=message,
+                    message_text=personalized_message,
                     channel=actual_channel,
                     member_data=member_data
                 )
@@ -691,7 +754,7 @@ class ClubOSMessagingClient:
                     results['sent_messages'].append({
                         'member_id': member_id,
                         'member_name': member_name,
-                        'message_text': message,
+                        'message_text': personalized_message,  # Store the personalized message
                         'timestamp': datetime.now().isoformat(),
                         'channel': message_type
                     })
@@ -880,51 +943,76 @@ class ClubOSMessagingClient:
                             # timestamp_text will be like "9:30 AM" or "Sep 4" or "Oct 13"
 
                             # CRITICAL FIX: Parse timestamp and add year for proper sorting
+                            # ALL timestamps MUST be valid ISO format for correct sorting
                             try:
+                                from datetime import timedelta
                                 current_year = datetime.now().year
-                                current_month = datetime.now().month
+                                current_date = datetime.now().date()
 
                                 # Check if it's a time only (e.g., "9:30 AM") - assume today
+                                # These are the FRESHEST messages!
                                 if 'AM' in timestamp_text or 'PM' in timestamp_text or ':' in timestamp_text:
                                     # Parse time and use today's date
                                     time_obj = datetime.strptime(timestamp_text.strip(), '%I:%M %p')
                                     dt_obj = datetime.now().replace(hour=time_obj.hour, minute=time_obj.minute, second=0, microsecond=0)
                                     timestamp_value = dt_obj.isoformat()
 
-                                # Check if it's a date (e.g., "Oct 13" or "Sep 4")
+                                # Check if it's a date (e.g., "Oct 13" or "Sep 4" or "Jan 24")
                                 else:
                                     # Try parsing "Oct 13" format
                                     try:
                                         dt_obj = datetime.strptime(f"{timestamp_text} {current_year}", '%b %d %Y')
 
-                                        # If the parsed date is in the future, it's probably from last year
-                                        if dt_obj.month > current_month + 1:
+                                        # FIXED YEAR LOGIC:
+                                        # 1. If the date is in the future, it's definitely from last year
+                                        # 2. If the date is more than 6 months in the past, it might be from last year
+                                        #    (ClubOS typically shows ~90 days of messages, so 6+ months old is likely last year)
+                                        if dt_obj.date() > current_date:
+                                            # Future date = definitely last year
                                             dt_obj = dt_obj.replace(year=current_year - 1)
+                                        elif dt_obj.date() < (current_date - timedelta(days=180)):
+                                            # More than 6 months ago = probably last year
+                                            # This handles cases like "Jan 24" appearing in Dec 2025
+                                            # which should be Jan 24, 2025 (11 months ago) not Jan 24, 2024
+                                            pass  # Keep current year - it's a valid recent-ish date
 
                                         timestamp_value = dt_obj.isoformat()
                                     except ValueError:
-                                        # If parsing fails, use raw text
-                                        timestamp_value = timestamp_text
+                                        # CRITICAL: Parsing failed - use a past date in ISO format
+                                        # that sorts BEFORE today's messages but is still valid
+                                        # Use 1 year ago to sort these at the bottom
+                                        fallback_date = datetime.now() - timedelta(days=365)
+                                        timestamp_value = fallback_date.isoformat()
+                                        logger.debug(f"⚠️ Using fallback timestamp for '{timestamp_text}'")
 
                             except Exception as parse_err:
+                                # CRITICAL: Always use valid ISO format, never raw text
                                 logger.debug(f"⚠️ Could not parse timestamp '{timestamp_text}': {parse_err}")
-                                timestamp_value = timestamp_text
+                                fallback_date = datetime.now() - timedelta(days=365)
+                                timestamp_value = fallback_date.isoformat()
 
                     # If no timestamp found, use current time
                     if not timestamp_value:
                         timestamp_value = datetime.now().isoformat()
 
                     # CRITICAL FIX: Generate stable content-based message ID to prevent duplicates
-                    # Use hash of ONLY (content + from_user) - ignore timestamp entirely
-                    # This ensures the same message always gets the same ID regardless of when synced
-                    # or what format the timestamp is in (9:30 AM vs Nov 25 vs 2025-11-25T09:30:00)
+                    # Include DATE (not time) so same message on different days gets unique ID
+                    # but same message synced multiple times on same day doesn't create duplicates
+                    
+                    # Extract date portion from timestamp for stable ID generation
+                    try:
+                        # timestamp_value is ISO format like "2025-12-08T13:05:00"
+                        date_part = timestamp_value[:10]  # Gets "2025-12-08"
+                    except:
+                        date_part = datetime.now().strftime('%Y-%m-%d')
                     
                     # Normalize content and sender for consistent hashing
                     normalized_content = content_text.strip().lower()[:200]  # First 200 chars, lowercased
                     normalized_sender = from_user.strip().lower()
                     
-                    # Create stable ID string from content and sender ONLY
-                    id_string = f"{normalized_content}|{normalized_sender}"
+                    # Create stable ID string from content, sender, AND date
+                    # This ensures: same person sending same message on different days = different IDs
+                    id_string = f"{normalized_content}|{normalized_sender}|{date_part}"
                     message_hash = hashlib.md5(id_string.encode('utf-8')).hexdigest()[:16]
                     message_id = f"msg_{message_hash}"
 
@@ -947,8 +1035,20 @@ class ClubOSMessagingClient:
                     logger.warning(f"⚠️ Error parsing message element: {parse_error}")
                     continue
             
-            logger.info(f"✅ Parsed {len(messages)} messages from HTML")
-            return messages
+            # CRITICAL: Deduplicate messages by ID - ClubOS HTML may contain duplicates
+            # Keep only the FIRST occurrence of each message ID (usually the most recent by position)
+            seen_ids = set()
+            unique_messages = []
+            for msg in messages:
+                if msg['id'] not in seen_ids:
+                    seen_ids.add(msg['id'])
+                    unique_messages.append(msg)
+            
+            if len(unique_messages) < len(messages):
+                logger.info(f"🧹 Deduplicated: {len(messages)} → {len(unique_messages)} messages ({len(messages) - len(unique_messages)} duplicates removed)")
+            
+            logger.info(f"✅ Parsed {len(unique_messages)} unique messages from HTML")
+            return unique_messages
             
         except Exception as e:
             logger.error(f"❌ Error parsing messages from HTML: {e}")

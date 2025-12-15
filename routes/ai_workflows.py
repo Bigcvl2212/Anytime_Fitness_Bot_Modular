@@ -214,11 +214,20 @@ def run_workflow_now(workflow_id: str):
         
         # First try the UnifiedWorkflowManager (handles auto_reply_messages, prospect_outreach, etc.)
         try:
-            from src.services.ai.unified_workflow_manager import get_workflow_manager
-            unified_manager = get_workflow_manager()
+            from src.services.ai.unified_workflow_manager import get_workflow_manager, init_workflow_manager
+            from flask import current_app
+            
+            # Get db_manager from Flask app context
+            db_manager = getattr(current_app, 'db_manager', None)
+            
+            # Try to get existing manager, or initialize with db_manager if available
+            unified_manager = get_workflow_manager(db_manager=db_manager)
+            
             if unified_manager and workflow_id in unified_manager._workflows:
                 logger.info(f"   Running via UnifiedWorkflowManager: {workflow_id}")
                 result = unified_manager.run_workflow(workflow_id, force=True)
+            elif not unified_manager:
+                logger.warning(f"⚠️ UnifiedWorkflowManager not available - db_manager: {db_manager is not None}")
         except Exception as e:
             logger.warning(f"UnifiedWorkflowManager not available: {e}")
         

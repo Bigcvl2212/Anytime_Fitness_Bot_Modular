@@ -557,8 +557,8 @@ This is optional - you can skip and add it later.
         summary += f"  Status: {'Configured' if self.config['SQUARE_ACCESS_TOKEN'] else 'Not configured'}\n\n"
 
         summary += "AI Features:\n"
-        summary += f"  OpenAI API Key: {'*' * 20 if self.config['OPENAI_API_KEY'] else 'Not configured'}\n"
-        summary += f"  Status: {'Configured' if self.config['OPENAI_API_KEY'] else 'Not configured'}\n\n"
+        summary += f"  Groq API Key: {'*' * 20 if self.config['GROQ_API_KEY'] else 'Not configured'}\n"
+        summary += f"  Status: {'Configured' if self.config['GROQ_API_KEY'] else 'Not configured'}\n\n"
 
         summary += "Configuration file path:\n"
         summary += f"  {self.env_path}\n\n"

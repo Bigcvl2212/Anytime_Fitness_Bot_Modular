@@ -13,6 +13,7 @@ Schedules:
 
 import logging
 from datetime import datetime
+from typing import Dict, Any
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -202,6 +203,35 @@ class WorkflowScheduler:
         
         logger.error(f"❌ Unknown workflow: {workflow_name}")
         return {"success": False, "error": f"Unknown workflow: {workflow_name}"}
+    
+    async def trigger_workflow(self, workflow_name: str, trigger_data: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Async method to trigger a workflow from AI agent.
+        This provides the interface that UnifiedGymAgent expects.
+        
+        Args:
+            workflow_name: Name of the workflow to trigger
+            trigger_data: Optional data to pass to the workflow
+            
+        Returns:
+            Workflow execution result
+        """
+        logger.info(f"🎯 AI Agent triggering workflow: {workflow_name}")
+        
+        try:
+            # Run the synchronous workflow in the current thread
+            # (workflows are typically I/O bound, not CPU bound)
+            result = self.run_workflow_now(workflow_name)
+            
+            # Add trigger data context to result
+            if trigger_data:
+                result['trigger_data'] = trigger_data
+                
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Error in trigger_workflow: {e}")
+            return {"success": False, "error": str(e)}
     
     def get_scheduled_jobs(self):
         """Get list of all scheduled jobs"""
