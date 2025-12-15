@@ -87,24 +87,24 @@ jobs:
       run: iscc installer_windows.iss
 
     - name: Upload Windows installer to release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ needs.build-and-release.outputs.version }}
-        name: "Gym Bot ${{ needs.build-and-release.outputs.version }}"
-        body: |
-          ## Gym Bot ${{ needs.build-and-release.outputs.version }}
-          
-          ### Downloads
-          - **Windows**: `GymBotInstaller.exe` - Full Windows installer
-          - **macOS**: `GymBotInstaller.dmg` - macOS disk image
-          
-          ### What's New
-          See commit history for details.
-        draft: false
-        prerelease: false
-        files: Output/GymBotInstaller.exe
+      shell: pwsh
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        $version = "${{ needs.build-and-release.outputs.version }}"
+        Write-Host "Uploading to release $version"
+        
+        # Check if release exists
+        $releaseExists = gh release view $version --json tagName 2>$null
+        
+        if (-not $releaseExists) {
+          Write-Host "Creating release $version"
+          gh release create $version --title "Gym Bot $version" --notes "## Gym Bot $version`n`n### Downloads`n- **Windows**: GymBotInstaller.exe`n- **macOS**: GymBotInstaller.dmg" --latest
+        }
+        
+        # Upload asset
+        Write-Host "Uploading Windows installer"
+        gh release upload $version "Output/GymBotInstaller.exe" --clobber
 
   build-macos:
     name: Build macOS Installer
@@ -172,12 +172,22 @@ jobs:
         ls -la dist/
 
     - name: Upload macOS installer to release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ needs.build-and-release.outputs.version }}
-        name: "Gym Bot ${{ needs.build-and-release.outputs.version }}"
-        draft: false
-        prerelease: false
-        files: dist/GymBotInstaller.dmg
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        version="${{ needs.build-and-release.outputs.version }}"
+        echo "Uploading to release $version"
+        
+        # Check if release exists
+        if ! gh release view "$version" --json tagName 2>/dev/null; then
+          echo "Creating release $version"
+          gh release create "$version" --title "Gym Bot $version" --notes "## Gym Bot $version
+
+### Downloads
+- **Windows**: GymBotInstaller.exe
+- **macOS**: GymBotInstaller.dmg" --latest
+        fi
+        
+        # Upload asset
+        echo "Uploading macOS installer"
+        gh release upload "$version" "dist/GymBotInstaller.dmg" --clobber
