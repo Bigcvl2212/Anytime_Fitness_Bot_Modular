@@ -10,9 +10,27 @@ env:
   SPEC_FILE: GymBot.spec
 
 jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Get version from VERSION file
+      id: version
+      run: |
+        VERSION=$(cat VERSION)
+        echo "version=v${VERSION}" >> $GITHUB_OUTPUT
+        echo "Version: v${VERSION}"
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
   build-windows:
     name: Build Windows Installer
     runs-on: windows-latest
+    needs: build-and-release
 
     steps:
     - uses: actions/checkout@v4
@@ -36,8 +54,6 @@ jobs:
       run: |
         Remove-Item build -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item dist -Recurse -Force -ErrorAction SilentlyContinue
-        Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-        Get-ChildItem -Path . -Recurse -Filter "*.pyc" | Remove-Item -Force -ErrorAction SilentlyContinue
 
     - name: Generate build info
       shell: pwsh
@@ -46,7 +62,7 @@ jobs:
         $content += "Build Time: $(Get-Date -Format o)"
         $content += "Runner OS: $env:RUNNER_OS"
         $content += "Git SHA: $env:GITHUB_SHA"
-        $content += "Workflow Run: $env:GITHUB_RUN_ID"
+        $content += "Version: ${{ needs.build-and-release.outputs.version }}"
         Set-Content -Path build_info.txt -Value $content
 
     - name: Build executable
@@ -70,22 +86,30 @@ jobs:
       shell: pwsh
       run: iscc installer_windows.iss
 
-    - name: Upload portable build
-      uses: actions/upload-artifact@v4
+    - name: Upload Windows installer to release
+      uses: softprops/action-gh-release@v1
       with:
-        name: GymBot-Windows-Dist
-        path: dist/GymBot
-
-    - name: Upload Windows installer
-      uses: actions/upload-artifact@v4
-      with:
-        name: GymBot-Windows-Installer
-        path: Output/GymBotInstaller.exe
-        if-no-files-found: error
+        tag_name: ${{ needs.build-and-release.outputs.version }}
+        name: "Gym Bot ${{ needs.build-and-release.outputs.version }}"
+        body: |
+          ## Gym Bot ${{ needs.build-and-release.outputs.version }}
+          
+          ### Downloads
+          - **Windows**: `GymBotInstaller.exe` - Full Windows installer
+          - **macOS**: `GymBotInstaller.dmg` - macOS disk image
+          
+          ### What's New
+          See commit history for details.
+        draft: false
+        prerelease: false
+        files: Output/GymBotInstaller.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-macos:
     name: Build macOS Installer
     runs-on: macos-latest
+    needs: build-and-release
 
     steps:
     - uses: actions/checkout@v4
@@ -105,10 +129,7 @@ jobs:
       run: python3 test_build.py
 
     - name: Clean build artifacts
-      run: |
-        rm -rf build dist __pycache__
-        find . -name "*.pyc" -delete
-        find . -name "__pycache__" -type d -delete
+      run: rm -rf build dist __pycache__
 
     - name: Generate build info
       run: |
@@ -116,7 +137,7 @@ jobs:
           echo "Build Time: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           echo "Runner OS: $RUNNER_OS"
           echo "Git SHA: $GITHUB_SHA"
-          echo "Workflow Run: $GITHUB_RUN_ID"
+          echo "Version: ${{ needs.build-and-release.outputs.version }}"
         } > build_info.txt
 
     - name: Build app bundle
@@ -127,6 +148,7 @@ jobs:
         if [ ! -d "dist/GymBot.app" ] && [ ! -d "dist/GymBot" ]; then
           echo "PyInstaller output missing" && exit 1
         fi
+        ls -la dist/
 
     - name: Install create-dmg
       run: brew install create-dmg
@@ -147,74 +169,15 @@ jobs:
         if [ ! -f "dist/GymBotInstaller.dmg" ]; then
           hdiutil create -volname "Gym Bot" -srcfolder "dist/GymBot" -ov -format UDZO dist/GymBotInstaller.dmg
         fi
+        ls -la dist/
 
-    - name: Upload macOS installer
-      uses: actions/upload-artifact@v4
-      with:
-        name: GymBot-macOS-Installer
-        path: dist/GymBotInstaller.dmg
-        if-no-files-found: error
-
-  build-summary:
-    name: Build Summary
-    runs-on: ubuntu-latest
-    needs: [build-windows, build-macos]
-    if: always()
-
-    steps:
-    - name: Print summary
-      run: |
-        echo "Windows status: ${{ needs.build-windows.result }}"
-        echo "macOS status: ${{ needs.build-macos.result }}"
-
-  create-release:
-    name: Create Release
-    runs-on: ubuntu-latest
-    needs: [build-windows, build-macos]
-    if: success()
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Download Windows installer
-      uses: actions/download-artifact@v4
-      with:
-        name: GymBot-Windows-Installer
-        path: ./artifacts/windows
-    
-    - name: Download macOS installer
-      uses: actions/download-artifact@v4
-      with:
-        name: GymBot-macOS-Installer
-        path: ./artifacts/macos
-    
-    - name: Generate version tag
-      id: version
-      run: |
-        VERSION="v1.0.$(date +%Y%m%d%H%M)"
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Generated version: $VERSION"
-    
-    - name: Create Release
+    - name: Upload macOS installer to release
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: ${{ steps.version.outputs.version }}
-        name: "Gym Bot ${{ steps.version.outputs.version }}"
-        body: |
-          ## Gym Bot Release ${{ steps.version.outputs.version }}
-          
-          Auto-generated release from commit ${{ github.sha }}
-          
-          ### Downloads
-          - **Windows**: `GymBotInstaller.exe` - Full Windows installer
-          - **macOS**: `GymBotInstaller.dmg` - macOS disk image
-          
-          ### Changes
-          See commit history for details.
+        tag_name: ${{ needs.build-and-release.outputs.version }}
+        name: "Gym Bot ${{ needs.build-and-release.outputs.version }}"
         draft: false
         prerelease: false
-        files: |
-          ./artifacts/windows/GymBotInstaller.exe
-          ./artifacts/macos/GymBotInstaller.dmg
+        files: dist/GymBotInstaller.dmg
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
