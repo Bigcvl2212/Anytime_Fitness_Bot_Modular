@@ -30,12 +30,21 @@ jobs:
       run: |
         VERSION="v$(cat VERSION)"
         echo "Checking for release $VERSION"
-        if ! gh release view "$VERSION" --json tagName 2>/dev/null; then
-          echo "Creating release $VERSION"
-          gh release create "$VERSION" --title "Gym Bot $VERSION" --notes "Gym Bot $VERSION - Installers will be attached shortly" --latest
+        
+        # Try to view the release, capture result
+        if gh release view "$VERSION" 2>/dev/null; then
+          echo "Release $VERSION already exists, skipping creation"
         else
-          echo "Release $VERSION already exists"
+          echo "Creating release $VERSION"
+          gh release create "$VERSION" \
+            --title "Gym Bot $VERSION" \
+            --notes "Gym Bot $VERSION - Installers will be attached shortly" \
+            --latest || echo "Release creation returned non-zero but may have succeeded"
         fi
+        
+        # Verify release exists
+        echo "Verifying release exists..."
+        gh release view "$VERSION"
 
     outputs:
       version: ${{ steps.version.outputs.version }}
