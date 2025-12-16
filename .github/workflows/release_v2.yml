@@ -99,7 +99,7 @@ jobs:
         
         if (-not $releaseExists) {
           Write-Host "Creating release $version"
-          gh release create $version --title "Gym Bot $version" --notes "## Gym Bot $version`n`n### Downloads`n- **Windows**: GymBotInstaller.exe`n- **macOS**: GymBotInstaller.dmg" --latest
+          gh release create $version --title "Gym Bot $version" --notes "Gym Bot $version - Downloads: Windows (GymBotInstaller.exe), macOS (GymBotInstaller.dmg)" --latest
         }
         
         # Upload asset
@@ -181,11 +181,7 @@ jobs:
         # Check if release exists
         if ! gh release view "$version" --json tagName 2>/dev/null; then
           echo "Creating release $version"
-          gh release create "$version" --title "Gym Bot $version" --notes "## Gym Bot $version
-
-### Downloads
-- **Windows**: GymBotInstaller.exe
-- **macOS**: GymBotInstaller.dmg" --latest
+          gh release create "$version" --title "Gym Bot $version" --notes "Gym Bot $version - Downloads: Windows (GymBotInstaller.exe), macOS (GymBotInstaller.dmg)" --latest
         fi
         
         # Upload asset
