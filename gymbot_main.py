@@ -501,7 +501,12 @@ class GymBotLauncher:
         self.stop_server()
         self.root.destroy()
         sys.exit(0)
+    
+    def run(self):
+        """Start the main event loop"""
+        self.root.mainloop()
 
 if __name__ == "__main__":
     print("STARTING ENTRY_V2")
-    GymBotLauncher()
+    app = GymBotLauncher()
+    app.run()

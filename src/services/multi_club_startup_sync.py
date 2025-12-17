@@ -283,22 +283,33 @@ def sync_members_for_club(club_id: str = None, app=None, manager_id: str = None)
         from src.services.api.clubhub_api_client import ClubHubAPIClient
         from src.services.authentication.secure_secrets_manager import SecureSecretsManager
         from concurrent.futures import ThreadPoolExecutor, as_completed
+        import os
 
         # Get credentials from SecureSecretsManager using manager_id
         secrets_manager = SecureSecretsManager()
+        clubhub_email = None
+        clubhub_password = None
 
         # Get credentials using manager_id if provided
         if manager_id:
             credentials = secrets_manager.get_credentials(manager_id)
-            if not credentials:
-                logger.error(f"❌ ClubHub credentials not found in database for manager {manager_id}")
-                return []
-            clubhub_email = credentials.get('clubhub_email')
-            clubhub_password = credentials.get('clubhub_password')
-        else:
-            # Fallback to legacy secret retrieval
-            clubhub_email = secrets_manager.get_secret('clubhub-email')
-            clubhub_password = secrets_manager.get_secret('clubhub-password')
+            if credentials and credentials.get('clubhub_email') and credentials.get('clubhub_password'):
+                clubhub_email = credentials.get('clubhub_email')
+                clubhub_password = credentials.get('clubhub_password')
+                logger.info(f"✅ Using database credentials for ClubHub (manager: {manager_id})")
+            else:
+                logger.warning(f"⚠️ Database credentials not available for manager {manager_id}, trying env vars...")
+
+        # Fallback to environment variables if database credentials not available
+        if not clubhub_email or not clubhub_password:
+            clubhub_email = os.getenv('CLUBHUB_EMAIL')
+            clubhub_password = os.getenv('CLUBHUB_PASSWORD')
+            if clubhub_email and clubhub_password:
+                logger.info("✅ Using environment variable credentials for ClubHub")
+            else:
+                # Last resort: legacy secret retrieval
+                clubhub_email = secrets_manager.get_secret('clubhub-email')
+                clubhub_password = secrets_manager.get_secret('clubhub-password')
 
         if not clubhub_email or not clubhub_password:
             logger.error(f"❌ ClubHub credentials not found in SecureSecretsManager for club {club_id}")
@@ -545,22 +556,33 @@ def sync_prospects_for_club(club_id: str = None, app=None, manager_id: str = Non
         # Import the ClubHub API client
         from src.services.api.clubhub_api_client import ClubHubAPIClient
         from src.services.authentication.secure_secrets_manager import SecureSecretsManager
+        import os
 
         # Get credentials from SecureSecretsManager using manager_id
         secrets_manager = SecureSecretsManager()
+        clubhub_email = None
+        clubhub_password = None
 
         # Get credentials using manager_id if provided
         if manager_id:
             credentials = secrets_manager.get_credentials(manager_id)
-            if not credentials:
-                logger.error(f"❌ ClubHub credentials not found in database for manager {manager_id}")
-                return []
-            clubhub_email = credentials.get('clubhub_email')
-            clubhub_password = credentials.get('clubhub_password')
-        else:
-            # Fallback to legacy secret retrieval
-            clubhub_email = secrets_manager.get_secret('clubhub-email')
-            clubhub_password = secrets_manager.get_secret('clubhub-password')
+            if credentials and credentials.get('clubhub_email') and credentials.get('clubhub_password'):
+                clubhub_email = credentials.get('clubhub_email')
+                clubhub_password = credentials.get('clubhub_password')
+                logger.info(f"✅ Using database credentials for ClubHub prospects (manager: {manager_id})")
+            else:
+                logger.warning(f"⚠️ Database credentials not available for manager {manager_id}, trying env vars...")
+
+        # Fallback to environment variables if database credentials not available
+        if not clubhub_email or not clubhub_password:
+            clubhub_email = os.getenv('CLUBHUB_EMAIL')
+            clubhub_password = os.getenv('CLUBHUB_PASSWORD')
+            if clubhub_email and clubhub_password:
+                logger.info("✅ Using environment variable credentials for ClubHub prospects")
+            else:
+                # Last resort: legacy secret retrieval
+                clubhub_email = secrets_manager.get_secret('clubhub-email')
+                clubhub_password = secrets_manager.get_secret('clubhub-password')
 
         if not clubhub_email or not clubhub_password:
             logger.error(f"❌ ClubHub credentials not found in SecureSecretsManager for club {club_id}")

@@ -917,18 +917,26 @@ function displayMemberMessageHistory(messageHistory, memberId) {
         return;
     }
     
-    // Sort messages by date (newest first)
-    const sortedMessages = messageHistory.sort((a, b) => {
-        const dateA = new Date(a.created_at || a.timestamp);
-        const dateB = new Date(b.created_at || b.timestamp);
-        return dateB - dateA;
-    });
+    // IMPORTANT: Server already returns messages in correct order (ORDER BY created_at DESC)
+    // Do NOT re-sort here - ClubOS timestamps are unreliable (wrong year/format)
+    // The database order preserves the correct chronological order
+    const sortedMessages = messageHistory;
     
-    // Group messages by date
+    // Group messages by date using created_at (which has proper ISO format)
     const messagesByDate = {};
     sortedMessages.forEach(message => {
-        const messageDate = new Date(message.created_at || message.timestamp);
-        const dateKey = messageDate.toDateString();
+        // Use created_at which has proper ISO format, fallback to "Unknown Date"
+        let dateKey = "Recent Messages";
+        if (message.created_at) {
+            try {
+                const messageDate = new Date(message.created_at);
+                if (!isNaN(messageDate.getTime())) {
+                    dateKey = messageDate.toDateString();
+                }
+            } catch (e) {
+                // Keep default "Recent Messages"
+            }
+        }
         
         if (!messagesByDate[dateKey]) {
             messagesByDate[dateKey] = [];

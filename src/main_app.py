@@ -645,14 +645,14 @@ def create_app():
                 # Start polling in background
                 app.message_poller.start_polling()
 
+                # AI auto-processing is DISABLED by default
+                # User must enable it manually via the AI dashboard toggle
                 if hasattr(app, 'unified_ai_agent') and app.unified_ai_agent:
-                    # CRITICAL: Enable AI auto-processing
-                    app.message_poller.enable_ai()
-                    logger.info("✅ Real-time message polling started with AI processing enabled")
-                    logger.info("🤖 Autonomous AI system is now active - monitoring inbox every 10 seconds")
+                    logger.info("✅ Real-time message polling started (AI processing DISABLED by default)")
+                    logger.info("ℹ️ Enable AI auto-processing via the AI dashboard toggle when ready")
                 else:
                     logger.info("✅ Real-time message polling service started (10s interval)")
-                    logger.warning("⚠️ AI processing disabled - unified AI agent not available")
+                    logger.warning("⚠️ AI processing unavailable - unified AI agent not initialized")
                 
             except Exception as e:
                 logger.warning(f"⚠️ Message polling service initialization failed: {e}")

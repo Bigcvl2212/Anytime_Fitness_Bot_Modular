@@ -160,6 +160,13 @@ def login():
         session['username'] = username
         session.permanent = True
 
+        # Add timestamps expected by SecureAuthService.validate_session()
+        # (club selection and other routes may rely on these keys).
+        from datetime import datetime
+        now_iso = datetime.now().isoformat()
+        session['login_time'] = now_iso
+        session['last_activity'] = now_iso
+
         logger.info(f"✅ Manager {username} ({manager_id}) logged in successfully from {request.remote_addr}")
 
         # DISABLED: Automated access monitoring (causing errors)
@@ -182,7 +189,23 @@ def login():
             logger.info(f"🔍 Has clubhub_email: {credentials.get('clubhub_email') is not None}")
             logger.info(f"🔍 Has clubhub_password: {credentials.get('clubhub_password') is not None}")
 
+        # Fallback to environment variables if database credentials not available/decryptable
+        import os
+        clubhub_email = None
+        clubhub_password = None
         if credentials and credentials.get('clubhub_email') and credentials.get('clubhub_password'):
+            clubhub_email = credentials.get('clubhub_email')
+            clubhub_password = credentials.get('clubhub_password')
+            logger.info("🔍 Using database credentials for ClubHub")
+        else:
+            clubhub_email = os.getenv('CLUBHUB_EMAIL')
+            clubhub_password = os.getenv('CLUBHUB_PASSWORD')
+            if clubhub_email and clubhub_password:
+                logger.info("🔍 Using environment variable credentials for ClubHub")
+            else:
+                logger.warning("⚠️ No ClubHub credentials found in database or environment")
+
+        if clubhub_email and clubhub_password:
             # Try to authenticate with ClubHub to get club access
             from src.services.multi_club_manager import multi_club_manager
 
@@ -192,8 +215,8 @@ def login():
                 clubhub_auth = ClubHubAuth()
 
                 clubhub_token = clubhub_auth.authenticate(
-                    credentials['clubhub_email'],
-                    credentials['clubhub_password']
+                    clubhub_email,
+                    clubhub_password
                 )
 
                 if clubhub_token:
@@ -210,51 +233,10 @@ def login():
                         # Force session to be saved after adding club data
                         session.modified = True
 
-                        # If multi-club user, redirect to club selection
-                        if len(club_ids) > 1:
-                            flash(f'Welcome {user_info.get("name", "Manager")}! Please select your clubs.', 'success')
-                            return redirect(url_for('club_selection.club_selection'))
-                        else:
-                            # Single club - auto-select and go to dashboard
-                            multi_club_manager.set_selected_clubs(club_ids)
-                            session['selected_clubs'] = club_ids
-
-                            # Force session to be saved after setting selected clubs
-                            session.modified = True
-
-                            club_name = multi_club_manager.get_club_name(club_ids[0])
-
-                            # Trigger startup sync for this club
-                            try:
-                                import threading
-                                from src.services.multi_club_startup_sync import enhanced_startup_sync
-
-                                # Ensure the sync has the club context
-                                def run_sync_with_context():
-                                    try:
-                                        # CRITICAL FIX: Small delay to ensure messaging client finishes authentication first
-                                        # This prevents simultaneous authentication attempts that trigger ClubOS rate limiting
-                                        import time
-                                        time.sleep(2)
-
-                                        with current_app.app_context():
-                                            logger.info(f"🔄 Starting data sync for club {club_ids[0]} after single-club authentication")
-                                            result = enhanced_startup_sync(current_app._get_current_object(), manager_id=manager_id)
-                                            logger.info(f"✅ Sync completed: {result.get('success', False)}")
-                                    except Exception as sync_inner_error:
-                                        logger.error(f"❌ Sync execution failed: {sync_inner_error}")
-
-                                sync_thread = threading.Thread(target=run_sync_with_context, daemon=True)
-                                sync_thread.start()
-                                logger.info(f"🔄 Started data sync thread for club {club_ids[0]} after authentication")
-
-                            except Exception as sync_error:
-                                logger.warning(f"⚠️ Could not start post-auth sync: {sync_error}")
-                                import traceback
-                                logger.warning(f"⚠️ Sync error traceback: {traceback.format_exc()}")
-
-                            flash(f'Welcome {user_info.get("name", "Manager")} to {club_name}!', 'success')
-                            return redirect(url_for('dashboard.dashboard'))
+                        # ALWAYS redirect to club selection - let user confirm their club(s)
+                        # even if they only have access to one club
+                        flash(f'Welcome {user_info.get("name", "Manager")}! Please select your clubs.', 'success')
+                        return redirect(url_for('club_selection.club_selection'))
                     else:
                         logger.warning("❌ No club access found in JWT token")
                         flash('No club access found. Please contact support.', 'error')

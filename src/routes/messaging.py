@@ -684,14 +684,18 @@ def test_clubos_auth():
 def enable_ai():
     """Enable automatic AI processing of messages"""
     try:
-        if hasattr(current_app, 'message_sync') and current_app.message_sync:
-            current_app.message_sync.enable_ai()
+        # Check both attribute names (message_poller is used in main_app.py)
+        message_sync = getattr(current_app, 'message_poller', None) or getattr(current_app, 'message_sync', None)
+        if message_sync and hasattr(message_sync, 'enable_ai'):
+            message_sync.enable_ai()
+            logger.info("✅ AI auto-processing ENABLED via API")
             return jsonify({
                 'success': True,
                 'message': 'AI auto-processing enabled',
                 'ai_enabled': True
             })
         else:
+            logger.error("❌ Message sync service not available for enable")
             return jsonify({
                 'success': False,
                 'error': 'Message sync service not available'
@@ -704,14 +708,18 @@ def enable_ai():
 def disable_ai():
     """Disable automatic AI processing of messages"""
     try:
-        if hasattr(current_app, 'message_sync') and current_app.message_sync:
-            current_app.message_sync.disable_ai()
+        # Check both attribute names (message_poller is used in main_app.py)
+        message_sync = getattr(current_app, 'message_poller', None) or getattr(current_app, 'message_sync', None)
+        if message_sync and hasattr(message_sync, 'disable_ai'):
+            message_sync.disable_ai()
+            logger.info("🛑 AI auto-processing DISABLED via API")
             return jsonify({
                 'success': True,
                 'message': 'AI auto-processing disabled',
                 'ai_enabled': False
             })
         else:
+            logger.error("❌ Message sync service not available for disable")
             return jsonify({
                 'success': False,
                 'error': 'Message sync service not available'

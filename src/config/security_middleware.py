@@ -57,8 +57,14 @@ def configure_security_headers(app: Flask) -> None:
     Args:
         app: Flask application instance
     """
-    # Check if we're in production
-    is_production = os.getenv('FLASK_ENV', 'development').lower() == 'production'
+    # Check if we're in production - NEVER force HTTPS for localhost/development
+    flask_env = os.getenv('FLASK_ENV', 'development').lower()
+    is_production = flask_env == 'production'
+    
+    # CRITICAL: Force disable HTTPS redirect for localhost/development
+    # This prevents the 302 redirect loop that breaks the dashboard
+    if not is_production:
+        logger.info(f"🔓 Development mode detected (FLASK_ENV={flask_env}) - HTTPS redirect DISABLED")
     
     # Configure secure session cookies based on environment
     configure_session_security(app, is_production)
@@ -131,7 +137,8 @@ def configure_security_headers(app: Flask) -> None:
     }
     
     # Apply Talisman to the app if available
-    if TALISMAN_AVAILABLE:
+    # CRITICAL: Skip Talisman entirely in development to avoid any HTTPS issues
+    if TALISMAN_AVAILABLE and is_production:
         try:
             Talisman(app, **talisman_config)
             logger.info(f"✅ Security headers configured with Talisman (Production: {is_production})")
@@ -139,9 +146,13 @@ def configure_security_headers(app: Flask) -> None:
             logger.warning(f"⚠️ Failed to configure Talisman: {e}. Using fallback headers.")
             configure_basic_security_headers(app, is_production)
     else:
-        logger.info("ℹ️ Flask-Talisman not available. Using basic security headers.")
-        # Fallback to basic security headers
-        configure_basic_security_headers(app, is_production)
+        if not is_production:
+            logger.info("🔓 Skipping Talisman in development mode to avoid HTTPS redirects")
+            # Use minimal security headers in development - NO HTTPS redirects
+            configure_basic_security_headers(app, False)
+        else:
+            logger.info("ℹ️ Flask-Talisman not available. Using basic security headers.")
+            configure_basic_security_headers(app, is_production)
 
 def configure_basic_security_headers(app: Flask, is_production: bool = False) -> None:
     """

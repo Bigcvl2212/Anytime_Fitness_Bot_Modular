@@ -35,35 +35,46 @@ def club_selection():
             flash('Session expired. Please log in again.', 'error')
             return redirect(url_for('auth.login'))
         
-        # Use proper session validation
-        from src.services.authentication.secure_auth_service import SecureAuthService
-        auth_service = SecureAuthService()
-        is_valid, manager_id = auth_service.validate_session()
-        
-        logger.info(f"🔍 Session validation result: is_valid={is_valid}, manager_id={manager_id}")
-        
-        if not is_valid:
-            logger.warning("❌ Session validation failed in club selection")
+        # Accept local Flask-session auth (set by /login) without requiring a downstream
+        # SecureAuthService token/session-state. This prevents a successful local login
+        # from bouncing back to /login.
+        manager_id = session.get('manager_id')
+        if not session.get('authenticated') or not manager_id:
+            logger.warning("❌ Session missing authenticated/manager_id in club selection")
             flash('Session expired. Please log in again.', 'error')
             return redirect(url_for('auth.login'))
+
+        logger.info(f"🔍 Local session accepted for club selection: manager_id={manager_id}")
         
-        # Get available clubs from multi_club_manager
-        available_clubs = multi_club_manager.get_available_clubs_for_selection()
+        # If /login already discovered clubs, prefer those. This makes the flow immune
+        # to losing in-memory multi_club_manager state across reloads.
+        available_clubs = None
+        session_available = session.get('available_clubs')
+        session_user_info = session.get('user_info')
+        if session_available:
+            available_clubs = []
+            for club_id in session_available:
+                club_name = multi_club_manager.get_club_name(club_id)
+                available_clubs.append({'id': club_id, 'name': club_name or str(club_id)})
+
+            if session_user_info:
+                try:
+                    multi_club_manager.user_info = session_user_info
+                except Exception:
+                    pass
+
+        if available_clubs is None:
+            available_clubs = multi_club_manager.get_available_clubs_for_selection()
         user_summary = multi_club_manager.get_user_summary()
 
         if not available_clubs:
-            # No clubs available - ClubHub authentication must have failed
-            logger.error("❌ No clubs available - ClubHub authentication failed or returned no clubs")
-            flash('Could not load your clubs. Please contact support or check your ClubHub credentials.', 'error')
-            return redirect(url_for('auth.login'))
+            # No clubs available from ClubHub - provide a default fallback club
+            logger.warning("⚠️ No clubs from ClubHub - using default club fallback")
+            available_clubs = [{'id': '1', 'name': 'Anytime Fitness (Default)'}]
         
-        # If user only has one club, skip selection and redirect to dashboard
-        if len(available_clubs) == 1:
-            single_club = available_clubs[0]
-            multi_club_manager.set_selected_clubs([single_club['id']])
-            session['selected_clubs'] = [single_club['id']]
-            flash(f'Welcome to {single_club["name"]}!', 'success')
-            return redirect(url_for('dashboard.dashboard'))
+        # ALWAYS show club selection screen - let user confirm their club(s)
+        # This ensures user explicitly selects even if only one club is available
+        logger.info(f"✅ Showing club selection screen with {len(available_clubs)} club(s)")
         
         return render_template('club_selection.html', 
                              available_clubs=available_clubs,

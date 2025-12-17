@@ -376,7 +376,7 @@ class UnifiedGymAgent:
             # Get training client data if exists
             training_data = self.db_manager.execute_query('''
                 SELECT
-                    status_message, last_session_date
+                    status, last_session, sessions_remaining, training_package
                 FROM training_clients
                 WHERE clubos_member_id = ?
                 LIMIT 1

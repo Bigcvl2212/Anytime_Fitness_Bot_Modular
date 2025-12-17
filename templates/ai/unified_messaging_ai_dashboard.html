@@ -1688,16 +1688,14 @@ async function loadInbox() {
         const data = await response.json();
 
         if (data.success && data.messages) {
-            // Sort messages by timestamp descending (newest first) to ensure correct order
-            const sortedMessages = data.messages.sort((a, b) => {
-                const timeA = new Date(a.timestamp || a.created_at || 0).getTime();
-                const timeB = new Date(b.timestamp || b.created_at || 0).getTime();
-                return timeB - timeA;  // Descending order
-            });
+            // IMPORTANT: Server already returns messages in correct order (rowid DESC = newest first)
+            // Do NOT re-sort here - ClubOS timestamps are unreliable (wrong year/format)
+            // The database rowid preserves the correct chronological order from ClubOS sync
+            const messages = data.messages;
 
-            AppState.conversations = sortedMessages;
-            renderInbox(sortedMessages);
-            updateInboxBadge(sortedMessages);
+            AppState.conversations = messages;
+            renderInbox(messages);
+            updateInboxBadge(messages);
         }
     } catch (error) {
         console.error('Error loading inbox:', error);

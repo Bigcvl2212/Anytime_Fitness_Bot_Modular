@@ -890,6 +890,137 @@ class ClubOSTrainingPackageAPI:
         except Exception:
             return None
 
+    def get_agreement_invoices_v2(self, agreement_id: str | int) -> dict:
+        """
+        Fetch V2 agreement data with invoices and calculate past due based on invoice status codes.
+        
+        Invoice status codes:
+        - 1 = paid
+        - 3 = rejected (past due)
+        - 5 = delinquent (past due)
+        - 8 = chargeback (past due)
+        
+        Returns dict with status, amount, and invoice details.
+        """
+        try:
+            aid = str(agreement_id).strip()
+            if not self.authenticate():
+                return {'success': False, 'error': 'Authentication failed'}
+            
+            # Call V2 endpoint with invoices included
+            url = f"{self.base_url}/api/agreements/package_agreements/V2/{aid}"
+            headers = self._auth_headers(referer=f"{self.base_url}/action/PackageAgreementUpdated/spa/")
+            params = {
+                'include': ['invoices', 'scheduledPayments'],
+                '_': int(time.time() * 1000)
+            }
+            
+            r = self.session.get(url, headers=headers, params=params, timeout=15)
+            if r.status_code != 200:
+                return {'success': False, 'error': f'HTTP {r.status_code}'}
+            
+            data = r.json()
+            include = data.get('include', {})
+            invoices = include.get('invoices', [])
+            
+            # Calculate past due amount based on invoice status codes
+            # Status 3 = rejected, 5 = delinquent, 8 = chargeback (all are past due)
+            PAST_DUE_STATUSES = {3, 5, 8}
+            past_due_amount = 0.0
+            past_due_invoices = []
+            
+            for inv in invoices:
+                status = inv.get('invoiceStatus')
+                if status in PAST_DUE_STATUSES:
+                    amount = float(inv.get('invoiceTotal', 0) or inv.get('total', 0) or 0)
+                    past_due_amount += amount
+                    past_due_invoices.append({
+                        'date': inv.get('invoiceDate') or inv.get('billingDate'),
+                        'status': status,
+                        'amount': amount
+                    })
+            
+            payment_status = 'Past Due' if past_due_amount > 0 else 'Current'
+            
+            return {
+                'success': True,
+                'agreement_id': aid,
+                'payment_status': payment_status,
+                'past_due_amount': round(past_due_amount, 2),
+                'total_invoices': len(invoices),
+                'past_due_invoices': past_due_invoices,
+                'agreement_name': data.get('data', {}).get('name'),
+                'source': 'v2_invoices'
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting agreement invoices V2: {e}")
+            return {'success': False, 'error': str(e)}
+
+    def get_member_past_due_from_invoices(self, member_id: str | int) -> dict:
+        """
+        Calculate past due status and amount by checking actual invoice status codes across all agreements.
+        This is the most accurate method as it uses invoice-level data.
+        
+        Returns dict with overall status, total past due, and per-agreement details.
+        """
+        try:
+            mid = str(member_id).strip()
+            if not self.authenticate():
+                return {'success': False, 'error': 'Authentication failed'}
+            
+            # Delegate and get agreements
+            self.delegate_to_member(mid)
+            agreements = self._list_member_package_agreements_bare(mid)
+            
+            if not agreements:
+                return {
+                    'success': True,
+                    'member_id': mid,
+                    'payment_status': 'Current',  # No agreements = no past due
+                    'total_past_due': 0.0,
+                    'agreements_checked': 0,
+                    'source': 'no_agreements'
+                }
+            
+            total_past_due = 0.0
+            agreement_details = []
+            
+            for item in agreements:
+                # Get agreement ID
+                aid = item.get('id')
+                if not aid and isinstance(item.get('packageAgreement'), dict):
+                    aid = item['packageAgreement'].get('id')
+                if not aid:
+                    continue
+                
+                # Get V2 invoice data for this agreement
+                inv_data = self.get_agreement_invoices_v2(aid)
+                if inv_data.get('success'):
+                    total_past_due += inv_data.get('past_due_amount', 0)
+                    agreement_details.append({
+                        'agreement_id': str(aid),
+                        'name': inv_data.get('agreement_name'),
+                        'payment_status': inv_data.get('payment_status'),
+                        'past_due_amount': inv_data.get('past_due_amount', 0)
+                    })
+            
+            overall_status = 'Past Due' if total_past_due > 0 else 'Current'
+            
+            return {
+                'success': True,
+                'member_id': mid,
+                'payment_status': overall_status,
+                'total_past_due': round(total_past_due, 2),
+                'agreements_checked': len(agreement_details),
+                'agreement_details': agreement_details,
+                'source': 'v2_invoices_comprehensive'
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting member past due from invoices: {e}")
+            return {'success': False, 'error': str(e)}
+
     # ---------- bare-list working method (from get_dennis_packages.py) ----------
     def _list_member_package_agreements_bare(self, member_id: str | int) -> list[dict]:
         """Working approach: delegate to member, then call the bare list endpoint (no memberId param)."""

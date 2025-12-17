@@ -129,7 +129,7 @@ class TrainingPackageCache:
             return None
     
     def _fetch_fresh_funding_data(self, member_id: str, participant_name: str) -> Optional[dict]:
-        """Fetch fresh funding data from ClubOS API"""
+        """Fetch fresh funding data from ClubOS API using invoice-based status detection."""
         try:
             # Initialize API if not already done
             if not self.api:
@@ -137,7 +137,26 @@ class TrainingPackageCache:
                 self.api = ClubOSTrainingPackageAPI()
                 self.api.authenticate()
             
-            # Get funding status from ClubOS
+            # Use the new invoice-based method for accurate past due detection
+            # Invoice status codes: 3=rejected, 5=delinquent, 8=chargeback (all past due)
+            funding_result = self.api.get_member_past_due_from_invoices(member_id)
+            
+            if funding_result and funding_result.get('success'):
+                payment_status = funding_result.get('payment_status', 'Unknown')
+                past_due_amount = funding_result.get('total_past_due', 0)
+                
+                return {
+                    'member_name': participant_name,
+                    'member_id': member_id,
+                    'funding_status': payment_status,
+                    'past_due_amount': past_due_amount,
+                    'package_details': json.dumps(funding_result),
+                    'last_updated': datetime.now().isoformat(),
+                    'cache_expiry': (datetime.now() + timedelta(hours=self.cache_expiry_hours)).isoformat()
+                }
+            
+            # Fallback to old method if invoice-based fails
+            logger.warning(f"⚠️ Invoice-based lookup failed, trying billing status fallback")
             funding_data = self.api.get_member_billing_status(member_id)
             
             if funding_data:
