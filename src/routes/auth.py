@@ -33,25 +33,9 @@ def require_auth(f):
                 logger.warning(f"❌ manager_id: {session.get('manager_id')}")
                 logger.warning(f"❌ REDIRECTING TO LOGIN")
 
-                # IMPORTANT: Preserve club selection data before clearing
-                # This prevents losing selected clubs if there's a temporary auth hiccup
-                preserved_data = {
-                    'selected_clubs': session.get('selected_clubs'),
-                    'available_clubs': session.get('available_clubs'),
-                    'user_info': session.get('user_info')
-                }
-
-                session.clear()
-
-                # Restore preserved data if it existed
-                if preserved_data.get('selected_clubs'):
-                    session['selected_clubs'] = preserved_data['selected_clubs']
-                    logger.info(f"🔄 Preserved selected_clubs: {preserved_data['selected_clubs']}")
-                if preserved_data.get('available_clubs'):
-                    session['available_clubs'] = preserved_data['available_clubs']
-                if preserved_data.get('user_info'):
-                    session['user_info'] = preserved_data['user_info']
-
+                # DON'T clear session - just redirect to login
+                # Clearing an empty session does nothing useful, and clearing a valid session
+                # that temporarily appears empty (e.g., cookie not sent) is destructive
                 session.modified = True
                 return redirect(url_for('auth.login'))
 
@@ -65,24 +49,10 @@ def require_auth(f):
                     # 8 hour timeout
                     if session_age > timedelta(hours=8):
                         logger.warning(f"⚠️ Session expired for {route_name}: age={session_age}")
-
-                        # Preserve club selection data before clearing
-                        preserved_data = {
-                            'selected_clubs': session.get('selected_clubs'),
-                            'available_clubs': session.get('available_clubs'),
-                            'user_info': session.get('user_info')
-                        }
-
-                        session.clear()
-
-                        # Restore preserved data
-                        if preserved_data.get('selected_clubs'):
-                            session['selected_clubs'] = preserved_data['selected_clubs']
-                        if preserved_data.get('available_clubs'):
-                            session['available_clubs'] = preserved_data['available_clubs']
-                        if preserved_data.get('user_info'):
-                            session['user_info'] = preserved_data['user_info']
-
+                        # Clear only auth-related keys, preserve user preferences
+                        session.pop('authenticated', None)
+                        session.pop('manager_id', None)
+                        session.pop('login_time', None)
                         session.modified = True
                         flash('Your session has expired. Please log in again.', 'info')
                         return redirect(url_for('auth.login'))

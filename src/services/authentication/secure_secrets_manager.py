@@ -213,21 +213,25 @@ class SecureSecretsManager:
                     key = base64.urlsafe_b64encode(hashlib.sha256(secret_key.encode()).digest())
                     cipher = Fernet(key)
 
-                    credentials = {
-                        'clubos_username': cipher.decrypt(row[0].encode()).decode() if row[0] else None,
-                        'clubos_password': cipher.decrypt(row[1].encode()).decode() if row[1] else None,
-                        'clubhub_email': cipher.decrypt(row[2].encode()).decode() if row[2] else None,
-                        'clubhub_password': cipher.decrypt(row[3].encode()).decode() if row[3] else None,
-                    }
-
-                    logger.info(f"✅ Retrieved credentials from database for manager {manager_id}")
-                    return credentials
+                    try:
+                        credentials = {
+                            'clubos_username': cipher.decrypt(row[0].encode()).decode() if row[0] else None,
+                            'clubos_password': cipher.decrypt(row[1].encode()).decode() if row[1] else None,
+                            'clubhub_email': cipher.decrypt(row[2].encode()).decode() if row[2] else None,
+                            'clubhub_password': cipher.decrypt(row[3].encode()).decode() if row[3] else None,
+                        }
+                        logger.info(f"✅ Retrieved credentials from database for manager {manager_id}")
+                        return credentials
+                    except Exception as decrypt_error:
+                        # InvalidToken error - credentials encrypted with different key
+                        # Log at debug level to avoid spamming logs, fall back to env vars
+                        logger.debug(f"🔐 Credential decryption failed (key mismatch): {type(decrypt_error).__name__}")
+                        # Don't return None - fall through to try env vars
                 else:
-                    logger.warning(f"⚠️ No credentials found in database for manager {manager_id}")
+                    logger.debug(f"ℹ️ No credentials found in database for manager {manager_id}")
         except Exception as db_error:
-            logger.error(f"❌ Database credentials retrieval failed: {db_error}")
-            import traceback
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            # Log database errors but don't spam - these are expected on fresh installs
+            logger.debug(f"ℹ️ Database credentials retrieval skipped: {type(db_error).__name__}")
 
         # Fallback to Google Secret Manager (but only if database failed)
         if not self.client:

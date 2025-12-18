@@ -831,6 +831,37 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"❌ Migration error for prospects table ClubOS columns: {e}")
 
+        # Migration 17: Add address fields to prospects table for address lookup
+        try:
+            cursor.execute("PRAGMA table_info(prospects)")
+            columns = [row[1] for row in cursor.fetchall()]
+
+            missing_columns = []
+            if 'address' not in columns:
+                missing_columns.append(('address', 'TEXT'))
+            if 'city' not in columns:
+                missing_columns.append(('city', 'TEXT'))
+            if 'state' not in columns:
+                missing_columns.append(('state', 'TEXT'))
+            if 'zip_code' not in columns:
+                missing_columns.append(('zip_code', 'TEXT'))
+            if 'phone' not in columns:
+                missing_columns.append(('phone', 'TEXT'))
+            if 'mobile_phone' not in columns:
+                missing_columns.append(('mobile_phone', 'TEXT'))
+
+            for col_name, col_type in missing_columns:
+                logger.info(f"🔄 Adding {col_name} column to prospects table")
+                cursor.execute(f"ALTER TABLE prospects ADD COLUMN {col_name} {col_type}")
+                logger.info(f"✅ Added {col_name} column to prospects")
+
+            if missing_columns:
+                logger.info(f"✅ Added {len(missing_columns)} address columns to prospects table")
+            else:
+                logger.info("✅ All address columns exist in prospects table")
+        except Exception as e:
+            logger.error(f"❌ Migration error for prospects table address fields: {e}")
+
         logger.info("✅ Database migrations complete")
 
     def execute_query(

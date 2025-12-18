@@ -6,15 +6,40 @@ Creates the necessary tables and functions for tracking bulk check-in operations
 
 import sqlite3
 import json
+import os
+import sys
 from datetime import datetime
+from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
 
+
+def _get_db_path():
+    """Get the correct database path - same logic as DatabaseManager"""
+    if getattr(sys, 'frozen', False):
+        # Running as compiled executable - use user's AppData
+        db_dir = Path.home() / 'AppData' / 'Local' / 'GymBot' / 'data'
+        db_dir.mkdir(parents=True, exist_ok=True)
+        return str(db_dir / 'gym_bot.db')
+    else:
+        # Running as script - use project root
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        return os.path.join(project_root, 'gym_bot.db')
+
+
+def _get_connection():
+    """Get a database connection with proper settings"""
+    db_path = _get_db_path()
+    conn = sqlite3.connect(db_path, timeout=30.0)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 def setup_bulk_checkin_tracking_tables():
     """Create the necessary tables for bulk check-in tracking"""
     try:
-        conn = sqlite3.connect('gym_bot.db')
+        conn = _get_connection()
         cursor = conn.cursor()
         
         # Create bulk_checkin_runs table to track each bulk operation
@@ -73,7 +98,7 @@ def setup_bulk_checkin_tracking_tables():
 def save_bulk_checkin_run(run_id, status, status_data, error_message=None):
     """Save or update a bulk check-in run record"""
     try:
-        conn = sqlite3.connect('gym_bot.db')
+        conn = _get_connection()
         cursor = conn.cursor()
         
         # Check if run already exists
@@ -170,8 +195,7 @@ def save_bulk_checkin_run(run_id, status, status_data, error_message=None):
 def load_bulk_checkin_resume_data(run_id):
     """Load resume data for a bulk check-in run"""
     try:
-        conn = sqlite3.connect('gym_bot.db')
-        conn.row_factory = sqlite3.Row
+        conn = _get_connection()
         cursor = conn.cursor()
         
         # Get the run data
@@ -215,7 +239,7 @@ def load_bulk_checkin_resume_data(run_id):
 def log_member_checkin(run_id, member_id, member_name, checkin_count, success_count, status='pending', error_message=None):
     """Log an individual member check-in result"""
     try:
-        conn = sqlite3.connect('gym_bot.db')
+        conn = _get_connection()
         cursor = conn.cursor()
         
         # Check if this member already has a record for this run
@@ -253,8 +277,7 @@ def log_member_checkin(run_id, member_id, member_name, checkin_count, success_co
 def get_bulk_checkin_history(limit=10):
     """Get bulk check-in run history"""
     try:
-        conn = sqlite3.connect('gym_bot.db')
-        conn.row_factory = sqlite3.Row
+        conn = _get_connection()
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -275,8 +298,7 @@ def get_bulk_checkin_history(limit=10):
 def get_run_checkin_details(run_id):
     """Get detailed check-in results for a specific run"""
     try:
-        conn = sqlite3.connect('gym_bot.db')
-        conn.row_factory = sqlite3.Row
+        conn = _get_connection()
         cursor = conn.cursor()
         
         # Get run info
@@ -312,8 +334,7 @@ def get_run_checkin_details(run_id):
 def get_resumable_runs():
     """Get list of bulk check-in runs that can be resumed (interrupted or failed runs)."""
     try:
-        conn = sqlite3.connect('gym_bot.db')
-        conn.row_factory = sqlite3.Row
+        conn = _get_connection()
         cursor = conn.cursor()
         
         # Get runs that were interrupted (not completed)
