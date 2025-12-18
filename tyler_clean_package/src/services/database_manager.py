@@ -5,7 +5,6 @@ Handles all database operations, schema management, and data refresh logic
 """
 
 import os
-import pandas as pd
 import logging
 import json
 import threading

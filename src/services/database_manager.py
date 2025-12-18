@@ -7,7 +7,6 @@ Handles all database operations using SQLite only
 import os
 import sys
 import sqlite3
-import pandas as pd
 import logging
 import json
 import threading
