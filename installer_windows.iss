@@ -17,8 +17,8 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 
-; Installation directories
-DefaultDirName={autopf}\GymBot
+; Installation directories - use local app data to avoid admin requirements
+DefaultDirName={localappdata}\GymBot
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 
@@ -33,9 +33,9 @@ WizardStyle=modern
 ; SetupIconFile=static\favicon.ico (commented out - no icon file available)
 ; UninstallDisplayIcon={app}\{#MyAppExeName}
 
-; Privileges
-PrivilegesRequired=admin
-PrivilegesRequiredOverridesAllowed=dialog
+; Privileges - lowest allows install without admin rights
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=commandline
 
 ; Architecture
 ArchitecturesAllowed=x64
